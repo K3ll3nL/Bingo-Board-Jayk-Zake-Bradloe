@@ -9,7 +9,7 @@ const BingoBoard = () => {
   useEffect(() => {
     loadBoard();
     
-    // Poll for updates every 3 seconds
+    // Poll for updates every 3 seconds (moderators update via Supabase)
     const interval = setInterval(loadBoard, 3000);
     return () => clearInterval(interval);
   }, []);
@@ -24,26 +24,6 @@ const BingoBoard = () => {
       console.error(err);
     } finally {
       setLoading(false);
-    }
-  };
-
-  const handleCellClick = async (cellId) => {
-    try {
-      await api.toggleCell(cellId);
-      await loadBoard(); // Refresh board after toggle
-    } catch (err) {
-      console.error('Error toggling cell:', err);
-    }
-  };
-
-  const handleReset = async () => {
-    if (window.confirm('Are you sure you want to reset the board?')) {
-      try {
-        await api.resetBoard();
-        await loadBoard();
-      } catch (err) {
-        console.error('Error resetting board:', err);
-      }
     }
   };
 
@@ -65,47 +45,45 @@ const BingoBoard = () => {
 
   return (
     <div className="w-full">
-      <div className="flex justify-between items-center mb-4">
+      <div className="mb-4">
         <h2 className="text-2xl font-bold text-gray-800">Bingo Board</h2>
-        <button
-          onClick={handleReset}
-          className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors text-sm font-medium"
-        >
-          Reset Board
-        </button>
+        <p className="text-sm text-gray-600 mt-1">Watch and see which squares get checked!</p>
       </div>
       
       <div className="grid grid-cols-5 gap-2 aspect-square max-w-2xl mx-auto">
-        {board.map((cell) => (
-          <button
-            key={cell.id}
-            onClick={() => handleCellClick(cell.id)}
-            className={`
-              relative p-2 rounded-lg border-2 transition-all duration-200 
-              flex items-center justify-center text-center
-              ${cell.checked 
-                ? 'bg-primary border-primary text-white font-semibold shadow-lg scale-95' 
-                : 'bg-white border-gray-300 text-gray-700 hover:border-primary hover:shadow-md hover:scale-105'
-              }
-              ${cell.text === 'FREE SPACE' ? 'bg-gradient-to-br from-purple-500 to-pink-500 text-white font-bold border-purple-600' : ''}
-            `}
-          >
-            <span className="text-xs md:text-sm leading-tight break-words">
-              {cell.text}
-            </span>
-            {cell.checked && (
-              <div className="absolute inset-0 flex items-center justify-center">
-                <svg className="w-8 h-8 text-white opacity-50" fill="currentColor" viewBox="0 0 20 20">
-                  <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                </svg>
-              </div>
-            )}
-          </button>
-        ))}
+        {board.map((cell) => {
+          const isFreeSpace = cell.position === 13;
+          
+          return (
+            <div
+              key={cell.id}
+              className={`
+                relative p-2 rounded-lg border-2 transition-all duration-200 
+                flex items-center justify-center text-center
+                ${cell.is_checked 
+                  ? 'bg-primary border-primary text-white font-semibold shadow-lg' 
+                  : 'bg-white border-gray-300 text-gray-700'
+                }
+                ${isFreeSpace ? 'bg-gradient-to-br from-purple-500 to-pink-500 text-white font-bold border-purple-600' : ''}
+              `}
+            >
+              <span className="text-xs md:text-sm leading-tight break-words">
+                {cell.pokemon_name}
+              </span>
+              {cell.is_checked && !isFreeSpace && (
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <svg className="w-8 h-8 text-white opacity-50" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                  </svg>
+                </div>
+              )}
+            </div>
+          );
+        })}
       </div>
       
       <div className="mt-4 text-center text-sm text-gray-600">
-        Click any square to toggle it on/off
+        Updates automatically every 3 seconds
       </div>
     </div>
   );

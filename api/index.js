@@ -14,7 +14,7 @@ app.use(express.json());
 // Supabase client
 const supabase = createClient(
   process.env.SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY
+  process.env.SUPABASE_ANON_KEY
 );
 
 // Health check
@@ -22,16 +22,47 @@ app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', message: 'Streaming Bingo API is running' });
 });
 
-// Get bingo board
+// Get bingo board for a specific user (view-only for audience)
 app.get('/api/bingo/board', async (req, res) => {
   try {
+    // Hardcoded user - moderators update via Supabase dashboard
+    const DISPLAY_USER_ID = 'c2eb741a-a845-4db4-afa1-2eda30a20d8d';
+    const ACTIVE_MONTH_ID = 1;
+    
+    // Get user's board with Pokemon data
     const { data, error } = await supabase
       .from('user_bingo_boards')
-      .select('*')
-      .order('id', { ascending: true });
+      .select(`
+        id,
+        position,
+        is_checked,
+        checked_at,
+        national_dex_id,
+        pokemon_master (
+          name,
+          gif_url,
+          sprite_url
+        )
+      `)
+      .eq('user_id', DISPLAY_USER_ID)
+      .eq('month_id', ACTIVE_MONTH_ID)
+      .order('position', { ascending: true});
     
     if (error) throw error;
-    res.json(data);
+    
+    // Transform data to include Pokemon info at top level
+    const transformedData = data.map(cell => ({
+      id: cell.id,
+      position: cell.position,
+      is_checked: cell.is_checked,
+      checked_at: cell.checked_at,
+      national_dex_id: cell.national_dex_id,
+      pokemon_name: cell.pokemon_master?.name || 'FREE SPACE',
+      pokemon_gif: cell.pokemon_master?.gif_url,
+      pokemon_sprite: cell.pokemon_master?.sprite_url
+    }));
+    
+    res.json(transformedData);
   } catch (error) {
     console.error('Error fetching bingo board:', error);
     res.status(500).json({ error: 'Failed to fetch bingo board', details: error.message });
