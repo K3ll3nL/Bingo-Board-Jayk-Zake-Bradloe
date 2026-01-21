@@ -43,7 +43,7 @@ const Profile = () => {
       if (!response.ok) throw new Error('Failed to fetch board');
       const data = await response.json();
       setBoard(data.board);
-      setBoardMonth(data.month_year_display);
+      setBoardMonth(data.month);
     } catch (err) {
       console.error('Failed to load board:', err);
     }
@@ -148,7 +148,7 @@ const Profile = () => {
             <div className="text-gray-400 text-sm mb-2">🏆 Best Points Month</div>
             {profile.stats.highestPointMonth ? (
               <>
-                <div className="text-2xl font-bold text-white">{profile.stats.highestPointMonth.month_year_display}</div>
+                <div className="text-2xl font-bold text-white">{profile.stats.highestPointMonth.month}</div>
                 <div className="text-purple-400 text-lg">{profile.stats.highestPointMonth.points} pts</div>
               </>
             ) : (
@@ -161,7 +161,7 @@ const Profile = () => {
             <div className="text-gray-400 text-sm mb-2">📈 Best Rank Month</div>
             {profile.stats.bestRankedMonth ? (
               <>
-                <div className="text-2xl font-bold text-white">{profile.stats.bestRankedMonth.month_year_display}</div>
+                <div className="text-2xl font-bold text-white">{profile.stats.bestRankedMonth.month}</div>
                 <div className="text-purple-400 text-lg">Rank #{profile.stats.bestRankedMonth.rank}</div>
               </>
             ) : (
@@ -201,13 +201,15 @@ const Profile = () => {
                       <img 
                         src={cell.pokemon_gif} 
                         alt={cell.pokemon_name}
-                        className="w-full h-auto mb-1"
+                        className="w-full h-auto"
                         style={{ imageRendering: 'pixelated' }}
                       />
                     )}
-                    <span className="text-xs leading-tight break-words">
-                      {cell.pokemon_name}
-                    </span>
+                    {isFreeSpace && (
+                      <span className="text-xs leading-tight break-words">
+                        {cell.pokemon_name}
+                      </span>
+                    )}
                     {cell.is_checked && !isFreeSpace && (
                       <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-40">
                         <svg className="w-8 h-8 text-white" fill="currentColor" viewBox="0 0 20 20">
@@ -230,7 +232,7 @@ const Profile = () => {
               {profile.monthlyData.map((month, index) => (
                 <div key={index}>
                   <div className="flex justify-between items-center mb-2">
-                    <span className="text-gray-300 text-sm">{month.month_year_display}</span>
+                    <span className="text-gray-300 text-sm">{month.month}</span>
                     <span className="text-purple-400 font-bold">{month.points} pts</span>
                   </div>
                   <div className="w-full bg-gray-700 rounded-full h-3">

@@ -75,13 +75,15 @@ const BingoBoard = () => {
                 <img 
                   src={cell.pokemon_gif} 
                   alt={cell.pokemon_name}
-                  className="w-full h-auto mb-1 pixelated"
+                  className="w-full h-auto pixelated"
                   style={{ imageRendering: 'pixelated' }}
                 />
               )}
-              <span className="text-xs md:text-sm leading-tight break-words">
-                {cell.pokemon_name}
-              </span>
+              {isFreeSpace && (
+                <span className="text-xs md:text-sm leading-tight break-words">
+                  {cell.pokemon_name}
+                </span>
+              )}
               {cell.is_checked && !isFreeSpace && (
                 <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-40">
                   <svg className="w-8 h-8 text-white" fill="currentColor" viewBox="0 0 20 20">
