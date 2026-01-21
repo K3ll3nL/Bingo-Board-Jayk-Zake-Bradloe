@@ -84,7 +84,7 @@ app.get('/api/bingo/board', async (req, res) => {
     
     const { data: pokemonData, error: pokemonError } = await supabase
       .from('pokemon_master')
-      .select('id, national_dex_id, name, gif_url, sprite_url')
+      .select('id, national_dex_id, name, gif_url')
       .in('id', pokemonIds);
     
     if (pokemonError) throw pokemonError;
@@ -116,7 +116,6 @@ app.get('/api/bingo/board', async (req, res) => {
           is_checked: true, // Free space is always checked
           pokemon_name: 'FREE SPACE',
           pokemon_gif: null,
-          pokemon_sprite: null
         });
       } else {
         // Regular Pokemon square
@@ -129,7 +128,6 @@ app.get('/api/bingo/board', async (req, res) => {
             is_checked: completedPokemonIds.has(pokemon.pokemon_master?.national_dex_id),
             pokemon_name: pokemon.pokemon_master?.name || 'Unknown',
             pokemon_gif: pokemon.pokemon_master?.gif_url,
-            pokemon_sprite: pokemon.pokemon_master?.sprite_url
           });
           pokemonIndex++;
         }
@@ -384,7 +382,7 @@ app.get('/api/profile/:userId/board', async (req, res) => {
     
     const { data: pokemonData, error: pokemonError } = await supabase
       .from('pokemon_master')
-      .select('id, national_dex_id, name, gif_url, sprite_url')
+      .select('id, national_dex_id, name, gif_url')
       .in('id', pokemonIds);
     
     if (pokemonError) throw pokemonError;
@@ -415,7 +413,6 @@ app.get('/api/profile/:userId/board', async (req, res) => {
           is_checked: true,
           pokemon_name: 'FREE SPACE',
           pokemon_gif: null,
-          pokemon_sprite: null
         });
       } else {
         const pokemon = data[pokemonIndex];
@@ -427,7 +424,6 @@ app.get('/api/profile/:userId/board', async (req, res) => {
             is_checked: completedPokemonIds.has(pokemon.pokemon_master?.national_dex_id),
             pokemon_name: pokemon.pokemon_master?.name || 'Unknown',
             pokemon_gif: pokemon.pokemon_master?.gif_url,
-            pokemon_sprite: pokemon.pokemon_master?.sprite_url
           });
           pokemonIndex++;
         }
