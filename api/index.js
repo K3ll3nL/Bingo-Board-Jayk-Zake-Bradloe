@@ -22,13 +22,26 @@ app.get('/api/bingo/board', async (req, res) => {
     const DISPLAY_USER_ID = 'c2eb741a-a845-4db4-afa1-2eda30a20d8d';
     const ACTIVE_MONTH_ID = 1;
     
+    // Get all entries for this user/month
+    const { data: entries, error: entriesError } = await supabase
+      .from('entries')
+      .select('national_dex_id')
+      .eq('user_id', DISPLAY_USER_ID)
+      .eq('month_id', ACTIVE_MONTH_ID);
+    
+    if (entriesError) throw entriesError;
+    
+    // Create a Set of completed Pokemon IDs for fast lookup
+    const completedPokemonIds = new Set(
+      entries.map(entry => entry.national_dex_id)
+    );
+    
+    // Get the user's board
     const { data, error } = await supabase
       .from('user_bingo_boards')
       .select(`
         id,
         position,
-        is_checked,
-        checked_at,
         national_dex_id,
         pokemon_master (
           name,
@@ -42,12 +55,12 @@ app.get('/api/bingo/board', async (req, res) => {
     
     if (error) throw error;
     
+    // Mark as checked if Pokemon has an entry
     const transformedData = data.map(cell => ({
       id: cell.id,
       position: cell.position,
-      is_checked: cell.is_checked,
-      checked_at: cell.checked_at,
       national_dex_id: cell.national_dex_id,
+      is_checked: cell.national_dex_id ? completedPokemonIds.has(cell.national_dex_id) : false,
       pokemon_name: cell.pokemon_master?.name || 'FREE SPACE',
       pokemon_gif: cell.pokemon_master?.gif_url,
       pokemon_sprite: cell.pokemon_master?.sprite_url
