@@ -6,13 +6,6 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// Debug: Check environment variables
-console.log('=== Environment Variables Debug ===');
-console.log('SUPABASE_URL exists:', !!process.env.SUPABASE_URL);
-console.log('SUPABASE_ANON_KEY exists:', !!process.env.SUPABASE_ANON_KEY);
-console.log('SUPABASE_URL value:', process.env.SUPABASE_URL?.substring(0, 30) + '...');
-console.log('===================================');
-
 const supabase = createClient(
   process.env.SUPABASE_URL,
   process.env.SUPABASE_ANON_KEY
@@ -121,7 +114,7 @@ app.get('/api/bingo/board', async (req, res) => {
     }
     
     res.json({
-      month: monthData.month_year,
+      month: monthData.month_year_display,
       start_date: monthData.start_date,
       end_date: monthData.end_date,
       board: board,
@@ -166,6 +159,138 @@ app.get('/api/leaderboard', async (req, res) => {
   } catch (error) {
     console.error('Error fetching leaderboard:', error);
     res.status(500).json({ error: 'Failed to fetch leaderboard', details: error.message });
+  }
+});
+
+// Get user profile stats
+app.get('/api/profile/:userId', async (req, res) => {
+  try {
+    const { userId } = req.params;
+    
+    // Get user basic info
+    const { data: userData, error: userError } = await supabase
+      .from('users')
+      .select('username, display_name, created_at')
+      .eq('id', userId)
+      .single();
+    
+    if (userError) throw userError;
+    
+    // Get total shinies (entries count)
+    const { count: totalShinies, error: shiniesError } = await supabase
+      .from('entries')
+      .select('*', { count: 'exact', head: true })
+      .eq('user_id', userId);
+    
+    if (shiniesError) throw shiniesError;
+    
+    // Get all monthly points for graphs and totals
+    const { data: monthlyPoints, error: monthlyError } = await supabase
+      .from('user_monthly_points')
+      .select(`
+        points,
+        month_id,
+        bingo_months!inner (
+          month_year
+        )
+      `)
+      .eq('user_id', userId)
+      .order('month_id', { ascending: true });
+    
+    if (monthlyError) throw monthlyError;
+    
+    // Calculate total points and find best month
+    const totalPoints = monthlyPoints.reduce((sum, month) => sum + month.points, 0);
+    const bestPointsMonth = monthlyPoints.reduce((best, month) => 
+      month.points > (best?.points || 0) ? month : best, null);
+    
+    // Get overall ranking (position in total points)
+    const { data: allUserPoints, error: rankError } = await supabase
+      .from('user_monthly_points')
+      .select('user_id, points');
+    
+    if (rankError) throw rankError;
+    
+    // Calculate total points per user and rank
+    const userTotals = {};
+    allUserPoints.forEach(entry => {
+      userTotals[entry.user_id] = (userTotals[entry.user_id] || 0) + entry.points;
+    });
+    
+    const sortedUsers = Object.entries(userTotals)
+      .sort(([, a], [, b]) => b - a);
+    
+    const overallRank = sortedUsers.findIndex(([id]) => id === userId) + 1;
+    
+    // Get best ranked month (lowest rank number = best)
+    const { data: allMonthlyRankings, error: bestRankError } = await supabase
+      .from('user_monthly_points')
+      .select('user_id, month_id, points, bingo_months!inner (month_year)');
+    
+    if (bestRankError) throw bestRankError;
+    
+    // Calculate rankings per month
+    const monthlyRankings = {};
+    allMonthlyRankings.forEach(entry => {
+      if (!monthlyRankings[entry.month_id]) {
+        monthlyRankings[entry.month_id] = [];
+      }
+      monthlyRankings[entry.month_id].push(entry);
+    });
+    
+    let bestRank = null;
+    let bestRankMonth = null;
+    
+    Object.keys(monthlyRankings).forEach(monthId => {
+      const sorted = monthlyRankings[monthId].sort((a, b) => b.points - a.points);
+      const userRank = sorted.findIndex(u => u.user_id === userId) + 1;
+      
+      if (userRank > 0 && (!bestRank || userRank < bestRank)) {
+        bestRank = userRank;
+        const userEntry = sorted.find(u => u.user_id === userId);
+        bestRankMonth = userEntry?.bingo_months?.month_year;
+      }
+    });
+    
+    // Get bingo achievements
+    const { data: bingos, error: bingosError } = await supabase
+      .from('bingo_achievements')
+      .select('bingo_type')
+      .eq('user_id', userId);
+    
+    if (bingosError) throw bingosError;
+    
+    const totalBingos = bingos.filter(b => b.bingo_type === 'bingo').length;
+    const totalBlackouts = bingos.filter(b => b.bingo_type === 'blackout').length;
+    
+    // Format monthly data for graphs
+    const monthlyData = monthlyPoints.map(month => ({
+      month: month.bingo_months.month_year,
+      points: month.points
+    }));
+    
+    res.json({
+      user: userData,
+      stats: {
+        totalShinies: totalShinies || 0,
+        overallRank,
+        totalPoints,
+        highestPointMonth: bestPointsMonth ? {
+          month: bestPointsMonth.bingo_months.month_year,
+          points: bestPointsMonth.points
+        } : null,
+        bestRankedMonth: bestRankMonth ? {
+          month: bestRankMonth,
+          rank: bestRank
+        } : null,
+        totalBingos,
+        totalBlackouts
+      },
+      monthlyData
+    });
+  } catch (error) {
+    console.error('Error fetching profile:', error);
+    res.status(500).json({ error: 'Failed to fetch profile', details: error.message });
   }
 });
 

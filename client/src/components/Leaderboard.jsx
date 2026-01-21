@@ -93,7 +93,7 @@ const Leaderboard = () => {
                 <div
                   key={user.id}
                   className={`
-                    p-2 flex items-center justify-between transition-colors
+                    p-3 flex items-center justify-between transition-colors
                     ${position === 1 ? 'bg-gradient-to-r from-amber-300 via-amber-100 to-white' : position === 2 ? 'bg-gradient-to-r from-gray-200 via-gray-50 to-white' : position === 3 ? 'bg-gradient-to-r from-orange-200 via-orange-50 to-white' : 'hover:bg-gray-800'}
                   `}
                   style={position > 3 ? { backgroundColor: '#212326' } : undefined}
@@ -108,8 +108,8 @@ const Leaderboard = () => {
                     </div>
                     
                     <div>
-                      <div className={`font-semibold text-sm ${position > 3 ? 'text-white' : 'text-gray-800'}`}>
-                        {user.username}
+                      <div className={`font-semibold text-base ${position > 3 ? 'text-white' : 'text-gray-800'}`}>
+                        {user.display_name}
                       </div>
                       <div className={`text-xs ${position > 3 ? 'text-gray-400' : 'text-gray-500'}`}>
                         Joined {formatDate(user.created_at)}
