@@ -27,6 +27,30 @@ const Leaderboard = () => {
     }
   };
 
+  const formatDate = (dateString) => {
+    if (!dateString) return 'Recently';
+    
+    try {
+      // Handle both ISO strings and PostgreSQL timestamps
+      const date = new Date(dateString);
+      
+      // Check if date is valid
+      if (isNaN(date.getTime())) {
+        console.error('Invalid date:', dateString);
+        return 'Recently';
+      }
+      
+      return date.toLocaleDateString('en-US', { 
+        month: 'short', 
+        day: 'numeric', 
+        year: 'numeric' 
+      });
+    } catch (e) {
+      console.error('Error parsing date:', dateString, e);
+      return 'Recently';
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -88,7 +112,7 @@ const Leaderboard = () => {
                         {user.username}
                       </div>
                       <div className={`text-xs ${position > 3 ? 'text-gray-400' : 'text-gray-500'}`}>
-                        Joined {user.created_at ? new Date(user.created_at).toLocaleDateString() : 'Recently'}
+                        Joined {formatDate(user.created_at)}
                       </div>
                     </div>
                   </div>
