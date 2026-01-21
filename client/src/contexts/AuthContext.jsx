@@ -39,7 +39,9 @@ export const AuthProvider = ({ children }) => {
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'discord',
       options: {
-        redirectTo: `${window.location.origin}/auth/callback`
+        redirectTo: import.meta.env.DEV 
+          ? 'http://localhost:5173/auth/callback'
+          : `${window.location.origin}/auth/callback`
       }
     });
     
