@@ -29,7 +29,7 @@ const MainApp = () => {
         <div className="max-w-7xl mx-auto px-4 py-6">
           <div className="flex justify-between items-center">
             <div className="flex-1">
-              <h1 className="text-3xl md:text-4xl font-bold text-center bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent">
+              <h1 className="text-3xl md:text-4xl font-bold text-center text-white">
                 🎮 Pokemon Bingo 🎮
               </h1>
             </div>
@@ -37,27 +37,57 @@ const MainApp = () => {
             {/* Login/Profile Button */}
             <div className="flex items-center gap-3">
               {loading ? (
-                <div className="w-10 h-10 rounded-full bg-gray-700 animate-pulse"></div>
+                <div className="w-10 h-10 rounded-full bg-gray-600 animate-pulse"></div>
               ) : user ? (
-                <div className="flex items-center gap-3">
-                  <div className="text-right">
-                    <p className="text-sm font-medium text-gray-100">
-                      {user.user_metadata?.custom_claims?.global_name || user.user_metadata?.full_name || user.user_metadata?.username || 'User'}
-                    </p>
-                    <button
-                      onClick={signOut}
-                      className="text-xs text-gray-400 hover:text-gray-300"
-                    >
-                      Sign out
-                    </button>
+                <div className="relative group">
+                  <div className="flex items-center gap-3 cursor-pointer">
+                    <div className="text-right">
+                      <p className="text-sm font-medium text-white">
+                        {user.user_metadata?.custom_claims?.global_name || user.user_metadata?.full_name || user.user_metadata?.username || 'User'}
+                      </p>
+                    </div>
+                    {user.user_metadata?.avatar_url && (
+                      <img
+                        src={user.user_metadata.avatar_url}
+                        alt="Profile"
+                        className="w-10 h-10 rounded-full ring-2 ring-transparent group-hover:ring-purple-400 transition-all"
+                      />
+                    )}
                   </div>
-                  {user.user_metadata?.avatar_url && (
-                    <img
-                      src={user.user_metadata.avatar_url}
-                      alt="Profile"
-                      className="w-10 h-10 rounded-full"
-                    />
-                  )}
+                  
+                  {/* Dropdown Menu */}
+                  <div className="absolute right-0 mt-2 w-48 rounded-lg shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50" style={{ backgroundColor: '#35373b' }}>
+                    <div className="py-2">
+                      <button
+                        onClick={() => console.log('Navigate to Profile')}
+                        className="w-full px-4 py-2 text-left text-sm text-gray-200 hover:bg-gray-700 flex items-center gap-2"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                        </svg>
+                        Profile
+                      </button>
+                      <button
+                        onClick={() => console.log('Navigate to Pokedex')}
+                        className="w-full px-4 py-2 text-left text-sm text-gray-200 hover:bg-gray-700 flex items-center gap-2"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+                        </svg>
+                        Pokedex
+                      </button>
+                      <div className="border-t border-gray-600 my-1"></div>
+                      <button
+                        onClick={signOut}
+                        className="w-full px-4 py-2 text-left text-sm text-red-400 hover:bg-gray-700 flex items-center gap-2"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                        </svg>
+                        Log out
+                      </button>
+                    </div>
+                  </div>
                 </div>
               ) : (
                 <button
@@ -78,7 +108,7 @@ const MainApp = () => {
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 py-8">
         {!user && (
-          <div className="mb-6 border rounded-lg p-4 text-center" style={{ backgroundColor: '#35373b', borderColor: '#5865F2' }}>
+          <div className="mb-6 rounded-lg p-4 text-center" style={{ backgroundColor: '#35373b', borderColor: '#5865F2', borderWidth: '1px' }}>
             <p className="text-blue-300 text-sm">
               👋 Sign in with Discord to track your own Pokemon progress!
             </p>
@@ -97,6 +127,11 @@ const MainApp = () => {
           </div>
         </div>
       </main>
+
+      {/* Footer */}
+      {/* <footer className="mt-12 pb-8 text-center text-gray-400 text-sm">
+        <p>Made with 💜 for Pokemon trainers</p>
+      </footer> */}
     </div>
   );
 };
