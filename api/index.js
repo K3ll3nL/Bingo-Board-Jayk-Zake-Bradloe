@@ -74,8 +74,9 @@ app.get('/api/bingo/board', async (req, res) => {
       .from('monthly_pokemon_pool')
       .select(`
         position,
-        national_dex_id,
-        pokemon_master (
+        pokemon_id,
+        pokemon_master!monthly_pokemon_pool_pokemon_id_fkey (
+          national_dex_id,
           name,
           gif_url,
           sprite_url
@@ -109,8 +110,8 @@ app.get('/api/bingo/board', async (req, res) => {
           board.push({
             id: `${ACTIVE_MONTH_ID}-${position}`,
             position: position,
-            national_dex_id: pokemon.national_dex_id,
-            is_checked: completedPokemonIds.has(pokemon.national_dex_id),
+            national_dex_id: pokemon.pokemon_master?.national_dex_id,
+            is_checked: completedPokemonIds.has(pokemon.pokemon_master?.national_dex_id),
             pokemon_name: pokemon.pokemon_master?.name || 'Unknown',
             pokemon_gif: pokemon.pokemon_master?.gif_url,
             pokemon_sprite: pokemon.pokemon_master?.sprite_url
@@ -358,9 +359,11 @@ app.get('/api/profile/:userId/board', async (req, res) => {
       .from('monthly_pokemon_pool')
       .select(`
         position,
-        national_dex_id,
-        pokemon_master (
+        pokemon_id,
+        pokemon_master!monthly_pokemon_pool_pokemon_id_fkey (
+          national_dex_id,
           name,
+          gif_url,
           sprite_url
         )
       `)
@@ -381,6 +384,7 @@ app.get('/api/profile/:userId/board', async (req, res) => {
           national_dex_id: null,
           is_checked: true,
           pokemon_name: 'FREE SPACE',
+          pokemon_gif: null,
           pokemon_sprite: null
         });
       } else {
@@ -389,9 +393,10 @@ app.get('/api/profile/:userId/board', async (req, res) => {
           board.push({
             id: `${ACTIVE_MONTH_ID}-${position}`,
             position: position,
-            national_dex_id: pokemon.national_dex_id,
-            is_checked: completedPokemonIds.has(pokemon.national_dex_id),
+            national_dex_id: pokemon.pokemon_master?.national_dex_id,
+            is_checked: completedPokemonIds.has(pokemon.pokemon_master?.national_dex_id),
             pokemon_name: pokemon.pokemon_master?.name || 'Unknown',
+            pokemon_gif: pokemon.pokemon_master?.gif_url,
             pokemon_sprite: pokemon.pokemon_master?.sprite_url
           });
           pokemonIndex++;
