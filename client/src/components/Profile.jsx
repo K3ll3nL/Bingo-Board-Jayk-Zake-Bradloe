@@ -43,7 +43,7 @@ const Profile = () => {
       if (!response.ok) throw new Error('Failed to fetch board');
       const data = await response.json();
       setBoard(data.board);
-      setBoardMonth(data.month);
+      setBoardMonth(data.month_year_display);
     } catch (err) {
       console.error('Failed to load board:', err);
     }
@@ -148,7 +148,7 @@ const Profile = () => {
             <div className="text-gray-400 text-sm mb-2">🏆 Best Points Month</div>
             {profile.stats.highestPointMonth ? (
               <>
-                <div className="text-2xl font-bold text-white">{profile.stats.highestPointMonth.month}</div>
+                <div className="text-2xl font-bold text-white">{profile.stats.highestPointMonth.month_year_display}</div>
                 <div className="text-purple-400 text-lg">{profile.stats.highestPointMonth.points} pts</div>
               </>
             ) : (
@@ -161,7 +161,7 @@ const Profile = () => {
             <div className="text-gray-400 text-sm mb-2">📈 Best Rank Month</div>
             {profile.stats.bestRankedMonth ? (
               <>
-                <div className="text-2xl font-bold text-white">{profile.stats.bestRankedMonth.month}</div>
+                <div className="text-2xl font-bold text-white">{profile.stats.bestRankedMonth.month_year_display}</div>
                 <div className="text-purple-400 text-lg">Rank #{profile.stats.bestRankedMonth.rank}</div>
               </>
             ) : (
@@ -171,7 +171,7 @@ const Profile = () => {
 
           {/* Blackouts */}
           <div className="rounded-xl shadow-xl p-6" style={{ backgroundColor: '#35373b' }}>
-            <div className="text-gray-400 text-sm mb-2">Blackouts</div>
+            <div className="text-gray-400 text-sm mb-2">⚫ Blackouts</div>
             <div className="text-4xl font-bold text-purple-400">{profile.stats.totalBlackouts}</div>
           </div>
         </div>
@@ -189,7 +189,7 @@ const Profile = () => {
                     key={cell.id}
                     className={`
                       relative p-2 rounded-lg border-2 transition-all duration-200 
-                      flex items-center justify-center text-center aspect-square
+                      flex flex-col items-center justify-center text-center aspect-square overflow-hidden
                       ${cell.is_checked 
                         ? 'bg-green-600 border-green-500 text-white font-semibold shadow-lg' 
                         : 'border-gray-600 text-gray-300 bg-gray-800'
@@ -197,12 +197,20 @@ const Profile = () => {
                       ${isFreeSpace ? 'bg-gradient-to-br from-purple-500 to-pink-500 text-white font-bold border-purple-600' : ''}
                     `}
                   >
+                    {!isFreeSpace && cell.pokemon_gif && (
+                      <img 
+                        src={cell.pokemon_gif} 
+                        alt={cell.pokemon_name}
+                        className="w-full h-auto mb-1"
+                        style={{ imageRendering: 'pixelated' }}
+                      />
+                    )}
                     <span className="text-xs leading-tight break-words">
                       {cell.pokemon_name}
                     </span>
                     {cell.is_checked && !isFreeSpace && (
-                      <div className="absolute inset-0 flex items-center justify-center">
-                        <svg className="w-8 h-8 text-white opacity-50" fill="currentColor" viewBox="0 0 20 20">
+                      <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-40">
+                        <svg className="w-8 h-8 text-white" fill="currentColor" viewBox="0 0 20 20">
                           <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
                         </svg>
                       </div>
@@ -222,7 +230,7 @@ const Profile = () => {
               {profile.monthlyData.map((month, index) => (
                 <div key={index}>
                   <div className="flex justify-between items-center mb-2">
-                    <span className="text-gray-300 text-sm">{month.month}</span>
+                    <span className="text-gray-300 text-sm">{month.month_year_display}</span>
                     <span className="text-purple-400 font-bold">{month.points} pts</span>
                   </div>
                   <div className="w-full bg-gray-700 rounded-full h-3">

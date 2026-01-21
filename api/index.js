@@ -102,6 +102,13 @@ app.get('/api/bingo/board', async (req, res) => {
       pokemon_master: pokemonMap[pool.pokemon_id]
     }));
     
+    console.log('=== BINGO BOARD DEBUG ===');
+    console.log('Pool data count:', poolData.length);
+    console.log('Pokemon IDs:', pokemonIds);
+    console.log('Pokemon data count:', pokemonData.length);
+    console.log('Combined data:', JSON.stringify(data, null, 2));
+    console.log('========================');
+    
     // Build the 25-square board (24 Pokemon + 1 free space at position 13)
     const board = [];
     
@@ -114,7 +121,7 @@ app.get('/api/bingo/board', async (req, res) => {
           national_dex_id: null,
           is_checked: true, // Free space is always checked
           pokemon_name: 'FREE SPACE',
-          pokemon_gif: null
+          pokemon_gif: null,
         });
       } else {
         // Find Pokemon for this position
@@ -126,7 +133,7 @@ app.get('/api/bingo/board', async (req, res) => {
             national_dex_id: pokemon.pokemon_master.national_dex_id,
             is_checked: completedPokemonIds.has(pokemon.pokemon_master.national_dex_id),
             pokemon_name: pokemon.pokemon_master.name || 'Unknown',
-            pokemon_gif: pokemon.pokemon_master.gif_url
+            pokemon_gif: pokemon.pokemon_master.gif_url,
           });
         }
       }
@@ -380,7 +387,7 @@ app.get('/api/profile/:userId/board', async (req, res) => {
     
     const { data: pokemonData, error: pokemonError } = await supabase
       .from('pokemon_master')
-      .select('id, national_dex_id, name, gif_url, ')
+      .select('id, national_dex_id, name, gif_url')
       .in('id', pokemonIds);
     
     if (pokemonError) throw pokemonError;
@@ -410,7 +417,7 @@ app.get('/api/profile/:userId/board', async (req, res) => {
           national_dex_id: null,
           is_checked: true,
           pokemon_name: 'FREE SPACE',
-          pokemon_gif: null
+          pokemon_gif: null,
         });
       } else {
         const pokemon = data[pokemonIndex];
@@ -421,7 +428,7 @@ app.get('/api/profile/:userId/board', async (req, res) => {
             national_dex_id: pokemon.pokemon_master?.national_dex_id,
             is_checked: completedPokemonIds.has(pokemon.pokemon_master?.national_dex_id),
             pokemon_name: pokemon.pokemon_master?.name || 'Unknown',
-            pokemon_gif: pokemon.pokemon_master?.gif_url
+            pokemon_gif: pokemon.pokemon_master?.gif_url,
           });
           pokemonIndex++;
         }
