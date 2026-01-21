@@ -16,34 +16,51 @@ app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', message: 'Streaming Bingo API is running' });
 });
 
-// Get bingo board
+// Get bingo board (public or user-specific)
 app.get('/api/bingo/board', async (req, res) => {
   try {
-    const DISPLAY_USER_ID = 'c2eb741a-a845-4db4-afa1-2eda30a20d8d';
+    let userId = null;
+    
+    // Check if user is authenticated (optional)
+    const authHeader = req.headers.authorization;
+    if (authHeader) {
+      try {
+        const token = authHeader.replace('Bearer ', '');
+        const { data: { user }, error: authError } = await supabase.auth.getUser(token);
+        if (user && !authError) {
+          userId = user.id;
+        }
+      } catch (err) {
+        // Ignore auth errors - just show public board
+        console.log('Auth check failed, showing public board');
+      }
+    }
+
     const ACTIVE_MONTH_ID = 1;
     
     // Get month information
     const { data: monthData, error: monthError } = await supabase
       .from('bingo_months')
-      .select('month_year_display, start_date, end_date')
+      .select('month_year, start_date, end_date')
       .eq('id', ACTIVE_MONTH_ID)
       .single();
     
     if (monthError) throw monthError;
     
-    // Get all entries for this user/month
-    const { data: entries, error: entriesError } = await supabase
-      .from('entries')
-      .select('national_dex_id')
-      .eq('user_id', DISPLAY_USER_ID)
-      .eq('month_id', ACTIVE_MONTH_ID);
+    // Get entries - either for authenticated user or no one (show unchecked board)
+    let completedPokemonIds = new Set();
     
-    if (entriesError) throw entriesError;
-    
-    // Create a Set of completed Pokemon IDs for fast lookup
-    const completedPokemonIds = new Set(
-      entries.map(entry => entry.national_dex_id)
-    );
+    if (userId) {
+      const { data: entries, error: entriesError } = await supabase
+        .from('entries')
+        .select('national_dex_id')
+        .eq('user_id', userId)
+        .eq('month_id', ACTIVE_MONTH_ID);
+      
+      if (!entriesError && entries) {
+        completedPokemonIds = new Set(entries.map(entry => entry.national_dex_id));
+      }
+    }
     
     // Get the month's Pokemon pool (the 24 Pokemon for this month)
     const { data, error } = await supabase
@@ -97,10 +114,11 @@ app.get('/api/bingo/board', async (req, res) => {
     }
     
     res.json({
-      month: monthData.month_year_display,
+      month: monthData.month_year,
       start_date: monthData.start_date,
       end_date: monthData.end_date,
-      board: board
+      board: board,
+      user_authenticated: !!userId
     });
   } catch (error) {
     console.error('Error fetching bingo board:', error);
