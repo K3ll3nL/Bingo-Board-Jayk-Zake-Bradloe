@@ -48,7 +48,7 @@ app.get('/api/bingo/board', async (req, res) => {
     // Get month information
     const { data: monthData, error: monthError } = await supabase
       .from('bingo_months')
-      .select('month_year, start_date, end_date')
+      .select('month_year_display, start_date, end_date')
       .eq('id', ACTIVE_MONTH_ID)
       .single();
     
@@ -69,23 +69,38 @@ app.get('/api/bingo/board', async (req, res) => {
       }
     }
     
-    // Get the month's Pokemon pool (the 24 Pokemon for this month)
-    const { data, error } = await supabase
+    // Get the month's Pokemon pool
+    // Using manual join due to Supabase schema cache delay
+    const { data: poolData, error: poolError } = await supabase
       .from('monthly_pokemon_pool')
-      .select(`
-        position,
-        pokemon_id,
-        pokemon_master!monthly_pokemon_pool_pokemon_id_fkey (
-          national_dex_id,
-          name,
-          gif_url,
-          sprite_url
-        )
-      `)
+      .select('position, pokemon_id')
       .eq('month_id', ACTIVE_MONTH_ID)
       .order('position', { ascending: true });
     
-    if (error) throw error;
+    if (poolError) throw poolError;
+    
+    // Get all pokemon details
+    const pokemonIds = poolData.map(p => p.pokemon_id).filter(Boolean);
+    
+    const { data: pokemonData, error: pokemonError } = await supabase
+      .from('pokemon_master')
+      .select('id, national_dex_id, name, gif_url, sprite_url')
+      .in('id', pokemonIds);
+    
+    if (pokemonError) throw pokemonError;
+    
+    // Create lookup map
+    const pokemonMap = {};
+    pokemonData.forEach(p => {
+      pokemonMap[p.id] = p;
+    });
+    
+    // Combine data
+    const data = poolData.map(pool => ({
+      position: pool.position,
+      pokemon_id: pool.pokemon_id,
+      pokemon_master: pokemonMap[pool.pokemon_id]
+    }));
     
     // Build the 25-square board (24 Pokemon + 1 free space at position 13)
     const board = [];
@@ -122,7 +137,7 @@ app.get('/api/bingo/board', async (req, res) => {
     }
     
     res.json({
-      month: monthData.month_year,
+      month: monthData.month_year_display,
       start_date: monthData.start_date,
       end_date: monthData.end_date,
       board: board,
@@ -355,22 +370,37 @@ app.get('/api/profile/:userId/board', async (req, res) => {
     const completedPokemonIds = new Set(entries.map(entry => entry.national_dex_id));
     
     // Get the month's Pokemon pool
-    const { data, error } = await supabase
+    // Using manual join due to Supabase schema cache delay
+    const { data: poolData, error: poolError } = await supabase
       .from('monthly_pokemon_pool')
-      .select(`
-        position,
-        pokemon_id,
-        pokemon_master!monthly_pokemon_pool_pokemon_id_fkey (
-          national_dex_id,
-          name,
-          gif_url,
-          sprite_url
-        )
-      `)
+      .select('position, pokemon_id')
       .eq('month_id', ACTIVE_MONTH_ID)
       .order('position', { ascending: true });
     
-    if (error) throw error;
+    if (poolError) throw poolError;
+    
+    // Get all pokemon details
+    const pokemonIds = poolData.map(p => p.pokemon_id).filter(Boolean);
+    
+    const { data: pokemonData, error: pokemonError } = await supabase
+      .from('pokemon_master')
+      .select('id, national_dex_id, name, gif_url, sprite_url')
+      .in('id', pokemonIds);
+    
+    if (pokemonError) throw pokemonError;
+    
+    // Create lookup map
+    const pokemonMap = {};
+    pokemonData.forEach(p => {
+      pokemonMap[p.id] = p;
+    });
+    
+    // Combine data
+    const data = poolData.map(pool => ({
+      position: pool.position,
+      pokemon_id: pool.pokemon_id,
+      pokemon_master: pokemonMap[pool.pokemon_id]
+    }));
     
     // Build the 25-square board
     const board = [];
