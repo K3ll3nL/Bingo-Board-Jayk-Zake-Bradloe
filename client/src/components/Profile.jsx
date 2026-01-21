@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
+import { useNavigate } from 'react-router-dom';
 
 const Profile = () => {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -47,7 +49,25 @@ const Profile = () => {
   const maxPoints = Math.max(...profile.monthlyData.map(m => m.points), 1);
 
   return (
-    <div className="min-h-screen p-8" style={{ backgroundColor: '#212326' }}>
+    <div className="min-h-screen" style={{ backgroundColor: '#212326' }}>
+      {/* Header with Back Button */}
+      <header className="shadow-md" style={{ backgroundColor: '#35373b' }}>
+        <div className="max-w-7xl mx-auto px-4 py-6">
+          <div className="flex items-center gap-4">
+            <button
+              onClick={() => navigate('/')}
+              className="text-gray-400 hover:text-white transition-colors"
+            >
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+              </svg>
+            </button>
+            <h1 className="text-2xl font-bold text-white">Profile</h1>
+          </div>
+        </div>
+      </header>
+
+      <div className="p-8">
       <div className="max-w-6xl mx-auto">
         {/* Header with Avatar and Name */}
         <div className="rounded-xl shadow-xl p-8 mb-8" style={{ backgroundColor: '#35373b' }}>
@@ -161,6 +181,7 @@ const Profile = () => {
             <div className="text-center text-gray-500 py-8">No monthly data yet</div>
           )}
         </div>
+      </div>
       </div>
     </div>
   );

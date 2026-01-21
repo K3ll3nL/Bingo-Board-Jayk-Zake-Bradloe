@@ -6,6 +6,13 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
+// Debug: Check environment variables
+console.log('=== Environment Variables Debug ===');
+console.log('SUPABASE_URL exists:', !!process.env.SUPABASE_URL);
+console.log('SUPABASE_ANON_KEY exists:', !!process.env.SUPABASE_ANON_KEY);
+console.log('SUPABASE_URL value:', process.env.SUPABASE_URL?.substring(0, 30) + '...');
+console.log('===================================');
+
 const supabase = createClient(
   process.env.SUPABASE_URL,
   process.env.SUPABASE_ANON_KEY
@@ -41,7 +48,7 @@ app.get('/api/bingo/board', async (req, res) => {
     // Get month information
     const { data: monthData, error: monthError } = await supabase
       .from('bingo_months')
-      .select('month_year_display, start_date, end_date')
+      .select('month_year, start_date, end_date')
       .eq('id', ACTIVE_MONTH_ID)
       .single();
     
@@ -114,7 +121,7 @@ app.get('/api/bingo/board', async (req, res) => {
     }
     
     res.json({
-      month: monthData.month_year_display,
+      month: monthData.month_year,
       start_date: monthData.start_date,
       end_date: monthData.end_date,
       board: board,
