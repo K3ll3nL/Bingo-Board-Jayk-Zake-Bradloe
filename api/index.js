@@ -265,7 +265,7 @@ app.get('/api/profile/:userId', async (req, res) => {
       if (userRank > 0 && (!bestRank || userRank < bestRank)) {
         bestRank = userRank;
         const userEntry = sorted.find(u => u.user_id === userId);
-        bestRankMonth = userEntry?.bingo_months?.month_year;
+        bestRankMonth = userEntry?.bingo_months?.month_year_display;
       }
     });
     
@@ -286,7 +286,7 @@ app.get('/api/profile/:userId', async (req, res) => {
     
     // Format monthly data for graphs
     const monthlyData = monthlyPoints.map(month => ({
-      month: month.bingo_months.month_year,
+      month: month.bingo_months.month_year_display,
       points: month.points
     }));
     
@@ -297,7 +297,7 @@ app.get('/api/profile/:userId', async (req, res) => {
         overallRank,
         totalPoints,
         highestPointMonth: bestPointsMonth ? {
-          month: bestPointsMonth.bingo_months.month_year,
+          month: bestPointsMonth.bingo_months.month_year_display,
           points: bestPointsMonth.points
         } : null,
         bestRankedMonth: bestRankMonth ? {
