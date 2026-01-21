@@ -1,9 +1,10 @@
 import React from 'react';
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, useNavigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import BingoBoard from './components/BingoBoard';
 import Leaderboard from './components/Leaderboard';
 import AuthCallback from './components/AuthCallback';
+import Profile from './components/Profile';
 
 const MainApp = () => {
   const { user, signInWithDiscord, signOut, loading } = useAuth();
