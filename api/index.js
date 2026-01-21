@@ -36,11 +36,10 @@ app.get('/api/bingo/board', async (req, res) => {
       entries.map(entry => entry.national_dex_id)
     );
     
-    // Get the user's board
+    // Get the month's Pokemon pool (the 24 Pokemon for this month)
     const { data, error } = await supabase
-      .from('user_bingo_boards')
+      .from('monthly_pokemon_pool')
       .select(`
-        id,
         position,
         national_dex_id,
         pokemon_master (
@@ -49,24 +48,46 @@ app.get('/api/bingo/board', async (req, res) => {
           sprite_url
         )
       `)
-      .eq('user_id', DISPLAY_USER_ID)
       .eq('month_id', ACTIVE_MONTH_ID)
       .order('position', { ascending: true });
     
     if (error) throw error;
     
-    // Mark as checked if Pokemon has an entry
-    const transformedData = data.map(cell => ({
-      id: cell.id,
-      position: cell.position,
-      national_dex_id: cell.national_dex_id,
-      is_checked: cell.national_dex_id ? completedPokemonIds.has(cell.national_dex_id) : false,
-      pokemon_name: cell.pokemon_master?.name || 'FREE SPACE',
-      pokemon_gif: cell.pokemon_master?.gif_url,
-      pokemon_sprite: cell.pokemon_master?.sprite_url
-    }));
+    // Build the 25-square board (24 Pokemon + 1 free space at position 13)
+    const board = [];
+    let pokemonIndex = 0;
     
-    res.json(transformedData);
+    for (let position = 1; position <= 25; position++) {
+      if (position === 13) {
+        // Free space at position 13
+        board.push({
+          id: `free-space-${ACTIVE_MONTH_ID}`,
+          position: 13,
+          national_dex_id: null,
+          is_checked: true, // Free space is always checked
+          pokemon_name: 'FREE SPACE',
+          pokemon_gif: null,
+          pokemon_sprite: null
+        });
+      } else {
+        // Regular Pokemon square
+        const pokemon = data[pokemonIndex];
+        if (pokemon) {
+          board.push({
+            id: `${ACTIVE_MONTH_ID}-${position}`,
+            position: position,
+            national_dex_id: pokemon.national_dex_id,
+            is_checked: completedPokemonIds.has(pokemon.national_dex_id),
+            pokemon_name: pokemon.pokemon_master?.name || 'Unknown',
+            pokemon_gif: pokemon.pokemon_master?.gif_url,
+            pokemon_sprite: pokemon.pokemon_master?.sprite_url
+          });
+          pokemonIndex++;
+        }
+      }
+    }
+    
+    res.json(board);
   } catch (error) {
     console.error('Error fetching bingo board:', error);
     res.status(500).json({ error: 'Failed to fetch bingo board', details: error.message });
