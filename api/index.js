@@ -97,7 +97,7 @@ app.get('/api/bingo/board', async (req, res) => {
     }
     
     res.json({
-      month: monthData.month_year,
+      month: monthData.month_year_display,
       start_date: monthData.start_date,
       end_date: monthData.end_date,
       board: board
