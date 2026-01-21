@@ -86,6 +86,8 @@ app.get('/api/bingo/board', async (req, res) => {
       .from('pokemon_master')
       .select('id, national_dex_id, name, gif_url')
       .in('id', pokemonIds);
+    console.log("Pokemon query error:", pokemonError);
+    console.log("Pokemon query result:", pokemonData);
     
     if (pokemonError) throw pokemonError;
     
@@ -427,7 +429,7 @@ app.get('/api/profile/:userId/board', async (req, res) => {
             position: position,
             national_dex_id: pokemon.pokemon_master?.national_dex_id,
             is_checked: completedPokemonIds.has(pokemon.pokemon_master?.national_dex_id),
-            pokemon_name: pokemon.pokemon_master?.name || 'Unknown',
+            pokemon_name: '',
             pokemon_gif: pokemon.pokemon_master?.gif_url,
           });
           pokemonIndex++;
