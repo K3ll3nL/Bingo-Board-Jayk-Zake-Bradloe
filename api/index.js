@@ -6,13 +6,6 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// Debug: Check environment variables
-console.log('=== Environment Variables Debug ===');
-console.log('SUPABASE_URL exists:', !!process.env.SUPABASE_URL);
-console.log('SUPABASE_ANON_KEY exists:', !!process.env.SUPABASE_ANON_KEY);
-console.log('SUPABASE_URL value:', process.env.SUPABASE_URL?.substring(0, 30) + '...');
-console.log('===================================');
-
 const supabase = createClient(
   process.env.SUPABASE_URL,
   process.env.SUPABASE_ANON_KEY
@@ -48,7 +41,7 @@ app.get('/api/bingo/board', async (req, res) => {
     // Get month information
     const { data: monthData, error: monthError } = await supabase
       .from('bingo_months')
-      .select('month_year, start_date, end_date')
+      .select('month_year_display, start_date, end_date')
       .eq('id', ACTIVE_MONTH_ID)
       .single();
     
@@ -121,7 +114,7 @@ app.get('/api/bingo/board', async (req, res) => {
     }
     
     res.json({
-      month: monthData.month_year,
+      month: monthData.month_year_display,
       start_date: monthData.start_date,
       end_date: monthData.end_date,
       board: board,
@@ -141,7 +134,6 @@ app.get('/api/leaderboard', async (req, res) => {
       .select(`
         id,
         points,
-        bingos_completed,
         users!user_monthly_points_user_id_fkey (
           username,
           display_name,
@@ -158,7 +150,6 @@ app.get('/api/leaderboard', async (req, res) => {
       username: entry.users.username,
       display_name: entry.users.display_name,
       points: entry.points,
-      bingos_completed: entry.bingos_completed,
       created_at: entry.users.created_at
     }));
     
@@ -173,6 +164,7 @@ app.get('/api/leaderboard', async (req, res) => {
 app.get('/api/profile/:userId', async (req, res) => {
   try {
     const { userId } = req.params;
+    console.log('Fetching profile for user:', userId);
     
     // Get user basic info
     const { data: userData, error: userError } = await supabase
@@ -181,7 +173,11 @@ app.get('/api/profile/:userId', async (req, res) => {
       .eq('id', userId)
       .single();
     
-    if (userError) throw userError;
+    if (userError) {
+      console.error('User fetch error:', userError);
+      throw userError;
+    }
+    console.log('User data:', userData);
     
     // Get total shinies (entries count)
     const { count: totalShinies, error: shiniesError } = await supabase
@@ -189,7 +185,11 @@ app.get('/api/profile/:userId', async (req, res) => {
       .select('*', { count: 'exact', head: true })
       .eq('user_id', userId);
     
-    if (shiniesError) throw shiniesError;
+    if (shiniesError) {
+      console.error('Shinies fetch error:', shiniesError);
+      throw shiniesError;
+    }
+    console.log('Total shinies:', totalShinies);
     
     // Get all monthly points for graphs and totals
     const { data: monthlyPoints, error: monthlyError } = await supabase
@@ -204,7 +204,11 @@ app.get('/api/profile/:userId', async (req, res) => {
       .eq('user_id', userId)
       .order('month_id', { ascending: true });
     
-    if (monthlyError) throw monthlyError;
+    if (monthlyError) {
+      console.error('Monthly points fetch error:', monthlyError);
+      throw monthlyError;
+    }
+    console.log('Monthly points:', monthlyPoints);
     
     // Calculate total points and find best month
     const totalPoints = monthlyPoints.reduce((sum, month) => sum + month.points, 0);
@@ -216,7 +220,10 @@ app.get('/api/profile/:userId', async (req, res) => {
       .from('user_monthly_points')
       .select('user_id, points');
     
-    if (rankError) throw rankError;
+    if (rankError) {
+      console.error('Rank fetch error:', rankError);
+      throw rankError;
+    }
     
     // Calculate total points per user and rank
     const userTotals = {};
@@ -234,7 +241,10 @@ app.get('/api/profile/:userId', async (req, res) => {
       .from('user_monthly_points')
       .select('user_id, month_id, points, bingo_months!inner (month_year)');
     
-    if (bestRankError) throw bestRankError;
+    if (bestRankError) {
+      console.error('Best rank fetch error:', bestRankError);
+      throw bestRankError;
+    }
     
     // Calculate rankings per month
     const monthlyRankings = {};
@@ -265,10 +275,14 @@ app.get('/api/profile/:userId', async (req, res) => {
       .select('bingo_type')
       .eq('user_id', userId);
     
-    if (bingosError) throw bingosError;
+    if (bingosError) {
+      console.error('Bingos fetch error:', bingosError);
+      // Don't throw - this table might not exist yet
+      console.log('Bingos table may not exist, setting to 0');
+    }
     
-    const totalBingos = bingos.filter(b => b.bingo_type === 'bingo').length;
-    const totalBlackouts = bingos.filter(b => b.bingo_type === 'blackout').length;
+    const totalBingos = bingos ? bingos.filter(b => b.bingo_type === 'bingo').length : 0;
+    const totalBlackouts = bingos ? bingos.filter(b => b.bingo_type === 'blackout').length : 0;
     
     // Format monthly data for graphs
     const monthlyData = monthlyPoints.map(month => ({
@@ -276,7 +290,7 @@ app.get('/api/profile/:userId', async (req, res) => {
       points: month.points
     }));
     
-    res.json({
+    const response = {
       user: userData,
       stats: {
         totalShinies: totalShinies || 0,
@@ -294,7 +308,10 @@ app.get('/api/profile/:userId', async (req, res) => {
         totalBlackouts
       },
       monthlyData
-    });
+    };
+    
+    console.log('Sending response:', response);
+    res.json(response);
   } catch (error) {
     console.error('Error fetching profile:', error);
     res.status(500).json({ error: 'Failed to fetch profile', details: error.message });

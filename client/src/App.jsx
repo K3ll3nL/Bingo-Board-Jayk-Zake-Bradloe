@@ -144,6 +144,7 @@ function App() {
       <AuthProvider>
         <Routes>
           <Route path="/auth/callback" element={<AuthCallback />} />
+          <Route path="/profile" element={<Profile />} />
           <Route path="*" element={<MainApp />} />
         </Routes>
       </AuthProvider>
