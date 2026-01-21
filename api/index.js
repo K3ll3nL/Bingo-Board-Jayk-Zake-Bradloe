@@ -84,7 +84,7 @@ app.get('/api/bingo/board', async (req, res) => {
     
     const { data: pokemonData, error: pokemonError } = await supabase
       .from('pokemon_master')
-      .select('id, national_dex_id, name, gif_url')
+      .select('id, national_dex_id, name, gif_url, ')
       .in('id', pokemonIds);
     
     if (pokemonError) throw pokemonError;
@@ -104,7 +104,6 @@ app.get('/api/bingo/board', async (req, res) => {
     
     // Build the 25-square board (24 Pokemon + 1 free space at position 13)
     const board = [];
-    let pokemonIndex = 0;
     
     for (let position = 1; position <= 25; position++) {
       if (position === 13) {
@@ -118,18 +117,17 @@ app.get('/api/bingo/board', async (req, res) => {
           pokemon_gif: null,
         });
       } else {
-        // Regular Pokemon square
-        const pokemon = data[pokemonIndex];
-        if (pokemon) {
+        // Find Pokemon for this position
+        const pokemon = data.find(p => p.position === position);
+        if (pokemon && pokemon.pokemon_master) {
           board.push({
             id: `${ACTIVE_MONTH_ID}-${position}`,
             position: position,
-            national_dex_id: pokemon.pokemon_master?.national_dex_id,
-            is_checked: completedPokemonIds.has(pokemon.pokemon_master?.national_dex_id),
-            pokemon_name: pokemon.pokemon_master?.name || 'Unknown',
-            pokemon_gif: pokemon.pokemon_master?.gif_url,
+            national_dex_id: pokemon.pokemon_master.national_dex_id,
+            is_checked: completedPokemonIds.has(pokemon.pokemon_master.national_dex_id),
+            pokemon_name: pokemon.pokemon_master.name || 'Unknown',
+            pokemon_gif: pokemon.pokemon_master.gif_url,
           });
-          pokemonIndex++;
         }
       }
     }
@@ -382,7 +380,7 @@ app.get('/api/profile/:userId/board', async (req, res) => {
     
     const { data: pokemonData, error: pokemonError } = await supabase
       .from('pokemon_master')
-      .select('id, national_dex_id, name, gif_url')
+      .select('id, national_dex_id, name, gif_url, ')
       .in('id', pokemonIds);
     
     if (pokemonError) throw pokemonError;
