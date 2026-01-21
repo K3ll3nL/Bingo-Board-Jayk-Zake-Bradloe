@@ -76,9 +76,9 @@ const Profile = () => {
         {/* Header with Avatar and Name */}
         <div className="rounded-xl shadow-xl p-8 mb-8" style={{ backgroundColor: '#35373b' }}>
           <div className="flex items-center gap-6">
-            {user.user_metadata?.avatar_url && (
+            {profile.user.avatar_url && (
               <img
-                src={user.user_metadata.avatar_url}
+                src={profile.user.avatar_url}
                 alt="Profile"
                 className="w-24 h-24 rounded-full ring-4 ring-purple-500"
               />
@@ -156,7 +156,7 @@ const Profile = () => {
 
           {/* Blackouts */}
           <div className="rounded-xl shadow-xl p-6" style={{ backgroundColor: '#35373b' }}>
-            <div className="text-gray-400 text-sm mb-2">⚫ Blackouts</div>
+            <div className="text-gray-400 text-sm mb-2">Blackouts</div>
             <div className="text-4xl font-bold text-purple-400">{profile.stats.totalBlackouts}</div>
           </div>
         </div>

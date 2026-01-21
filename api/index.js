@@ -178,7 +178,7 @@ app.get('/api/profile/:userId', async (req, res) => {
     // Get user basic info
     const { data: userData, error: userError } = await supabase
       .from('users')
-      .select('username, display_name, created_at')
+      .select('username, display_name, avatar_url, created_at')
       .eq('id', userId)
       .single();
     
