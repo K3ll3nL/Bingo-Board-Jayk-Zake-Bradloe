@@ -50,8 +50,7 @@ const BingoBoard = () => {
   return (
     <div className="w-full">
       <div className="mb-4">
-        <h2 className="text-2xl font-bold text-gray-800">{month || 'Bingo Board'}</h2>
-        <p className="text-sm text-gray-600 mt-1">Watch and see which squares get checked!</p>
+        <h2 className="text-2xl font-bold text-center text-gray-800">{month || 'Bingo Board'}</h2>
       </div>
       
       <div className="grid grid-cols-5 gap-2 aspect-square max-w-2xl mx-auto">
@@ -84,10 +83,6 @@ const BingoBoard = () => {
             </div>
           );
         })}
-      </div>
-      
-      <div className="mt-4 text-center text-sm text-gray-600">
-        Updates automatically every hour
       </div>
     </div>
   );

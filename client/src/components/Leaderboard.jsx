@@ -9,8 +9,8 @@ const Leaderboard = () => {
   useEffect(() => {
     loadLeaderboard();
     
-    // Poll for updates every 3 seconds
-    const interval = setInterval(loadLeaderboard, 3000);
+    // Poll for updates every 30 seconds
+    const interval = setInterval(loadLeaderboard, 30000);
     return () => clearInterval(interval);
   }, []);
 
@@ -52,7 +52,7 @@ const Leaderboard = () => {
 
   return (
     <div className="w-full">
-      <h2 className="text-2xl font-bold text-gray-800 mb-4">Leaderboard</h2>
+      <h2 className="text-2xl font-bold text-center text-gray-800 mb-4">Leaderboard</h2>
       
       <div className="bg-white rounded-lg shadow-lg overflow-hidden">
         {leaderboard.length === 0 ? (
@@ -103,10 +103,6 @@ const Leaderboard = () => {
             })}
           </div>
         )}
-      </div>
-      
-      <div className="mt-4 text-center text-sm text-gray-600">
-        Updates automatically every 3 seconds
       </div>
     </div>
   );
