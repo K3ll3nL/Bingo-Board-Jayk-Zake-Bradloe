@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { api } from '../services/api';
 
 const Leaderboard = () => {
+  const navigate = useNavigate();
   const [leaderboard, setLeaderboard] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -92,9 +94,10 @@ const Leaderboard = () => {
               return (
                 <div
                   key={user.id}
+                  onClick={() => navigate(`/profile/${user.user_id}`)}
                   className={`
-                    p-3 flex items-center justify-between transition-colors
-                    ${position === 1 ? 'bg-gradient-to-r from-amber-300 via-amber-100 to-white' : position === 2 ? 'bg-gradient-to-r from-gray-200 via-gray-50 to-white' : position === 3 ? 'bg-gradient-to-r from-orange-200 via-orange-50 to-white' : 'hover:bg-gray-800'}
+                    p-2 flex items-center justify-between transition-colors cursor-pointer
+                    ${position === 1 ? 'bg-gradient-to-r from-amber-300 via-amber-100 to-white hover:from-amber-400 hover:via-amber-200' : position === 2 ? 'bg-gradient-to-r from-gray-200 via-gray-50 to-white hover:from-gray-300 hover:via-gray-100' : position === 3 ? 'bg-gradient-to-r from-orange-200 via-orange-50 to-white hover:from-orange-300 hover:via-orange-100' : 'hover:bg-gray-700'}
                   `}
                   style={position > 3 ? { backgroundColor: '#212326' } : undefined}
                 >
@@ -108,7 +111,7 @@ const Leaderboard = () => {
                     </div>
                     
                     <div>
-                      <div className={`font-semibold text-base ${position > 3 ? 'text-white' : 'text-gray-800'}`}>
+                      <div className={`font-semibold text-sm ${position > 3 ? 'text-white' : 'text-gray-800'}`}>
                         {user.display_name}
                       </div>
                       <div className={`text-xs ${position > 3 ? 'text-gray-400' : 'text-gray-500'}`}>

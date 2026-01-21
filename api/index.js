@@ -48,7 +48,7 @@ app.get('/api/bingo/board', async (req, res) => {
     // Get month information
     const { data: monthData, error: monthError } = await supabase
       .from('bingo_months')
-      .select('month_year, start_date, end_date')
+      .select('month_year_display, start_date, end_date')
       .eq('id', ACTIVE_MONTH_ID)
       .single();
     
@@ -121,7 +121,7 @@ app.get('/api/bingo/board', async (req, res) => {
     }
     
     res.json({
-      month: monthData.month_year,
+      month: monthData.month_year_display,
       start_date: monthData.start_date,
       end_date: monthData.end_date,
       board: board,
@@ -140,6 +140,7 @@ app.get('/api/leaderboard', async (req, res) => {
       .from('user_monthly_points')
       .select(`
         id,
+        user_id,
         points,
         users!user_monthly_points_user_id_fkey (
           username,
@@ -154,6 +155,7 @@ app.get('/api/leaderboard', async (req, res) => {
     
     const transformedData = data.map(entry => ({
       id: entry.id,
+      user_id: entry.user_id,
       username: entry.users.username,
       display_name: entry.users.display_name,
       points: entry.points,

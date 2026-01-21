@@ -1,23 +1,27 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 
 const Profile = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const { userId: paramUserId } = useParams();
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
+  // Use userId from URL param if present, otherwise use logged-in user
+  const profileUserId = paramUserId || user?.id;
+
   useEffect(() => {
-    if (user?.id) {
+    if (profileUserId) {
       loadProfile();
     }
-  }, [user]);
+  }, [profileUserId]);
 
   const loadProfile = async () => {
     try {
-      const response = await fetch(`/api/profile/${user.id}`);
+      const response = await fetch(`/api/profile/${profileUserId}`);
       if (!response.ok) throw new Error('Failed to fetch profile');
       const data = await response.json();
       setProfile(data);
