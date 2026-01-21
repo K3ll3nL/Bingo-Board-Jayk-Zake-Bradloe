@@ -48,7 +48,7 @@ app.get('/api/bingo/board', async (req, res) => {
     // Get month information
     const { data: monthData, error: monthError } = await supabase
       .from('bingo_months')
-      .select('month_year_display, start_date, end_date')
+      .select('month_year, start_date, end_date')
       .eq('id', ACTIVE_MONTH_ID)
       .single();
     
@@ -121,7 +121,7 @@ app.get('/api/bingo/board', async (req, res) => {
     }
     
     res.json({
-      month: monthData.month_year_display,
+      month: monthData.month_year,
       start_date: monthData.start_date,
       end_date: monthData.end_date,
       board: board,
@@ -324,6 +324,88 @@ app.get('/api/profile/:userId', async (req, res) => {
   } catch (error) {
     console.error('Error fetching profile:', error);
     res.status(500).json({ error: 'Failed to fetch profile', details: error.message });
+  }
+});
+
+// Get user's current month board
+app.get('/api/profile/:userId/board', async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const ACTIVE_MONTH_ID = 1;
+    
+    // Get month information
+    const { data: monthData, error: monthError } = await supabase
+      .from('bingo_months')
+      .select('month_year, month_year_display')
+      .eq('id', ACTIVE_MONTH_ID)
+      .single();
+    
+    if (monthError) throw monthError;
+    
+    // Get user's entries for this month
+    const { data: entries, error: entriesError } = await supabase
+      .from('entries')
+      .select('national_dex_id')
+      .eq('user_id', userId)
+      .eq('month_id', ACTIVE_MONTH_ID);
+    
+    if (entriesError) throw entriesError;
+    
+    const completedPokemonIds = new Set(entries.map(entry => entry.national_dex_id));
+    
+    // Get the month's Pokemon pool
+    const { data, error } = await supabase
+      .from('monthly_pokemon_pool')
+      .select(`
+        position,
+        national_dex_id,
+        pokemon_master (
+          name,
+          sprite_url
+        )
+      `)
+      .eq('month_id', ACTIVE_MONTH_ID)
+      .order('position', { ascending: true });
+    
+    if (error) throw error;
+    
+    // Build the 25-square board
+    const board = [];
+    let pokemonIndex = 0;
+    
+    for (let position = 1; position <= 25; position++) {
+      if (position === 13) {
+        board.push({
+          id: `free-space-${ACTIVE_MONTH_ID}`,
+          position: 13,
+          national_dex_id: null,
+          is_checked: true,
+          pokemon_name: 'FREE SPACE',
+          pokemon_sprite: null
+        });
+      } else {
+        const pokemon = data[pokemonIndex];
+        if (pokemon) {
+          board.push({
+            id: `${ACTIVE_MONTH_ID}-${position}`,
+            position: position,
+            national_dex_id: pokemon.national_dex_id,
+            is_checked: completedPokemonIds.has(pokemon.national_dex_id),
+            pokemon_name: pokemon.pokemon_master?.name || 'Unknown',
+            pokemon_sprite: pokemon.pokemon_master?.sprite_url
+          });
+          pokemonIndex++;
+        }
+      }
+    }
+    
+    res.json({
+      month: monthData.month_year_display,
+      board: board
+    });
+  } catch (error) {
+    console.error('Error fetching profile board:', error);
+    res.status(500).json({ error: 'Failed to fetch profile board', details: error.message });
   }
 });
 
