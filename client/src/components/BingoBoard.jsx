@@ -10,8 +10,8 @@ const BingoBoard = () => {
   useEffect(() => {
     loadBoard();
     
-    // Poll for updates every 3 seconds (moderators update via Supabase)
-    const interval = setInterval(loadBoard, 3000);
+    // Poll for updates every 30 seconds (moderators update via Supabase)
+    const interval = setInterval(loadBoard, 30000);
     return () => clearInterval(interval);
   }, []);
 
@@ -47,7 +47,7 @@ const BingoBoard = () => {
 
   return (
     <div className="w-full">
-      <div className="mb-4 items-center">
+      <div className="mb-4">
         <h2 className="text-2xl font-bold text-gray-800">{month || 'This Month Bingo Board'}</h2>
       </div>
       
