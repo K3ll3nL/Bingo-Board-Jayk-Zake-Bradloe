@@ -8,6 +8,12 @@ import AuthCallback from './components/AuthCallback';
 const MainApp = () => {
   const { user, signInWithDiscord, signOut, loading } = useAuth();
 
+  // Debug logging
+  React.useEffect(() => {
+    console.log('Auth state:', { user, loading });
+    console.log('User metadata:', user?.user_metadata);
+  }, [user, loading]);
+
   const handleLogin = async () => {
     try {
       await signInWithDiscord();
@@ -26,9 +32,6 @@ const MainApp = () => {
               <h1 className="text-3xl md:text-4xl font-bold text-center bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">
                 🎮 Pokemon Bingo 🎮
               </h1>
-              <p className="text-center text-gray-600 mt-2">
-                Catch 'em all and climb the leaderboard!
-              </p>
             </div>
             
             {/* Login/Profile Button */}
@@ -39,7 +42,7 @@ const MainApp = () => {
                 <div className="flex items-center gap-3">
                   <div className="text-right">
                     <p className="text-sm font-medium text-gray-900">
-                      {user.user_metadata?.full_name || user.user_metadata?.username || 'User'}
+                      {user.user_metadata?.custom_claims?.global_name || user.user_metadata?.full_name || user.user_metadata?.username || 'User'}
                     </p>
                     <button
                       onClick={signOut}

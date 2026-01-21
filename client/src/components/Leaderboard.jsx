@@ -52,7 +52,7 @@ const Leaderboard = () => {
 
   return (
     <div className="w-full">
-      <h2 className="text-2xl font-bold text-center text-gray-800 mb-4">Leaderboard</h2>
+      <h2 className="text-2xl font-bold text-gray-800 mb-4">Leaderboard</h2>
       
       <div className="bg-white rounded-lg shadow-lg overflow-hidden">
         {leaderboard.length === 0 ? (
@@ -70,7 +70,8 @@ const Leaderboard = () => {
                   key={user.id}
                   className={`
                     p-4 flex items-center justify-between transition-colors
-                    ${position === 1 ? 'bg-gradient-to-r from-amber-300 via-amber-100 to-white' : position === 2 ? 'bg-gradient-to-r from-gray-200 via-gray-50 to-white' : position === 3 ? 'bg-gradient-to-r from-orange-200 via-orange-50 to-white' : 'hover:bg-gray-50'}                  `}
+                    ${position <= 3 ? 'bg-gradient-to-r from-yellow-50 to-transparent' : 'hover:bg-gray-50'}
+                  `}
                 >
                   <div className="flex items-center gap-4">
                     <div className="flex items-center justify-center w-10 h-10">
@@ -83,10 +84,10 @@ const Leaderboard = () => {
                     
                     <div>
                       <div className="font-semibold text-gray-800">
-                        {user.display_name}
+                        {user.username}
                       </div>
                       <div className="text-xs text-gray-500">
-                        Joined {new Date(user.created_at).toLocaleDateString()}
+                        Joined {user.created_at ? new Date(user.created_at).toLocaleDateString() : 'Recently'}
                       </div>
                     </div>
                   </div>
@@ -102,6 +103,10 @@ const Leaderboard = () => {
             })}
           </div>
         )}
+      </div>
+      
+      <div className="mt-4 text-center text-sm text-gray-600">
+        Updates automatically every 3 seconds
       </div>
     </div>
   );

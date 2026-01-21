@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { api } from '../services/api';
+import { useAuth } from '../contexts/AuthContext';
 
 const BingoBoard = () => {
+  const { user } = useAuth();
   const [board, setBoard] = useState([]);
   const [month, setMonth] = useState('');
   const [loading, setLoading] = useState(true);
@@ -10,10 +12,10 @@ const BingoBoard = () => {
   useEffect(() => {
     loadBoard();
     
-    // Poll for updates every 30 seconds (moderators update via Supabase)
-    const interval = setInterval(loadBoard, 30000);
+    // Poll for updates every hour (moderators update via Supabase)
+    const interval = setInterval(loadBoard, 60 * 60 * 1000); // 1 hour = 60 min * 60 sec * 1000 ms
     return () => clearInterval(interval);
-  }, []);
+  }, [user]); // Reload when user changes (login/logout)
 
   const loadBoard = async () => {
     try {
@@ -48,7 +50,8 @@ const BingoBoard = () => {
   return (
     <div className="w-full">
       <div className="mb-4">
-        <h2 className="text-2xl font-bold text-center text-gray-800">{month || 'This Month Bingo Board'}</h2>
+        <h2 className="text-2xl font-bold text-gray-800">{month || 'Bingo Board'}</h2>
+        <p className="text-sm text-gray-600 mt-1">Watch and see which squares get checked!</p>
       </div>
       
       <div className="grid grid-cols-5 gap-2 aspect-square max-w-2xl mx-auto">
@@ -81,6 +84,10 @@ const BingoBoard = () => {
             </div>
           );
         })}
+      </div>
+      
+      <div className="mt-4 text-center text-sm text-gray-600">
+        Updates automatically every hour
       </div>
     </div>
   );
