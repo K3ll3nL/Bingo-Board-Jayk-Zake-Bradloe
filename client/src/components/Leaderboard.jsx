@@ -52,15 +52,15 @@ const Leaderboard = () => {
 
   return (
     <div className="w-full">
-      <h2 className="text-2xl font-bold text-center text-gray-800 mb-4">Leaderboard</h2>
+      <h2 className="text-2xl font-bold text-center text-gray-100 mb-4">Leaderboard</h2>
       
-      <div className="bg-white rounded-lg shadow-lg overflow-hidden">
+      <div className="rounded-lg shadow-lg overflow-hidden" style={{ backgroundColor: '#212326' }}>
         {leaderboard.length === 0 ? (
-          <div className="p-8 text-center text-gray-500">
+          <div className="p-8 text-center text-gray-400">
             No players yet
           </div>
         ) : (
-          <div className="divide-y divide-gray-200">
+          <div className="divide-y" style={{ borderColor: '#35373b' }}>
             {leaderboard.map((user, index) => {
               const position = index + 1;
               const medal = getMedalEmoji(position);
@@ -70,32 +70,34 @@ const Leaderboard = () => {
                   key={user.id}
                   className={`
                     p-4 flex items-center justify-between transition-colors
-                    ${position === 1 ? 'bg-gradient-to-r from-amber-300 via-amber-100 to-white' : position === 2 ? 'bg-gradient-to-r from-gray-200 via-gray-50 to-white' : position === 3 ? 'from-orange-200 via-orange-50 to-white' : 'hover:bg-gray-50'}                  `}
+                    ${position === 1 ? 'bg-gradient-to-r from-amber-300 via-amber-100 to-white' : position === 2 ? 'bg-gradient-to-r from-gray-200 via-gray-50 to-white' : position === 3 ? 'bg-gradient-to-r from-orange-200 via-orange-50 to-white' : 'hover:bg-gray-800'}
+                  `}
+                  style={position > 3 ? { backgroundColor: '#212326' } : undefined}
                 >
                   <div className="flex items-center gap-4">
                     <div className="flex items-center justify-center w-10 h-10">
                       {medal ? (
                         <span className="text-2xl">{medal}</span>
                       ) : (
-                        <span className="text-gray-500 font-semibold">#{position}</span>
+                        <span className={`font-semibold ${position > 3 ? 'text-gray-400' : 'text-gray-500'}`}>#{position}</span>
                       )}
                     </div>
                     
                     <div>
-                      <div className="font-semibold text-gray-800">
+                      <div className={`font-semibold ${position > 3 ? 'text-gray-100' : 'text-gray-800'}`}>
                         {user.username}
                       </div>
-                      <div className="text-xs text-gray-500">
+                      <div className={`text-xs ${position > 3 ? 'text-gray-400' : 'text-gray-500'}`}>
                         Joined {user.created_at ? new Date(user.created_at).toLocaleDateString() : 'Recently'}
                       </div>
                     </div>
                   </div>
                   
                   <div className="flex items-center gap-2">
-                    <span className="text-2xl font-bold text-primary">
+                    <span className={`text-2xl font-bold ${position > 3 ? 'text-purple-400' : 'text-primary'}`}>
                       {user.points}
                     </span>
-                    <span className="text-sm text-gray-500">pts</span>
+                    <span className={`text-sm ${position > 3 ? 'text-gray-400' : 'text-gray-500'}`}>pts</span>
                   </div>
                 </div>
               );

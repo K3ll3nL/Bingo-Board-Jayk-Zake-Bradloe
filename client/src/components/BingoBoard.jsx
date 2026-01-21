@@ -12,8 +12,8 @@ const BingoBoard = () => {
   useEffect(() => {
     loadBoard();
     
-    // Poll for updates every hour (moderators update via Supabase)
-    const interval = setInterval(loadBoard, 60 * 60 * 1000); // 1 hour = 60 min * 60 sec * 1000 ms
+    // Poll for updates every half minute (moderators update via Supabase)
+    const interval = setInterval(loadBoard, 30000);
     return () => clearInterval(interval);
   }, [user]); // Reload when user changes (login/logout)
 
@@ -50,7 +50,7 @@ const BingoBoard = () => {
   return (
     <div className="w-full">
       <div className="mb-4">
-        <h2 className="text-2xl font-bold text-center text-gray-800">{month || 'Bingo Board'}</h2>
+        <h2 className="text-2xl font-bold text-center text-gray-100">{month || 'Bingo Board'}</h2>
       </div>
       
       <div className="grid grid-cols-5 gap-2 aspect-square max-w-2xl mx-auto">
@@ -65,10 +65,11 @@ const BingoBoard = () => {
                 flex items-center justify-center text-center
                 ${cell.is_checked 
                   ? 'bg-primary border-primary text-white font-semibold shadow-lg' 
-                  : 'bg-white border-gray-300 text-gray-700'
+                  : 'border-gray-600 text-gray-200'
                 }
                 ${isFreeSpace ? 'bg-gradient-to-br from-purple-500 to-pink-500 text-white font-bold border-purple-600' : ''}
               `}
+              style={{ backgroundColor: cell.is_checked && !isFreeSpace ? '#5865F2' : !isFreeSpace ? '#212326' : undefined }}
             >
               <span className="text-xs md:text-sm leading-tight break-words">
                 {cell.pokemon_name}

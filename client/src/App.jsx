@@ -23,13 +23,13 @@ const MainApp = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-purple-100 via-pink-50 to-blue-100">
+    <div className="min-h-screen" style={{ backgroundColor: '#212326' }}>
       {/* Header */}
-      <header className="bg-white shadow-md">
+      <header className="shadow-md" style={{ backgroundColor: '#35373b' }}>
         <div className="max-w-7xl mx-auto px-4 py-6">
           <div className="flex justify-between items-center">
             <div className="flex-1">
-              <h1 className="text-3xl md:text-4xl font-bold text-center bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">
+              <h1 className="text-3xl md:text-4xl font-bold text-center bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent">
                 🎮 Pokemon Bingo 🎮
               </h1>
             </div>
@@ -37,16 +37,16 @@ const MainApp = () => {
             {/* Login/Profile Button */}
             <div className="flex items-center gap-3">
               {loading ? (
-                <div className="w-10 h-10 rounded-full bg-gray-200 animate-pulse"></div>
+                <div className="w-10 h-10 rounded-full bg-gray-700 animate-pulse"></div>
               ) : user ? (
                 <div className="flex items-center gap-3">
                   <div className="text-right">
-                    <p className="text-sm font-medium text-gray-900">
+                    <p className="text-sm font-medium text-gray-100">
                       {user.user_metadata?.custom_claims?.global_name || user.user_metadata?.full_name || user.user_metadata?.username || 'User'}
                     </p>
                     <button
                       onClick={signOut}
-                      className="text-xs text-gray-500 hover:text-gray-700"
+                      className="text-xs text-gray-400 hover:text-gray-300"
                     >
                       Sign out
                     </button>
@@ -78,8 +78,8 @@ const MainApp = () => {
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 py-8">
         {!user && (
-          <div className="mb-6 bg-blue-50 border border-blue-200 rounded-lg p-4 text-center">
-            <p className="text-blue-800 text-sm">
+          <div className="mb-6 border rounded-lg p-4 text-center" style={{ backgroundColor: '#35373b', borderColor: '#5865F2' }}>
+            <p className="text-blue-300 text-sm">
               👋 Sign in with Discord to track your own Pokemon progress!
             </p>
           </div>
@@ -87,21 +87,16 @@ const MainApp = () => {
         
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
           {/* Bingo Board Module */}
-          <div className="bg-white rounded-xl shadow-xl p-6">
+          <div className="rounded-xl shadow-xl p-6" style={{ backgroundColor: '#35373b' }}>
             <BingoBoard />
           </div>
 
           {/* Leaderboard Module */}
-          <div className="bg-white rounded-xl shadow-xl p-6">
+          <div className="rounded-xl shadow-xl p-6" style={{ backgroundColor: '#35373b' }}>
             <Leaderboard />
           </div>
         </div>
       </main>
-
-      {/* Footer */}
-      {/* <footer className="mt-12 pb-8 text-center text-gray-600 text-sm">
-        <p>Made with 💜 for Pokemon trainers</p>
-      </footer> */}
     </div>
   );
 };
