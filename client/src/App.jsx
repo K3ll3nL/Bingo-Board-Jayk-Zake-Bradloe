@@ -11,9 +11,6 @@ function App() {
           <h1 className="text-3xl md:text-4xl font-bold text-center bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">
             🎮 Stream Bingo 🎮
           </h1>
-          <p className="text-center text-gray-600 mt-2">
-            Watch, Play, and Climb the Leaderboard!
-          </p>
         </div>
       </header>
 
@@ -38,9 +35,9 @@ function App() {
       </main>
 
       {/* Footer */}
-      <footer className="mt-12 pb-8 text-center text-gray-600 text-sm">
+      {/* <footer className="mt-12 pb-8 text-center text-gray-600 text-sm">
         <p>Made with 💜 for streamers and their communities</p>
-      </footer>
+      </footer> */}
     </div>
   );
 }
