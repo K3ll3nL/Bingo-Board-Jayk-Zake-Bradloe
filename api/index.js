@@ -121,7 +121,7 @@ app.get('/api/bingo/board', async (req, res) => {
     }
     
     res.json({
-      month: monthData.month_year,
+      month: monthData.month_year_display,
       start_date: monthData.start_date,
       end_date: monthData.end_date,
       board: board,
@@ -157,7 +157,8 @@ app.get('/api/leaderboard', async (req, res) => {
       username: entry.users.username,
       display_name: entry.users.display_name,
       points: entry.points,
-      bingos_completed: entry.bingos_completed
+      bingos_completed: entry.bingos_completed,
+      created_at: entry.users.created_at
     }));
     
     res.json(transformedData);

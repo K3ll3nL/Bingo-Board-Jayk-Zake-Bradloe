@@ -96,9 +96,9 @@ const MainApp = () => {
       </main>
 
       {/* Footer */}
-      <footer className="mt-12 pb-8 text-center text-gray-600 text-sm">
+      {/* <footer className="mt-12 pb-8 text-center text-gray-600 text-sm">
         <p>Made with 💜 for Pokemon trainers</p>
-      </footer>
+      </footer> */}
     </div>
   );
 };
