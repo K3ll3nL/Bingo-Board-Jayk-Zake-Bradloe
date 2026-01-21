@@ -6,6 +6,13 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
+// Debug: Check environment variables
+console.log('=== Environment Variables Debug ===');
+console.log('SUPABASE_URL exists:', !!process.env.SUPABASE_URL);
+console.log('SUPABASE_ANON_KEY exists:', !!process.env.SUPABASE_ANON_KEY);
+console.log('SUPABASE_URL value:', process.env.SUPABASE_URL?.substring(0, 30) + '...');
+console.log('===================================');
+
 const supabase = createClient(
   process.env.SUPABASE_URL,
   process.env.SUPABASE_ANON_KEY
