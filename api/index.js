@@ -84,7 +84,7 @@ app.get('/api/bingo/board', async (req, res) => {
     
     const { data: pokemonData, error: pokemonError } = await supabase
       .from('pokemon_master')
-      .select('id, national_dex_id, name, gif_url')
+      .select('id, national_dex_id, name, img_url')
       .in('id', pokemonIds);
     console.log("Pokemon query error:", pokemonError);
     console.log("Pokemon query result:", pokemonData);
@@ -135,7 +135,7 @@ app.get('/api/bingo/board', async (req, res) => {
             national_dex_id: pokemon.pokemon_master.national_dex_id,
             is_checked: completedPokemonIds.has(pokemon.pokemon_master.national_dex_id),
             pokemon_name: pokemon.pokemon_master.name || 'Unknown',
-            pokemon_gif: pokemon.pokemon_master.gif_url,
+            pokemon_gif: pokemon.pokemon_master.img_url,
           });
         } else {
           // Empty slot - no Pokemon assigned to this position
@@ -399,7 +399,7 @@ app.get('/api/profile/:userId/board', async (req, res) => {
     
     const { data: pokemonData, error: pokemonError } = await supabase
       .from('pokemon_master')
-      .select('id, national_dex_id, name, gif_url')
+      .select('id, national_dex_id, name, img_url')
       .in('id', pokemonIds);
     
     if (pokemonError) throw pokemonError;
@@ -440,7 +440,7 @@ app.get('/api/profile/:userId/board', async (req, res) => {
             national_dex_id: pokemon.pokemon_master.national_dex_id,
             is_checked: completedPokemonIds.has(pokemon.pokemon_master.national_dex_id),
             pokemon_name: pokemon.pokemon_master.name || 'Unknown',
-            pokemon_gif: pokemon.pokemon_master.gif_url,
+            pokemon_gif: pokemon.pokemon_master.img_url,
           });
         } else {
           // Empty slot - no Pokemon assigned to this position
@@ -492,7 +492,7 @@ app.get('/api/pokedex', async (req, res) => {
     // Get all pokemon
     const { data: allPokemon, error: pokemonError } = await supabase
       .from('pokemon_master')
-      .select('id, national_dex_id, name, display_name, gif_url')
+      .select('id, national_dex_id, name, display_name, img_url')
       .order('national_dex_id', { ascending: true })
       .order('id', { ascending: true });
     
@@ -515,7 +515,7 @@ app.get('/api/pokedex', async (req, res) => {
       national_dex_id: p.national_dex_id,
       name: p.name,
       display_name: p.display_name,
-      gif_url: p.gif_url,
+      img_url: p.img_url,
       caught: caughtIds.has(p.national_dex_id)
     }));
     
