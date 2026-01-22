@@ -15,12 +15,23 @@ const Pokedex = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [caughtCount, setCaughtCount] = useState(0);
+  const [loadedUpTo, setLoadedUpTo] = useState(-1); // Track sequential loading
 
   useEffect(() => {
     if (user) {
       loadPokedex();
     }
   }, [user]);
+
+  const handleImageLoad = (index) => {
+    // Only advance if this is the next expected image
+    setLoadedUpTo(prev => {
+      if (index === prev + 1) {
+        return index;
+      }
+      return prev;
+    });
+  };
 
   const loadPokedex = async () => {
     try {
@@ -157,35 +168,62 @@ const Pokedex = () => {
       {/* Pokedex Grid */}
       <div className="p-8">
         <div className="max-w-7xl mx-auto">
-          <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-10 xl:grid-cols-12 gap-2">
-            {pokemon.map((poke) => (
-              <div
-                key={poke.id}
-                className={`
-                  relative rounded-lg border-2 transition-all duration-200 overflow-hidden leading-none
-                  ${poke.caught 
-                    ? 'border-purple-500 bg-gray-800' 
-                    : 'border-gray-700 bg-gray-900'
-                  }
-                  hover:scale-105 cursor-pointer
-                `}
-                title={`${poke.name} ${poke.caught ? '✓' : ''}`}
-              >
-                <img 
-                  src={poke.gif_url} 
-                  alt={poke.name}
-                  className={`w-full block ${poke.caught ? '' : 'grayscale opacity-30'}`}
-                  style={{ verticalAlign: 'top' }}
-                />
-                {poke.caught && (
-                  <div className="absolute top-1 right-1">
-                    <svg className="w-4 h-4 text-green-400" fill="currentColor" viewBox="0 0 20 20">
-                      <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                    </svg>
-                  </div>
-                )}
-              </div>
+          {/* Hidden preloader for sequential loading */}
+          <div style={{ position: 'absolute', left: '-9999px', top: '-9999px' }}>
+            {pokemon.map((poke, index) => (
+              <img
+                key={`preload-${poke.id}`}
+                src={poke.img_url}
+                alt={poke.name}
+                onLoad={() => handleImageLoad(index)}
+                onError={() => handleImageLoad(index)}
+              />
             ))}
+          </div>
+
+          {/* Visible grid - only show loaded images */}
+          <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-10 xl:grid-cols-12 gap-2">
+            {pokemon.map((poke, index) => {
+              const isVisible = index <= loadedUpTo;
+              
+              if (!isVisible) {
+                return (
+                  <div
+                    key={poke.id}
+                    className="relative rounded-lg border-2 border-gray-700 bg-gray-900 leading-none aspect-square"
+                  />
+                );
+              }
+
+              return (
+                <div
+                  key={poke.id}
+                  className={`
+                    relative rounded-lg border-2 transition-all duration-200 overflow-hidden leading-none
+                    ${poke.caught 
+                      ? 'border-purple-500 bg-gray-800' 
+                      : 'border-gray-700 bg-gray-900'
+                    }
+                    hover:scale-105 cursor-pointer
+                  `}
+                  title={`${poke.name} ${poke.caught ? '✓' : ''}`}
+                >
+                  <img 
+                    src={poke.img_url} 
+                    alt={poke.name}
+                    className={`w-full block ${poke.caught ? '' : 'grayscale opacity-30'}`}
+                    style={{ verticalAlign: 'top' }}
+                  />
+                  {poke.caught && (
+                    <div className="absolute top-1 right-1">
+                      <svg className="w-4 h-4 text-green-400" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                      </svg>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
         </div>
       </div>
