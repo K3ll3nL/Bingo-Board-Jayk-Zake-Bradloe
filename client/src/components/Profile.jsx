@@ -189,24 +189,26 @@ const Profile = () => {
                     key={cell.id}
                     className={`
                       relative p-2 rounded-lg border-2 transition-all duration-200 
-                      flex flex-col items-center justify-center text-center aspect-square overflow-hidden
+                      flex flex-col items-center justify-center text-center overflow-hidden
                       ${cell.is_checked 
                         ? 'bg-green-600 border-green-500 text-white font-semibold shadow-lg' 
                         : 'border-gray-600 text-gray-300 bg-gray-800'
                       }
                       ${isFreeSpace ? 'bg-gradient-to-br from-purple-500 to-pink-500 text-white font-bold border-purple-600' : ''}
+                      ${cell.pokemon_name === 'EMPTY' ? 'bg-gray-900 border-gray-700 opacity-50' : ''}
                     `}
+                    style={{ backgroundColor: cell.is_checked && !isFreeSpace ? '#5865F2' : !isFreeSpace && cell.pokemon_name !== 'EMPTY' ? '#212326' : undefined }}
                   >
-                    {!isFreeSpace && cell.pokemon_gif && (
+                    {!isFreeSpace && cell.pokemon_name !== 'EMPTY' && cell.pokemon_gif && (
                       <img 
                         src={cell.pokemon_gif} 
                         alt={cell.pokemon_name}
-                        className="w-full h-auto"
+                        className="w-full h-auto pixelated"
                         style={{ imageRendering: 'pixelated' }}
                       />
                     )}
-                    {isFreeSpace && (
-                      <span className="text-xs leading-tight break-words">
+                    {(isFreeSpace || cell.pokemon_name === 'EMPTY') && (
+                      <span className="text-xs md:text-sm leading-tight break-words">
                         {cell.pokemon_name}
                       </span>
                     )}

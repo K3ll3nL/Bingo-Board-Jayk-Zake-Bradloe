@@ -84,7 +84,7 @@ app.get('/api/bingo/board', async (req, res) => {
     
     const { data: pokemonData, error: pokemonError } = await supabase
       .from('pokemon_master')
-      .select('id, national_dex_id, name, gif_url')
+      .select('id, national_dex_id, name, img_url')
       .in('id', pokemonIds);
     console.log("Pokemon query error:", pokemonError);
     console.log("Pokemon query result:", pokemonData);
@@ -135,7 +135,17 @@ app.get('/api/bingo/board', async (req, res) => {
             national_dex_id: pokemon.pokemon_master.national_dex_id,
             is_checked: completedPokemonIds.has(pokemon.pokemon_master.national_dex_id),
             pokemon_name: pokemon.pokemon_master.name || 'Unknown',
-            pokemon_gif: pokemon.pokemon_master.gif_url,
+            pokemon_gif: pokemon.pokemon_master.img_url,
+          });
+        } else {
+          // Empty slot - no Pokemon assigned to this position
+          board.push({
+            id: `empty-${ACTIVE_MONTH_ID}-${position}`,
+            position: position,
+            national_dex_id: null,
+            is_checked: false,
+            pokemon_name: 'EMPTY',
+            pokemon_gif: null,
           });
         }
       }
@@ -389,7 +399,7 @@ app.get('/api/profile/:userId/board', async (req, res) => {
     
     const { data: pokemonData, error: pokemonError } = await supabase
       .from('pokemon_master')
-      .select('id, national_dex_id, name, gif_url')
+      .select('id, national_dex_id, name, img_url')
       .in('id', pokemonIds);
     
     if (pokemonError) throw pokemonError;
@@ -429,8 +439,8 @@ app.get('/api/profile/:userId/board', async (req, res) => {
             position: position,
             national_dex_id: pokemon.pokemon_master?.national_dex_id,
             is_checked: completedPokemonIds.has(pokemon.pokemon_master?.national_dex_id),
-            pokemon_name: '',
-            pokemon_gif: pokemon.pokemon_master?.gif_url,
+            pokemon_name: pokemon.pokemon_master?.name || 'Unknown',
+            pokemon_gif: pokemon.pokemon_master?.img_url,
           });
           pokemonIndex++;
         }
