@@ -64,8 +64,8 @@ const BingoBoard = () => {
                 relative rounded-lg border-2 transition-all duration-200 
                 flex flex-col items-center justify-center text-center overflow-hidden
                 ${cell.is_checked 
-                  ? 'bg-green-600 border-green-500 text-white font-semibold shadow-lg' 
-                  : 'border-gray-600 text-gray-300 bg-gray-800'
+                  ? 'bg-primary border-primary text-white font-semibold shadow-lg' 
+                  : 'border-gray-600 text-gray-200'
                 }
                 ${isFreeSpace ? 'bg-gradient-to-br from-purple-500 to-pink-500 text-white font-bold border-purple-600' : ''}
                 ${cell.pokemon_name === 'EMPTY' ? 'bg-gray-900 border-gray-700 opacity-50' : ''}
