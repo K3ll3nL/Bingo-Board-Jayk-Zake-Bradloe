@@ -19,6 +19,17 @@ const BingoBoard = () => {
     return () => clearInterval(interval);
   }, [user]);
 
+  useEffect(() => {
+    // Reset images loaded when board changes
+    if (board.length > 0) {
+      const totalImages = board.filter(c => c.pokemon_gif && c.pokemon_name !== 'FREE SPACE' && c.pokemon_name !== 'EMPTY').length;
+      if (totalImages === 0) {
+        // No images to load, show immediately
+        setImagesLoaded(true);
+      }
+    }
+  }, [board]);
+
   const loadBoard = async () => {
     try {
       const data = await api.getBingoBoard();
@@ -71,10 +82,10 @@ const BingoBoard = () => {
     });
   };
 
-  if (loading) {
+  if (loading || (board.length === 0 && !error)) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="text-lg text-gray-600">Loading bingo board...</div>
+        <div className="text-lg text-gray-400">Loading bingo board...</div>
       </div>
     );
   }
@@ -87,7 +98,10 @@ const BingoBoard = () => {
     );
   }
 
-  if (!imagesLoaded && board.length > 0) {
+  // Preload images in background, but don't block display after first load
+  const shouldShowLoading = !imagesLoaded && board.length > 0 && loadedCount === 0;
+
+  if (shouldShowLoading) {
     return (
       <div className="w-full">
         <div className="flex items-center justify-center h-64">
@@ -142,8 +156,8 @@ const BingoBoard = () => {
                 <img 
                   src={cell.pokemon_gif} 
                   alt={cell.pokemon_name}
-                  className="w-full block pixelated"
-                  style={{ imageRendering: 'pixelated', verticalAlign: 'top' }}
+                  className="w-full block"
+                  style={{ verticalAlign: 'top' }}
                 />
               )}
               {(isFreeSpace || cell.pokemon_name === 'EMPTY') && (
