@@ -61,13 +61,13 @@ const BingoBoard = () => {
             <div
               key={cell.id}
               className={`
-                relative rounded-lg border-2 transition-all duration-200 overflow-hidden
+                relative rounded-lg border-2 transition-all duration-200 overflow-hidden leading-none
                 ${cell.is_checked 
                   ? 'bg-primary border-primary text-white font-semibold shadow-lg' 
                   : 'border-gray-600 text-gray-200'
                 }
-                ${isFreeSpace ? 'bg-gradient-to-br from-purple-500 to-pink-500 text-white font-bold border-purple-600 flex items-center justify-center' : ''}
-                ${cell.pokemon_name === 'EMPTY' ? 'bg-gray-900 border-gray-700 opacity-50 flex items-center justify-center' : ''}
+                ${isFreeSpace ? 'bg-gradient-to-br from-purple-500 to-pink-500 text-white font-bold border-purple-600 flex items-center justify-center aspect-square' : ''}
+                ${cell.pokemon_name === 'EMPTY' ? 'bg-gray-900 border-gray-700 opacity-50 flex items-center justify-center aspect-square' : ''}
               `}
               style={{ backgroundColor: cell.is_checked && !isFreeSpace ? '#5865F2' : !isFreeSpace && cell.pokemon_name !== 'EMPTY' ? '#212326' : undefined }}
             >
@@ -75,8 +75,8 @@ const BingoBoard = () => {
                 <img 
                   src={cell.pokemon_gif} 
                   alt={cell.pokemon_name}
-                  className="w-full h-auto block pixelated"
-                  style={{ imageRendering: 'pixelated' }}
+                  className="w-full block pixelated"
+                  style={{ imageRendering: 'pixelated', verticalAlign: 'top' }}
                 />
               )}
               {(isFreeSpace || cell.pokemon_name === 'EMPTY') && (

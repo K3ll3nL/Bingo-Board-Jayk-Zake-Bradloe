@@ -188,7 +188,7 @@ const Profile = () => {
                   <div
                     key={cell.id}
                     className={`
-                      relative rounded-lg border-2 transition-all duration-200 overflow-hidden
+                      relative rounded-lg border-2 transition-all duration-200 overflow-hidden leading-none
                       ${cell.is_checked 
                         ? 'bg-green-600 border-green-500 text-white font-semibold shadow-lg' 
                         : 'border-gray-600 text-gray-300 bg-gray-800'
@@ -201,8 +201,8 @@ const Profile = () => {
                       <img 
                         src={cell.pokemon_gif} 
                         alt={cell.pokemon_name}
-                        className="w-full h-auto block"
-                        style={{ imageRendering: 'pixelated' }}
+                        className="w-full block"
+                        style={{ imageRendering: 'pixelated', verticalAlign: 'top' }}
                       />
                     )}
                     {(isFreeSpace || cell.pokemon_name === 'EMPTY') && (
