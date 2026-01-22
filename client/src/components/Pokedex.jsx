@@ -15,23 +15,12 @@ const Pokedex = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [caughtCount, setCaughtCount] = useState(0);
-  const [loadedUpTo, setLoadedUpTo] = useState(-1); // Track sequential loading
 
   useEffect(() => {
     if (user) {
       loadPokedex();
     }
   }, [user]);
-
-  const handleImageLoad = (index) => {
-    // Only advance if this is the next expected image
-    setLoadedUpTo(prev => {
-      if (index === prev + 1) {
-        return index;
-      }
-      return prev;
-    });
-  };
 
   const loadPokedex = async () => {
     try {
@@ -168,31 +157,10 @@ const Pokedex = () => {
       {/* Pokedex Grid */}
       <div className="p-8">
         <div className="max-w-7xl mx-auto">
-          {/* Hidden preloader for sequential loading */}
-          <div style={{ position: 'absolute', left: '-9999px', top: '-9999px' }}>
-            {pokemon.map((poke, index) => (
-              <img
-                key={`preload-${poke.id}`}
-                src={poke.img_url}
-                alt={poke.name}
-              />
-            ))}
-          </div>
 
           {/* Visible grid - only show loaded images */}
           <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-10 xl:grid-cols-12 gap-2">
-            {pokemon.map((poke, index) => {
-              const isVisible = index <= loadedUpTo;
-              
-              if (!isVisible) {
-                return (
-                  <div
-                    key={poke.id}
-                    className="relative rounded-lg border-2 border-gray-700 bg-gray-900 leading-none aspect-square"
-                  />
-                );
-              }
-
+            {pokemon.map((poke) => {
               return (
                 <div
                   key={poke.id}
