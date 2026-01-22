@@ -175,8 +175,6 @@ const Pokedex = () => {
                 key={`preload-${poke.id}`}
                 src={poke.img_url}
                 alt={poke.name}
-                onLoad={() => handleImageLoad(index)}
-                onError={() => handleImageLoad(index)}
               />
             ))}
           </div>
