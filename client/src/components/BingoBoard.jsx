@@ -36,8 +36,11 @@ const BingoBoard = () => {
       setBoard(data.board);
       setMonth(data.month);
       setError(null);
-      setLoadedCount(0); // Reset image count
-      setImagesLoaded(false);
+      // Don't reset image states on updates, only on initial load
+      if (loading) {
+        setLoadedCount(0);
+        setImagesLoaded(false);
+      }
     } catch (err) {
       setError('Failed to load bingo board');
       console.error(err);
@@ -82,7 +85,8 @@ const BingoBoard = () => {
     });
   };
 
-  if (loading || (board.length === 0 && !error)) {
+  // Show loading screen only during initial API fetch
+  if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="text-lg text-gray-400">Loading bingo board...</div>
@@ -98,17 +102,13 @@ const BingoBoard = () => {
     );
   }
 
-  // Preload images in background, but don't block display after first load
-  const shouldShowLoading = !imagesLoaded && board.length > 0 && loadedCount === 0;
+  // Preload images in hidden div if not loaded yet
+  const hasImagesToLoad = board.some(c => c.pokemon_gif && c.pokemon_name !== 'FREE SPACE' && c.pokemon_name !== 'EMPTY');
 
-  if (shouldShowLoading) {
-    return (
-      <div className="w-full">
-        <div className="flex items-center justify-center h-64">
-          <div className="text-lg text-gray-400">Loading bingo board...</div>
-        </div>
-        {/* Hidden images to preload */}
-        <div style={{ position: 'absolute', left: '-9999px' }}>
+  return (
+    <div className="w-full">
+      {!imagesLoaded && hasImagesToLoad && (
+        <div style={{ position: 'absolute', left: '-9999px', top: '-9999px' }}>
           {board.map((cell) => {
             if (cell.pokemon_name !== 'FREE SPACE' && cell.pokemon_name !== 'EMPTY' && cell.pokemon_gif) {
               return (
@@ -124,12 +124,10 @@ const BingoBoard = () => {
             return null;
           })}
         </div>
-      </div>
-    );
-  }
-
-  return (
-    <div className="w-full">
+      )}
+      
+      {/* Show board with opacity transition */}
+      <div style={{ opacity: imagesLoaded || !hasImagesToLoad ? 1 : 0, transition: 'opacity 0.3s' }}>
       <div className="mb-4">
         <h2 className="text-2xl font-bold text-center text-white">{month || 'Bingo Board'}</h2>
       </div>
@@ -175,6 +173,7 @@ const BingoBoard = () => {
             </div>
           );
         })}
+      </div>
       </div>
     </div>
   );
