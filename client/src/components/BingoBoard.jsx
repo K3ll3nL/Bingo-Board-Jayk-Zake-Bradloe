@@ -61,7 +61,7 @@ const BingoBoard = () => {
             <div
               key={cell.id}
               className={`
-                relative p-2 rounded-lg border-2 transition-all duration-200 
+                relative rounded-lg border-2 transition-all duration-200 
                 flex flex-col items-center justify-center text-center overflow-hidden
                 ${cell.is_checked 
                   ? 'bg-green-600 border-green-500 text-white font-semibold shadow-lg' 
