@@ -75,8 +75,8 @@ const BingoBoard = () => {
                 <img 
                   src={cell.pokemon_gif} 
                   alt={cell.pokemon_name}
-                  className="w-full block pixelated"
-                  style={{ imageRendering: 'pixelated', verticalAlign: 'top' }}
+                  className="w-full block"
+                  style={{ verticalAlign: 'top' }}
                 />
               )}
               {(isFreeSpace || cell.pokemon_name === 'EMPTY') && (

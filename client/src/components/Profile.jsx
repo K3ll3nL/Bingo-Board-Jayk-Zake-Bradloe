@@ -202,7 +202,7 @@ const Profile = () => {
                         src={cell.pokemon_gif} 
                         alt={cell.pokemon_name}
                         className="w-full block"
-                        style={{ imageRendering: 'pixelated', verticalAlign: 'top' }}
+                        style={{ verticalAlign: 'top' }}
                       />
                     )}
                     {(isFreeSpace || cell.pokemon_name === 'EMPTY') && (
