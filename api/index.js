@@ -84,7 +84,7 @@ app.get('/api/bingo/board', async (req, res) => {
     
     const { data: pokemonData, error: pokemonError } = await supabase
       .from('pokemon_master')
-      .select('id, national_dex_id, name, img_url')
+      .select('id, national_dex_id, name, gif_url')
       .in('id', pokemonIds);
     console.log("Pokemon query error:", pokemonError);
     console.log("Pokemon query result:", pokemonData);
@@ -135,7 +135,7 @@ app.get('/api/bingo/board', async (req, res) => {
             national_dex_id: pokemon.pokemon_master.national_dex_id,
             is_checked: completedPokemonIds.has(pokemon.pokemon_master.national_dex_id),
             pokemon_name: pokemon.pokemon_master.name || 'Unknown',
-            pokemon_gif: pokemon.pokemon_master.img_url,
+            pokemon_gif: pokemon.pokemon_master.gif_url,
           });
         } else {
           // Empty slot - no Pokemon assigned to this position
@@ -399,7 +399,7 @@ app.get('/api/profile/:userId/board', async (req, res) => {
     
     const { data: pokemonData, error: pokemonError } = await supabase
       .from('pokemon_master')
-      .select('id, national_dex_id, name, img_url')
+      .select('id, national_dex_id, name, gif_url')
       .in('id', pokemonIds);
     
     if (pokemonError) throw pokemonError;
@@ -419,7 +419,6 @@ app.get('/api/profile/:userId/board', async (req, res) => {
     
     // Build the 25-square board
     const board = [];
-    let pokemonIndex = 0;
     
     for (let position = 1; position <= 25; position++) {
       if (position === 13) {
@@ -432,17 +431,27 @@ app.get('/api/profile/:userId/board', async (req, res) => {
           pokemon_gif: null,
         });
       } else {
-        const pokemon = data[pokemonIndex];
-        if (pokemon) {
+        // Find Pokemon for this position
+        const pokemon = data.find(p => p.position === position);
+        if (pokemon && pokemon.pokemon_master) {
           board.push({
             id: `${ACTIVE_MONTH_ID}-${position}`,
             position: position,
-            national_dex_id: pokemon.pokemon_master?.national_dex_id,
-            is_checked: completedPokemonIds.has(pokemon.pokemon_master?.national_dex_id),
-            pokemon_name: pokemon.pokemon_master?.name || 'Unknown',
-            pokemon_gif: pokemon.pokemon_master?.img_url,
+            national_dex_id: pokemon.pokemon_master.national_dex_id,
+            is_checked: completedPokemonIds.has(pokemon.pokemon_master.national_dex_id),
+            pokemon_name: pokemon.pokemon_master.name || 'Unknown',
+            pokemon_gif: pokemon.pokemon_master.gif_url,
           });
-          pokemonIndex++;
+        } else {
+          // Empty slot - no Pokemon assigned to this position
+          board.push({
+            id: `empty-${ACTIVE_MONTH_ID}-${position}`,
+            position: position,
+            national_dex_id: null,
+            is_checked: false,
+            pokemon_name: 'EMPTY',
+            pokemon_gif: null,
+          });
         }
       }
     }
@@ -454,6 +463,72 @@ app.get('/api/profile/:userId/board', async (req, res) => {
   } catch (error) {
     console.error('Error fetching profile board:', error);
     res.status(500).json({ error: 'Failed to fetch profile board', details: error.message });
+  }
+});
+
+// Get user's Pokedex (all pokemon with caught status)
+app.get('/api/pokedex', async (req, res) => {
+  try {
+    let userId = null;
+    
+    // Check if user is authenticated
+    const authHeader = req.headers.authorization;
+    if (authHeader) {
+      try {
+        const token = authHeader.replace('Bearer ', '');
+        const { data: { user }, error: authError } = await supabase.auth.getUser(token);
+        if (user && !authError) {
+          userId = user.id;
+        }
+      } catch (err) {
+        console.log('Auth check failed');
+      }
+    }
+    
+    if (!userId) {
+      return res.status(401).json({ error: 'Authentication required' });
+    }
+    
+    // Get all pokemon
+    const { data: allPokemon, error: pokemonError } = await supabase
+      .from('pokemon_master')
+      .select('id, national_dex_id, name, display_name, gif_url')
+      .order('national_dex_id', { ascending: true })
+      .order('id', { ascending: true });
+    
+    if (pokemonError) throw pokemonError;
+    
+    // Get user's caught pokemon (all entries, not just current month)
+    const { data: entries, error: entriesError } = await supabase
+      .from('entries')
+      .select('national_dex_id')
+      .eq('user_id', userId);
+    
+    if (entriesError) throw entriesError;
+    
+    // Create set of caught national_dex_ids
+    const caughtIds = new Set(entries.map(e => e.national_dex_id));
+    
+    // Mark pokemon as caught or not
+    const pokemon = allPokemon.map(p => ({
+      id: p.id,
+      national_dex_id: p.national_dex_id,
+      name: p.name,
+      display_name: p.display_name,
+      gif_url: p.gif_url,
+      caught: caughtIds.has(p.national_dex_id)
+    }));
+    
+    const caughtCount = pokemon.filter(p => p.caught).length;
+    
+    res.json({
+      pokemon,
+      caughtCount,
+      totalCount: pokemon.length
+    });
+  } catch (error) {
+    console.error('Error fetching pokedex:', error);
+    res.status(500).json({ error: 'Failed to fetch pokedex', details: error.message });
   }
 });
 
