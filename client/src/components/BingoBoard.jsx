@@ -7,15 +7,17 @@ const BingoBoard = () => {
   const [board, setBoard] = useState([]);
   const [month, setMonth] = useState('');
   const [loading, setLoading] = useState(true);
+  const [imagesLoaded, setImagesLoaded] = useState(false);
+  const [loadedCount, setLoadedCount] = useState(0);
   const [error, setError] = useState(null);
 
   useEffect(() => {
     loadBoard();
     
-    // Poll for updates every hour (moderators update via Supabase)
-    const interval = setInterval(loadBoard, 60 * 60 * 1000); // 1 hour = 60 min * 60 sec * 1000 ms
+    // Check for completion updates every 5 minutes (not images, just data)
+    const interval = setInterval(checkForUpdates, 5 * 60 * 1000);
     return () => clearInterval(interval);
-  }, [user]); // Reload when user changes (login/logout)
+  }, [user]);
 
   const loadBoard = async () => {
     try {
@@ -23,12 +25,50 @@ const BingoBoard = () => {
       setBoard(data.board);
       setMonth(data.month);
       setError(null);
+      setLoadedCount(0); // Reset image count
+      setImagesLoaded(false);
     } catch (err) {
       setError('Failed to load bingo board');
       console.error(err);
     } finally {
       setLoading(false);
     }
+  };
+
+  // Check only for completion status updates, not reload images
+  const checkForUpdates = async () => {
+    try {
+      const data = await api.getBingoBoard();
+      // Only update completion status, not the entire board
+      setBoard(prevBoard => 
+        prevBoard.map(cell => {
+          const updated = data.board.find(c => c.id === cell.id);
+          if (updated && cell.is_checked !== updated.is_checked) {
+            return { ...cell, is_checked: updated.is_checked };
+          }
+          return cell;
+        })
+      );
+    } catch (err) {
+      console.error('Failed to check for updates:', err);
+    }
+  };
+
+  const handleImageLoad = () => {
+    setLoadedCount(prev => {
+      const newCount = prev + 1;
+      // Count only Pokemon images (not FREE SPACE or EMPTY)
+      const totalImages = board.filter(cell => 
+        cell.pokemon_name !== 'FREE SPACE' && 
+        cell.pokemon_name !== 'EMPTY' && 
+        cell.pokemon_gif
+      ).length;
+      
+      if (newCount >= totalImages) {
+        setImagesLoaded(true);
+      }
+      return newCount;
+    });
   };
 
   if (loading) {
@@ -43,6 +83,33 @@ const BingoBoard = () => {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="text-lg text-red-600">{error}</div>
+      </div>
+    );
+  }
+
+  if (!imagesLoaded && board.length > 0) {
+    return (
+      <div className="w-full">
+        <div className="flex items-center justify-center h-64">
+          <div className="text-lg text-gray-400">Loading bingo board...</div>
+        </div>
+        {/* Hidden images to preload */}
+        <div style={{ position: 'absolute', left: '-9999px' }}>
+          {board.map((cell) => {
+            if (cell.pokemon_name !== 'FREE SPACE' && cell.pokemon_name !== 'EMPTY' && cell.pokemon_gif) {
+              return (
+                <img 
+                  key={cell.id}
+                  src={cell.pokemon_gif} 
+                  alt={cell.pokemon_name}
+                  onLoad={handleImageLoad}
+                  onError={handleImageLoad}
+                />
+              );
+            }
+            return null;
+          })}
+        </div>
       </div>
     );
   }
@@ -75,8 +142,8 @@ const BingoBoard = () => {
                 <img 
                   src={cell.pokemon_gif} 
                   alt={cell.pokemon_name}
-                  className="w-full block"
-                  style={{ verticalAlign: 'top' }}
+                  className="w-full block pixelated"
+                  style={{ imageRendering: 'pixelated', verticalAlign: 'top' }}
                 />
               )}
               {(isFreeSpace || cell.pokemon_name === 'EMPTY') && (
