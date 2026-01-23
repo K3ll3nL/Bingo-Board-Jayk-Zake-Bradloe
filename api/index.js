@@ -85,8 +85,7 @@ app.get('/api/bingo/board', async (req, res) => {
     const { data: pokemonData, error: pokemonError } = await supabase
       .from('pokemon_master')
       .select('id, national_dex_id, name, img_url')
-      .in('id', pokemonIds)
-      .eq('shiny_available', true);
+      .in('id', pokemonIds);
     console.log("Pokemon query error:", pokemonError);
     console.log("Pokemon query result:", pokemonData);
     
@@ -327,6 +326,32 @@ app.get('/api/profile/:userId', async (req, res) => {
     const totalBingos = bingos ? bingos.filter(b => b.bingo_type === 'bingo').length : 0;
     const totalBlackouts = bingos ? bingos.filter(b => b.bingo_type === 'blackout').length : 0;
     
+    // Get total Pokemon caught (distinct pokemon_id count from entries)
+    const { data: allEntries, error: entriesError } = await supabase
+      .from('entries')
+      .select('pokemon_id')
+      .eq('user_id', userId);
+    
+    if (entriesError) {
+      console.error('Entries fetch error:', entriesError);
+    }
+    
+    console.log('All entries for user:', allEntries);
+    const totalCaught = allEntries ? new Set(allEntries.map(e => e.pokemon_id)).size : 0;
+    console.log('Total caught:', totalCaught);
+    
+    // Get total Pokemon count
+    const { count: totalPokemon, error: countError } = await supabase
+      .from('pokemon_master')
+      .select('*', { count: 'exact', head: true });
+    
+    if (countError) {
+      console.error('Pokemon count error:', countError);
+    }
+    
+    console.log('Total Pokemon:', totalPokemon);
+    console.log('Total Caught value:', totalCaught);
+    
     // Format monthly data for graphs
     const monthlyData = monthlyPoints.map(month => ({
       month: month.bingo_months.month_year_display,
@@ -339,6 +364,8 @@ app.get('/api/profile/:userId', async (req, res) => {
         totalShinies: totalShinies || 0,
         overallRank,
         totalPoints,
+        totalCaught: totalCaught || 0,
+        totalPokemon: totalPokemon || 0,
         highestPointMonth: bestPointsMonth ? {
           month: bestPointsMonth.bingo_months.month_year_display,
           points: bestPointsMonth.points
@@ -353,7 +380,7 @@ app.get('/api/profile/:userId', async (req, res) => {
       monthlyData
     };
     
-    console.log('Sending response:', response);
+    console.log('Sending response with stats:', JSON.stringify(response.stats));
     res.json(response);
   } catch (error) {
     console.error('Error fetching profile:', error);
@@ -403,8 +430,8 @@ app.get('/api/profile/:userId/board', async (req, res) => {
     const { data: pokemonData, error: pokemonError } = await supabase
       .from('pokemon_master')
       .select('id, national_dex_id, name, img_url')
-      .in('id', pokemonIds)
-      .eq('shiny_available', true);
+      .in('id', pokemonIds);
+    
     if (pokemonError) throw pokemonError;
     
     // Create lookup map
@@ -499,8 +526,8 @@ app.get('/api/pokedex', async (req, res) => {
       .from('pokemon_master')
       .select('id, national_dex_id, name, display_name, img_url')
       .order('national_dex_id', { ascending: true })
-      .order('id', { ascending: true })
-      .eq('shiny_available', true);
+      .order('id', { ascending: true });
+    
     if (pokemonError) throw pokemonError;
     
     // Get user's caught pokemon (all entries, not just current month)
