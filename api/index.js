@@ -197,6 +197,8 @@ app.get('/api/bingo/board', async (req, res) => {
 // Get leaderboard
 app.get('/api/leaderboard', async (req, res) => {
   try {
+    const ACTIVE_MONTH_ID = 1;
+    
     const { data, error } = await supabase
       .from('user_monthly_points')
       .select(`
@@ -209,10 +211,30 @@ app.get('/api/leaderboard', async (req, res) => {
           created_at
         )
       `)
+      .eq('month_id', ACTIVE_MONTH_ID)
       .order('points', { ascending: false })
       .limit(10);
     
     if (error) throw error;
+    
+    // Get all bingo achievements for these users
+    const userIds = data.map(entry => entry.user_id);
+    const { data: achievements, error: achievementsError } = await supabase
+      .from('bingo_achievements')
+      .select('user_id, bingo_type')
+      .eq('month_id', ACTIVE_MONTH_ID)
+      .in('user_id', userIds);
+    
+    // Create achievements map
+    const achievementsMap = {};
+    if (!achievementsError && achievements) {
+      achievements.forEach(a => {
+        if (!achievementsMap[a.user_id]) {
+          achievementsMap[a.user_id] = { row: false, column: false, blackout: false };
+        }
+        achievementsMap[a.user_id][a.bingo_type] = true;
+      });
+    }
     
     const transformedData = data.map(entry => ({
       id: entry.id,
@@ -220,7 +242,8 @@ app.get('/api/leaderboard', async (req, res) => {
       username: entry.users.username,
       display_name: entry.users.display_name,
       points: entry.points,
-      created_at: entry.users.created_at
+      created_at: entry.users.created_at,
+      achievements: achievementsMap[entry.user_id] || { row: false, column: false, blackout: false }
     }));
     
     res.json(transformedData);

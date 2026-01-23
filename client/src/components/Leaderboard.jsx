@@ -112,7 +112,7 @@ const Leaderboard = () => {
                     
                     <div>
                       <div className={`font-semibold text-sm ${position > 3 ? 'text-white' : 'text-gray-800'}`}>
-                        {user.display_name}
+                        {user.username}
                       </div>
                       <div className={`text-xs ${position > 3 ? 'text-gray-400' : 'text-gray-500'}`}>
                         Joined {formatDate(user.created_at)}
@@ -121,6 +121,36 @@ const Leaderboard = () => {
                   </div>
                   
                   <div className="flex items-center gap-2">
+                    {/* Achievement icons */}
+                    <div className="flex items-center gap-1">
+                      {/* Row */}
+                      {user.achievements?.row && (
+                        <div className="w-5 h-5 rounded bg-purple-500 flex items-center justify-center">
+                          <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 12h16" />
+                          </svg>
+                        </div>
+                      )}
+                      {/* Column */}
+                      {user.achievements?.column && (
+                        <div className="w-5 h-5 rounded bg-purple-500 flex items-center justify-center">
+                          <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16" />
+                          </svg>
+                        </div>
+                      )}
+                      {/* Blackout */}
+                      {user.achievements?.blackout && (
+                        <div className="w-5 h-5 rounded bg-purple-500 flex items-center justify-center">
+                          <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                            <rect x="3" y="3" width="18" height="18" rx="1" />
+                            <path d="M3 7.2h18M3 10.2h18M3 13.8h18M3 16.8h18" />
+                            <path d="M7.2 3v18M10.2 3v18M13.8 3v18M16.8 3v18" />
+                          </svg>
+                        </div>
+                      )}
+                    </div>
+                    
                     <span className={`text-xl font-bold ${position > 3 ? 'text-purple-400' : 'text-primary'}`}>
                       {user.points}
                     </span>
