@@ -31,6 +31,7 @@ const TwitchAmbassadors = () => {
   return (
     <div className="w-full" style={{ backgroundColor: '#212326' }}>
       <div className="max-w-7xl mx-auto px-4 py-8">
+        <h2 className="text-xl font-bold text-white mb-4">Check out these streamers!</h2>
         
         <div className="flex gap-4 overflow-x-auto pb-4" style={{ scrollbarWidth: 'thin' }}>
           {ambassadors.map((ambassador) => (
