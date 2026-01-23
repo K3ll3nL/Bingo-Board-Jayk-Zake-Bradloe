@@ -153,12 +153,31 @@ app.get('/api/bingo/board', async (req, res) => {
       }
     }
     
+    // Get user's bingo achievements for this month if authenticated
+    let achievements = { row: false, column: false, blackout: false };
+    if (userId) {
+      const { data: bingoAchievements, error: achievementsError } = await supabase
+        .from('bingo_achievements')
+        .select('bingo_type')
+        .eq('user_id', userId)
+        .eq('month_id', ACTIVE_MONTH_ID);
+      
+      if (!achievementsError && bingoAchievements) {
+        achievements = {
+          row: bingoAchievements.some(a => a.bingo_type === 'row'),
+          column: bingoAchievements.some(a => a.bingo_type === 'column'),
+          blackout: bingoAchievements.some(a => a.bingo_type === 'blackout')
+        };
+      }
+    }
+    
     res.json({
       month: monthData.month_year_display,
       start_date: monthData.start_date,
       end_date: monthData.end_date,
       board: board,
-      user_authenticated: !!userId
+      user_authenticated: !!userId,
+      achievements
     });
   } catch (error) {
     console.error('Error fetching bingo board:', error);

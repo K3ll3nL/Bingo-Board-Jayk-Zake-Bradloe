@@ -10,6 +10,7 @@ const BingoBoard = () => {
   const [imagesLoaded, setImagesLoaded] = useState(false);
   const [loadedCount, setLoadedCount] = useState(0);
   const [error, setError] = useState(null);
+  const [achievements, setAchievements] = useState({ row: false, column: false, blackout: false });
 
   useEffect(() => {
     loadBoard();
@@ -35,6 +36,7 @@ const BingoBoard = () => {
       const data = await api.getBingoBoard();
       setBoard(data.board);
       setMonth(data.month);
+      setAchievements(data.achievements || { row: false, column: false, blackout: false });
       setError(null);
       // Don't reset image states on updates, only on initial load
       if (loading) {
@@ -174,6 +176,41 @@ const BingoBoard = () => {
           );
         })}
       </div>
+
+      {/* Bingo Achievements - Only show if user is authenticated */}
+      {user && (
+        <div className="mt-6 flex justify-center gap-8">
+          {/* Row Bingo */}
+          <div className="flex flex-col items-center">
+            <div className={`w-12 h-12 rounded-lg flex items-center justify-center ${achievements.row ? 'bg-purple-500' : 'bg-gray-700'}`}>
+              <svg className={`w-8 h-8 ${achievements.row ? 'text-white' : 'text-gray-500'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+              </svg>
+            </div>
+            <span className="text-xs text-gray-400 mt-2">Row</span>
+          </div>
+
+          {/* Column Bingo */}
+          <div className="flex flex-col items-center">
+            <div className={`w-12 h-12 rounded-lg flex items-center justify-center ${achievements.column ? 'bg-purple-500' : 'bg-gray-700'}`}>
+              <svg className={`w-8 h-8 ${achievements.column ? 'text-white' : 'text-gray-500'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" transform="rotate(90 12 12)" />
+              </svg>
+            </div>
+            <span className="text-xs text-gray-400 mt-2">Column</span>
+          </div>
+
+          {/* Blackout */}
+          <div className="flex flex-col items-center">
+            <div className={`w-12 h-12 rounded-lg flex items-center justify-center ${achievements.blackout ? 'bg-purple-500' : 'bg-gray-700'}`}>
+              <svg className={`w-8 h-8 ${achievements.blackout ? 'text-white' : 'text-gray-500'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 5a1 1 0 011-1h4a1 1 0 011 1v7a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM14 5a1 1 0 011-1h4a1 1 0 011 1v7a1 1 0 01-1 1h-4a1 1 0 01-1-1V5zM4 16a1 1 0 011-1h4a1 1 0 011 1v3a1 1 0 01-1 1H5a1 1 0 01-1-1v-3zM14 16a1 1 0 011-1h4a1 1 0 011 1v3a1 1 0 01-1 1h-4a1 1 0 01-1-1v-3z" />
+              </svg>
+            </div>
+            <span className="text-xs text-gray-400 mt-2">Blackout</span>
+          </div>
+        </div>
+      )}
       </div>
     </div>
   );
