@@ -85,7 +85,8 @@ app.get('/api/bingo/board', async (req, res) => {
     const { data: pokemonData, error: pokemonError } = await supabase
       .from('pokemon_master')
       .select('id, national_dex_id, name, img_url')
-      .in('id', pokemonIds);
+      .in('id', pokemonIds)
+      .eq('shiny_available', true);
     console.log("Pokemon query error:", pokemonError);
     console.log("Pokemon query result:", pokemonData);
     
@@ -402,8 +403,8 @@ app.get('/api/profile/:userId/board', async (req, res) => {
     const { data: pokemonData, error: pokemonError } = await supabase
       .from('pokemon_master')
       .select('id, national_dex_id, name, img_url')
-      .in('id', pokemonIds);
-    
+      .in('id', pokemonIds)
+      .eq('shiny_available', true);
     if (pokemonError) throw pokemonError;
     
     // Create lookup map
@@ -498,8 +499,8 @@ app.get('/api/pokedex', async (req, res) => {
       .from('pokemon_master')
       .select('id, national_dex_id, name, display_name, img_url')
       .order('national_dex_id', { ascending: true })
-      .order('id', { ascending: true });
-    
+      .order('id', { ascending: true })
+      .eq('shiny_available', true);
     if (pokemonError) throw pokemonError;
     
     // Get user's caught pokemon (all entries, not just current month)
