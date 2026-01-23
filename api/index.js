@@ -615,5 +615,120 @@ app.get('/api/pokedex', async (req, res) => {
   }
 });
 
+// Get Twitch ambassadors with live status
+app.get('/api/ambassadors', async (req, res) => {
+  try {
+    // Get ambassadors from database
+    const { data: ambassadors, error } = await supabase
+      .from('twitch_ambassadors')
+      .select(`
+        id,
+        twitch_url,
+        users!twitch_ambassadors_id_fkey (
+          display_name
+        )
+      `);
+    
+    if (error) throw error;
+    
+    if (!ambassadors || ambassadors.length === 0) {
+      return res.json([]);
+    }
+    
+    // Extract Twitch usernames from URLs
+    const twitchData = ambassadors.map(amb => {
+      const username = amb.twitch_url.split('/').pop().toLowerCase();
+      return {
+        id: amb.id,
+        username,
+        display_name: amb.users?.display_name || username,
+        twitch_url: amb.twitch_url
+      };
+    });
+    
+    // Get Twitch OAuth token (you'll need to set these env vars)
+    const twitchClientId = process.env.TWITCH_CLIENT_ID;
+    const twitchClientSecret = process.env.TWITCH_CLIENT_SECRET;
+    
+    if (!twitchClientId || !twitchClientSecret) {
+      console.warn('Twitch API credentials not configured');
+      // Return basic data without live status
+      return res.json(twitchData.map(amb => ({
+        ...amb,
+        profile_image_url: `https://static-cdn.jtvnw.net/user-default-pictures-uv/de130ab0-def7-11e9-b668-784f43822e80-profile_image-300x300.png`,
+        is_live: false
+      })));
+    }
+    
+    try {
+      // Get Twitch OAuth token
+      const tokenResponse = await fetch('https://id.twitch.tv/oauth2/token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: `client_id=${twitchClientId}&client_secret=${twitchClientSecret}&grant_type=client_credentials`
+      });
+      
+      const { access_token } = await tokenResponse.json();
+      
+      const headers = {
+        'Client-ID': twitchClientId,
+        'Authorization': `Bearer ${access_token}`
+      };
+      
+      // Get user info for all ambassadors
+      const usernames = twitchData.map(amb => amb.username);
+      const usersResponse = await fetch(`https://api.twitch.tv/helix/users?${usernames.map(u => `login=${u}`).join('&')}`, { headers });
+      const usersData = await usersResponse.json();
+      
+      // Get streams for all users
+      const userIds = usersData.data.map(u => u.id);
+      const streamsResponse = await fetch(`https://api.twitch.tv/helix/streams?${userIds.map(id => `user_id=${id}`).join('&')}`, { headers });
+      const streamsData = await streamsResponse.json();
+      
+      // Create live status map
+      const liveStreams = {};
+      streamsData.data?.forEach(stream => {
+        liveStreams[stream.user_id] = {
+          is_live: true,
+          viewer_count: stream.viewer_count
+        };
+      });
+      
+      // Create user info map
+      const userInfo = {};
+      usersData.data?.forEach(user => {
+        userInfo[user.login.toLowerCase()] = {
+          profile_image_url: user.profile_image_url,
+          brand_color: user.broadcaster_type === 'partner' ? '#9147ff' : user.broadcaster_type === 'affiliate' ? '#9147ff' : '#808080'
+        };
+      });
+      
+      // Combine all data
+      const result = twitchData.map(amb => ({
+        ...amb,
+        profile_image_url: userInfo[amb.username]?.profile_image_url || `https://static-cdn.jtvnw.net/user-default-pictures-uv/de130ab0-def7-11e9-b668-784f43822e80-profile_image-300x300.png`,
+        is_live: usersData.data?.find(u => u.login.toLowerCase() === amb.username) ? 
+          liveStreams[usersData.data.find(u => u.login.toLowerCase() === amb.username).id]?.is_live || false : false,
+        viewer_count: usersData.data?.find(u => u.login.toLowerCase() === amb.username) ? 
+          liveStreams[usersData.data.find(u => u.login.toLowerCase() === amb.username).id]?.viewer_count : undefined,
+        brand_color: userInfo[amb.username]?.brand_color || '#808080'
+      }));
+      
+      res.json(result);
+    } catch (twitchError) {
+      console.error('Twitch API error:', twitchError);
+      // Return basic data on Twitch API error
+      return res.json(twitchData.map(amb => ({
+        ...amb,
+        profile_image_url: `https://static-cdn.jtvnw.net/user-default-pictures-uv/de130ab0-def7-11e9-b668-784f43822e80-profile_image-300x300.png`,
+        is_live: false
+      })));
+    }
+  } catch (error) {
+    console.error('Error fetching ambassadors:', error);
+    res.status(500).json({ error: 'Failed to fetch ambassadors' });
+  }
+});
+
 // Export for Vercel serverless
 module.exports = app;

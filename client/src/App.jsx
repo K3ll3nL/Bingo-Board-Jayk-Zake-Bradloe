@@ -6,6 +6,7 @@ import Leaderboard from './components/Leaderboard';
 import AuthCallback from './components/AuthCallback';
 import Profile from './components/Profile';
 import Pokedex from './components/Pokedex';
+import TwitchAmbassadors from './components/TwitchAmbassadors';
 
 const MainApp = () => {
   const { user, signInWithDiscord, signOut, loading } = useAuth();
@@ -129,6 +130,9 @@ const MainApp = () => {
             <Leaderboard />
           </div>
         </div>
+
+        {/* Twitch Ambassadors Carousel */}
+        <TwitchAmbassadors />
       </main>
 
       {/* Footer */}
