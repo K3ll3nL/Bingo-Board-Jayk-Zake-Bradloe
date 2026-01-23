@@ -60,12 +60,12 @@ app.get('/api/bingo/board', async (req, res) => {
     if (userId) {
       const { data: entries, error: entriesError } = await supabase
         .from('entries')
-        .select('national_dex_id')
+        .select('pokemon_id')
         .eq('user_id', userId)
         .eq('month_id', ACTIVE_MONTH_ID);
       
       if (!entriesError && entries) {
-        completedPokemonIds = new Set(entries.map(entry => entry.national_dex_id));
+        completedPokemonIds = new Set(entries.map(entry => entry.pokemon_id));
       }
     }
     
@@ -132,8 +132,9 @@ app.get('/api/bingo/board', async (req, res) => {
           board.push({
             id: `${ACTIVE_MONTH_ID}-${position}`,
             position: position,
+            pokemon_id: pokemon.pokemon_id,
             national_dex_id: pokemon.pokemon_master.national_dex_id,
-            is_checked: completedPokemonIds.has(pokemon.pokemon_master.national_dex_id),
+            is_checked: completedPokemonIds.has(pokemon.pokemon_id),
             pokemon_name: pokemon.pokemon_master.name || 'Unknown',
             pokemon_gif: pokemon.pokemon_master.img_url,
           });
@@ -142,6 +143,7 @@ app.get('/api/bingo/board', async (req, res) => {
           board.push({
             id: `empty-${ACTIVE_MONTH_ID}-${position}`,
             position: position,
+            pokemon_id: pokemon.pokemon_id,
             national_dex_id: null,
             is_checked: false,
             pokemon_name: 'EMPTY',
@@ -376,13 +378,13 @@ app.get('/api/profile/:userId/board', async (req, res) => {
     // Get user's entries for this month
     const { data: entries, error: entriesError } = await supabase
       .from('entries')
-      .select('national_dex_id')
+      .select('pokemon_id')
       .eq('user_id', userId)
       .eq('month_id', ACTIVE_MONTH_ID);
     
     if (entriesError) throw entriesError;
     
-    const completedPokemonIds = new Set(entries.map(entry => entry.national_dex_id));
+    const completedPokemonIds = new Set(entries.map(entry => entry.pokemon_id));
     
     // Get the month's Pokemon pool
     // Using manual join due to Supabase schema cache delay
@@ -437,8 +439,9 @@ app.get('/api/profile/:userId/board', async (req, res) => {
           board.push({
             id: `${ACTIVE_MONTH_ID}-${position}`,
             position: position,
+            pokemon_id: pokemon.pokemon_id,
             national_dex_id: pokemon.pokemon_master.national_dex_id,
-            is_checked: completedPokemonIds.has(pokemon.pokemon_master.national_dex_id),
+            is_checked: completedPokemonIds.has(pokemon.pokemon_id),
             pokemon_name: pokemon.pokemon_master.name || 'Unknown',
             pokemon_gif: pokemon.pokemon_master.img_url,
           });
@@ -447,6 +450,7 @@ app.get('/api/profile/:userId/board', async (req, res) => {
           board.push({
             id: `empty-${ACTIVE_MONTH_ID}-${position}`,
             position: position,
+            pokemon_id: pokemon.pokemon_id,
             national_dex_id: null,
             is_checked: false,
             pokemon_name: 'EMPTY',
@@ -501,13 +505,13 @@ app.get('/api/pokedex', async (req, res) => {
     // Get user's caught pokemon (all entries, not just current month)
     const { data: entries, error: entriesError } = await supabase
       .from('entries')
-      .select('national_dex_id')
+      .select('pokemon_id')
       .eq('user_id', userId);
     
     if (entriesError) throw entriesError;
     
-    // Create set of caught national_dex_ids
-    const caughtIds = new Set(entries.map(e => e.national_dex_id));
+    // Create set of caught pokemon_ids
+    const caughtIds = new Set(entries.map(e => e.pokemon_id));
     
     // Mark pokemon as caught or not
     const pokemon = allPokemon.map(p => ({
@@ -516,7 +520,7 @@ app.get('/api/pokedex', async (req, res) => {
       name: p.name,
       display_name: p.display_name,
       img_url: p.img_url,
-      caught: caughtIds.has(p.national_dex_id)
+      caught: caughtIds.has(p.id)  // Check by pokemon_master.id
     }));
     
     const caughtCount = pokemon.filter(p => p.caught).length;
