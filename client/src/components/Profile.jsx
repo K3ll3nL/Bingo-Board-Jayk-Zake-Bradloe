@@ -115,7 +115,7 @@ const Profile = () => {
         </div>
 
         {/* Stats Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+        <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-6 mb-8">
           {/* Overall Rank */}
           <div className="rounded-xl shadow-xl p-6" style={{ backgroundColor: '#35373b' }}>
             <div className="text-gray-400 text-sm mb-2">Overall Rank</div>
@@ -138,6 +138,14 @@ const Profile = () => {
           <div className="rounded-xl shadow-xl p-6" style={{ backgroundColor: '#35373b' }}>
             <div className="text-gray-400 text-sm mb-2">Bingos</div>
             <div className="text-4xl font-bold text-purple-400">{profile.stats.totalBingos}</div>
+          </div>
+
+          {/* Pokemon Caught */}
+          <div className="rounded-xl shadow-xl p-6" style={{ backgroundColor: '#35373b' }}>
+            <div className="text-gray-400 text-sm mb-2">Pokémon Caught</div>
+            <div className="text-4xl font-bold text-purple-400">
+              {profile.stats.totalCaught} / {profile.stats.totalPokemon}
+            </div>
           </div>
         </div>
 
@@ -171,7 +179,7 @@ const Profile = () => {
 
           {/* Blackouts */}
           <div className="rounded-xl shadow-xl p-6" style={{ backgroundColor: '#35373b' }}>
-            <div className="text-gray-400 text-sm mb-2">⚫ Blackouts</div>
+            <div className="text-gray-400 text-sm mb-2">Blackouts</div>
             <div className="text-4xl font-bold text-purple-400">{profile.stats.totalBlackouts}</div>
           </div>
         </div>
