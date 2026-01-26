@@ -154,7 +154,7 @@ app.get('/api/bingo/board', async (req, res) => {
     }
     
     // Get user's bingo achievements for this month if authenticated
-    let achievements = { row: null, column: null, blackout: null };
+    let achievements = { row: null, column: null, x: null, blackout: null };
     if (userId) {
       const { data: bingoAchievements, error: achievementsError } = await supabase
         .from('bingo_achievements')
@@ -170,11 +170,13 @@ app.get('/api/bingo/board', async (req, res) => {
       if (!achievementsError && bingoAchievements) {
         const rowAchievement = bingoAchievements.find(a => a.bingo_type === 'row');
         const columnAchievement = bingoAchievements.find(a => a.bingo_type === 'column');
+        const xAchievement = bingoAchievements.find(a => a.bingo_type === 'x');
         const blackoutAchievement = bingoAchievements.find(a => a.bingo_type === 'blackout');
         
         achievements = {
           row: rowAchievement ? rowAchievement.users.display_name : null,
           column: columnAchievement ? columnAchievement.users.display_name : null,
+          x: xAchievement ? xAchievement.users.display_name : null,
           blackout: blackoutAchievement ? blackoutAchievement.users.display_name : null
         };
       }
@@ -225,12 +227,26 @@ app.get('/api/leaderboard', async (req, res) => {
       .eq('month_id', ACTIVE_MONTH_ID)
       .in('user_id', userIds);
     
+    // Get hex codes for ambassadors
+    const { data: ambassadors, error: ambassadorsError } = await supabase
+      .from('twitch_ambassadors')
+      .select('id, hex_code')
+      .in('id', userIds);
+    
+    // Create hex code map
+    const hexCodeMap = {};
+    if (!ambassadorsError && ambassadors) {
+      ambassadors.forEach(amb => {
+        hexCodeMap[amb.id] = amb.hex_code || '#9147ff';
+      });
+    }
+    
     // Create achievements map
     const achievementsMap = {};
     if (!achievementsError && achievements) {
       achievements.forEach(a => {
         if (!achievementsMap[a.user_id]) {
-          achievementsMap[a.user_id] = { row: false, column: false, blackout: false };
+          achievementsMap[a.user_id] = { row: false, column: false, x: false, blackout: false };
         }
         achievementsMap[a.user_id][a.bingo_type] = true;
       });
@@ -243,7 +259,8 @@ app.get('/api/leaderboard', async (req, res) => {
       display_name: entry.users.display_name,
       points: entry.points,
       created_at: entry.users.created_at,
-      achievements: achievementsMap[entry.user_id] || { row: false, column: false, blackout: false }
+      achievements: achievementsMap[entry.user_id] || { row: false, column: false, x: false, blackout: false },
+      hex_code: hexCodeMap[entry.user_id] || '#9147ff'
     }));
     
     res.json(transformedData);
@@ -624,6 +641,7 @@ app.get('/api/ambassadors', async (req, res) => {
       .select(`
         id,
         twitch_url,
+        hex_code,
         users!twitch_ambassadors_id_fkey (
           display_name
         )
@@ -642,7 +660,8 @@ app.get('/api/ambassadors', async (req, res) => {
         id: amb.id,
         username,
         display_name: amb.users?.display_name || username,
-        twitch_url: amb.twitch_url
+        twitch_url: amb.twitch_url,
+        hex_code: amb.hex_code || '#9147ff' // Default to Twitch purple
       };
     });
     
@@ -656,7 +675,8 @@ app.get('/api/ambassadors', async (req, res) => {
       return res.json(twitchData.map(amb => ({
         ...amb,
         profile_image_url: `https://static-cdn.jtvnw.net/user-default-pictures-uv/de130ab0-def7-11e9-b668-784f43822e80-profile_image-300x300.png`,
-        is_live: false
+        is_live: false,
+        brand_color: amb.hex_code
       })));
     }
     
@@ -711,7 +731,7 @@ app.get('/api/ambassadors', async (req, res) => {
           liveStreams[usersData.data.find(u => u.login.toLowerCase() === amb.username).id]?.is_live || false : false,
         viewer_count: usersData.data?.find(u => u.login.toLowerCase() === amb.username) ? 
           liveStreams[usersData.data.find(u => u.login.toLowerCase() === amb.username).id]?.viewer_count : undefined,
-        brand_color: userInfo[amb.username]?.brand_color || '#808080'
+        brand_color: amb.hex_code // Use custom hex code from database
       }));
       
       res.json(result);
@@ -721,7 +741,8 @@ app.get('/api/ambassadors', async (req, res) => {
       return res.json(twitchData.map(amb => ({
         ...amb,
         profile_image_url: `https://static-cdn.jtvnw.net/user-default-pictures-uv/de130ab0-def7-11e9-b668-784f43822e80-profile_image-300x300.png`,
-        is_live: false
+        is_live: false,
+        brand_color: amb.hex_code
       })));
     }
   } catch (error) {

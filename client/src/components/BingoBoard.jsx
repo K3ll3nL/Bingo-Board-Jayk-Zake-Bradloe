@@ -10,7 +10,7 @@ const BingoBoard = () => {
   const [imagesLoaded, setImagesLoaded] = useState(false);
   const [loadedCount, setLoadedCount] = useState(0);
   const [error, setError] = useState(null);
-  const [achievements, setAchievements] = useState({ row: null, column: null, blackout: null });
+  const [achievements, setAchievements] = useState({ row: null, column: null, x: null, blackout: null });
 
   useEffect(() => {
     loadBoard();
@@ -36,7 +36,7 @@ const BingoBoard = () => {
       const data = await api.getBingoBoard();
       setBoard(data.board);
       setMonth(data.month);
-      setAchievements(data.achievements || { row: null, column: null, blackout: null });
+      setAchievements(data.achievements || { row: null, column: null, x: null, blackout: null });
       setError(null);
       // Don't reset image states on updates, only on initial load
       if (loading) {
@@ -177,42 +177,54 @@ const BingoBoard = () => {
         })}
       </div>
 
-      {/* Bingo Achievements - Only show if user is authenticated */}
-        <div className="mt-6 flex justify-center gap-8">
+      {/* Bingo Achievements - Show for everyone */}
+        <div className="mt-4 grid grid-cols-2 md:flex md:justify-center gap-3 md:gap-6">
           {/* Row Bingo */}
-          <div className="flex items-center gap-3">
-            <div className={`w-12 h-12 rounded-lg flex items-center flex-shrink-0 justify-center ${achievements.row ? 'bg-purple-500' : 'bg-gray-700'}`}>
-              <svg className={`w-8 h-8 ${achievements.row ? 'text-white' : 'text-gray-500'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <div className="flex items-center gap-2">
+            <div className={`w-6 h-6 md:w-9 md:h-9 rounded-lg flex items-center flex-shrink-0 justify-center ${achievements.row ? 'bg-purple-500' : 'bg-gray-700'}`}>
+              <svg className={`w-4 h-4 md:w-6 md:h-6 ${achievements.row ? 'text-white' : 'text-gray-500'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 12h16" />
               </svg>
             </div>
-            <span className="text-xs text-gray-400 ">
+            <span className="text-[10px] md:text-xs text-gray-400">
               {achievements.row ? `Claimed by: ${achievements.row}` : 'Unclaimed'}
             </span>
           </div>
 
           {/* Column Bingo */}
-          <div className="flex items-center gap-3">
-            <div className={`w-12 h-12 rounded-lg flex items-center flex-shrink-0 justify-center ${achievements.column ? 'bg-purple-500' : 'bg-gray-700'}`}>
-              <svg className={`w-8 h-8 ${achievements.column ? 'text-white' : 'text-gray-500'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <div className="flex items-center gap-2">
+            <div className={`w-6 h-6 md:w-9 md:h-9 rounded-lg flex items-center flex-shrink-0 justify-center ${achievements.column ? 'bg-purple-500' : 'bg-gray-700'}`}>
+              <svg className={`w-4 h-4 md:w-6 md:h-6 ${achievements.column ? 'text-white' : 'text-gray-500'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16" />
               </svg>
             </div>
-            <span className="text-xs text-gray-400 ">
+            <span className="text-[10px] md:text-xs text-gray-400">
               {achievements.column ? `Claimed by: ${achievements.column}` : 'Unclaimed'}
             </span>
           </div>
 
+          {/* X Bingo */}
+          <div className="flex items-center gap-2">
+            <div className={`w-6 h-6 md:w-9 md:h-9 rounded-lg flex items-center flex-shrink-0 justify-center ${achievements.x ? 'bg-purple-500' : 'bg-gray-700'}`}>
+              <svg className={`w-4 h-4 md:w-6 md:h-6 ${achievements.x ? 'text-white' : 'text-gray-500'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </div>
+            <span className="text-[10px] md:text-xs text-gray-400">
+              {achievements.x ? `Claimed by: ${achievements.x}` : 'Unclaimed'}
+            </span>
+          </div>
+
           {/* Blackout */}
-          <div className="flex items-center gap-3">
-            <div className={`w-12 h-12 rounded-lg flex items-center flex-shrink-0 justify-center ${achievements.blackout ? 'bg-purple-500' : 'bg-gray-700'}`}>
-              <svg className={`w-12 h-12 ${achievements.blackout ? 'text-white' : 'text-gray-500'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+          <div className="flex items-center gap-2">
+            <div className={`w-6 h-6 md:w-9 md:h-9 rounded-lg flex items-center flex-shrink-0 justify-center ${achievements.blackout ? 'bg-purple-500' : 'bg-gray-700'}`}>
+              <svg className={`w-6 h-6 md:w-9 md:h-9 ${achievements.blackout ? 'text-white' : 'text-gray-500'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
                 <rect x="3" y="3" width="18" height="18" rx="1" />
                 <path d="M3 7.2h18M3 10.2h18M3 13.8h18M3 16.8h18" />
                 <path d="M7.2 3v18M10.2 3v18M13.8 3v18M16.8 3v18" />
               </svg>
             </div>
-            <span className="text-xs text-gray-400 ">
+            <span className="text-[10px] md:text-xs text-gray-400">
               {achievements.blackout ? `Claimed by: ${achievements.blackout}` : 'Unclaimed'}
             </span>
           </div>
