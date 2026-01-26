@@ -755,5 +755,153 @@ app.get('/api/ambassadors', async (req, res) => {
   }
 });
 
+// Get available Pokemon for upload (active months, not yet caught)
+app.get('/api/upload/available-pokemon', async (req, res) => {
+  try {
+    let userId = null;
+    
+    // Check if user is authenticated
+    const authHeader = req.headers.authorization;
+    if (authHeader) {
+      try {
+        const token = authHeader.replace('Bearer ', '');
+        const { data: { user }, error: authError } = await supabase.auth.getUser(token);
+        if (user && !authError) {
+          userId = user.id;
+        }
+      } catch (err) {
+        console.log('Auth check failed');
+      }
+    }
+    
+    if (!userId) {
+      return res.status(401).json({ error: 'Authentication required' });
+    }
+    
+    // Get active months (current date between start_date and end_date)
+    const { data: activeMonths, error: monthsError } = await supabase
+      .from('bingo_months')
+      .select('id')
+      .lte('start_date', new Date().toISOString())
+      .gte('end_date', new Date().toISOString());
+    
+    if (monthsError) throw monthsError;
+    
+    if (!activeMonths || activeMonths.length === 0) {
+      return res.json([]);
+    }
+    
+    const monthIds = activeMonths.map(m => m.id);
+    
+    // Get Pokemon in active months' pools
+    const { data: poolPokemon, error: poolError } = await supabase
+      .from('monthly_pokemon_pool')
+      .select('pokemon_id')
+      .in('month_id', monthIds);
+    
+    if (poolError) throw poolError;
+    
+    const pokemonIds = [...new Set(poolPokemon.map(p => p.pokemon_id))];
+    
+    // Get user's already caught Pokemon
+    const { data: userEntries, error: entriesError } = await supabase
+      .from('entries')
+      .select('pokemon_id')
+      .eq('user_id', userId)
+      .in('month_id', monthIds);
+    
+    if (entriesError) throw entriesError;
+    
+    const caughtPokemonIds = new Set(userEntries.map(e => e.pokemon_id));
+    
+    // Filter out already caught Pokemon
+    const availablePokemonIds = pokemonIds.filter(id => !caughtPokemonIds.has(id));
+    
+    // Get Pokemon details
+    const { data: pokemon, error: pokemonError } = await supabase
+      .from('pokemon_master')
+      .select('id, national_dex_id, name, img_url')
+      .in('id', availablePokemonIds)
+      .eq('shiny_available', true);
+    
+    if (pokemonError) throw pokemonError;
+    
+    res.json(pokemon || []);
+  } catch (error) {
+    console.error('Error fetching available Pokemon:', error);
+    res.status(500).json({ error: 'Failed to fetch available Pokemon' });
+  }
+});
+
+// Submit catch
+app.post('/api/upload/submission', async (req, res) => {
+  try {
+    // TODO: Handle file upload to Cloudflare R2
+    // For now, just accept URL submissions
+    
+    let userId = null;
+    
+    // Check if user is authenticated
+    const authHeader = req.headers.authorization;
+    if (authHeader) {
+      try {
+        const token = authHeader.replace('Bearer ', '');
+        const { data: { user }, error: authError } = await supabase.auth.getUser(token);
+        if (user && !authError) {
+          userId = user.id;
+        }
+      } catch (err) {
+        console.log('Auth check failed');
+      }
+    }
+    
+    if (!userId) {
+      return res.status(401).json({ error: 'Authentication required' });
+    }
+    
+    const { pokemon_id, url } = req.body;
+    
+    if (!pokemon_id) {
+      return res.status(400).json({ error: 'Pokemon ID required' });
+    }
+    
+    if (!url && !req.file) {
+      return res.status(400).json({ error: 'Media URL or file required' });
+    }
+    
+    // Get active month
+    const { data: activeMonth, error: monthError } = await supabase
+      .from('bingo_months')
+      .select('id')
+      .lte('start_date', new Date().toISOString())
+      .gte('end_date', new Date().toISOString())
+      .single();
+    
+    if (monthError || !activeMonth) {
+      return res.status(400).json({ error: 'No active bingo month' });
+    }
+    
+    // Create entry
+    const { data: entry, error: entryError } = await supabase
+      .from('entries')
+      .insert({
+        user_id: userId,
+        pokemon_id: parseInt(pokemon_id),
+        month_id: activeMonth.id,
+        proof_url: url || null,
+        is_shiny: true // Assuming all submissions are shiny
+      })
+      .select()
+      .single();
+    
+    if (entryError) throw entryError;
+    
+    res.json({ success: true, entry });
+  } catch (error) {
+    console.error('Error submitting catch:', error);
+    res.status(500).json({ error: 'Failed to submit catch' });
+  }
+});
+
 // Export for Vercel serverless
 module.exports = app;
