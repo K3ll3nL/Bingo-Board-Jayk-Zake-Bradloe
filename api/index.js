@@ -6,13 +6,6 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// Debug: Check environment variables
-console.log('=== Environment Variables Debug ===');
-console.log('SUPABASE_URL exists:', !!process.env.SUPABASE_URL);
-console.log('SUPABASE_ANON_KEY exists:', !!process.env.SUPABASE_ANON_KEY);
-console.log('SUPABASE_URL value:', process.env.SUPABASE_URL?.substring(0, 30) + '...');
-console.log('===================================');
-
 const supabase = createClient(
   process.env.SUPABASE_URL,
   process.env.SUPABASE_ANON_KEY
@@ -85,7 +78,8 @@ app.get('/api/bingo/board', async (req, res) => {
     const { data: pokemonData, error: pokemonError } = await supabase
       .from('pokemon_master')
       .select('id, national_dex_id, name, img_url')
-      .in('id', pokemonIds);
+      .in('id', pokemonIds)
+      .eq('is_available', true);
     console.log("Pokemon query error:", pokemonError);
     console.log("Pokemon query result:", pokemonData);
     
@@ -103,13 +97,6 @@ app.get('/api/bingo/board', async (req, res) => {
       pokemon_id: pool.pokemon_id,
       pokemon_master: pokemonMap[pool.pokemon_id]
     }));
-    
-    console.log('=== BINGO BOARD DEBUG ===');
-    console.log('Pool data count:', poolData.length);
-    console.log('Pokemon IDs:', pokemonIds);
-    console.log('Pokemon data count:', pokemonData.length);
-    console.log('Combined data:', JSON.stringify(data, null, 2));
-    console.log('========================');
     
     // Build the 25-square board (24 Pokemon + 1 free space at position 13)
     const board = [];
@@ -411,8 +398,9 @@ app.get('/api/profile/:userId', async (req, res) => {
     // Get total Pokemon count
     const { count: totalPokemon, error: countError } = await supabase
       .from('pokemon_master')
-      .select('*', { count: 'exact', head: true });
-    
+      .select('*', { count: 'exact', head: true })
+      .eq('is_available', true);
+
     if (countError) {
       console.error('Pokemon count error:', countError);
     }
@@ -498,8 +486,9 @@ app.get('/api/profile/:userId/board', async (req, res) => {
     const { data: pokemonData, error: pokemonError } = await supabase
       .from('pokemon_master')
       .select('id, national_dex_id, name, img_url')
-      .in('id', pokemonIds);
-    
+      .in('id', pokemonIds)
+      .eq('is_available', true);
+
     if (pokemonError) throw pokemonError;
     
     // Create lookup map
@@ -594,7 +583,8 @@ app.get('/api/pokedex', async (req, res) => {
       .from('pokemon_master')
       .select('id, national_dex_id, name, display_name, img_url')
       .order('national_dex_id', { ascending: true })
-      .order('id', { ascending: true });
+      .order('id', { ascending: true })
+      .eq('is_available', true);
     
     if (pokemonError) throw pokemonError;
     
