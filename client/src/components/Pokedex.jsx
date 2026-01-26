@@ -187,7 +187,6 @@ const Pokedex = () => {
                   )}
                 </div>
               );
-            })}
           </div>
         </div>
       </div>
