@@ -37,7 +37,7 @@ const Pokedex = () => {
       setCaughtCount(data.caughtCount);
       setError(null);
     } catch (err) {
-      setError('Failed to load Pokedex');
+      setError('Failed to load Pokédex');
       console.error(err);
     } finally {
       setLoading(false);
@@ -157,36 +157,35 @@ const Pokedex = () => {
       {/* Pokedex Grid */}
       <div className="p-8">
         <div className="max-w-7xl mx-auto">
-          {/* Visible grid - only show loaded images */}
           <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-10 xl:grid-cols-12 gap-2">
-              return (
-                <div
-                  key={poke.id}
-                  className={`
-                    relative rounded-lg border-2 transition-all duration-200 overflow-hidden leading-none aspect-square
-                    ${poke.caught 
-                      ? 'border-purple-500 bg-gray-800' 
-                      : 'border-gray-700 bg-gray-900'
-                    }
-                    hover:scale-105 cursor-pointer
-                  `}
-                  title={`${poke.name} ${poke.caught ? '✓' : ''}`}
-                >
-                  <img 
-                    src={poke.img_url} 
-                    alt={poke.name}
-                    className={`w-full h-full object-cover block ${poke.caught ? '' : 'grayscale opacity-30'}`}
-                    style={{ verticalAlign: 'top' }}
-                  />
-                  {poke.caught && (
-                    <div className="absolute top-1 right-1">
-                      <svg className="w-4 h-4 text-green-400" fill="currentColor" viewBox="0 0 20 20">
-                        <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                      </svg>
-                    </div>
-                  )}
-                </div>
-              );
+            {pokemon.map((poke) => (
+              <div
+                key={poke.id}
+                className={`
+                  relative rounded-lg border-2 transition-all duration-200 overflow-hidden leading-none aspect-square
+                  ${poke.caught 
+                    ? 'border-purple-500 bg-gray-800' 
+                    : 'border-gray-700 bg-gray-900'
+                  }
+                  hover:scale-105 cursor-pointer
+                `}
+                title={`${poke.name} ${poke.caught ? '✓' : ''}`}
+              >
+                <img 
+                  src={poke.img_url} 
+                  alt={poke.name}
+                  className={`w-full h-full object-cover block ${poke.caught ? '' : 'grayscale opacity-30'}`}
+                  style={{ verticalAlign: 'top' }}
+                />
+                {poke.caught && (
+                  <div className="absolute top-1 right-1">
+                    <svg className="w-4 h-4 text-green-400" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                    </svg>
+                  </div>
+                )}
+              </div>
+            ))}
           </div>
         </div>
       </div>
