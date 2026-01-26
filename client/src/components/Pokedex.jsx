@@ -160,7 +160,6 @@ const Pokedex = () => {
 
           {/* Visible grid - only show loaded images */}
           <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-10 xl:grid-cols-12 gap-2">
-            {pokemon.map((poke) => {
               return (
                 <div
                   key={poke.id}
@@ -177,7 +176,7 @@ const Pokedex = () => {
                   <img 
                     src={poke.img_url} 
                     alt={poke.name}
-                    className={`w-full block ${poke.caught ? '' : 'grayscale opacity-30'}`}
+                    className={`w-full h-full object-cover block ${poke.caught ? '' : 'grayscale opacity-30'}`}
                     style={{ verticalAlign: 'top' }}
                   />
                   {poke.caught && (
