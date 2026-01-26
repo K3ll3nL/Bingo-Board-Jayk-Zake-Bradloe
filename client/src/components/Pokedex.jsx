@@ -157,14 +157,13 @@ const Pokedex = () => {
       {/* Pokedex Grid */}
       <div className="p-8">
         <div className="max-w-7xl mx-auto">
-
           {/* Visible grid - only show loaded images */}
           <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-10 xl:grid-cols-12 gap-2">
               return (
                 <div
                   key={poke.id}
                   className={`
-                    relative rounded-lg border-2 transition-all duration-200 overflow-hidden leading-none
+                    relative rounded-lg border-2 transition-all duration-200 overflow-hidden leading-none aspect-square
                     ${poke.caught 
                       ? 'border-purple-500 bg-gray-800' 
                       : 'border-gray-700 bg-gray-900'
