@@ -898,8 +898,19 @@ app.post('/api/upload/submission', upload.single('file'), async (req, res) => {
         const R2_ACCOUNT_ID = process.env.R2_ACCOUNT_ID;
         const R2_BUCKET_NAME = process.env.R2_BUCKET_NAME || 'shiny-sprites';
         
+        console.log('R2 Config check:', {
+          hasUrl: !!R2_BUCKET_URL,
+          hasAccessKey: !!R2_ACCESS_KEY_ID,
+          hasSecretKey: !!R2_SECRET_ACCESS_KEY,
+          hasAccountId: !!R2_ACCOUNT_ID
+        });
+        
         if (!R2_ACCESS_KEY_ID || !R2_SECRET_ACCESS_KEY || !R2_ACCOUNT_ID) {
-          throw new Error('R2 credentials not configured');
+          throw new Error('R2 credentials not configured. Please add R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, and R2_ACCOUNT_ID to Vercel environment variables.');
+        }
+        
+        if (!R2_BUCKET_URL) {
+          throw new Error('R2_BUCKET_URL not configured');
         }
         
         const { S3Client, PutObjectCommand } = require('@aws-sdk/client-s3');
@@ -915,6 +926,8 @@ app.post('/api/upload/submission', upload.single('file'), async (req, res) => {
         
         const fileName = `approval/${userId}-${pokemon_id}-${Date.now()}-${file.originalname}`;
         
+        console.log('Uploading to R2:', fileName);
+        
         await s3Client.send(new PutObjectCommand({
           Bucket: R2_BUCKET_NAME,
           Key: fileName,
@@ -923,28 +936,31 @@ app.post('/api/upload/submission', upload.single('file'), async (req, res) => {
         }));
         
         proofUrl = `${R2_BUCKET_URL}/${fileName}`;
+        console.log('Upload successful:', proofUrl);
       } catch (r2Error) {
         console.error('R2 upload error:', r2Error);
-        return res.status(500).json({ error: 'File upload failed' });
+        return res.status(500).json({ 
+          error: 'File upload failed', 
+          details: r2Error.message 
+        });
       }
     }
     
-    // Create entry
-    const { data: entry, error: entryError } = await supabase
-      .from('entries')
+    // Create approval entry
+    const { data: approval, error: approvalError } = await supabase
+      .from('approvals')
       .insert({
         user_id: userId,
         pokemon_id: parseInt(pokemon_id),
         month_id: activeMonth.id,
-        proof_url: proofUrl,
-        is_shiny: true
+        proof_url: proofUrl
       })
       .select()
       .single();
     
-    if (entryError) throw entryError;
+    if (approvalError) throw approvalError;
     
-    res.json({ success: true, entry });
+    res.json({ success: true, approval });
   } catch (error) {
     console.error('Error submitting catch:', error);
     res.status(500).json({ error: 'Failed to submit catch', details: error.message });

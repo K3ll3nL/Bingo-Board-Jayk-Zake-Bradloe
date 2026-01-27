@@ -13,6 +13,7 @@ const Upload = () => {
   const navigate = useNavigate();
   const [availablePokemon, setAvailablePokemon] = useState([]);
   const [selectedPokemon, setSelectedPokemon] = useState('');
+  const [dropdownOpen, setDropdownOpen] = useState(false);
   const [mediaUrl, setMediaUrl] = useState('');
   const [mediaFile, setMediaFile] = useState(null);
   const [sortBy, setSortBy] = useState('dex'); // 'dex' or 'alpha'
@@ -212,37 +213,58 @@ const Upload = () => {
               </div>
             </div>
             
-            <select
-              value={selectedPokemon}
-              onChange={(e) => setSelectedPokemon(e.target.value)}
-              className="w-full p-3 bg-gray-700 text-white rounded-lg border border-gray-600 focus:border-purple-500 focus:outline-none"
-              disabled={loading || submitting}
-            >
-              <option value="">Select a Pokemon...</option>
-              {sortedPokemon.map((poke) => (
-                <option key={poke.id} value={poke.id}>
-                  #{poke.national_dex_id} - {poke.name}
-                </option>
-              ))}
-            </select>
-            
-            {selectedPokemon && (
-              <div className="mt-3 flex items-center gap-3 p-3 bg-gray-700 rounded-lg">
-                <img
-                  src={sortedPokemon.find(p => p.id === parseInt(selectedPokemon))?.img_url}
-                  alt="Selected Pokemon"
-                  className="w-16 h-16 object-contain"
-                />
-                <div>
-                  <div className="text-white font-medium">
-                    {sortedPokemon.find(p => p.id === parseInt(selectedPokemon))?.name}
+            {/* Custom Dropdown */}
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => setDropdownOpen(!dropdownOpen)}
+                className="w-full p-3 bg-gray-700 text-white rounded-lg border border-gray-600 focus:border-purple-500 focus:outline-none flex items-center justify-between"
+                disabled={loading || submitting}
+              >
+                {selectedPokemon ? (
+                  <div className="flex items-center gap-3">
+                    <img
+                      src={sortedPokemon.find(p => p.id === parseInt(selectedPokemon))?.img_url}
+                      alt="Selected Pokemon"
+                      className="w-8 h-8 object-contain"
+                    />
+                    <span>
+                      #{String(sortedPokemon.find(p => p.id === parseInt(selectedPokemon))?.national_dex_id).padStart(4, '0')} - {sortedPokemon.find(p => p.id === parseInt(selectedPokemon))?.name}
+                    </span>
                   </div>
-                  <div className="text-gray-400 text-sm">
-                    #{sortedPokemon.find(p => p.id === parseInt(selectedPokemon))?.national_dex_id}
-                  </div>
+                ) : (
+                  <span className="text-gray-400">Select a Pokemon...</span>
+                )}
+                <svg className={`w-5 h-5 transition-transform ${dropdownOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                </svg>
+              </button>
+              
+              {dropdownOpen && (
+                <div className="absolute z-10 w-full mt-1 bg-gray-700 border border-gray-600 rounded-lg shadow-lg max-h-96 overflow-y-auto">
+                  {sortedPokemon.map((poke) => (
+                    <button
+                      key={poke.id}
+                      type="button"
+                      onClick={() => {
+                        setSelectedPokemon(String(poke.id));
+                        setDropdownOpen(false);
+                      }}
+                      className="w-full p-3 flex items-center gap-3 hover:bg-gray-600 transition-colors text-left"
+                    >
+                      <img
+                        src={poke.img_url}
+                        alt={poke.name}
+                        className="w-8 h-8 object-contain flex-shrink-0"
+                      />
+                      <span className="text-white">
+                        #{String(poke.national_dex_id).padStart(4, '0')} - {poke.name}
+                      </span>
+                    </button>
+                  ))}
                 </div>
-              </div>
-            )}
+              )}
+            </div>
           </div>
 
           {/* Media Upload */}
