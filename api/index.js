@@ -156,33 +156,31 @@ app.get('/api/bingo/board', async (req, res) => {
       }
     }
     
-    // Get user's bingo achievements for this month if authenticated
+    // Get bingo achievements for this month (for everyone, not just logged-in user)
     let achievements = { row: null, column: null, x: null, blackout: null };
-    if (userId) {
-      const { data: bingoAchievements, error: achievementsError } = await supabase
-        .from('bingo_achievements')
-        .select(`
-          bingo_type,
-          users!bingo_achievements_user_id_fkey (
-            display_name
-          )
-        `)
-        .eq('user_id', userId)
-        .eq('month_id', ACTIVE_MONTH_ID);
+    
+    const { data: bingoAchievements, error: achievementsError } = await supabase
+      .from('bingo_achievements')
+      .select(`
+        bingo_type,
+        users!bingo_achievements_user_id_fkey (
+          display_name
+        )
+      `)
+      .eq('month_id', ACTIVE_MONTH_ID);
+    
+    if (!achievementsError && bingoAchievements) {
+      const rowAchievement = bingoAchievements.find(a => a.bingo_type === 'row');
+      const columnAchievement = bingoAchievements.find(a => a.bingo_type === 'column');
+      const xAchievement = bingoAchievements.find(a => a.bingo_type === 'x');
+      const blackoutAchievement = bingoAchievements.find(a => a.bingo_type === 'blackout');
       
-      if (!achievementsError && bingoAchievements) {
-        const rowAchievement = bingoAchievements.find(a => a.bingo_type === 'row');
-        const columnAchievement = bingoAchievements.find(a => a.bingo_type === 'column');
-        const xAchievement = bingoAchievements.find(a => a.bingo_type === 'x');
-        const blackoutAchievement = bingoAchievements.find(a => a.bingo_type === 'blackout');
-        
-        achievements = {
-          row: rowAchievement ? rowAchievement.users.display_name : null,
-          column: columnAchievement ? columnAchievement.users.display_name : null,
-          x: xAchievement ? xAchievement.users.display_name : null,
-          blackout: blackoutAchievement ? blackoutAchievement.users.display_name : null
-        };
-      }
+      achievements = {
+        row: rowAchievement ? rowAchievement.users.display_name : null,
+        column: columnAchievement ? columnAchievement.users.display_name : null,
+        x: xAchievement ? xAchievement.users.display_name : null,
+        blackout: blackoutAchievement ? blackoutAchievement.users.display_name : null
+      };
     }
     
     res.json({
