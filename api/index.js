@@ -1,6 +1,8 @@
 const express = require('express');
 const cors = require('cors');
 const { createClient } = require('@supabase/supabase-js');
+const multer = require('multer');
+const upload = multer({ storage: multer.memoryStorage() });
 
 const app = express();
 app.use(cors());
@@ -834,10 +836,10 @@ app.get('/api/upload/available-pokemon', async (req, res) => {
 });
 
 // Submit catch
-app.post('/api/upload/submission', async (req, res) => {
+app.post('/api/upload/submission', upload.single('file'), async (req, res) => {
   try {
-    // TODO: Handle file upload to Cloudflare R2
-    // For now, just accept URL submissions
+    console.log('Request body:', req.body);
+    console.log('Request file:', req.file);
     
     let userId = null;
     
@@ -859,13 +861,17 @@ app.post('/api/upload/submission', async (req, res) => {
       return res.status(401).json({ error: 'Authentication required' });
     }
     
-    const { pokemon_id, url } = req.body;
+    const pokemon_id = req.body.pokemon_id;
+    const url = req.body.url;
+    const file = req.file;
+    
+    console.log('Parsed values:', { pokemon_id, url, file: !!file });
     
     if (!pokemon_id) {
       return res.status(400).json({ error: 'Pokemon ID required' });
     }
     
-    if (!url && !req.file) {
+    if (!url && !file) {
       return res.status(400).json({ error: 'Media URL or file required' });
     }
     
@@ -881,6 +887,48 @@ app.post('/api/upload/submission', async (req, res) => {
       return res.status(400).json({ error: 'No active bingo month' });
     }
     
+    let proofUrl = url;
+    
+    // If file uploaded, upload to R2
+    if (file) {
+      try {
+        const R2_BUCKET_URL = process.env.R2_BUCKET_URL;
+        const R2_ACCESS_KEY_ID = process.env.R2_ACCESS_KEY_ID;
+        const R2_SECRET_ACCESS_KEY = process.env.R2_SECRET_ACCESS_KEY;
+        const R2_ACCOUNT_ID = process.env.R2_ACCOUNT_ID;
+        const R2_BUCKET_NAME = process.env.R2_BUCKET_NAME || 'shiny-sprites';
+        
+        if (!R2_ACCESS_KEY_ID || !R2_SECRET_ACCESS_KEY || !R2_ACCOUNT_ID) {
+          throw new Error('R2 credentials not configured');
+        }
+        
+        const { S3Client, PutObjectCommand } = require('@aws-sdk/client-s3');
+        
+        const s3Client = new S3Client({
+          region: 'auto',
+          endpoint: `https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com`,
+          credentials: {
+            accessKeyId: R2_ACCESS_KEY_ID,
+            secretAccessKey: R2_SECRET_ACCESS_KEY,
+          },
+        });
+        
+        const fileName = `approval/${userId}-${pokemon_id}-${Date.now()}-${file.originalname}`;
+        
+        await s3Client.send(new PutObjectCommand({
+          Bucket: R2_BUCKET_NAME,
+          Key: fileName,
+          Body: file.buffer,
+          ContentType: file.mimetype,
+        }));
+        
+        proofUrl = `${R2_BUCKET_URL}/${fileName}`;
+      } catch (r2Error) {
+        console.error('R2 upload error:', r2Error);
+        return res.status(500).json({ error: 'File upload failed' });
+      }
+    }
+    
     // Create entry
     const { data: entry, error: entryError } = await supabase
       .from('entries')
@@ -888,8 +936,8 @@ app.post('/api/upload/submission', async (req, res) => {
         user_id: userId,
         pokemon_id: parseInt(pokemon_id),
         month_id: activeMonth.id,
-        proof_url: url || null,
-        is_shiny: true // Assuming all submissions are shiny
+        proof_url: proofUrl,
+        is_shiny: true
       })
       .select()
       .single();
@@ -899,7 +947,7 @@ app.post('/api/upload/submission', async (req, res) => {
     res.json({ success: true, entry });
   } catch (error) {
     console.error('Error submitting catch:', error);
-    res.status(500).json({ error: 'Failed to submit catch' });
+    res.status(500).json({ error: 'Failed to submit catch', details: error.message });
   }
 });
 
