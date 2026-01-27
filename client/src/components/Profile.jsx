@@ -198,12 +198,15 @@ const Profile = () => {
                     className={`
                       relative rounded-lg border-2 transition-all duration-200 overflow-hidden leading-none
                       ${cell.is_checked 
-                        ? 'bg-green-600 border-green-500 text-white font-semibold shadow-lg' 
-                        : 'border-gray-600 text-gray-300 bg-gray-800'
+                        ? 'bg-primary border-primary text-white font-semibold shadow-lg' 
+                        : 'border-gray-600 text-gray-200'
                       }
-                      ${isFreeSpace ? 'bg-gradient-to-br from-purple-500 to-pink-500 text-white font-bold border-purple-600 flex items-center justify-center aspect-square' : ''}
-                      ${cell.pokemon_name === 'EMPTY' ? 'bg-gray-900 border-gray-700 opacity-50 flex items-center justify-center aspect-square' : ''}
+                      ${isFreeSpace ? 'bg-gradient-to-br from-purple-500 to-pink-500 text-white font-bold border-purple-600 flex items-center justify-center text-center aspect-square' : ''}
+                      ${cell.pokemon_name === 'EMPTY' ? 'bg-gray-900 border-gray-700 opacity-50 flex items-center justify-center text-center aspect-square' : ''}
                     `}
+                    style={{ backgroundColor: cell.is_checked && !isFreeSpace ? '#8FD2CA' : !isFreeSpace && cell.pokemon_name !== 'EMPTY' ? '#212326' : undefined,
+                      borderColor: cell.is_checked && !isFreeSpace ? '#45897F' : undefined
+                    }}
                   >
                     {!isFreeSpace && cell.pokemon_name !== 'EMPTY' && cell.pokemon_gif && (
                       <img 
