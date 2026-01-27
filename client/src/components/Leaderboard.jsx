@@ -97,7 +97,7 @@ const Leaderboard = () => {
                   onClick={() => navigate(`/profile/${user.user_id}`)}
                   className={`
                     p-2 flex items-center justify-between transition-colors cursor-pointer
-                    ${position === 1 ? 'bg-gradient-to-r from-amber-300 via-amber-100 to-white hover:from-amber-400 hover:via-amber-200' : position === 2 ? 'bg-gradient-to-r from-gray-200 via-gray-50 to-white hover:from-gray-300 hover:via-gray-100' : position === 3 ? 'bg-gradient-to-r from-orange-200 via-orange-50 to-white hover:from-orange-300 hover:via-orange-100' : 'hover:bg-gray-700'}
+                    ${position === 1 ? 'bg-gradient-to-r from-amber-300 via-amber-100 to-black hover:from-amber-400 hover:via-amber-200' : position === 2 ? 'bg-gradient-to-r from-gray-200 via-gray-50 to-black hover:from-gray-300 hover:via-gray-100' : position === 3 ? 'bg-gradient-to-r from-orange-200 via-orange-50 to-black hover:from-orange-300 hover:via-orange-100' : 'hover:bg-gray-700'}
                   `}
                   style={position > 3 ? { backgroundColor: '#212326' } : undefined}
                 >
