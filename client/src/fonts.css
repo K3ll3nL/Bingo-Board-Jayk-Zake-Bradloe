@@ -1,7 +1,7 @@
 @font-face {
   font-family: 'Tondu-Beta';
   src: url('./public/fonts/Tondu-Beta.woff2') format('woff2');
-  font-weight: 400;
+  font-weight: 300;
   font-style: normal;
   font-display: swap;
 }
@@ -9,7 +9,7 @@
 /* Apply Tondu font globally with lighter weight */
 body {
   font-family: 'Tondu-Beta', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-  font-weight: 400;
+  font-weight: 300;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
