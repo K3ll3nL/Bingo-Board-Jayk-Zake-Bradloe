@@ -4,14 +4,14 @@
 
 @font-face {
   font-family: 'Tondu';
-  src: url('./assets/fonts/Tondu.woff2') format('woff2');
+  src: url('./assets/fonts/Tondu-Beta.woff2') format('woff2');
   font-weight: normal;
   font-style: normal;
   font-display: swap;
 }
 
 html {
-  font-family: 'Tondu', system-ui, sans-serif;
+  font-family: 'Tondu-Beta', system-ui, sans-serif;
 }
 
 
