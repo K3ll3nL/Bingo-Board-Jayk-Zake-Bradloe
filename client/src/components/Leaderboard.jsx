@@ -112,7 +112,7 @@ const Leaderboard = () => {
                     
                     <div>
                       <div className={`font-semibold text-sm ${position > 3 ? 'text-white' : 'text-gray-800'}`}>
-                        {user.username}
+                        {user.display_name}
                       </div>
                       <div className={`text-xs ${position > 3 ? 'text-gray-400' : 'text-gray-500'}`}>
                         Joined {formatDate(user.created_at)}
