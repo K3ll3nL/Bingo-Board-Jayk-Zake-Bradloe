@@ -106,7 +106,7 @@ const Leaderboard = () => {
                       {medal ? (
                         <span className="text-xl">{medal}</span>
                       ) : (
-                        <span className={`font-semibold text-sm ${position > 3 ? 'text-gray-400' : 'text-gray-500'}`}>#{position}</span>
+                        <span className={`font-semibold text-sm ${position > 3 ? 'text-gray-400' : 'text-gray-800'}`}>#{position}</span>
                       )}
                     </div>
                     
@@ -114,7 +114,7 @@ const Leaderboard = () => {
                       <div className={`font-semibold text-sm ${position > 3 ? 'text-white' : 'text-gray-800'}`}>
                         {user.display_name}
                       </div>
-                      <div className={`text-xs ${position > 3 ? 'text-gray-400' : 'text-gray-500'}`}>
+                      <div className={`text-xs ${position > 3 ? 'text-gray-400' : 'text-gray-600'}`}>
                         Joined {formatDate(user.created_at)}
                       </div>
                     </div>
@@ -159,10 +159,10 @@ const Leaderboard = () => {
                       )}
                     </div>
                     
-                    <span className={`text-xl font-bold ${position > 3 ? 'text-purple-400' : 'text-primary'}`}>
+                    <span className={`text-xl font-bold ${position > 3 ? 'text-purple-400' : 'text-gray-800'}`}>
                       {user.points}
                     </span>
-                    <span className={`text-xs ${position > 3 ? 'text-gray-400' : 'text-gray-500'}`}>pts</span>
+                    <span className={`text-xs ${position > 3 ? 'text-gray-400' : 'text-gray-600'}`}>pts</span>
                   </div>
                 </div>
               );
