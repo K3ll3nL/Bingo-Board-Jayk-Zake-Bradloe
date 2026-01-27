@@ -2,6 +2,19 @@
 @tailwind components;
 @tailwind utilities;
 
+@font-face {
+  font-family: 'Tondu';
+  src: url('./assets/fonts/Tondu.woff2') format('woff2');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+}
+
+html {
+  font-family: 'Tondu', system-ui, sans-serif;
+}
+
+
 /* Custom scrollbar for leaderboard */
 ::-webkit-scrollbar {
   width: 8px;
