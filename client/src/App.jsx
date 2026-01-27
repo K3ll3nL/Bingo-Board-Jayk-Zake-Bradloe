@@ -8,6 +8,7 @@ import Profile from './components/Profile';
 import Pokedex from './components/Pokedex';
 import TwitchAmbassadors from './components/TwitchAmbassadors';
 import Upload from './components/Upload';
+import logoImage from './Icons/pokemon-bounty-board.png';
 
 const MainApp = () => {
   const { user, signInWithDiscord, signOut, loading } = useAuth();
@@ -31,12 +32,15 @@ const MainApp = () => {
     <div className="min-h-screen" style={{ backgroundColor: '#212326' }}>
       {/* Header */}
       <header className="shadow-md" style={{ backgroundColor: '#35373b' }}>
-        <div className="max-w-7xl mx-auto px-4 py-6">
+        <div className="max-w-7xl mx-auto px-4 py-2">
           <div className="flex justify-between items-center">
-            <div className="flex-1">
-              <h1 className="text-3xl md:text-4xl font-bold text-center text-white">
-                🎮 Pokemon Bingo 🎮
-              </h1>
+            <div className="flex-1 flex justify-center">
+              <img 
+                src={logoImage} 
+                alt="Pokemon Bounty Board" 
+                className="h-16 md:h-30 object-contain cursor-pointer"
+                onClick={() => navigate('/')}
+              />
             </div>
             
             {/* Login/Profile Button */}

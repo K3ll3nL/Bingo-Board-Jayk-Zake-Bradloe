@@ -96,25 +96,35 @@ const Leaderboard = () => {
                   key={user.id}
                   onClick={() => navigate(`/profile/${user.user_id}`)}
                   className={`
-                    p-2 flex items-center justify-between transition-colors cursor-pointer
-                    ${position === 1 ? 'bg-gradient-to-r from-amber-300 via-amber-100 to-black hover:from-amber-400 hover:via-amber-200' : position === 2 ? 'bg-gradient-to-r from-gray-200 via-gray-50 to-black hover:from-gray-300 hover:via-gray-100' : position === 3 ? 'bg-gradient-to-r from-orange-200 via-orange-50 to-black hover:from-orange-300 hover:via-orange-100' : 'hover:bg-gray-700'}
-                  `}
-                  style={position > 3 ? { backgroundColor: '#212326' } : undefined}
+                    p-2 flex items-center justify-between transition-colors cursor-pointer hover:bg-gray-600`}
                 >
                   <div className="flex items-center gap-3">
                     <div className="flex items-center justify-center w-8 h-8">
                       {medal ? (
-                        <span className="text-xl">{medal}</span>
+                        <span className="text-3xl">{medal}</span>
                       ) : (
-                        <span className={`font-semibold text-sm ${position > 3 ? 'text-gray-400' : 'text-gray-800'}`}>#{position}</span>
+                        <span className={`font-semibold text-xl text-gray-400`}>#{position}</span>
                       )}
                     </div>
                     
                     <div>
-                      <div className={`font-semibold text-sm ${position > 3 ? 'text-white' : 'text-gray-800'}`}>
-                        {user.display_name}
+                      <div className={`font-semibold text-l text-white flex items-center gap-1`}>
+                        <span>{user.display_name}</span>
+                        {user.is_live && user.twitch_url && (
+                          <a 
+                            href={user.twitch_url} 
+                            target="_blank" 
+                            rel="noopener noreferrer"
+                            onClick={(e) => e.stopPropagation()}
+                            className="inline-flex"
+                          >
+                            <svg className="w-4 h-4 text-purple-500 hover:text-purple-400 transition-colors" viewBox="0 0 24 24" fill="currentColor">
+                              <path d="M11.571 4.714h1.715v5.143H11.57zm4.715 0H18v5.143h-1.714zM6 0L1.714 4.286v15.428h5.143V24l4.286-4.286h3.428L22.286 12V0zm14.571 11.143l-3.428 3.428h-3.429l-3 3v-3H6.857V1.714h13.714Z"/>
+                            </svg>
+                          </a>
+                        )}
                       </div>
-                      <div className={`text-xs ${position > 3 ? 'text-gray-400' : 'text-gray-600'}`}>
+                      <div className={`text-xs text-gray-400`}>
                         Joined {formatDate(user.created_at)}
                       </div>
                     </div>
@@ -159,10 +169,10 @@ const Leaderboard = () => {
                       )}
                     </div>
                     
-                    <span className={`text-xl font-bold ${position > 3 ? 'text-purple-400' : 'text-gray-800'}`}>
+                    <span className={`text-xl font-bold text-purple-400`}>
                       {user.points}
                     </span>
-                    <span className={`text-xs ${position > 3 ? 'text-gray-400' : 'text-gray-600'}`}>pts</span>
+                    <span className={`text-xs text-gray-400`}>pts</span>
                   </div>
                 </div>
               );

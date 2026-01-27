@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { api } from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
+import backgroundImage from '../Icons/2026Jan.png';
 
 const BingoBoard = () => {
   const { user } = useAuth();
@@ -134,7 +135,15 @@ const BingoBoard = () => {
         <h2 className="text-2xl font-bold text-center text-white">{month || 'Bingo Board'}</h2>
       </div>
       
-      <div className="grid grid-cols-5 gap-2 aspect-square max-w-2xl mx-auto">
+      <div 
+        className="grid grid-cols-5 gap-2 aspect-square max-w-2xl mx-auto rounded-lg p-2"
+        style={{
+          backgroundImage: `url(${backgroundImage})`,
+          backgroundSize: 'cover',
+          backgroundPosition: 'center',
+          backgroundRepeat: 'no-repeat'
+        }}
+      >
         {board.map((cell) => {
           const isFreeSpace = cell.position === 13;
           
@@ -144,12 +153,13 @@ const BingoBoard = () => {
               className={`
                 relative rounded-lg border-2 transition-all duration-200 overflow-hidden leading-none
                 ${cell.is_checked 
-                  ? 'bg-green-600 border-green-500 text-white font-semibold shadow-lg' 
-                  : 'border-gray-600 text-gray-300 bg-gray-800'
+                  ? 'bg-primary border-primary text-white font-semibold shadow-lg' 
+                  : 'border-gray-600 text-gray-200'
                 }
-                ${isFreeSpace ? 'bg-gradient-to-br from-purple-500 to-pink-500 text-white font-bold border-purple-600 flex items-center justify-center aspect-square' : ''}
-                ${cell.pokemon_name === 'EMPTY' ? 'bg-gray-900 border-gray-700 opacity-50 flex items-center justify-center aspect-square' : ''}
+                ${isFreeSpace ? 'bg-gradient-to-br from-purple-500 to-pink-500 text-white font-bold border-purple-600 flex items-center justify-center text-center aspect-square' : ''}
+                ${cell.pokemon_name === 'EMPTY' ? 'bg-gray-900 border-gray-700 opacity-50 flex items-center justify-center text-center aspect-square' : ''}
               `}
+              style={{ backgroundColor: cell.is_checked && !isFreeSpace ? '#5865F2' : !isFreeSpace && cell.pokemon_name !== 'EMPTY' ? '#212326' : undefined }}
             >
               {!isFreeSpace && cell.pokemon_name !== 'EMPTY' && cell.pokemon_gif && (
                 <img 

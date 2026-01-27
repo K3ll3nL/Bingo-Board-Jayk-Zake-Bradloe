@@ -1,3 +1,5 @@
+require('dotenv').config();
+
 const express = require('express');
 const cors = require('cors');
 const { createClient } = require('@supabase/supabase-js');
@@ -211,7 +213,8 @@ app.get('/api/leaderboard', async (req, res) => {
         users!user_monthly_points_user_id_fkey (
           username,
           display_name,
-          created_at
+          created_at,
+          twitch_url
         )
       `)
       .eq('month_id', ACTIVE_MONTH_ID)
@@ -242,6 +245,78 @@ app.get('/api/leaderboard', async (req, res) => {
       });
     }
     
+    // Check Twitch live status for users with twitch_url
+    const twitchUsers = data.filter(entry => entry.users.twitch_url);
+    const liveStatusMap = {};
+    
+    console.log('Checking live status for', twitchUsers.length, 'users with Twitch URLs');
+    
+    if (twitchUsers.length > 0) {
+      try {
+        const TWITCH_CLIENT_ID = process.env.TWITCH_CLIENT_ID;
+        const TWITCH_CLIENT_SECRET = process.env.TWITCH_CLIENT_SECRET;
+        
+        console.log('Twitch credentials present:', !!TWITCH_CLIENT_ID, !!TWITCH_CLIENT_SECRET);
+        
+        if (TWITCH_CLIENT_ID && TWITCH_CLIENT_SECRET) {
+          // Get Twitch access token
+          const tokenResponse = await fetch('https://id.twitch.tv/oauth2/token', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: `client_id=${TWITCH_CLIENT_ID}&client_secret=${TWITCH_CLIENT_SECRET}&grant_type=client_credentials`
+          });
+          
+          const tokenData = await tokenResponse.json();
+          const { access_token } = tokenData;
+          console.log('Got Twitch token:', !!access_token);
+          
+          // Extract usernames from URLs
+          const usernames = twitchUsers.map(u => u.users.twitch_url.split('/').pop().toLowerCase());
+          console.log('Checking usernames:', usernames);
+          
+          // Get user IDs
+          const usersResponse = await fetch(`https://api.twitch.tv/helix/users?${usernames.map(u => `login=${u}`).join('&')}`, {
+            headers: {
+              'Authorization': `Bearer ${access_token}`,
+              'Client-Id': TWITCH_CLIENT_ID
+            }
+          });
+          
+          const usersData = await usersResponse.json();
+          console.log('Twitch users response:', usersData);
+          
+          // Check streams
+          const twitchIds = usersData.data?.map(u => u.id) || [];
+          console.log('Twitch IDs to check:', twitchIds);
+          
+          if (twitchIds.length > 0) {
+            const streamsResponse = await fetch(`https://api.twitch.tv/helix/streams?${twitchIds.map(id => `user_id=${id}`).join('&')}`, {
+              headers: {
+                'Authorization': `Bearer ${access_token}`,
+                'Client-Id': TWITCH_CLIENT_ID
+              }
+            });
+            
+            const streamsData = await streamsResponse.json();
+            console.log('Streams data:', streamsData);
+            
+            // Map live status by username
+            streamsData.data?.forEach(stream => {
+              const user = usersData.data.find(u => u.id === stream.user_id);
+              if (user) {
+                console.log('User is live:', user.login);
+                liveStatusMap[user.login.toLowerCase()] = true;
+              }
+            });
+          }
+          
+          console.log('Final live status map:', liveStatusMap);
+        }
+      } catch (err) {
+        console.error('Twitch live check error:', err);
+      }
+    }
+    
     // Create achievements map
     const achievementsMap = {};
     if (!achievementsError && achievements) {
@@ -253,16 +328,21 @@ app.get('/api/leaderboard', async (req, res) => {
       });
     }
     
-    const transformedData = data.map(entry => ({
-      id: entry.id,
-      user_id: entry.user_id,
-      username: entry.users.username,
-      display_name: entry.users.display_name,
-      points: entry.points,
-      created_at: entry.users.created_at,
-      achievements: achievementsMap[entry.user_id] || { row: false, column: false, x: false, blackout: false },
-      hex_code: hexCodeMap[entry.user_id] || '#9147ff'
-    }));
+    const transformedData = data.map(entry => {
+      const username = entry.users.twitch_url ? entry.users.twitch_url.split('/').pop().toLowerCase() : null;
+      return {
+        id: entry.id,
+        user_id: entry.user_id,
+        username: entry.users.username,
+        display_name: entry.users.display_name,
+        points: entry.points,
+        created_at: entry.users.created_at,
+        twitch_url: entry.users.twitch_url,
+        is_live: username ? (liveStatusMap[username] || false) : false,
+        achievements: achievementsMap[entry.user_id] || { row: false, column: false, x: false, blackout: false },
+        hex_code: hexCodeMap[entry.user_id] || '#9147ff'
+      };
+    });
     
     res.json(transformedData);
   } catch (error) {
@@ -392,7 +472,7 @@ app.get('/api/profile/:userId', async (req, res) => {
       console.log('Bingos table may not exist, setting to 0');
     }
     
-    const totalBingos = bingos ? bingos.filter(b => b.bingo_type != 'blackout').length : 0;
+    const totalBingos = bingos ? bingos.filter(b => b.bingo_type === 'bingo').length : 0;
     const totalBlackouts = bingos ? bingos.filter(b => b.bingo_type === 'blackout').length : 0;
     
     // Get total Pokemon caught (distinct pokemon_id count from entries)
@@ -967,3 +1047,11 @@ app.post('/api/upload/submission', upload.single('file'), async (req, res) => {
 
 // Export for Vercel serverless
 module.exports = app;
+
+// Start server locally (not needed in Vercel)
+if (require.main === module) {
+  const PORT = process.env.PORT || 3000;
+  app.listen(PORT, () => {
+    console.log(`🚀 Server running on http://localhost:${PORT}`);
+  });
+}
