@@ -133,13 +133,7 @@ const BingoBoard = () => {
       <div 
         style={{ 
           opacity: imagesLoaded || !hasImagesToLoad ? 1 : 0, 
-          transition: 'opacity 0.3s',
-          backgroundImage: `url(${backgroundImage})`,
-          backgroundSize: 'cover',
-          backgroundPosition: 'center',
-          backgroundRepeat: 'no-repeat',
-          borderRadius: '0.5rem',
-          padding: '1.5rem'
+          transition: 'opacity 0.3s'
         }}
         className="max-w-2xl mx-auto"
       >
@@ -148,7 +142,13 @@ const BingoBoard = () => {
       </div>
       
       <div 
-        className="grid grid-cols-5 gap-2 aspect-square"
+        className="grid grid-cols-5 gap-2 aspect-square rounded-lg p-2"
+        style={{
+          backgroundImage: `url(${backgroundImage})`,
+          backgroundSize: 'cover',
+          backgroundPosition: 'center',
+          backgroundRepeat: 'no-repeat'
+        }}
       >
         {board.map((cell) => {
           const isFreeSpace = cell.position === 13;
@@ -166,8 +166,7 @@ const BingoBoard = () => {
                 ${cell.pokemon_name === 'EMPTY' ? 'bg-gray-900 border-gray-700 opacity-50 flex items-center justify-center text-center aspect-square' : ''}
               `}
               style={{ 
-                backgroundColor: cell.is_checked && !isFreeSpace ? '#8FD2CA' : !isFreeSpace && cell.pokemon_name !== 'EMPTY' ? '#212326' : undefined,
-                borderColor: cell.is_checked && !isFreeSpace ? '#45897F' : undefined
+                backgroundColor: cell.is_checked && !isFreeSpace ? '#5865F2' : !isFreeSpace && cell.pokemon_name !== 'EMPTY' ? '#212326' : undefined
               }}
             >
               {!isFreeSpace && cell.pokemon_name !== 'EMPTY' && cell.pokemon_gif && (
