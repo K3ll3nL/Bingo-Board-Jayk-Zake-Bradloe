@@ -3,7 +3,7 @@
 @tailwind utilities;
 
 @font-face {
-  font-family: 'Tondu';
+  font-family: 'Tondu-Beta';
   src: url('./assets/fonts/Tondu-Beta.woff2') format('woff2');
   font-weight: normal;
   font-style: normal;
