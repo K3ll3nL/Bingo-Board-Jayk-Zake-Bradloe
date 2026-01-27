@@ -392,7 +392,7 @@ app.get('/api/profile/:userId', async (req, res) => {
       console.log('Bingos table may not exist, setting to 0');
     }
     
-    const totalBingos = bingos ? bingos.filter(b => b.bingo_type === 'bingo').length : 0;
+    const totalBingos = bingos ? bingos.filter(b => b.bingo_type != 'blackout').length : 0;
     const totalBlackouts = bingos ? bingos.filter(b => b.bingo_type === 'blackout').length : 0;
     
     // Get total Pokemon caught (distinct pokemon_id count from entries)

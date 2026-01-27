@@ -187,7 +187,7 @@ const Profile = () => {
         {/* Current Month Bingo Board */}
         {board.length > 0 && (
           <div className="rounded-xl shadow-xl p-6 mb-8" style={{ backgroundColor: '#35373b' }}>
-            <h2 className="text-2xl font-bold text-white mb-6">{boardMonth} Bingo Progress</h2>
+            <h2 className="text-2xl font-bold text-white mb-6">{boardMonth} Bounty Progress</h2>
             <div className="grid grid-cols-5 gap-2 max-w-2xl mx-auto">
               {board.map((cell) => {
                 const isFreeSpace = cell.position === 13;
@@ -214,7 +214,7 @@ const Profile = () => {
                       />
                     )}
                     {(isFreeSpace || cell.pokemon_name === 'EMPTY') && (
-                      <span className="text-xs leading-tight break-words">
+                      <span className="text-xs md:text-sm leading-tight break-words px-1">
                         {cell.pokemon_name}
                       </span>
                     )}
