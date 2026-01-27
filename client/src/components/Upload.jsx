@@ -1,6 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import { createClient } from '@supabase/supabase-js';
+
+const supabase = createClient(
+  import.meta.env.VITE_SUPABASE_URL,
+  import.meta.env.VITE_SUPABASE_ANON_KEY
+);
 
 const Upload = () => {
   const { user } = useAuth();
@@ -23,7 +29,14 @@ const Upload = () => {
 
   const loadAvailablePokemon = async () => {
     try {
-      const response = await fetch('/api/upload/available-pokemon');
+      // Get auth token
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      const response = await fetch('/api/upload/available-pokemon', {
+        headers: {
+          'Authorization': `Bearer ${session?.access_token}`
+        }
+      });
       if (!response.ok) throw new Error('Failed to fetch available Pokemon');
       const data = await response.json();
       setAvailablePokemon(data);
@@ -61,6 +74,9 @@ const Upload = () => {
     setError(null);
     
     try {
+      // Get auth token
+      const { data: { session } } = await supabase.auth.getSession();
+      
       const formData = new FormData();
       formData.append('pokemon_id', selectedPokemon);
       
@@ -72,6 +88,9 @@ const Upload = () => {
       
       const response = await fetch('/api/upload/submission', {
         method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${session?.access_token}`
+        },
         body: formData
       });
       
