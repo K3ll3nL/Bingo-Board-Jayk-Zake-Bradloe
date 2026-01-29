@@ -203,7 +203,7 @@ const BingoBoard = () => {
       </div>
 
       {/* Bingo Achievements - Show for everyone */}
-        <div className="mt-4 grid grid-cols-2 md:flex md:justify-center gap-3 md:gap-6">
+        <div className="mt-4 grid grid-cols-2 md:flex md:justify-center gap-3 md:gap-4">
           {/* Row Bingo */}
           <div className="flex items-center gap-2">
             <div className={`w-6 h-6 md:w-9 md:h-9 rounded-lg flex items-center flex-shrink-0 justify-center ${achievements.row ? 'bg-purple-500' : 'bg-gray-700'}`}>
