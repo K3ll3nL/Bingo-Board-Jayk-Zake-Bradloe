@@ -255,15 +255,14 @@ const BingoBoard = () => {
           </div>
         </div>
       </div>
-    </div>
-    
-    {/* Pokemon Modal */}
-    {selectedPokemon && (
-      <PokemonModal 
-        pokemon={selectedPokemon} 
-        onClose={() => setSelectedPokemon(null)}
-      />
-    )}
+      
+      {/* Pokemon Modal */}
+      {selectedPokemon && (
+        <PokemonModal 
+          pokemon={selectedPokemon} 
+          onClose={() => setSelectedPokemon(null)}
+        />
+      )}
     </div>
   );
 };
