@@ -10,10 +10,18 @@
   font-display: swap;
 }
 
-html {
-  font-family: 'Tondu-Beta', system-ui, sans-serif;
+
+/* Prevent white background showing through */
+html, body {
+  background-color: #212326;
+  margin: 0;
+  padding: 0;
 }
 
+#root {
+  min-height: 100vh;
+  background-color: #212326;
+}
 
 /* Custom scrollbar for leaderboard */
 ::-webkit-scrollbar {
