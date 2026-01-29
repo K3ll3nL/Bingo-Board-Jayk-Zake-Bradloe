@@ -212,7 +212,7 @@ const BingoBoard = () => {
               </svg>
             </div>
             <span className="text-[10px] md:text-xs text-gray-400">
-              {achievements.row ? `Claimed by: ${achievements.row}` : 'Unclaimed'}
+              {achievements.row ? `Claimed by: ${achievements.row.length > 15 ? `${achievements.row.slice(0, 12)}...` : achievements.row }`: 'Unclaimed'}
             </span>
           </div>
 
@@ -224,7 +224,7 @@ const BingoBoard = () => {
               </svg>
             </div>
             <span className="text-[10px] md:text-xs text-gray-400">
-              {achievements.column ? `Claimed by: ${achievements.column}` : 'Unclaimed'}
+              {achievements.column ? `Claimed by: ${achievements.column.length > 15 ? `${achievements.column.slice(0, 12)}...` : achievements.column }`: 'Unclaimed'}
             </span>
           </div>
 
@@ -236,7 +236,7 @@ const BingoBoard = () => {
               </svg>
             </div>
             <span className="text-[10px] md:text-xs text-gray-400">
-              {achievements.x ? `Claimed by: ${achievements.x}` : 'Unclaimed'}
+                {achievements.x ? `Claimed by: ${achievements.x.length > 15 ? `${achievements.x.slice(0, 12)}...` : achievements.x }`: 'Unclaimed'}
             </span>
           </div>
 
@@ -250,7 +250,7 @@ const BingoBoard = () => {
               </svg>
             </div>
             <span className="text-[10px] md:text-xs text-gray-400">
-              {achievements.blackout ? `Claimed by: ${achievements.blackout}` : 'Unclaimed'}
+              {achievements.blackout ? `Claimed by: ${achievements.blackout.length > 15 ? `${achievements.blackout.slice(0, 12)}...` : achievements.blackout }`: 'Unclaimed'}
             </span>
           </div>
         </div>
