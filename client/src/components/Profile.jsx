@@ -22,6 +22,7 @@ const Profile = () => {
       loadProfile();
       loadBoard();
     } else {
+      // No param and not logged in - viewing /profile without being logged in
       setLoading(false);
     }
   }, [profileUserId]);
@@ -61,7 +62,8 @@ const Profile = () => {
     );
   }
 
-  if (!profileUserId) {
+  // Only show "please log in" if trying to view /profile without being logged in (no param)
+  if (!profileUserId && !paramUserId) {
     return (
       <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: '#212326' }}>
         <div className="text-center">
@@ -73,14 +75,6 @@ const Profile = () => {
             Go to Home
           </button>
         </div>
-      </div>
-    );
-  }
-
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: '#212326' }}>
-        <div className="text-lg text-gray-400">Loading profile...</div>
       </div>
     );
   }
