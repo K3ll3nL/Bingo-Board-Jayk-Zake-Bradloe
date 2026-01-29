@@ -690,17 +690,28 @@ app.get('/api/pokedex', async (req, res) => {
     
     if (entriesError) throw entriesError;
     
+    // Get all Pokemon that have ever been in any monthly pool
+    const { data: poolPokemon, error: poolError } = await supabase
+      .from('monthly_pokemon_pool')
+      .select('pokemon_id');
+    
+    if (poolError) throw poolError;
+    
     // Create set of caught pokemon_ids
     const caughtIds = new Set(entries.map(e => e.pokemon_id));
     
-    // Mark pokemon as caught or not
+    // Create set of pokemon_ids that have been in pools
+    const poolIds = new Set(poolPokemon.map(p => p.pokemon_id));
+    
+    // Mark pokemon as caught or not, and if they've been in a pool
     const pokemon = allPokemon.map(p => ({
       id: p.id,
       national_dex_id: p.national_dex_id,
       name: p.name,
       display_name: p.display_name,
       img_url: p.img_url,
-      caught: caughtIds.has(p.id)  // Check by pokemon_master.id
+      caught: caughtIds.has(p.id),  // Check by pokemon_master.id
+      in_pool: poolIds.has(p.id)     // Check if ever in monthly pool
     }));
     
     const caughtCount = pokemon.filter(p => p.caught).length;
@@ -1047,11 +1058,3 @@ app.post('/api/upload/submission', upload.single('file'), async (req, res) => {
 
 // Export for Vercel serverless
 module.exports = app;
-
-// Start server locally (not needed in Vercel)
-if (require.main === module) {
-  const PORT = process.env.PORT || 3000;
-  app.listen(PORT, () => {
-    console.log(`🚀 Server running on http://localhost:${PORT}`);
-  });
-}

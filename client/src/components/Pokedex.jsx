@@ -174,7 +174,13 @@ const Pokedex = () => {
                 <img 
                   src={poke.img_url} 
                   alt={poke.name}
-                  className={`w-full h-full object-cover block ${poke.caught ? '' : 'grayscale opacity-30'}`}
+                  className={`w-full h-full object-cover block ${
+                    poke.caught 
+                      ? '' 
+                      : poke.in_pool 
+                        ? 'grayscale opacity-30' 
+                        : 'brightness-0 opacity-20'
+                  }`}
                   style={{ verticalAlign: 'top' }}
                 />
                 {poke.caught && (
