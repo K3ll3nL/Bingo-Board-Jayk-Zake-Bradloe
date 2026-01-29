@@ -30,6 +30,15 @@ const Upload = () => {
   }, [user]);
 
   useEffect(() => {
+    // Pre-select Pokemon from URL param
+    const params = new URLSearchParams(window.location.search);
+    const pokemonId = params.get('pokemon');
+    if (pokemonId && availablePokemon.length > 0) {
+      setSelectedPokemon(pokemonId);
+    }
+  }, [availablePokemon]);
+
+  useEffect(() => {
     const handleClickOutside = (e) => {
       if (dropdownOpen && !e.target.closest('.pokemon-dropdown')) {
         setDropdownOpen(false);

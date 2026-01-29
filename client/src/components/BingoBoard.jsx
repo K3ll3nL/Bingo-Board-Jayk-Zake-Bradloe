@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { api } from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
 import backgroundImage from '../Icons/2026Jan.png';
+import PokemonModal from './PokemonModal';
 
 const BingoBoard = () => {
   const { user } = useAuth();
@@ -12,6 +13,7 @@ const BingoBoard = () => {
   const [loadedCount, setLoadedCount] = useState(0);
   const [error, setError] = useState(null);
   const [achievements, setAchievements] = useState({ row: null, column: null, x: null, blackout: null });
+  const [selectedPokemon, setSelectedPokemon] = useState(null);
 
   useEffect(() => {
     loadBoard();
@@ -147,28 +149,35 @@ const BingoBoard = () => {
           backgroundImage: `url(${backgroundImage})`,
           backgroundSize: 'cover',
           backgroundPosition: 'center',
-          backgroundRepeat: 'no-repeat'
+          backgroundRepeat: 'no-repeat',
+          backgroundColor: '#212326'
         }}
       >
         {board.map((cell) => {
           const isFreeSpace = cell.position === 13;
+          const isEmpty = cell.pokemon_name === 'EMPTY';
+          const isClickable = !isFreeSpace && !isEmpty;
           
           return (
             <div
               key={cell.id}
+              onClick={() => isClickable && setSelectedPokemon(cell)}
               className={`
                 relative rounded-lg border-2 transition-all duration-200 overflow-hidden leading-none
                 ${cell.is_checked 
-                  ? 'border-purple-500 text-white font-semibold shadow-lg' 
+                  ? 'text-white font-semibold shadow-lg' 
                   : 'border-gray-600 text-gray-200'
                 }
                 ${isFreeSpace ? 'bg-gradient-to-br from-purple-500 to-pink-500 text-white font-bold border-purple-600 flex items-center justify-center text-center aspect-square' : ''}
-                ${cell.pokemon_name === 'EMPTY' ? 'bg-gray-900 border-gray-700 opacity-50 flex items-center justify-center text-center aspect-square' : ''}
+                ${isEmpty ? 'bg-gray-900 border-gray-700 opacity-50 flex items-center justify-center text-center aspect-square' : ''}
+                ${isClickable ? 'cursor-pointer hover:scale-105' : ''}
               `}
-              style={{ backgroundColor: cell.is_checked && !isFreeSpace ? '#5865F2' : !isFreeSpace && cell.pokemon_name !== 'EMPTY' ? '#212326' : undefined }}
-
+              style={{ 
+                backgroundColor: cell.is_checked && !isFreeSpace ? '#5865F2' : !isFreeSpace && !isEmpty ? '#212326' : undefined,
+                borderColor: cell.is_checked && !isFreeSpace ? '#5865F2' : undefined
+              }}
             >
-              {!isFreeSpace && cell.pokemon_name !== 'EMPTY' && cell.pokemon_gif && (
+              {!isFreeSpace && !isEmpty && cell.pokemon_gif && (
                 <img 
                   src={cell.pokemon_gif} 
                   alt={cell.pokemon_name}
@@ -176,7 +185,7 @@ const BingoBoard = () => {
                   style={{ verticalAlign: 'top' }}
                 />
               )}
-              {(isFreeSpace || cell.pokemon_name === 'EMPTY') && (
+              {(isFreeSpace || isEmpty) && (
                 <span className="text-xs md:text-sm leading-tight break-words px-1">
                   {cell.pokemon_name}
                 </span>
@@ -246,6 +255,15 @@ const BingoBoard = () => {
           </div>
         </div>
       </div>
+    </div>
+    
+    {/* Pokemon Modal */}
+    {selectedPokemon && (
+      <PokemonModal 
+        pokemon={selectedPokemon} 
+        onClose={() => setSelectedPokemon(null)}
+      />
+    )}
     </div>
   );
 };

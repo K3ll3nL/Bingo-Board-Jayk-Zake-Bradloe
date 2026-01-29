@@ -1,0 +1,159 @@
+import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+
+const PokemonModal = ({ pokemon, onClose }) => {
+  const navigate = useNavigate();
+  const [recentCatches, setRecentCatches] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (pokemon) {
+      loadRecentCatches();
+    }
+  }, [pokemon]);
+
+  const loadRecentCatches = async () => {
+    try {
+      const response = await fetch(`/api/pokemon/${pokemon.pokemon_id}/recent-catches`);
+      if (!response.ok) throw new Error('Failed to load recent catches');
+      const data = await response.json();
+      setRecentCatches(data);
+    } catch (err) {
+      console.error('Error loading recent catches:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const formatDate = (dateString) => {
+    const date = new Date(dateString);
+    return date.toLocaleDateString('en-US', { 
+      month: 'short', 
+      day: 'numeric', 
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  };
+
+  const handleSubmitClick = () => {
+    navigate(`/upload?pokemon=${pokemon.pokemon_id}`);
+    onClose();
+  };
+
+  if (!pokemon) return null;
+
+  return (
+    <div 
+      className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4"
+      onClick={onClose}
+    >
+      <div 
+        className="rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto"
+        style={{ backgroundColor: '#35373b' }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div className="sticky top-0 p-6 border-b border-gray-600" style={{ backgroundColor: '#35373b' }}>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <img 
+                src={pokemon.pokemon_gif || pokemon.img_url} 
+                alt={pokemon.pokemon_name}
+                className="w-20 h-20 object-contain"
+              />
+              <div>
+                <h2 className="text-2xl font-bold text-white">{pokemon.pokemon_name}</h2>
+                <p className="text-gray-400">#{String(pokemon.national_dex_id).padStart(4, '0')}</p>
+              </div>
+            </div>
+            <button
+              onClick={onClose}
+              className="text-gray-400 hover:text-white transition-colors"
+            >
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+        </div>
+
+        {/* Content */}
+        <div className="p-6">
+          {/* Recent Catches */}
+          <div className="mb-6">
+            <h3 className="text-lg font-bold text-white mb-3">Recent Catches</h3>
+            {loading ? (
+              <div className="text-gray-400 text-center py-4">Loading...</div>
+            ) : recentCatches.length === 0 ? (
+              <div className="text-gray-400 text-center py-4">No catches yet</div>
+            ) : (
+              <div className="space-y-2">
+                {recentCatches.map((entry) => (
+                  <div
+                    key={entry.id}
+                    className="p-3 rounded-lg flex items-center justify-between hover:bg-gray-600 transition-colors"
+                    style={{ backgroundColor: '#212326' }}
+                  >
+                    <div className="flex items-center gap-3">
+                      {entry.avatar_url && (
+                        <img
+                          src={entry.avatar_url}
+                          alt={entry.display_name}
+                          className="w-10 h-10 rounded-full"
+                        />
+                      )}
+                      <div>
+                        <div className="text-white font-medium">{entry.display_name}</div>
+                        <div className="text-xs text-gray-400">{formatDate(entry.caught_at)}</div>
+                      </div>
+                    </div>
+                    {entry.proof_url && (
+                      <a
+                        href={entry.proof_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-purple-400 hover:text-purple-300 text-sm"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        View Proof
+                      </a>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* External Links */}
+          <div className="grid grid-cols-3 gap-3">
+            <a
+              href={`https://bulbapedia.bulbagarden.net/wiki/${pokemon.pokemon_name}_(Pok%C3%A9mon)`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="p-3 bg-green-600 hover:bg-green-700 text-white rounded-lg text-center font-medium transition-colors"
+            >
+              Bulbapedia
+            </a>
+            <a
+              href={`https://www.serebii.net/pokedex-sv/${String(pokemon.national_dex_id).padStart(4, '0')}.shtml`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="p-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-center font-medium transition-colors"
+            >
+              Serebii
+            </a>
+            <button
+              onClick={handleSubmitClick}
+              className="p-3 bg-purple-600 hover:bg-purple-700 text-white rounded-lg text-center font-medium transition-colors"
+            >
+              Submit Catch
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default PokemonModal;

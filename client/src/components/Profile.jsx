@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate, useParams } from 'react-router-dom';
+import PokemonModal from './PokemonModal';
 
 const Profile = () => {
   const { user } = useAuth();
@@ -9,6 +10,7 @@ const Profile = () => {
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [selectedPokemon, setSelectedPokemon] = useState(null);
 
   // Use userId from URL param if present, otherwise use logged-in user
   const profileUserId = paramUserId || user?.id;
@@ -118,7 +120,7 @@ const Profile = () => {
         <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-6 mb-8">
           {/* Overall Rank */}
           <div className="rounded-xl shadow-xl p-6" style={{ backgroundColor: '#35373b' }}>
-            <div className="text-gray-400 text-sm mb-2">All-Time Rank</div>
+            <div className="text-gray-400 text-sm mb-2">Overall Rank</div>
             <div className="text-4xl font-bold text-purple-400">#{profile.stats.overallRank}</div>
           </div>
 
@@ -187,26 +189,29 @@ const Profile = () => {
         {/* Current Month Bingo Board */}
         {board.length > 0 && (
           <div className="rounded-xl shadow-xl p-6 mb-8" style={{ backgroundColor: '#35373b' }}>
-            <h2 className="text-2xl font-bold text-white mb-6">{boardMonth} Bounty Progress</h2>
+            <h2 className="text-2xl font-bold text-white mb-6">{boardMonth} Bingo Progress</h2>
             <div className="grid grid-cols-5 gap-2 max-w-2xl mx-auto">
               {board.map((cell) => {
                 const isFreeSpace = cell.position === 13;
+                const isEmpty = cell.pokemon_name === 'EMPTY';
+                const isClickable = !isFreeSpace && !isEmpty;
                 
                 return (
                   <div
                     key={cell.id}
+                    onClick={() => isClickable && setSelectedPokemon(cell)}
                     className={`
                       relative rounded-lg border-2 transition-all duration-200 overflow-hidden leading-none
                       ${cell.is_checked 
-                        ? 'bg-primary border-purple-500 text-white font-semibold shadow-lg' 
-                        : 'border-gray-600 text-gray-200'
+                        ? 'bg-green-600 border-green-500 text-white font-semibold shadow-lg' 
+                        : 'border-gray-600 text-gray-300 bg-gray-800'
                       }
-                      ${isFreeSpace ? 'bg-gradient-to-br from-purple-500 to-pink-500 text-white font-bold border-purple-600 flex items-center justify-center text-center aspect-square' : ''}
-                      ${cell.pokemon_name === 'EMPTY' ? 'bg-gray-900 border-gray-700 opacity-50 flex items-center justify-center text-center aspect-square' : ''}
+                      ${isFreeSpace ? 'bg-gradient-to-br from-purple-500 to-pink-500 text-white font-bold border-purple-600 flex items-center justify-center aspect-square' : ''}
+                      ${isEmpty ? 'bg-gray-900 border-gray-700 opacity-50 flex items-center justify-center aspect-square' : ''}
+                      ${isClickable ? 'cursor-pointer hover:scale-105' : ''}
                     `}
-                    style={{ backgroundColor: cell.is_checked && !isFreeSpace ? '#5865F2' : !isFreeSpace && cell.pokemon_name !== 'EMPTY' ? '#212326' : undefined }}
                   >
-                    {!isFreeSpace && cell.pokemon_name !== 'EMPTY' && cell.pokemon_gif && (
+                    {!isFreeSpace && !isEmpty && cell.pokemon_gif && (
                       <img 
                         src={cell.pokemon_gif} 
                         alt={cell.pokemon_name}
@@ -214,8 +219,8 @@ const Profile = () => {
                         style={{ verticalAlign: 'top' }}
                       />
                     )}
-                    {(isFreeSpace || cell.pokemon_name === 'EMPTY') && (
-                      <span className="text-xs md:text-sm leading-tight break-words px-1">
+                    {(isFreeSpace || isEmpty) && (
+                      <span className="text-xs leading-tight break-words">
                         {cell.pokemon_name}
                       </span>
                     )}
@@ -259,6 +264,14 @@ const Profile = () => {
         </div>
       </div>
       </div>
+      
+      {/* Pokemon Modal */}
+      {selectedPokemon && (
+        <PokemonModal 
+          pokemon={selectedPokemon} 
+          onClose={() => setSelectedPokemon(null)}
+        />
+      )}
     </div>
   );
 };
