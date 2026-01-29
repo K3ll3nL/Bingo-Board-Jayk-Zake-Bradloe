@@ -875,6 +875,7 @@ app.get('/api/ambassadors', async (req, res) => {
 app.get('/api/upload/available-pokemon', async (req, res) => {
   try {
     let userId = null;
+    let timeOffsetDays = 0;
     
     // Check if user is authenticated
     const authHeader = req.headers.authorization;
@@ -884,6 +885,17 @@ app.get('/api/upload/available-pokemon', async (req, res) => {
         const { data: { user }, error: authError } = await supabase.auth.getUser(token);
         if (user && !authError) {
           userId = user.id;
+          
+          // Get user's time offset if they're a mod
+          const { data: userData, error: userError } = await supabase
+            .from('users')
+            .select('time_offset_days')
+            .eq('id', userId)
+            .single();
+          
+          if (!userError && userData && userData.time_offset_days) {
+            timeOffsetDays = userData.time_offset_days;
+          }
         }
       } catch (err) {
         console.log('Auth check failed');
@@ -894,12 +906,17 @@ app.get('/api/upload/available-pokemon', async (req, res) => {
       return res.status(401).json({ error: 'Authentication required' });
     }
     
-    // Get active months (current date between start_date and end_date)
+    // Calculate effective date with offset
+    const now = new Date();
+    const effectiveDate = new Date(now.getTime() + (timeOffsetDays * 24 * 60 * 60 * 1000));
+    const effectiveDateISO = effectiveDate.toISOString();
+    
+    // Get active months (effective date between start_date and end_date)
     const { data: activeMonths, error: monthsError } = await supabase
       .from('bingo_months')
       .select('id')
-      .lte('start_date', new Date().toISOString())
-      .gte('end_date', new Date().toISOString());
+      .lte('start_date', effectiveDateISO)
+      .gte('end_date', effectiveDateISO);
     
     if (monthsError) throw monthsError;
     

@@ -51,6 +51,8 @@ const Upload = () => {
       });
       if (!response.ok) throw new Error('Failed to fetch available Pokemon');
       const data = await response.json();
+      console.log('Available Pokemon data:', data);
+      console.log('First Pokemon:', data[0]);
       setAvailablePokemon(data);
       setError(null);
     } catch (err) {
@@ -162,35 +164,43 @@ const Upload = () => {
   }
 
   return (
-    <div className="w-full">
-      {/* Back Button */}
-      <button
-        onClick={() => navigate('/')}
-        className="mb-4 flex items-center gap-2 text-gray-400 hover:text-white transition-colors"
-      >
-        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
-        </svg>
-        Back to Board
-      </button>
-
-      <div className="max-w-2xl mx-auto">
-        <h2 className="text-2xl font-bold text-center text-white mb-6">Upload Catch</h2>
-        
-        <div className="rounded-lg shadow-lg p-6" style={{ backgroundColor: '#35373b' }}>
-          {error && (
-            <div className="mb-4 p-3 bg-red-900 border border-red-700 rounded-lg text-red-200 text-sm">
-              {error}
+    <div className="min-h-screen" style={{ backgroundColor: '#212326' }}>
+      {/* Header */}
+      <header className="shadow-md" style={{ backgroundColor: '#35373b' }}>
+        <div className="max-w-7xl mx-auto px-4 py-6">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <button
+                onClick={() => navigate('/')}
+                className="text-gray-400 hover:text-white transition-colors"
+              >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                </svg>
+              </button>
+              <h1 className="text-2xl font-bold text-white">Upload Catch</h1>
             </div>
-          )}
-          
-          {success && (
-            <div className="mb-4 p-3 bg-green-900 border border-green-700 rounded-lg text-green-200 text-sm">
-              Catch submitted successfully!
-            </div>
-          )}
+          </div>
+        </div>
+      </header>
 
-          <form onSubmit={handleSubmit}>
+      {/* Upload Form */}
+      <div className="p-8">
+        <div className="max-w-2xl mx-auto">
+          <div className="rounded-lg shadow-lg p-6" style={{ backgroundColor: '#35373b' }}>
+            {error && (
+              <div className="mb-4 p-3 bg-red-900 border border-red-700 rounded-lg text-red-200 text-sm">
+                {error}
+              </div>
+            )}
+            
+            {success && (
+              <div className="mb-4 p-3 bg-green-900 border border-green-700 rounded-lg text-green-200 text-sm">
+                Catch submitted successfully!
+              </div>
+            )}
+
+            <form onSubmit={handleSubmit}>
           {/* Pokemon Selection Dropdown */}
           <div className="mb-6">
             <div className="flex items-center justify-between mb-2">
@@ -373,6 +383,7 @@ const Upload = () => {
             {submitting ? 'Submitting...' : 'Submit Catch'}
           </button>
         </form>
+      </div>
       </div>
       </div>
     </div>
