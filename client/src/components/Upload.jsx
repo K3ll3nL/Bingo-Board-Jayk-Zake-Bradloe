@@ -29,6 +29,17 @@ const Upload = () => {
     }
   }, [user]);
 
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (dropdownOpen && !e.target.closest('.pokemon-dropdown')) {
+        setDropdownOpen(false);
+      }
+    };
+    
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [dropdownOpen]);
+
   const loadAvailablePokemon = async () => {
     try {
       const { data: { session } } = await supabase.auth.getSession();
@@ -151,23 +162,35 @@ const Upload = () => {
   }
 
   return (
-    <div className="w-full max-w-2xl mx-auto">
-      <h2 className="text-2xl font-bold text-center text-white mb-6">Upload Catch</h2>
-      
-      <div className="rounded-lg shadow-lg p-6" style={{ backgroundColor: '#212326' }}>
-        {error && (
-          <div className="mb-4 p-3 bg-red-900 border border-red-700 rounded-lg text-red-200 text-sm">
-            {error}
-          </div>
-        )}
-        
-        {success && (
-          <div className="mb-4 p-3 bg-green-900 border border-green-700 rounded-lg text-green-200 text-sm">
-            Catch submitted successfully!
-          </div>
-        )}
+    <div className="w-full">
+      {/* Back Button */}
+      <button
+        onClick={() => navigate('/')}
+        className="mb-4 flex items-center gap-2 text-gray-400 hover:text-white transition-colors"
+      >
+        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+        </svg>
+        Back to Board
+      </button>
 
-        <form onSubmit={handleSubmit}>
+      <div className="max-w-2xl mx-auto">
+        <h2 className="text-2xl font-bold text-center text-white mb-6">Upload Catch</h2>
+        
+        <div className="rounded-lg shadow-lg p-6" style={{ backgroundColor: '#35373b' }}>
+          {error && (
+            <div className="mb-4 p-3 bg-red-900 border border-red-700 rounded-lg text-red-200 text-sm">
+              {error}
+            </div>
+          )}
+          
+          {success && (
+            <div className="mb-4 p-3 bg-green-900 border border-green-700 rounded-lg text-green-200 text-sm">
+              Catch submitted successfully!
+            </div>
+          )}
+
+          <form onSubmit={handleSubmit}>
           {/* Pokemon Selection Dropdown */}
           <div className="mb-6">
             <div className="flex items-center justify-between mb-2">
@@ -192,7 +215,7 @@ const Upload = () => {
               </div>
             </div>
             
-            <div className="relative">
+            <div className="relative pokemon-dropdown">
               <button
                 type="button"
                 onClick={() => setDropdownOpen(!dropdownOpen)}
@@ -350,6 +373,7 @@ const Upload = () => {
             {submitting ? 'Submitting...' : 'Submit Catch'}
           </button>
         </form>
+      </div>
       </div>
     </div>
   );
