@@ -1123,13 +1123,15 @@ app.get('/api/pokemon/:pokemonId/recent-catches', async (req, res) => {
   try {
     const { pokemonId } = req.params;
     
-    // Get recent entries for this Pokemon (limit 10, most recent first)
+    console.log('Fetching recent catches for Pokemon ID:', pokemonId);
+    
+    // Get recent APPROVED entries for this Pokemon (limit 10, most recent first)
+    // Note: Using entries table for actual catches, approvals for submissions
     const { data: entries, error } = await supabase
       .from('entries')
       .select(`
         id,
         created_at,
-        proof_url,
         users!entries_user_id_fkey (
           display_name,
           avatar_url
@@ -1139,22 +1141,38 @@ app.get('/api/pokemon/:pokemonId/recent-catches', async (req, res) => {
       .order('created_at', { ascending: false })
       .limit(10);
     
-    if (error) throw error;
+    if (error) {
+      console.error('Supabase error:', error);
+      throw error;
+    }
+    
+    if (!entries) {
+      console.log('No entries found, returning empty array');
+      return res.json([]);
+    }
     
     const formattedEntries = entries.map(entry => ({
       id: entry.id,
       caught_at: entry.created_at,
-      proof_url: entry.proof_url,
       display_name: entry.users?.display_name || 'Unknown',
       avatar_url: entry.users?.avatar_url
     }));
     
+    console.log('Returning', formattedEntries.length, 'entries');
     res.json(formattedEntries);
   } catch (error) {
     console.error('Error fetching recent catches:', error);
-    res.status(500).json({ error: 'Failed to fetch recent catches' });
+    res.status(500).json({ error: 'Failed to fetch recent catches', details: error.message });
   }
 });
 
 // Export for Vercel serverless
 module.exports = app;
+
+// Start server locally (not needed in Vercel)
+if (require.main === module) {
+  const PORT = process.env.PORT || 3000;
+  app.listen(PORT, () => {
+    console.log(`🚀 Server running on http://localhost:${PORT}`);
+  });
+}

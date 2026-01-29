@@ -92,33 +92,20 @@ const PokemonModal = ({ pokemon, onClose }) => {
                 {recentCatches.map((entry) => (
                   <div
                     key={entry.id}
-                    className="p-3 rounded-lg flex items-center justify-between hover:bg-gray-600 transition-colors"
+                    className="p-3 rounded-lg flex items-center gap-3"
                     style={{ backgroundColor: '#212326' }}
                   >
-                    <div className="flex items-center gap-3">
-                      {entry.avatar_url && (
-                        <img
-                          src={entry.avatar_url}
-                          alt={entry.display_name}
-                          className="w-10 h-10 rounded-full"
-                        />
-                      )}
-                      <div>
-                        <div className="text-white font-medium">{entry.display_name}</div>
-                        <div className="text-xs text-gray-400">{formatDate(entry.caught_at)}</div>
-                      </div>
-                    </div>
-                    {entry.proof_url && (
-                      <a
-                        href={entry.proof_url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-purple-400 hover:text-purple-300 text-sm"
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        View Proof
-                      </a>
+                    {entry.avatar_url && (
+                      <img
+                        src={entry.avatar_url}
+                        alt={entry.display_name}
+                        className="w-10 h-10 rounded-full"
+                      />
                     )}
+                    <div>
+                      <div className="text-white font-medium">{entry.display_name}</div>
+                      <div className="text-xs text-gray-400">{formatDate(entry.caught_at)}</div>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -128,7 +115,7 @@ const PokemonModal = ({ pokemon, onClose }) => {
           {/* External Links */}
           <div className="grid grid-cols-2 gap-px bg-gray-600 -mx-6 -mb-6 mt-6">
             <a
-              href={`https://bulbapedia.bulbagarden.net/wiki/${pokemon.pokemon_name}_(Pok%C3%A9mon)#Game_locations`}
+              href={`https://bulbapedia.bulbagarden.net/wiki/${pokemon.pokemon_name}_(Pok%C3%A9mon)`}
               target="_blank"
               rel="noopener noreferrer"
               className="p-4 bg-gray-700 hover:bg-gray-600 text-white text-center font-medium transition-colors flex items-center justify-center gap-2"
