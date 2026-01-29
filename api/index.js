@@ -31,6 +31,7 @@ app.get('/api/health', (req, res) => {
 app.get('/api/bingo/board', async (req, res) => {
   try {
     let userId = null;
+    let timeOffsetDays = 0;
     
     // Check if user is authenticated (optional)
     const authHeader = req.headers.authorization;
@@ -40,6 +41,17 @@ app.get('/api/bingo/board', async (req, res) => {
         const { data: { user }, error: authError } = await supabase.auth.getUser(token);
         if (user && !authError) {
           userId = user.id;
+          
+          // Get user's time offset if they're a mod
+          const { data: userData, error: userError } = await supabase
+            .from('users')
+            .select('time_offset_days')
+            .eq('id', userId)
+            .single();
+          
+          if (!userError && userData && userData.time_offset_days) {
+            timeOffsetDays = userData.time_offset_days;
+          }
         }
       } catch (err) {
         // Ignore auth errors - just show public board
@@ -47,16 +59,29 @@ app.get('/api/bingo/board', async (req, res) => {
       }
     }
 
-    const ACTIVE_MONTH_ID = 1;
+    // Calculate effective date with offset
+    const now = new Date();
+    const effectiveDate = new Date(now.getTime() + (timeOffsetDays * 24 * 60 * 60 * 1000));
+    const effectiveDateISO = effectiveDate.toISOString();
     
-    // Get month information
-    const { data: monthData, error: monthError } = await supabase
+    console.log('Time offset days:', timeOffsetDays);
+    console.log('Effective date:', effectiveDateISO);
+    
+    // Get active month based on effective date
+    const { data: activeMonthData, error: activeMonthError } = await supabase
       .from('bingo_months')
-      .select('month_year_display, start_date, end_date')
-      .eq('id', ACTIVE_MONTH_ID)
+      .select('id, month_year_display, start_date, end_date')
+      .lte('start_date', effectiveDateISO)
+      .gte('end_date', effectiveDateISO)
       .single();
     
-    if (monthError) throw monthError;
+    if (activeMonthError) {
+      console.error('No active month found for date:', effectiveDateISO, activeMonthError);
+      return res.status(404).json({ error: 'No active bingo month found' });
+    }
+    
+    const ACTIVE_MONTH_ID = activeMonthData.id;
+    const monthData = activeMonthData;
     
     // Get entries - either for authenticated user or no one (show unchecked board)
     let completedPokemonIds = new Set();
