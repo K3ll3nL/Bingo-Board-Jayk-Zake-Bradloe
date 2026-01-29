@@ -1125,13 +1125,28 @@ app.get('/api/pokemon/:pokemonId/recent-catches', async (req, res) => {
     
     console.log('Fetching recent catches for Pokemon ID:', pokemonId);
     
+    // Get active month
+    const { data: activeMonth, error: monthError } = await supabase
+      .from('bingo_months')
+      .select('id')
+      .lte('start_date', new Date().toISOString())
+      .gte('end_date', new Date().toISOString())
+      .single();
+    
+    if (monthError || !activeMonth) {
+      console.log('No active month found');
+      return res.json([]);
+    }
+    
+    const ACTIVE_MONTH_ID = activeMonth.id;
+    
     // Get recent APPROVED entries for this Pokemon (limit 10, most recent first)
-    // Note: Using entries table for actual catches, approvals for submissions
     const { data: entries, error } = await supabase
       .from('entries')
       .select(`
         id,
         created_at,
+        user_id,
         users!entries_user_id_fkey (
           display_name,
           avatar_url
@@ -1146,16 +1161,66 @@ app.get('/api/pokemon/:pokemonId/recent-catches', async (req, res) => {
       throw error;
     }
     
-    if (!entries) {
+    if (!entries || entries.length === 0) {
       console.log('No entries found, returning empty array');
       return res.json([]);
+    }
+    
+    const userIds = entries.map(e => e.user_id);
+    
+    // Get user points for this month
+    const { data: userPoints, error: pointsError } = await supabase
+      .from('user_monthly_points')
+      .select('user_id, points')
+      .in('user_id', userIds)
+      .eq('month_id', ACTIVE_MONTH_ID);
+    
+    const pointsMap = {};
+    if (!pointsError && userPoints) {
+      userPoints.forEach(up => {
+        pointsMap[up.user_id] = up.points;
+      });
+    }
+    
+    // Get user achievements for this month
+    const { data: achievements, error: achievementsError } = await supabase
+      .from('bingo_achievements')
+      .select('user_id, bingo_type')
+      .in('user_id', userIds)
+      .eq('month_id', ACTIVE_MONTH_ID);
+    
+    const achievementsMap = {};
+    if (!achievementsError && achievements) {
+      achievements.forEach(a => {
+        if (!achievementsMap[a.user_id]) {
+          achievementsMap[a.user_id] = { row: false, column: false, x: false, blackout: false };
+        }
+        achievementsMap[a.user_id][a.bingo_type] = true;
+      });
+    }
+    
+    // Get hex codes for ambassadors
+    const { data: ambassadors, error: ambassadorsError } = await supabase
+      .from('twitch_ambassadors')
+      .select('id, hex_code')
+      .in('id', userIds);
+    
+    const hexCodeMap = {};
+    if (!ambassadorsError && ambassadors) {
+      ambassadors.forEach(amb => {
+        hexCodeMap[amb.id] = amb.hex_code || '#9147ff';
+      });
     }
     
     const formattedEntries = entries.map(entry => ({
       id: entry.id,
       caught_at: entry.created_at,
+      user_id: entry.user_id,
       display_name: entry.users?.display_name || 'Unknown',
-      avatar_url: entry.users?.avatar_url
+      avatar_url: entry.users?.avatar_url,
+      points: pointsMap[entry.user_id] || 0,
+      achievements: achievementsMap[entry.user_id] || { row: false, column: false, x: false, blackout: false },
+      hex_code: hexCodeMap[entry.user_id] || '#9147ff'
     }));
     
     console.log('Returning', formattedEntries.length, 'entries');

@@ -88,23 +88,78 @@ const PokemonModal = ({ pokemon, onClose }) => {
             ) : recentCatches.length === 0 ? (
               <div className="text-gray-400 text-center py-4">No catches yet</div>
             ) : (
-              <div className="space-y-2">
-                {recentCatches.map((entry) => (
+              <div className="divide-y" style={{ borderColor: '#404040' }}>
+                {recentCatches.map((entry, index) => (
                   <div
                     key={entry.id}
-                    className="p-3 rounded-lg flex items-center gap-3"
-                    style={{ backgroundColor: '#212326' }}
+                    onClick={() => {
+                      navigate(`/profile/${entry.user_id}`);
+                      onClose();
+                    }}
+                    className="p-2 flex items-center justify-between transition-colors cursor-pointer hover:bg-gray-600"
                   >
-                    {entry.avatar_url && (
-                      <img
-                        src={entry.avatar_url}
-                        alt={entry.display_name}
-                        className="w-10 h-10 rounded-full"
-                      />
-                    )}
-                    <div>
-                      <div className="text-white font-medium">{entry.display_name}</div>
-                      <div className="text-xs text-gray-400">{formatDate(entry.caught_at)}</div>
+                    <div className="flex items-center gap-3">
+                      <div className="flex items-center justify-center w-8 h-8">
+                        <span className="font-semibold text-xl text-gray-400">#{index + 1}</span>
+                      </div>
+                      
+                      {entry.avatar_url && (
+                        <img
+                          src={entry.avatar_url}
+                          alt={entry.display_name}
+                          className="w-10 h-10 rounded-full"
+                        />
+                      )}
+                      
+                      <div>
+                        <div className="font-semibold text-l text-white">
+                          {entry.display_name}
+                        </div>
+                        <div className="text-xs text-gray-400">
+                          {formatDate(entry.caught_at)}
+                        </div>
+                      </div>
+                    </div>
+                    
+                    <div className="flex items-center gap-2">
+                      {/* Achievement icons */}
+                      <div className="flex items-center gap-1">
+                        {entry.achievements?.row && (
+                          <div className="w-5 h-5 rounded flex items-center justify-center" style={{ backgroundColor: entry.hex_code || '#9147ff' }}>
+                            <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 12h16" />
+                            </svg>
+                          </div>
+                        )}
+                        {entry.achievements?.column && (
+                          <div className="w-5 h-5 rounded flex items-center justify-center" style={{ backgroundColor: entry.hex_code || '#9147ff' }}>
+                            <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16" />
+                            </svg>
+                          </div>
+                        )}
+                        {entry.achievements?.x && (
+                          <div className="w-5 h-5 rounded flex items-center justify-center" style={{ backgroundColor: entry.hex_code || '#9147ff' }}>
+                            <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                          </div>
+                        )}
+                        {entry.achievements?.blackout && (
+                          <div className="w-5 h-5 rounded flex items-center justify-center" style={{ backgroundColor: entry.hex_code || '#9147ff' }}>
+                            <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                              <rect x="3" y="3" width="18" height="18" rx="1" />
+                              <path d="M3 7.2h18M3 10.2h18M3 13.8h18M3 16.8h18" />
+                              <path d="M7.2 3v18M10.2 3v18M13.8 3v18M16.8 3v18" />
+                            </svg>
+                          </div>
+                        )}
+                      </div>
+                      
+                      <span className="text-xl font-bold text-purple-400">
+                        {entry.points || 0}
+                      </span>
+                      <span className="text-xs text-gray-400">pts</span>
                     </div>
                   </div>
                 ))}

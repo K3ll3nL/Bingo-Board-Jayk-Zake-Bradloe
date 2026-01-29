@@ -21,6 +21,8 @@ const Profile = () => {
     if (profileUserId) {
       loadProfile();
       loadBoard();
+    } else {
+      setLoading(false);
     }
   }, [profileUserId]);
 
@@ -50,6 +52,30 @@ const Profile = () => {
       console.error('Failed to load board:', err);
     }
   };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: '#212326' }}>
+        <div className="text-lg text-gray-400">Loading profile...</div>
+      </div>
+    );
+  }
+
+  if (!profileUserId) {
+    return (
+      <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: '#212326' }}>
+        <div className="text-center">
+          <div className="text-lg text-gray-400 mb-4">Please log in to view your profile</div>
+          <button
+            onClick={() => navigate('/')}
+            className="px-4 py-2 bg-purple-500 hover:bg-purple-600 text-white rounded-lg transition-colors"
+          >
+            Go to Home
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   if (loading) {
     return (
