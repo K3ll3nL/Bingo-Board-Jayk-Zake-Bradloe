@@ -950,10 +950,10 @@ app.get('/api/upload/available-pokemon', async (req, res) => {
 });
 
 // Submit catch
-app.post('/api/upload/submission', upload.single('file'), async (req, res) => {
+app.post('/api/upload/submission', upload.fields([{ name: 'file', maxCount: 1 }, { name: 'file2', maxCount: 1 }]), async (req, res) => {
   try {
     console.log('Request body:', req.body);
-    console.log('Request file:', req.file);
+    console.log('Request files:', req.files);
     
     let userId = null;
     
@@ -977,16 +977,18 @@ app.post('/api/upload/submission', upload.single('file'), async (req, res) => {
     
     const pokemon_id = req.body.pokemon_id;
     const url = req.body.url;
-    const file = req.file;
+    const file = req.files?.file?.[0];
+    const file2 = req.files?.file2?.[0];
     
-    console.log('Parsed values:', { pokemon_id, url, file: !!file });
+    console.log('Parsed values:', { pokemon_id, url, file: !!file, file2: !!file2 });
     
     if (!pokemon_id) {
       return res.status(400).json({ error: 'Pokemon ID required' });
     }
     
-    if (!url && !file) {
-      return res.status(400).json({ error: 'Media URL or file required' });
+    // Validation: Either URL OR both files
+    if (!url && (!file || !file2)) {
+      return res.status(400).json({ error: 'Either Twitch link OR both proof images required' });
     }
     
     // Get active month
@@ -1002,9 +1004,10 @@ app.post('/api/upload/submission', upload.single('file'), async (req, res) => {
     }
     
     let proofUrl = url;
+    let proofUrl2 = null;
     
-    // If file uploaded, upload to R2
-    if (file) {
+    // If files uploaded, upload both to R2
+    if (file && file2) {
       try {
         const R2_BUCKET_URL = process.env.R2_BUCKET_URL;
         const R2_ACCESS_KEY_ID = process.env.R2_ACCESS_KEY_ID;
@@ -1038,19 +1041,35 @@ app.post('/api/upload/submission', upload.single('file'), async (req, res) => {
           },
         });
         
-        const fileName = `approval/${userId}-${pokemon_id}-${Date.now()}-${file.originalname}`;
+        // Upload first file (Proof of Shiny)
+        const fileName1 = `approval/${userId}-${pokemon_id}-${Date.now()}-shiny-${file.originalname}`;
         
-        console.log('Uploading to R2:', fileName);
+        console.log('Uploading file 1 to R2:', fileName1);
         
         await s3Client.send(new PutObjectCommand({
           Bucket: R2_BUCKET_NAME,
-          Key: fileName,
+          Key: fileName1,
           Body: file.buffer,
           ContentType: file.mimetype,
         }));
         
-        proofUrl = `${R2_BUCKET_URL}/${fileName}`;
-        console.log('Upload successful:', proofUrl);
+        proofUrl = `${R2_BUCKET_URL}/${fileName1}`;
+        console.log('Upload 1 successful:', proofUrl);
+        
+        // Upload second file (Proof of Date)
+        const fileName2 = `approval/${userId}-${pokemon_id}-${Date.now()}-date-${file2.originalname}`;
+        
+        console.log('Uploading file 2 to R2:', fileName2);
+        
+        await s3Client.send(new PutObjectCommand({
+          Bucket: R2_BUCKET_NAME,
+          Key: fileName2,
+          Body: file2.buffer,
+          ContentType: file2.mimetype,
+        }));
+        
+        proofUrl2 = `${R2_BUCKET_URL}/${fileName2}`;
+        console.log('Upload 2 successful:', proofUrl2);
       } catch (r2Error) {
         console.error('R2 upload error:', r2Error);
         return res.status(500).json({ 
@@ -1067,7 +1086,8 @@ app.post('/api/upload/submission', upload.single('file'), async (req, res) => {
         user_id: userId,
         pokemon_id: parseInt(pokemon_id),
         month_id: activeMonth.id,
-        proof_url: proofUrl
+        proof_url: proofUrl,
+        proof_url2: proofUrl2
       })
       .select()
       .single();

@@ -1,12 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import { createClient } from '@supabase/supabase-js';
-
-const supabase = createClient(
-  import.meta.env.VITE_SUPABASE_URL,
-  import.meta.env.VITE_SUPABASE_ANON_KEY
-);
+import { supabase } from '../lib/supabase';
 
 const Upload = () => {
   const { user } = useAuth();
@@ -16,7 +11,8 @@ const Upload = () => {
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [mediaUrl, setMediaUrl] = useState('');
   const [mediaFile, setMediaFile] = useState(null);
-  const [sortBy, setSortBy] = useState('dex'); // 'dex' or 'alpha'
+  const [mediaFile2, setMediaFile2] = useState(null);
+  const [sortBy, setSortBy] = useState('dex');
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState(null);
@@ -30,7 +26,6 @@ const Upload = () => {
 
   const loadAvailablePokemon = async () => {
     try {
-      // Get auth token
       const { data: { session } } = await supabase.auth.getSession();
       
       const response = await fetch('/api/upload/available-pokemon', {
@@ -54,7 +49,15 @@ const Upload = () => {
     const file = e.target.files[0];
     if (file) {
       setMediaFile(file);
-      setMediaUrl(''); // Clear URL if file selected
+      setMediaUrl('');
+    }
+  };
+
+  const handleFile2Change = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      setMediaFile2(file);
+      setMediaUrl('');
     }
   };
 
@@ -66,8 +69,8 @@ const Upload = () => {
       return;
     }
     
-    if (!mediaUrl && !mediaFile) {
-      setError('Please provide a media link or upload a file');
+    if (!mediaUrl && (!mediaFile || !mediaFile2)) {
+      setError('Please provide either a Twitch link OR both proof images');
       return;
     }
     
@@ -75,15 +78,15 @@ const Upload = () => {
     setError(null);
     
     try {
-      // Get auth token
       const { data: { session } } = await supabase.auth.getSession();
       
       const formData = new FormData();
       formData.append('pokemon_id', selectedPokemon);
       
-      if (mediaFile) {
+      if (mediaFile && mediaFile2) {
         formData.append('file', mediaFile);
-      } else {
+        formData.append('file2', mediaFile2);
+      } else if (mediaUrl) {
         formData.append('url', mediaUrl);
       }
       
@@ -104,13 +107,15 @@ const Upload = () => {
       setSelectedPokemon('');
       setMediaUrl('');
       setMediaFile(null);
+      setMediaFile2(null);
       
-      // Reload available Pokemon
-      await loadAvailablePokemon();
-      
-      setTimeout(() => setSuccess(false), 3000);
+      setTimeout(() => {
+        setSuccess(false);
+        loadAvailablePokemon();
+      }, 3000);
     } catch (err) {
-      setError(err.message);
+      setError(err.message || 'Failed to submit catch');
+      console.error(err);
     } finally {
       setSubmitting(false);
     }
@@ -126,70 +131,39 @@ const Upload = () => {
 
   if (!user) {
     return (
-      <div className="min-h-screen" style={{ backgroundColor: '#212326' }}>
-        <header className="shadow-md" style={{ backgroundColor: '#35373b' }}>
-          <div className="max-w-7xl mx-auto px-4 py-6">
-            <div className="flex items-center gap-4">
-              <button
-                onClick={() => navigate('/')}
-                className="text-gray-400 hover:text-white transition-colors"
-              >
-                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-                </svg>
-              </button>
-              <h1 className="text-2xl font-bold text-white">Upload Catch</h1>
-            </div>
-          </div>
-        </header>
-        <div className="flex items-center justify-center p-8">
-          <div className="text-center">
-            <p className="text-gray-400 mb-4">Please log in to upload</p>
-            <button
-              onClick={() => navigate('/')}
-              className="px-4 py-2 bg-purple-500 text-white rounded-lg hover:bg-purple-600"
-            >
-              Back to Home
-            </button>
-          </div>
-        </div>
+      <div className="flex items-center justify-center h-64">
+        <div className="text-lg text-gray-400">Please log in to upload catches</div>
+      </div>
+    );
+  }
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-lg text-gray-400">Loading...</div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen" style={{ backgroundColor: '#212326' }}>
-      <header className="shadow-md" style={{ backgroundColor: '#35373b' }}>
-        <div className="max-w-7xl mx-auto px-4 py-6">
-          <div className="flex items-center gap-4">
-            <button
-              onClick={() => navigate('/')}
-              className="text-gray-400 hover:text-white transition-colors"
-            >
-              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-              </svg>
-            </button>
-            <h1 className="text-2xl font-bold text-white">Upload Catch</h1>
-          </div>
-        </div>
-      </header>
-
-      <div className="max-w-2xl mx-auto p-8">
-        {success && (
-          <div className="mb-4 p-4 bg-green-500 bg-opacity-20 border border-green-500 rounded-lg">
-            <p className="text-green-400">Submission successful!</p>
+    <div className="w-full max-w-2xl mx-auto">
+      <h2 className="text-2xl font-bold text-center text-white mb-6">Upload Catch</h2>
+      
+      <div className="rounded-lg shadow-lg p-6" style={{ backgroundColor: '#212326' }}>
+        {error && (
+          <div className="mb-4 p-3 bg-red-900 border border-red-700 rounded-lg text-red-200 text-sm">
+            {error}
           </div>
         )}
         
-        {error && (
-          <div className="mb-4 p-4 bg-red-500 bg-opacity-20 border border-red-500 rounded-lg">
-            <p className="text-red-400">{error}</p>
+        {success && (
+          <div className="mb-4 p-3 bg-green-900 border border-green-700 rounded-lg text-green-200 text-sm">
+            Catch submitted successfully!
           </div>
         )}
 
-        <form onSubmit={handleSubmit} className="rounded-xl shadow-xl p-6" style={{ backgroundColor: '#35373b' }}>
-          {/* Pokemon Selection */}
+        <form onSubmit={handleSubmit}>
+          {/* Pokemon Selection Dropdown */}
           <div className="mb-6">
             <div className="flex items-center justify-between mb-2">
               <label className="block text-sm font-medium text-gray-200">
@@ -213,7 +187,6 @@ const Upload = () => {
               </div>
             </div>
             
-            {/* Custom Dropdown */}
             <div className="relative">
               <button
                 type="button"
@@ -267,58 +240,96 @@ const Upload = () => {
             </div>
           </div>
 
-          {/* Media Upload */}
-          <div className="mb-6">
-            <label className="block text-sm font-medium text-gray-200 mb-2">
-              Proof of Catch
-            </label>
-            
-            {/* URL Input */}
+          {/* URL Text Box */}
+          <div className="mb-3">
             <input
               type="url"
               value={mediaUrl}
               onChange={(e) => {
                 setMediaUrl(e.target.value);
-                setMediaFile(null); // Clear file if URL entered
+                setMediaFile(null);
+                setMediaFile2(null);
               }}
-              placeholder="Or paste a link (e.g., Twitch clip, YouTube, image URL)"
-              className="w-full p-3 bg-gray-700 text-white rounded-lg border border-gray-600 focus:border-purple-500 focus:outline-none mb-3"
-              disabled={submitting || mediaFile !== null}
+              placeholder="Paste Twitch clip, VOD, or YouTube link here"
+              className="w-full p-3 bg-gray-700 text-white rounded-lg border border-gray-600 focus:border-purple-500 focus:outline-none"
+              disabled={submitting || mediaFile !== null || mediaFile2 !== null}
             />
-            
-            <div className="text-center text-gray-400 text-sm my-2">OR</div>
-            
-            {/* File Upload */}
-            <div className="relative">
+          </div>
+
+          {/* OR Divider */}
+          <div className="text-center text-gray-400 text-sm my-4">OR</div>
+
+          {/* Two Image Upload Boxes */}
+          <div className="grid grid-cols-2 gap-4 mb-6">
+            {/* Proof of Shiny */}
+            <div>
+              <label className="block text-xs font-medium text-gray-300 mb-2">Proof of Shiny</label>
               <input
                 type="file"
                 onChange={handleFileChange}
                 accept="image/*,video/*"
                 className="hidden"
-                id="file-upload"
+                id="file-upload-1"
                 disabled={submitting || mediaUrl !== ''}
               />
               <label
-                htmlFor="file-upload"
-                className={`block w-full p-8 border-2 border-dashed rounded-lg text-center cursor-pointer transition-colors ${
-                  mediaFile || mediaUrl
+                htmlFor="file-upload-1"
+                className={`block w-full p-6 border-2 border-dashed rounded-lg text-center cursor-pointer transition-colors ${
+                  mediaUrl
                     ? 'border-gray-600 bg-gray-800 cursor-not-allowed'
                     : 'border-gray-600 bg-gray-700 hover:border-purple-500'
                 }`}
               >
                 {mediaFile ? (
                   <div className="text-white">
-                    <svg className="w-8 h-8 mx-auto mb-2 text-green-400" fill="currentColor" viewBox="0 0 20 20">
+                    <svg className="w-6 h-6 mx-auto mb-2 text-green-400" fill="currentColor" viewBox="0 0 20 20">
                       <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
                     </svg>
-                    <p className="text-sm">{mediaFile.name}</p>
+                    <p className="text-xs truncate">{mediaFile.name}</p>
                   </div>
                 ) : (
                   <div className="text-gray-400">
-                    <svg className="w-8 h-8 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <svg className="w-6 h-6 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
                     </svg>
-                    <p className="text-sm">Click to upload image or video</p>
+                    <p className="text-xs">Upload image</p>
+                  </div>
+                )}
+              </label>
+            </div>
+
+            {/* Proof of Date */}
+            <div>
+              <label className="block text-xs font-medium text-gray-300 mb-2">Proof of Date</label>
+              <input
+                type="file"
+                onChange={handleFile2Change}
+                accept="image/*,video/*"
+                className="hidden"
+                id="file-upload-2"
+                disabled={submitting || mediaUrl !== ''}
+              />
+              <label
+                htmlFor="file-upload-2"
+                className={`block w-full p-6 border-2 border-dashed rounded-lg text-center cursor-pointer transition-colors ${
+                  mediaUrl
+                    ? 'border-gray-600 bg-gray-800 cursor-not-allowed'
+                    : 'border-gray-600 bg-gray-700 hover:border-purple-500'
+                }`}
+              >
+                {mediaFile2 ? (
+                  <div className="text-white">
+                    <svg className="w-6 h-6 mx-auto mb-2 text-green-400" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                    </svg>
+                    <p className="text-xs truncate">{mediaFile2.name}</p>
+                  </div>
+                ) : (
+                  <div className="text-gray-400">
+                    <svg className="w-6 h-6 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                    </svg>
+                    <p className="text-xs">Upload image</p>
                   </div>
                 )}
               </label>
@@ -328,7 +339,7 @@ const Upload = () => {
           {/* Submit Button */}
           <button
             type="submit"
-            disabled={submitting || !selectedPokemon || (!mediaUrl && !mediaFile)}
+            disabled={submitting || !selectedPokemon || (!mediaUrl && (!mediaFile || !mediaFile2))}
             className="w-full py-3 bg-purple-500 text-white rounded-lg font-medium hover:bg-purple-600 disabled:bg-gray-600 disabled:cursor-not-allowed transition-colors"
           >
             {submitting ? 'Submitting...' : 'Submit Catch'}
