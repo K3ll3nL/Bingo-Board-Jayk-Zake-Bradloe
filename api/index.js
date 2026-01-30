@@ -311,6 +311,7 @@ app.get('/api/leaderboard', async (req, res) => {
       .select('id')
       .lte('start_date', effectiveDateISO)
       .gte('end_date', effectiveDateISO)
+      .order('start_date', { ascending: false })
       .single();
     
     if (monthError || !activeMonthData) {
