@@ -172,7 +172,7 @@ const Profile = () => {
         </div>
 
         {/* Best Months & Blackouts */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
           {/* Highest Point Month */}
           <div className="rounded-xl shadow-xl p-6" style={{ backgroundColor: '#35373b' }}>
             <div className="text-gray-400 text-sm mb-2">🏆 Best Points Month</div>
@@ -199,10 +199,16 @@ const Profile = () => {
             )}
           </div>
 
+          {/* X Bingos */}
+          <div className="rounded-xl shadow-xl p-6" style={{ backgroundColor: '#35373b' }}>
+            <div className="text-gray-400 text-sm mb-2">❌ X Bingos</div>
+            <div className="text-4xl font-bold text-purple-400">{profile.stats.totalXs || 0}</div>
+          </div>
+
           {/* Blackouts */}
           <div className="rounded-xl shadow-xl p-6" style={{ backgroundColor: '#35373b' }}>
-            <div className="text-gray-400 text-sm mb-2">Blackouts</div>
-            <div className="text-4xl font-bold text-purple-400">{profile.stats.totalBlackouts}</div>
+            <div className="text-gray-400 text-sm mb-2">⬛ Blackouts</div>
+            <div className="text-4xl font-bold text-purple-400">{profile.stats.totalBlackouts || 0}</div>
           </div>
         </div>
 

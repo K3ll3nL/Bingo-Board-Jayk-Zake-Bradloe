@@ -522,7 +522,10 @@ app.get('/api/profile/:userId', async (req, res) => {
       console.log('Bingos table may not exist, setting to 0');
     }
     
-    const totalBingos = bingos ? bingos.filter(b => b.bingo_type === 'bingo').length : 0;
+    const totalBingos = bingos ? bingos.filter(b => 
+      b.bingo_type === 'row' || b.bingo_type === 'column'
+    ).length : 0;
+    const totalXs = bingos ? bingos.filter(b => b.bingo_type === 'x').length : 0;
     const totalBlackouts = bingos ? bingos.filter(b => b.bingo_type === 'blackout').length : 0;
     
     // Get total Pokemon caught (distinct pokemon_id count from entries)
@@ -575,6 +578,7 @@ app.get('/api/profile/:userId', async (req, res) => {
           rank: bestRank
         } : null,
         totalBingos,
+        totalXs,
         totalBlackouts
       },
       monthlyData
@@ -1262,22 +1266,28 @@ app.post('/api/approvals/:id/approve', async (req, res) => {
     const { id } = req.params;
     const authHeader = req.headers.authorization;
     
+    console.log('Approving submission:', id);
+    
     if (!authHeader) {
       return res.status(401).json({ error: 'Authentication required' });
     }
     
     const moderatorId = authHeader.replace('Bearer ', '');
+    console.log('Moderator ID:', moderatorId);
     
     // Check if user is moderator
-    const { data: isMod } = await supabase
+    const { data: isMod, error: modError } = await supabase
       .from('twitch_ambassadors')
       .select('id')
       .eq('id', moderatorId)
       .single();
     
-    if (!isMod) {
+    if (modError || !isMod) {
+      console.log('Moderator check failed:', modError);
       return res.status(403).json({ error: 'Moderator access required' });
     }
+    
+    console.log('Calling approve_submission RPC...');
     
     // Call stored procedure
     const { data, error } = await supabase.rpc('approve_submission', {
@@ -1285,12 +1295,21 @@ app.post('/api/approvals/:id/approve', async (req, res) => {
       p_moderator_id: moderatorId
     });
     
-    if (error) throw error;
+    if (error) {
+      console.error('RPC error:', error);
+      throw error;
+    }
     
+    console.log('Approval successful:', data);
     res.json(data);
   } catch (error) {
     console.error('Error approving submission:', error);
-    res.status(500).json({ error: 'Failed to approve submission', details: error.message });
+    res.status(500).json({ 
+      error: 'Failed to approve submission', 
+      details: error.message,
+      hint: error.hint,
+      code: error.code 
+    });
   }
 });
 
@@ -1301,22 +1320,28 @@ app.post('/api/approvals/:id/reject', async (req, res) => {
     const { message } = req.body;
     const authHeader = req.headers.authorization;
     
+    console.log('Rejecting submission:', id, 'Message:', message);
+    
     if (!authHeader) {
       return res.status(401).json({ error: 'Authentication required' });
     }
     
     const moderatorId = authHeader.replace('Bearer ', '');
+    console.log('Moderator ID:', moderatorId);
     
     // Check if user is moderator
-    const { data: isMod } = await supabase
+    const { data: isMod, error: modError } = await supabase
       .from('twitch_ambassadors')
       .select('id')
       .eq('id', moderatorId)
       .single();
     
-    if (!isMod) {
+    if (modError || !isMod) {
+      console.log('Moderator check failed:', modError);
       return res.status(403).json({ error: 'Moderator access required' });
     }
+    
+    console.log('Calling reject_submission RPC...');
     
     // Call stored procedure
     const { data, error } = await supabase.rpc('reject_submission', {
@@ -1325,12 +1350,21 @@ app.post('/api/approvals/:id/reject', async (req, res) => {
       p_rejection_message: message || 'No reason provided'
     });
     
-    if (error) throw error;
+    if (error) {
+      console.error('RPC error:', error);
+      throw error;
+    }
     
+    console.log('Rejection successful:', data);
     res.json(data);
   } catch (error) {
     console.error('Error rejecting submission:', error);
-    res.status(500).json({ error: 'Failed to reject submission', details: error.message });
+    res.status(500).json({ 
+      error: 'Failed to reject submission', 
+      details: error.message,
+      hint: error.hint,
+      code: error.code
+    });
   }
 });
 
