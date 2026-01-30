@@ -1288,8 +1288,6 @@ app.get('/api/approvals/pending', async (req, res) => {
     console.log('Fetching pending approvals...');
     
     // Get all approvals with user and pokemon info
-    // Note: The approvals table doesn't have approved_at/rejected_at, 
-    // so we just get all records and sort by oldest first
     const { data: approvals, error } = await supabase
       .from('approvals')
       .select(`
@@ -1299,7 +1297,6 @@ app.get('/api/approvals/pending', async (req, res) => {
         proof_url2,
         user_id,
         pokemon_id,
-        message,
         users!apptovals_user_id_fkey (
           display_name
         ),
@@ -1328,7 +1325,6 @@ app.get('/api/approvals/pending', async (req, res) => {
       proof_url: approval.proof_url,
       proof_url2: approval.proof_url2,
       user_id: approval.user_id,
-      message: approval.message,
       display_name: approval.users?.display_name || 'Unknown',
       pokemon_name: approval.pokemon_master?.name || 'Unknown',
       national_dex_id: approval.pokemon_master?.national_dex_id || 0,
