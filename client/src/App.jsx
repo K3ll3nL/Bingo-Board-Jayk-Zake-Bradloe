@@ -8,17 +8,40 @@ import Profile from './components/Profile';
 import Pokedex from './components/Pokedex';
 import TwitchAmbassadors from './components/TwitchAmbassadors';
 import Upload from './components/Upload';
+import Approvals from './components/Approvals';
 import logoImage from './Icons/pokemon-bounty-board.png';
 
 const MainApp = () => {
   const { user, signInWithDiscord, signOut, loading } = useAuth();
   const navigate = useNavigate();
+  const [isModerator, setIsModerator] = React.useState(false);
 
   // Debug logging
   React.useEffect(() => {
     console.log('Auth state:', { user, loading });
     console.log('User metadata:', user?.user_metadata);
   }, [user, loading]);
+
+  // Check if user is moderator
+  React.useEffect(() => {
+    if (user) {
+      checkModeratorStatus();
+    }
+  }, [user]);
+
+  const checkModeratorStatus = async () => {
+    try {
+      const response = await fetch('/api/user/is-moderator', {
+        headers: {
+          'Authorization': `Bearer ${user?.id}`
+        }
+      });
+      const data = await response.json();
+      setIsModerator(data.isModerator);
+    } catch (err) {
+      console.error('Error checking moderator status:', err);
+    }
+  };
 
   const handleLogin = async () => {
     try {
@@ -32,13 +55,13 @@ const MainApp = () => {
     <div className="min-h-screen" style={{ backgroundColor: '#212326' }}>
       {/* Header */}
       <header className="shadow-md" style={{ backgroundColor: '#35373b' }}>
-        <div className="max-w-7xl mx-auto px-4 py-2">
+        <div className="max-w-7xl mx-auto px-4 py-6">
           <div className="flex justify-between items-center">
             <div className="flex-1 flex justify-center">
               <img 
                 src={logoImage} 
                 alt="Pokemon Bounty Board" 
-                className="h-16 md:h-30 object-contain cursor-pointer"
+                className="h-16 md:h-20 object-contain cursor-pointer"
                 onClick={() => navigate('/')}
               />
             </div>
@@ -94,6 +117,20 @@ const MainApp = () => {
                         </svg>
                         Upload
                       </button>
+                      {isModerator && (
+                        <>
+                          <div className="border-t border-gray-600 my-1"></div>
+                          <button
+                            onClick={() => navigate('/approvals')}
+                            className="w-full px-4 py-2 text-left text-sm text-purple-400 hover:bg-gray-700 flex items-center gap-2"
+                          >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                            Approvals
+                          </button>
+                        </>
+                      )}
                       <div className="border-t border-gray-600 my-1"></div>
                       <button
                         onClick={signOut}
@@ -167,6 +204,7 @@ function App() {
           <Route path="/profile" element={<Profile />} />
           <Route path="/pokedex" element={<Pokedex />} />
           <Route path="/upload" element={<Upload />} />
+          <Route path="/approvals" element={<Approvals />} />
           <Route path="*" element={<MainApp />} />
         </Routes>
       </AuthProvider>

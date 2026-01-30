@@ -22,6 +22,44 @@ const supabase = createClient(
   process.env.SUPABASE_ANON_KEY
 );
 
+// DEVELOPMENT ONLY: Auth bypass middleware
+const DEV_USER_ID = '3bb8389d-5147-4405-ad47-156315248565';
+app.use((req, res, next) => {
+  const authHeader = req.headers.authorization;
+  const isDev = process.env.NODE_ENV !== 'production' && authHeader === 'Bearer dev_token';
+  
+  if (isDev) {
+    console.log('🔧 Dev token detected - bypassing auth for user:', DEV_USER_ID);
+    req.devUserId = DEV_USER_ID;
+  }
+  
+  next();
+});
+
+// Helper function to get authenticated user ID
+async function getAuthenticatedUserId(req) {
+  // Check for dev bypass first
+  if (req.devUserId) {
+    return req.devUserId;
+  }
+  
+  // Normal Supabase auth
+  const authHeader = req.headers.authorization;
+  if (!authHeader) return null;
+  
+  try {
+    const token = authHeader.replace('Bearer ', '');
+    const { data: { user }, error: authError } = await supabase.auth.getUser(token);
+    if (user && !authError) {
+      return user.id;
+    }
+  } catch (err) {
+    console.log('Auth check failed');
+  }
+  
+  return null;
+}
+
 // Health check
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', message: 'Streaming Bingo API is running' });
@@ -30,25 +68,17 @@ app.get('/api/health', (req, res) => {
 // Get bingo board (public or user-specific)
 app.get('/api/bingo/board', async (req, res) => {
   try {
-    let userId = null;
+    const userId = await getAuthenticatedUserId(req);
     let timeOffsetDays = 0;
     
-    // Check if user is authenticated (optional)
-    const authHeader = req.headers.authorization;
-    if (authHeader) {
-      try {
-        const token = authHeader.replace('Bearer ', '');
-        const { data: { user }, error: authError } = await supabase.auth.getUser(token);
-        if (user && !authError) {
-          userId = user.id;
-          
-          // Get user's time offset if they're a mod
-          const { data: userData, error: userError } = await supabase
-            .from('users')
-            .select('time_offset_days')
-            .eq('id', userId)
-            .single();
-          
+    if (userId) {
+      // Get user's time offset if they're a mod
+      const { data: userData, error: userError } = await supabase
+        .from('users')
+        .select('time_offset_days')
+        .eq('id', userId)
+        .single();
+      
           if (!userError && userData && userData.time_offset_days) {
             timeOffsetDays = userData.time_offset_days;
           }
@@ -497,7 +527,7 @@ app.get('/api/profile/:userId', async (req, res) => {
       console.log('Bingos table may not exist, setting to 0');
     }
     
-    const totalBingos = bingos ? bingos.filter(b => (b.bingo_type === 'row'||b.bingo_type === 'column')).length : 0;
+    const totalBingos = bingos ? bingos.filter(b => b.bingo_type === 'bingo').length : 0;
     const totalBlackouts = bingos ? bingos.filter(b => b.bingo_type === 'blackout').length : 0;
     
     // Get total Pokemon caught (distinct pokemon_id count from entries)
@@ -1233,6 +1263,76 @@ app.get('/api/pokemon/:pokemonId/recent-catches', async (req, res) => {
 
 // Export for Vercel serverless
 module.exports = app;
+
+// Check if user is a moderator (Twitch Ambassador)
+app.get('/api/user/is-moderator', async (req, res) => {
+  try {
+    const authHeader = req.headers.authorization;
+    if (!authHeader) {
+      return res.json({ isModerator: false });
+    }
+
+    const userId = authHeader.replace('Bearer ', '');
+    
+    const { data: ambassador, error } = await supabase
+      .from('twitch_ambassadors')
+      .select('id')
+      .eq('id', userId)
+      .single();
+    
+    res.json({ isModerator: !error && !!ambassador });
+  } catch (error) {
+    console.error('Error checking moderator status:', error);
+    res.json({ isModerator: false });
+  }
+});
+
+// Get pending approvals (moderators only)
+app.get('/api/approvals/pending', async (req, res) => {
+  try {
+    // Get pending approvals with user and pokemon info
+    const { data: approvals, error } = await supabase
+      .from('approvals')
+      .select(`
+        id,
+        created_at,
+        proof_url,
+        proof_url2,
+        user_id,
+        pokemon_id,
+        users!approvals_user_id_fkey (
+          display_name
+        ),
+        pokemon_master!approvals_pokemon_id_fkey (
+          name,
+          national_dex_id,
+          img_url
+        )
+      `)
+      .is('approved_at', null)
+      .is('rejected_at', null)
+      .order('created_at', { ascending: true });
+    
+    if (error) throw error;
+    
+    const formattedApprovals = approvals.map(approval => ({
+      id: approval.id,
+      created_at: approval.created_at,
+      proof_url: approval.proof_url,
+      proof_url2: approval.proof_url2,
+      user_id: approval.user_id,
+      display_name: approval.users?.display_name || 'Unknown',
+      pokemon_name: approval.pokemon_master?.name || 'Unknown',
+      national_dex_id: approval.pokemon_master?.national_dex_id || 0,
+      pokemon_img: approval.pokemon_master?.img_url || ''
+    }));
+    
+    res.json(formattedApprovals);
+  } catch (error) {
+    console.error('Error fetching pending approvals:', error);
+    res.status(500).json({ error: 'Failed to fetch approvals' });
+  }
+});
 
 // Start server locally (not needed in Vercel)
 if (require.main === module) {
