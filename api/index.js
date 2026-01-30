@@ -252,42 +252,124 @@ app.get('/api/bingo/board', async (req, res) => {
 // Get leaderboard
 app.get('/api/leaderboard', async (req, res) => {
   try {
+    const mode = req.query.mode || 'monthly'; // 'monthly' or 'alltime'
     const ACTIVE_MONTH_ID = 1;
     
-    const { data, error } = await supabase
-      .from('user_monthly_points')
-      .select(`
-        id,
-        user_id,
-        points,
-        users!user_monthly_points_user_id_fkey (
-          username,
-          display_name,
-          created_at,
-          twitch_url
-        )
-      `)
-      .eq('month_id', ACTIVE_MONTH_ID)
-      .order('points', { ascending: false })
-      .limit(10);
+    let data, error;
     
-    if (error) throw error;
+    if (mode === 'alltime') {
+      // All-time leaderboard: Sum points across all months
+      const { data: allTimeData, error: allTimeError } = await supabase
+        .from('user_monthly_points')
+        .select(`
+          user_id,
+          points,
+          users!user_monthly_points_user_id_fkey (
+            username,
+            display_name,
+            created_at,
+            twitch_url
+          )
+        `);
+      
+      if (allTimeError) throw allTimeError;
+      
+      // Group by user and sum points
+      const userPointsMap = {};
+      allTimeData.forEach(entry => {
+        if (!userPointsMap[entry.user_id]) {
+          userPointsMap[entry.user_id] = {
+            user_id: entry.user_id,
+            points: 0,
+            users: entry.users
+          };
+        }
+        userPointsMap[entry.user_id].points += entry.points;
+      });
+      
+      data = Object.values(userPointsMap)
+        .sort((a, b) => b.points - a.points)
+        .slice(0, 10);
+      
+      // Get all-time achievements for these users
+      const userIds = data.map(entry => entry.user_id);
+      const { data: achievements, error: achievementsError } = await supabase
+        .from('bingo_achievements')
+        .select('user_id, bingo_type')
+        .in('user_id', userIds);
+      
+      // Count achievements by type for each user
+      const achievementCounts = {};
+      if (!achievementsError && achievements) {
+        achievements.forEach(ach => {
+          if (!achievementCounts[ach.user_id]) {
+            achievementCounts[ach.user_id] = { row: 0, column: 0, x: 0, blackout: 0 };
+          }
+          achievementCounts[ach.user_id][ach.bingo_type]++;
+        });
+      }
+      
+      // Attach achievement counts
+      data = data.map(entry => ({
+        ...entry,
+        achievement_counts: achievementCounts[entry.user_id] || { row: 0, column: 0, x: 0, blackout: 0 }
+      }));
+      
+    } else {
+      // Monthly leaderboard (existing logic)
+      const { data: monthlyData, error: monthlyError } = await supabase
+        .from('user_monthly_points')
+        .select(`
+          id,
+          user_id,
+          points,
+          users!user_monthly_points_user_id_fkey (
+            username,
+            display_name,
+            created_at,
+            twitch_url
+          )
+        `)
+        .eq('month_id', ACTIVE_MONTH_ID)
+        .order('points', { ascending: false })
+        .limit(10);
+      
+      if (monthlyError) throw monthlyError;
+      data = monthlyData;
+      
+      // Get monthly achievements for these users
+      const userIds = data.map(entry => entry.user_id);
+      const { data: achievements, error: achievementsError } = await supabase
+        .from('bingo_achievements')
+        .select('user_id, bingo_type')
+        .eq('month_id', ACTIVE_MONTH_ID)
+        .in('user_id', userIds);
+      
+      // Count achievements by type for each user
+      const achievementCounts = {};
+      if (!achievementsError && achievements) {
+        achievements.forEach(ach => {
+          if (!achievementCounts[ach.user_id]) {
+            achievementCounts[ach.user_id] = { row: 0, column: 0, x: 0, blackout: 0 };
+          }
+          achievementCounts[ach.user_id][ach.bingo_type]++;
+        });
+      }
+      
+      // Attach achievement counts
+      data = data.map(entry => ({
+        ...entry,
+        achievement_counts: achievementCounts[entry.user_id] || { row: 0, column: 0, x: 0, blackout: 0 }
+      }));
+    }
     
-    // Get all bingo achievements for these users
+    // Get hex codes for ambassadors (same for both modes)
     const userIds = data.map(entry => entry.user_id);
-    const { data: achievements, error: achievementsError } = await supabase
-      .from('bingo_achievements')
-      .select('user_id, bingo_type')
-      .eq('month_id', ACTIVE_MONTH_ID)
-      .in('user_id', userIds);
-    
-    // Get hex codes for ambassadors
     const { data: ambassadors, error: ambassadorsError } = await supabase
       .from('twitch_ambassadors')
       .select('id, hex_code')
       .in('id', userIds);
     
-    // Create hex code map
     const hexCodeMap = {};
     if (!ambassadorsError && ambassadors) {
       ambassadors.forEach(amb => {
@@ -295,18 +377,14 @@ app.get('/api/leaderboard', async (req, res) => {
       });
     }
     
-    // Check Twitch live status for users with twitch_url
+    // Check Twitch live status (same for both modes)
     const twitchUsers = data.filter(entry => entry.users.twitch_url);
     const liveStatusMap = {};
-    
-    console.log('Checking live status for', twitchUsers.length, 'users with Twitch URLs');
     
     if (twitchUsers.length > 0) {
       try {
         const TWITCH_CLIENT_ID = process.env.TWITCH_CLIENT_ID;
         const TWITCH_CLIENT_SECRET = process.env.TWITCH_CLIENT_SECRET;
-        
-        console.log('Twitch credentials present:', !!TWITCH_CLIENT_ID, !!TWITCH_CLIENT_SECRET);
         
         if (TWITCH_CLIENT_ID && TWITCH_CLIENT_SECRET) {
           // Get Twitch access token
@@ -367,17 +445,6 @@ app.get('/api/leaderboard', async (req, res) => {
       }
     }
     
-    // Create achievements map
-    const achievementsMap = {};
-    if (!achievementsError && achievements) {
-      achievements.forEach(a => {
-        if (!achievementsMap[a.user_id]) {
-          achievementsMap[a.user_id] = { row: false, column: false, x: false, blackout: false };
-        }
-        achievementsMap[a.user_id][a.bingo_type] = true;
-      });
-    }
-    
     const transformedData = data.map(entry => {
       const username = entry.users.twitch_url ? entry.users.twitch_url.split('/').pop().toLowerCase() : null;
       return {
@@ -389,7 +456,7 @@ app.get('/api/leaderboard', async (req, res) => {
         created_at: entry.users.created_at,
         twitch_url: entry.users.twitch_url,
         is_live: username ? (liveStatusMap[username] || false) : false,
-        achievements: achievementsMap[entry.user_id] || { row: false, column: false, x: false, blackout: false },
+        achievement_counts: entry.achievement_counts || { row: 0, column: 0, x: 0, blackout: 0 },
         hex_code: hexCodeMap[entry.user_id] || '#9147ff'
       };
     });

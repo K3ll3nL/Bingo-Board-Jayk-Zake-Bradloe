@@ -7,6 +7,7 @@ const Leaderboard = () => {
   const [leaderboard, setLeaderboard] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [viewMode, setViewMode] = useState('monthly'); // 'monthly' or 'alltime'
 
   useEffect(() => {
     loadLeaderboard();
@@ -14,11 +15,11 @@ const Leaderboard = () => {
     // Poll for updates every 30 seconds
     const interval = setInterval(loadLeaderboard, 30000);
     return () => clearInterval(interval);
-  }, []);
+  }, [viewMode]);
 
   const loadLeaderboard = async () => {
     try {
-      const data = await api.getLeaderboard();
+      const data = await api.getLeaderboard(viewMode);
       setLeaderboard(data);
       setError(null);
     } catch (err) {
@@ -78,7 +79,30 @@ const Leaderboard = () => {
 
   return (
     <div className="w-full">
-      <h2 className="text-2xl font-bold text-center text-white mb-4">Leaderboard</h2>
+      {/* Header with Tab Switcher */}
+      <div className="flex items-center justify-between mb-4">
+        <button
+          onClick={() => setViewMode(viewMode === 'monthly' ? 'alltime' : 'monthly')}
+          className="text-gray-400 hover:text-white transition-colors"
+        >
+          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+          </svg>
+        </button>
+        
+        <h2 className="text-2xl font-bold text-white">
+          {viewMode === 'monthly' ? 'This Month' : 'All Time'}
+        </h2>
+        
+        <button
+          onClick={() => setViewMode(viewMode === 'monthly' ? 'alltime' : 'monthly')}
+          className="text-gray-400 hover:text-white transition-colors"
+        >
+          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+          </svg>
+        </button>
+      </div>
       
       <div className="rounded-lg shadow-lg overflow-hidden" style={{ backgroundColor: '#212326' }}>
         {leaderboard.length === 0 ? (
@@ -131,48 +155,95 @@ const Leaderboard = () => {
                   </div>
                   
                   <div className="flex items-center gap-2">
-                    {/* Achievement icons */}
+                    {/* Achievement icons with counts (all-time) or boolean (monthly) */}
                     <div className="flex items-center gap-1">
-                      {/* Row */}
-                      {user.achievements?.row && (
-                        <div className="w-5 h-5 rounded flex items-center justify-center" style={{ backgroundColor: user.hex_code || '#9147ff' }}>
-                          <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 12h16" />
-                          </svg>
-                        </div>
-                      )}
-                      {/* Column */}
-                      {user.achievements?.column && (
-                        <div className="w-5 h-5 rounded flex items-center justify-center" style={{ backgroundColor: user.hex_code || '#9147ff' }}>
-                          <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16" />
-                          </svg>
-                        </div>
-                      )}
-                      {/* X */}
-                      {user.achievements?.x && (
-                        <div className="w-5 h-5 rounded flex items-center justify-center" style={{ backgroundColor: user.hex_code || '#9147ff' }}>
-                          <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                          </svg>
-                        </div>
-                      )}
-                      {/* Blackout */}
-                      {user.achievements?.blackout && (
-                        <div className="w-5 h-5 rounded flex items-center justify-center" style={{ backgroundColor: user.hex_code || '#9147ff' }}>
-                          <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
-                            <rect x="3" y="3" width="18" height="18" rx="1" />
-                            <path d="M3 7.2h18M3 10.2h18M3 13.8h18M3 16.8h18" />
-                            <path d="M7.2 3v18M10.2 3v18M13.8 3v18M16.8 3v18" />
-                          </svg>
-                        </div>
+                      {viewMode === 'alltime' ? (
+                        // All-time: Show counts
+                        <>
+                          {user.achievement_counts?.row > 0 && (
+                            <div className="flex items-center gap-0.5">
+                              <div className="w-5 h-5 rounded flex items-center justify-center" style={{ backgroundColor: user.hex_code || '#9147ff' }}>
+                                <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 12h16" />
+                                </svg>
+                              </div>
+                              <span className="text-xs text-gray-400">x{user.achievement_counts.row}</span>
+                            </div>
+                          )}
+                          {user.achievement_counts?.column > 0 && (
+                            <div className="flex items-center gap-0.5">
+                              <div className="w-5 h-5 rounded flex items-center justify-center" style={{ backgroundColor: user.hex_code || '#9147ff' }}>
+                                <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16" />
+                                </svg>
+                              </div>
+                              <span className="text-xs text-gray-400">x{user.achievement_counts.column}</span>
+                            </div>
+                          )}
+                          {user.achievement_counts?.x > 0 && (
+                            <div className="flex items-center gap-0.5">
+                              <div className="w-5 h-5 rounded flex items-center justify-center" style={{ backgroundColor: user.hex_code || '#9147ff' }}>
+                                <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                </svg>
+                              </div>
+                              <span className="text-xs text-gray-400">x{user.achievement_counts.x}</span>
+                            </div>
+                          )}
+                          {user.achievement_counts?.blackout > 0 && (
+                            <div className="flex items-center gap-0.5">
+                              <div className="w-5 h-5 rounded flex items-center justify-center" style={{ backgroundColor: user.hex_code || '#9147ff' }}>
+                                <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                                  <rect x="3" y="3" width="18" height="18" rx="1" />
+                                  <path d="M3 7.2h18M3 10.2h18M3 13.8h18M3 16.8h18" />
+                                  <path d="M7.2 3v18M10.2 3v18M13.8 3v18M16.8 3v18" />
+                                </svg>
+                              </div>
+                              <span className="text-xs text-gray-400">x{user.achievement_counts.blackout}</span>
+                            </div>
+                          )}
+                        </>
+                      ) : (
+                        // Monthly: Show boolean icons (only if they have the achievement)
+                        <>
+                          {user.achievement_counts?.row > 0 && (
+                            <div className="w-5 h-5 rounded flex items-center justify-center" style={{ backgroundColor: user.hex_code || '#9147ff' }}>
+                              <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 12h16" />
+                              </svg>
+                            </div>
+                          )}
+                          {user.achievement_counts?.column > 0 && (
+                            <div className="w-5 h-5 rounded flex items-center justify-center" style={{ backgroundColor: user.hex_code || '#9147ff' }}>
+                              <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16" />
+                              </svg>
+                            </div>
+                          )}
+                          {user.achievement_counts?.x > 0 && (
+                            <div className="w-5 h-5 rounded flex items-center justify-center" style={{ backgroundColor: user.hex_code || '#9147ff' }}>
+                              <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                              </svg>
+                            </div>
+                          )}
+                          {user.achievement_counts?.blackout > 0 && (
+                            <div className="w-5 h-5 rounded flex items-center justify-center" style={{ backgroundColor: user.hex_code || '#9147ff' }}>
+                              <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                                <rect x="3" y="3" width="18" height="18" rx="1" />
+                                <path d="M3 7.2h18M3 10.2h18M3 13.8h18M3 16.8h18" />
+                                <path d="M7.2 3v18M10.2 3v18M13.8 3v18M16.8 3v18" />
+                              </svg>
+                            </div>
+                          )}
+                        </>
                       )}
                     </div>
                     
-                    <span className={`text-xl font-bold text-purple-400`}>
+                    <span className="text-xl font-bold text-purple-400">
                       {user.points}
                     </span>
-                    <span className={`text-xs text-gray-400`}>pts</span>
+                    <span className="text-xs text-gray-400">pts</span>
                   </div>
                 </div>
               );
