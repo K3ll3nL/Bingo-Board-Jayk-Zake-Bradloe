@@ -1256,6 +1256,84 @@ app.get('/api/pokemon/:pokemonId/recent-catches', async (req, res) => {
   }
 });
 
+// Approve a submission
+app.post('/api/approvals/:id/approve', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const authHeader = req.headers.authorization;
+    
+    if (!authHeader) {
+      return res.status(401).json({ error: 'Authentication required' });
+    }
+    
+    const moderatorId = authHeader.replace('Bearer ', '');
+    
+    // Check if user is moderator
+    const { data: isMod } = await supabase
+      .from('twitch_ambassadors')
+      .select('id')
+      .eq('id', moderatorId)
+      .single();
+    
+    if (!isMod) {
+      return res.status(403).json({ error: 'Moderator access required' });
+    }
+    
+    // Call stored procedure
+    const { data, error } = await supabase.rpc('approve_submission', {
+      p_approval_id: parseInt(id),
+      p_moderator_id: moderatorId
+    });
+    
+    if (error) throw error;
+    
+    res.json(data);
+  } catch (error) {
+    console.error('Error approving submission:', error);
+    res.status(500).json({ error: 'Failed to approve submission', details: error.message });
+  }
+});
+
+// Reject a submission
+app.post('/api/approvals/:id/reject', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { message } = req.body;
+    const authHeader = req.headers.authorization;
+    
+    if (!authHeader) {
+      return res.status(401).json({ error: 'Authentication required' });
+    }
+    
+    const moderatorId = authHeader.replace('Bearer ', '');
+    
+    // Check if user is moderator
+    const { data: isMod } = await supabase
+      .from('twitch_ambassadors')
+      .select('id')
+      .eq('id', moderatorId)
+      .single();
+    
+    if (!isMod) {
+      return res.status(403).json({ error: 'Moderator access required' });
+    }
+    
+    // Call stored procedure
+    const { data, error } = await supabase.rpc('reject_submission', {
+      p_approval_id: parseInt(id),
+      p_moderator_id: moderatorId,
+      p_rejection_message: message || 'No reason provided'
+    });
+    
+    if (error) throw error;
+    
+    res.json(data);
+  } catch (error) {
+    console.error('Error rejecting submission:', error);
+    res.status(500).json({ error: 'Failed to reject submission', details: error.message });
+  }
+});
+
 // Export for Vercel serverless
 module.exports = app;
 

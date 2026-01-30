@@ -75,14 +75,61 @@ const Approvals = () => {
     });
   };
 
-  const handleApprove = (approvalId) => {
-    // TODO: Connect to API
-    console.log('Approve:', approvalId);
+  const handleApprove = async (approvalId) => {
+    try {
+      const response = await fetch(`/api/approvals/${approvalId}/approve`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${user?.id}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Approval failed');
+      }
+      
+      const result = await response.json();
+      console.log('Approval result:', result);
+      
+      // Remove from list and reload
+      setApprovals(approvals.filter(a => a.id !== approvalId));
+    } catch (error) {
+      console.error('Error approving:', error);
+      alert('Failed to approve submission: ' + error.message);
+    }
   };
 
-  const handleReject = (approvalId) => {
-    // TODO: Connect to API
-    console.log('Reject:', approvalId, 'Notes:', rejectionNotes[approvalId]);
+  const handleReject = async (approvalId) => {
+    try {
+      const response = await fetch(`/api/approvals/${approvalId}/reject`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${user?.id}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          message: rejectionNotes[approvalId] || ''
+        })
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Rejection failed');
+      }
+      
+      const result = await response.json();
+      console.log('Rejection result:', result);
+      
+      // Remove from list, clear notes, and close expansion
+      setApprovals(approvals.filter(a => a.id !== approvalId));
+      setExpandedRow(null);
+      setRejectionNotes({ ...rejectionNotes, [approvalId]: '' });
+    } catch (error) {
+      console.error('Error rejecting:', error);
+      alert('Failed to reject submission: ' + error.message);
+    }
   };
 
   if (!user || !isModerator) {
