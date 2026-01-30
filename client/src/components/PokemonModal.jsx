@@ -181,13 +181,22 @@ const PokemonModal = ({ pokemon, onClose }) => {
               Bulbapedia
             </a>
             <button
-              onClick={handleSubmitClick}
-              className="p-4 bg-gray-700 hover:bg-gray-600 text-white text-center font-medium transition-colors flex items-center justify-center gap-2"
+              onClick={pokemon.caught ? undefined : handleSubmitClick}
+              className={`p-4 text-center font-medium transition-colors flex items-center justify-center gap-2 ${
+                pokemon.caught 
+                  ? 'bg-gray-800 text-gray-500 cursor-not-allowed' 
+                  : 'bg-gray-700 hover:bg-gray-600 text-white cursor-pointer'
+              }`}
+              disabled={pokemon.caught}
             >
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                {pokemon.caught ? (
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                ) : (
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                )}
               </svg>
-              Submit Catch
+              {pokemon.caught ? 'Already Caught!' : 'Submit Catch'}
             </button>
           </div>
         </div>
