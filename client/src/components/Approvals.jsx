@@ -12,6 +12,7 @@ const Approvals = () => {
   const [expandedRow, setExpandedRow] = useState(null);
   const [rejectionNotes, setRejectionNotes] = useState({});
   const [lightboxImage, setLightboxImage] = useState(null);
+  const [approvalsLoaded, setApprovalsLoaded] = useState(false);
 
   useEffect(() => {
     if (user) {
@@ -20,10 +21,14 @@ const Approvals = () => {
   }, [user]);
 
   useEffect(() => {
-    if (isModerator && activeTab === 'approvals') {
+    // Only load approvals once when moderator status is confirmed
+    if (isModerator && !approvalsLoaded) {
       loadApprovals();
+    } else if (isModerator && approvalsLoaded) {
+      // Already loaded, just stop loading indicator
+      setLoading(false);
     }
-  }, [isModerator, activeTab]);
+  }, [isModerator, approvalsLoaded]);
 
   const checkModeratorStatus = async () => {
     try {
@@ -51,6 +56,7 @@ const Approvals = () => {
       if (!response.ok) throw new Error('Failed to load approvals');
       const data = await response.json();
       setApprovals(data);
+      setApprovalsLoaded(true);
     } catch (err) {
       console.error('Error loading approvals:', err);
     } finally {
@@ -136,7 +142,7 @@ const Approvals = () => {
           {/* Approvals List */}
           {activeTab === 'approvals' && (
             <div className="rounded-lg" style={{ backgroundColor: '#35373b' }}>
-              {loading ? (
+              {loading && !approvalsLoaded ? (
                 <div className="text-center text-gray-400 py-8">Loading approvals...</div>
               ) : approvals.length === 0 ? (
                 <div className="text-center text-gray-400 py-8">No pending approvals</div>
