@@ -60,41 +60,22 @@ async function getAuthenticatedUserId(req) {
   return null;
 }
 
-// Helper function to get active month ID with time offset support
-async function getActiveMonthId(req) {
-  const userId = await getAuthenticatedUserId(req);
-  let timeOffsetDays = 0;
+// Helper function to get active month ID based on current date
+async function getActiveMonthId() {
+  const now = new Date().toISOString();
   
-  if (userId) {
-    // Get user's time offset if they're a mod
-    const { data: userData, error: userError } = await supabase
-      .from('users')
-      .select('time_offset_days')
-      .eq('id', userId)
-      .single();
-    
-    if (!userError && userData && userData.time_offset_days) {
-      timeOffsetDays = userData.time_offset_days;
-    }
-  }
-
-  // Calculate effective date with offset
-  const now = new Date();
-  const effectiveDate = new Date(now.getTime() + (timeOffsetDays * 24 * 60 * 60 * 1000));
-  const effectiveDateISO = effectiveDate.toISOString();
+  console.log('Getting active month for date:', now);
   
-  console.log('Getting active month - Time offset:', timeOffsetDays, 'Effective date:', effectiveDateISO);
-  
-  // Get active month based on effective date
+  // Get active month based on current date
   const { data: activeMonthData, error: monthError } = await supabase
     .from('bingo_months')
     .select('id')
-    .lte('start_date', effectiveDateISO)
-    .gte('end_date', effectiveDateISO)
+    .lte('start_date', now)
+    .gte('end_date', now)
     .single();
   
   if (monthError || !activeMonthData) {
-    console.error('No active month found for effective date:', effectiveDateISO, monthError);
+    console.error('No active month found for date:', now, monthError);
     return null;
   }
   
@@ -141,44 +122,23 @@ app.get('/api/debug/data', async (req, res) => {
 app.get('/api/bingo/board', async (req, res) => {
   try {
     const userId = await getAuthenticatedUserId(req);
-    let timeOffsetDays = 0;
     
-    if (userId) {
-      // Get user's time offset if they're a mod
-      const { data: userData, error: userError } = await supabase
-        .from('users')
-        .select('time_offset_days')
-        .eq('id', userId)
-        .single();
-      
-      if (!userError && userData && userData.time_offset_days) {
-        timeOffsetDays = userData.time_offset_days;
-      }
-    }
-
-    // Calculate effective date with offset
-    const now = new Date();
-    const effectiveDate = new Date(now.getTime() + (timeOffsetDays * 24 * 60 * 60 * 1000));
-    const effectiveDateISO = effectiveDate.toISOString();
-    
-    console.log('Time offset days:', timeOffsetDays);
-    console.log('Effective date:', effectiveDateISO);
-    
-    // Get active month based on effective date
-    const { data: activeMonthData, error: activeMonthError } = await supabase
-      .from('bingo_months')
-      .select('id, month_year_display, start_date, end_date')
-      .lte('start_date', effectiveDateISO)
-      .gte('end_date', effectiveDateISO)
-      .single();
-    
-    if (activeMonthError) {
-      console.error('No active month found for date:', effectiveDateISO, activeMonthError);
+    const ACTIVE_MONTH_ID = await getActiveMonthId();
+    if (!ACTIVE_MONTH_ID) {
       return res.status(404).json({ error: 'No active bingo month found' });
     }
     
-    const ACTIVE_MONTH_ID = activeMonthData.id;
-    const monthData = activeMonthData;
+    // Get month data
+    const { data: monthData, error: monthError } = await supabase
+      .from('bingo_months')
+      .select('id, month_year_display, start_date, end_date')
+      .eq('id', ACTIVE_MONTH_ID)
+      .single();
+    
+    if (monthError) {
+      console.error('Error fetching month data:', monthError);
+      return res.status(404).json({ error: 'No active bingo month found' });
+    }
     
     // Get entries - either for authenticated user or no one (show unchecked board)
     let completedPokemonIds = new Set();
@@ -326,7 +286,7 @@ app.get('/api/leaderboard', async (req, res) => {
   try {
     const mode = req.query.mode || 'monthly'; // 'monthly' or 'alltime'
     
-    const ACTIVE_MONTH_ID = await getActiveMonthId(req);
+    const ACTIVE_MONTH_ID = await getActiveMonthId();
     if (!ACTIVE_MONTH_ID) {
       return res.status(404).json({ error: 'No active month found' });
     }
@@ -740,7 +700,7 @@ app.get('/api/profile/:userId/board', async (req, res) => {
   try {
     const { userId } = req.params;
     
-    const ACTIVE_MONTH_ID = await getActiveMonthId(req);
+    const ACTIVE_MONTH_ID = await getActiveMonthId();
     if (!ACTIVE_MONTH_ID) {
       return res.status(404).json({ error: 'No active month found' });
     }
@@ -1051,7 +1011,6 @@ app.get('/api/ambassadors', async (req, res) => {
 app.get('/api/upload/available-pokemon', async (req, res) => {
   try {
     let userId = null;
-    let timeOffsetDays = 0;
     
     // Check if user is authenticated
     const authHeader = req.headers.authorization;
@@ -1061,17 +1020,6 @@ app.get('/api/upload/available-pokemon', async (req, res) => {
         const { data: { user }, error: authError } = await supabase.auth.getUser(token);
         if (user && !authError) {
           userId = user.id;
-          
-          // Get user's time offset if they're a mod
-          const { data: userData, error: userError } = await supabase
-            .from('users')
-            .select('time_offset_days')
-            .eq('id', userId)
-            .single();
-          
-          if (!userError && userData && userData.time_offset_days) {
-            timeOffsetDays = userData.time_offset_days;
-          }
         }
       } catch (err) {
         console.log('Auth check failed');
@@ -1082,25 +1030,12 @@ app.get('/api/upload/available-pokemon', async (req, res) => {
       return res.status(401).json({ error: 'Authentication required' });
     }
     
-    // Calculate effective date with offset
-    const now = new Date();
-    const effectiveDate = new Date(now.getTime() + (timeOffsetDays * 24 * 60 * 60 * 1000));
-    const effectiveDateISO = effectiveDate.toISOString();
-    
-    // Get active months (effective date between start_date and end_date)
-    const { data: activeMonths, error: monthsError } = await supabase
-      .from('bingo_months')
-      .select('id')
-      .lte('start_date', effectiveDateISO)
-      .gte('end_date', effectiveDateISO);
-    
-    if (monthsError) throw monthsError;
-    
-    if (!activeMonths || activeMonths.length === 0) {
+    const ACTIVE_MONTH_ID = await getActiveMonthId();
+    if (!ACTIVE_MONTH_ID) {
       return res.json([]);
     }
     
-    const monthIds = activeMonths.map(m => m.id);
+    const monthIds = [ACTIVE_MONTH_ID];
     
     // Get Pokemon in active months' pools
     const { data: poolPokemon, error: poolError } = await supabase
@@ -1301,7 +1236,7 @@ app.get('/api/pokemon/:pokemonId/recent-catches', async (req, res) => {
     
     console.log('Fetching recent catches for Pokemon ID:', pokemonId);
     
-    const ACTIVE_MONTH_ID = await getActiveMonthId(req);
+    const ACTIVE_MONTH_ID = await getActiveMonthId();
     if (!ACTIVE_MONTH_ID) {
       console.log('No active month found');
       return res.json([]);
