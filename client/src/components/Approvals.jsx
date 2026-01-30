@@ -11,6 +11,7 @@ const Approvals = () => {
   const [loading, setLoading] = useState(true);
   const [expandedRow, setExpandedRow] = useState(null);
   const [rejectionNotes, setRejectionNotes] = useState({});
+  const [lightboxImage, setLightboxImage] = useState(null);
 
   useEffect(() => {
     if (user) {
@@ -164,7 +165,7 @@ const Approvals = () => {
                         </div>
 
                         {/* Proof Display */}
-                        <div className="flex-1">
+                        <div className="flex-1 flex justify-end pr-4">
                           {!approval.proof_url2 ? (
                             // Single URL link
                             <a
@@ -178,32 +179,28 @@ const Approvals = () => {
                           ) : (
                             // Two images
                             <div className="flex gap-2">
-                              <a
-                                href={approval.proof_url}
-                                target="_blank"
-                                rel="noopener noreferrer"
+                              <button
+                                onClick={() => setLightboxImage(approval.proof_url)}
                                 className="block"
                               >
                                 <img
                                   src={approval.proof_url}
                                   alt="Proof of Shiny"
-                                  className="w-32 h-32 object-cover rounded border border-gray-600 hover:border-purple-500 transition-colors"
+                                  className="w-32 h-32 object-cover rounded border border-gray-600 hover:border-purple-500 transition-colors cursor-pointer"
                                 />
                                 <div className="text-xs text-gray-400 text-center mt-1">Proof of Shiny</div>
-                              </a>
-                              <a
-                                href={approval.proof_url2}
-                                target="_blank"
-                                rel="noopener noreferrer"
+                              </button>
+                              <button
+                                onClick={() => setLightboxImage(approval.proof_url2)}
                                 className="block"
                               >
                                 <img
                                   src={approval.proof_url2}
                                   alt="Proof of Date"
-                                  className="w-32 h-32 object-cover rounded border border-gray-600 hover:border-purple-500 transition-colors"
+                                  className="w-32 h-32 object-cover rounded border border-gray-600 hover:border-purple-500 transition-colors cursor-pointer"
                                 />
                                 <div className="text-xs text-gray-400 text-center mt-1">Proof of Date</div>
-                              </a>
+                              </button>
                             </div>
                           )}
                         </div>
@@ -249,12 +246,14 @@ const Approvals = () => {
                               className="w-full p-3 bg-gray-700 text-white rounded-lg border border-gray-600 focus:border-purple-500 focus:outline-none mb-3"
                               rows={3}
                             />
-                            <button
-                              onClick={() => handleReject(approval.id)}
-                              className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg font-medium transition-colors"
-                            >
-                              Submit Rejection
-                            </button>
+                            <div className="flex justify-end">
+                              <button
+                                onClick={() => handleReject(approval.id)}
+                                className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg font-medium transition-colors"
+                              >
+                                Submit Rejection
+                              </button>
+                            </div>
                           </div>
                         </div>
                       )}
@@ -273,6 +272,31 @@ const Approvals = () => {
           )}
         </div>
       </div>
+      
+      {/* Image Lightbox */}
+      {lightboxImage && (
+        <div 
+          className="fixed inset-0 bg-black bg-opacity-90 flex items-center justify-center z-50 p-4"
+          onClick={() => setLightboxImage(null)}
+        >
+          <div className="relative max-w-5xl max-h-[90vh]">
+            <button
+              onClick={() => setLightboxImage(null)}
+              className="absolute -top-12 right-0 text-white hover:text-gray-300 transition-colors"
+            >
+              <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+            <img
+              src={lightboxImage}
+              alt="Proof"
+              className="max-w-full max-h-[90vh] object-contain rounded-lg"
+              onClick={(e) => e.stopPropagation()}
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 };
