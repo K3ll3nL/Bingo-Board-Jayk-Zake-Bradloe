@@ -1285,7 +1285,11 @@ app.get('/api/user/is-moderator', async (req, res) => {
 // Get pending approvals (moderators only)
 app.get('/api/approvals/pending', async (req, res) => {
   try {
-    // Get pending approvals with user and pokemon info
+    console.log('Fetching pending approvals...');
+    
+    // Get all approvals with user and pokemon info
+    // Note: The approvals table doesn't have approved_at/rejected_at, 
+    // so we just get all records and sort by oldest first
     const { data: approvals, error } = await supabase
       .from('approvals')
       .select(`
@@ -1295,20 +1299,28 @@ app.get('/api/approvals/pending', async (req, res) => {
         proof_url2,
         user_id,
         pokemon_id,
-        users!approvals_user_id_fkey (
+        message,
+        users!apptovals_user_id_fkey (
           display_name
         ),
-        pokemon_master!approvals_pokemon_id_fkey (
+        pokemon_master!apptovals_pokemon_id_fkey (
           name,
           national_dex_id,
           img_url
         )
       `)
-      .is('approved_at', null)
-      .is('rejected_at', null)
       .order('created_at', { ascending: true });
     
-    if (error) throw error;
+    if (error) {
+      console.error('Supabase error:', error);
+      throw error;
+    }
+    
+    console.log(`Found ${approvals?.length || 0} approvals`);
+    
+    if (!approvals || approvals.length === 0) {
+      return res.json([]);
+    }
     
     const formattedApprovals = approvals.map(approval => ({
       id: approval.id,
@@ -1316,6 +1328,7 @@ app.get('/api/approvals/pending', async (req, res) => {
       proof_url: approval.proof_url,
       proof_url2: approval.proof_url2,
       user_id: approval.user_id,
+      message: approval.message,
       display_name: approval.users?.display_name || 'Unknown',
       pokemon_name: approval.pokemon_master?.name || 'Unknown',
       national_dex_id: approval.pokemon_master?.national_dex_id || 0,
@@ -1325,7 +1338,7 @@ app.get('/api/approvals/pending', async (req, res) => {
     res.json(formattedApprovals);
   } catch (error) {
     console.error('Error fetching pending approvals:', error);
-    res.status(500).json({ error: 'Failed to fetch approvals' });
+    res.status(500).json({ error: 'Failed to fetch approvals', details: error.message });
   }
 });
 
