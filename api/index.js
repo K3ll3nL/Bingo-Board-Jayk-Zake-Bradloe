@@ -341,8 +341,7 @@ app.get('/api/leaderboard', async (req, res) => {
       achievement_counts: achievementCounts[entry.user_id] || { row: 0, column: 0, x: 0, blackout: 0 }
     }));
     
-    // Get hex codes for ambassadors
-    const userIds = dataWithAchievements.map(entry => entry.user_id);
+    // Get hex codes for ambassadors (reuse userIds from above)
     const { data: ambassadors, error: ambassadorsError } = await supabase
       .from('twitch_ambassadors')
       .select('id, hex_code')
