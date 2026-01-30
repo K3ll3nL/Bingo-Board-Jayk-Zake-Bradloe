@@ -79,13 +79,8 @@ app.get('/api/bingo/board', async (req, res) => {
         .eq('id', userId)
         .single();
       
-          if (!userError && userData && userData.time_offset_days) {
-            timeOffsetDays = userData.time_offset_days;
-          }
-        }
-      } catch (err) {
-        // Ignore auth errors - just show public board
-        console.log('Auth check failed, showing public board');
+      if (!userError && userData && userData.time_offset_days) {
+        timeOffsetDays = userData.time_offset_days;
       }
     }
 
