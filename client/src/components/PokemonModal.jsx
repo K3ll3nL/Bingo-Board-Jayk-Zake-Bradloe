@@ -170,7 +170,7 @@ const PokemonModal = ({ pokemon, onClose }) => {
           {/* External Links */}
           <div className="grid grid-cols-2 gap-px bg-gray-600 -mx-6 -mb-6 mt-6">
             <a
-              href={`https://bulbapedia.bulbagarden.net/wiki/${pokemon.pokemon_name}_(Pok%C3%A9mon)`}
+              href={`https://bulbapedia.bulbagarden.net/wiki/${pokemon.pokemon_name}_(Pok%C3%A9mon)#Game_locations`}
               target="_blank"
               rel="noopener noreferrer"
               className="p-4 bg-gray-700 hover:bg-gray-600 text-white text-center font-medium transition-colors flex items-center justify-center gap-2"
