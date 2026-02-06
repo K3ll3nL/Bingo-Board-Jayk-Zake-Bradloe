@@ -4,11 +4,15 @@ const express = require('express');
 const cors = require('cors');
 const { createClient } = require('@supabase/supabase-js');
 const multer = require('multer');
-const upload = multer({ storage: multer.memoryStorage() });
+const upload = multer({ 
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 7 * 1024 * 1024 } // 7MB per file
+});
 
 const app = express();
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: '50mb' })); // Increase JSON body limit
+app.use(express.urlencoded({ limit: '50mb', extended: true })); // Increase URL-encoded body limit
 
 // Debug: Check environment variables
 console.log('=== Environment Variables Debug ===');
@@ -21,6 +25,77 @@ const supabase = createClient(
   process.env.SUPABASE_URL,
   process.env.SUPABASE_ANON_KEY
 );
+
+// Simple in-memory cache
+const cache = {
+  store: new Map(),
+  set(key, value, ttlSeconds) {
+    const expiresAt = Date.now() + (ttlSeconds * 1000);
+    this.store.set(key, { value, expiresAt });
+  },
+  get(key) {
+    const item = this.store.get(key);
+    if (!item) return null;
+    if (Date.now() > item.expiresAt) {
+      this.store.delete(key);
+      return null;
+    }
+    return item.value;
+  },
+  clear(pattern) {
+    if (pattern) {
+      for (const key of this.store.keys()) {
+        if (key.includes(pattern)) {
+          this.store.delete(key);
+        }
+      }
+    } else {
+      this.store.clear();
+    }
+  }
+};
+
+// SSE connections manager
+const sseClients = new Map(); // userId -> Set of response objects
+const sseAnonymousClients = new Set(); // Set of anonymous response objects
+
+function sendSSEToUser(userId, event, data) {
+  const clients = sseClients.get(userId);
+  if (clients) {
+    const message = `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
+    clients.forEach(client => {
+      try {
+        client.write(message);
+      } catch (err) {
+        console.error('Error sending SSE:', err);
+      }
+    });
+  }
+}
+
+function broadcastSSE(event, data) {
+  const message = `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
+  
+  // Send to authenticated users
+  sseClients.forEach((clients) => {
+    clients.forEach(client => {
+      try {
+        client.write(message);
+      } catch (err) {
+        console.error('Error broadcasting SSE:', err);
+      }
+    });
+  });
+  
+  // Send to anonymous users
+  sseAnonymousClients.forEach(client => {
+    try {
+      client.write(message);
+    } catch (err) {
+      console.error('Error broadcasting SSE to anonymous:', err);
+    }
+  });
+}
 
 // DEVELOPMENT ONLY: Auth bypass middleware
 const DEV_USER_ID = '3bb8389d-5147-4405-ad47-156315248565';
@@ -88,6 +163,64 @@ app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', message: 'Streaming Bingo API is running' });
 });
 
+// SSE endpoint for real-time notifications
+app.get('/api/events', async (req, res) => {
+  const userId = await getAuthenticatedUserId(req);
+
+  // Set headers for SSE
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+  res.setHeader('X-Accel-Buffering', 'no'); // Disable nginx buffering
+  
+  // Add this client to the connections map
+  if (userId) {
+    // Authenticated user
+    if (!sseClients.has(userId)) {
+      sseClients.set(userId, new Set());
+    }
+    sseClients.get(userId).add(res);
+  } else {
+    // Anonymous user
+    sseAnonymousClients.add(res);
+  }
+  
+  const totalClients = Array.from(sseClients.values()).reduce((sum, set) => sum + set.size, 0) + sseAnonymousClients.size;
+  console.log(`SSE client connected: ${userId || 'anonymous'}. Total clients: ${totalClients}`);
+  
+  // Send initial connection message
+  res.write(`event: connected\ndata: ${JSON.stringify({ message: 'Connected to notification stream', authenticated: !!userId })}\n\n`);
+  
+  // Send keepalive every 30 seconds to prevent timeout
+  const keepaliveInterval = setInterval(() => {
+    try {
+      res.write(`:keepalive ${Date.now()}\n\n`);
+    } catch (err) {
+      clearInterval(keepaliveInterval);
+    }
+  }, 30000);
+  
+  // Clean up on disconnect
+  req.on('close', () => {
+    clearInterval(keepaliveInterval);
+    
+    if (userId) {
+      const userClients = sseClients.get(userId);
+      if (userClients) {
+        userClients.delete(res);
+        if (userClients.size === 0) {
+          sseClients.delete(userId);
+        }
+      }
+    } else {
+      sseAnonymousClients.delete(res);
+    }
+    
+    const totalClients = Array.from(sseClients.values()).reduce((sum, set) => sum + set.size, 0) + sseAnonymousClients.size;
+    console.log(`SSE client disconnected: ${userId || 'anonymous'}. Total clients: ${totalClients}`);
+  });
+});
+
 // Debug endpoint to check database state
 app.get('/api/debug/data', async (req, res) => {
   try {
@@ -126,6 +259,18 @@ app.get('/api/bingo/board', async (req, res) => {
     const ACTIVE_MONTH_ID = await getActiveMonthId();
     if (!ACTIVE_MONTH_ID) {
       return res.status(404).json({ error: 'No active bingo month found' });
+    }
+    
+    // Cache key includes user ID for authenticated requests
+    const cacheKey = `board:${ACTIVE_MONTH_ID}:${userId || 'public'}`;
+    
+    // Check cache first (5 minute TTL for authenticated, 2 minutes for public)
+    const cached = cache.get(cacheKey);
+    if (cached) {
+      console.log('Serving bingo board from cache');
+      // Set cache headers
+      res.set('Cache-Control', userId ? 'private, max-age=300' : 'public, max-age=120');
+      return res.json(cached);
     }
     
     // Get month data
@@ -267,14 +412,21 @@ app.get('/api/bingo/board', async (req, res) => {
       };
     }
     
-    res.json({
+    const responseData = {
       month: monthData.month_year_display,
       start_date: monthData.start_date,
       end_date: monthData.end_date,
       board: board,
       user_authenticated: !!userId,
       achievements
-    });
+    };
+    
+    // Cache the response (5 minutes for authenticated, 2 minutes for public)
+    cache.set(cacheKey, responseData, userId ? 300 : 120);
+    
+    // Set cache headers
+    res.set('Cache-Control', userId ? 'private, max-age=300' : 'public, max-age=120');
+    res.json(responseData);
   } catch (error) {
     console.error('Error fetching bingo board:', error);
     res.status(500).json({ error: 'Failed to fetch bingo board', details: error.message });
@@ -287,6 +439,16 @@ app.get('/api/leaderboard', async (req, res) => {
     const ACTIVE_MONTH_ID = await getActiveMonthId();
     if (!ACTIVE_MONTH_ID) {
       return res.status(404).json({ error: 'No active month found' });
+    }
+    
+    const cacheKey = `leaderboard:${ACTIVE_MONTH_ID}`;
+    
+    // Check cache first (1 minute TTL - leaderboard changes when approvals happen)
+    const cached = cache.get(cacheKey);
+    if (cached) {
+      console.log('Serving leaderboard from cache');
+      res.set('Cache-Control', 'public, max-age=60');
+      return res.json(cached);
     }
     
     // Get monthly leaderboard
@@ -438,6 +600,10 @@ app.get('/api/leaderboard', async (req, res) => {
       };
     });
     
+    // Cache leaderboard for 1 minute
+    cache.set(cacheKey, transformedData, 60);
+    
+    res.set('Cache-Control', 'public, max-age=60');
     res.json(transformedData);
   } catch (error) {
     console.error('Error fetching leaderboard:', error);
@@ -1304,7 +1470,7 @@ app.post('/api/approvals/:id/approve', async (req, res) => {
     // Get approval details including image URLs BEFORE deleting the record
     const { data: approval, error: approvalFetchError } = await supabase
       .from('approvals')
-      .select('proof_url, proof_url2')
+      .select('user_id, pokemon_id, proof_url, proof_url2')
       .eq('id', id)
       .single();
     
@@ -1327,6 +1493,22 @@ app.post('/api/approvals/:id/approve', async (req, res) => {
     }
     
     console.log('Approval successful:', data);
+    
+    // Clear cache for board and leaderboard since data changed
+    cache.clear('board:');
+    cache.clear('leaderboard:');
+    console.log('Cleared board and leaderboard cache');
+    
+    // Send SSE notification to the user who submitted
+    sendSSEToUser(approval.user_id, 'approval', {
+      type: 'approved',
+      pokemonId: approval.pokemon_id,
+      points: data.points_awarded,
+      achievements: data.achievements || []
+    });
+    
+    // Broadcast board update to all connected clients
+    broadcastSSE('board-update', { refresh: true });
     
     // Delete images from R2 if they exist (only for image uploads, not Twitch links)
     const R2_BUCKET_URL = process.env.R2_BUCKET_URL;
@@ -1424,7 +1606,7 @@ app.post('/api/approvals/:id/reject', async (req, res) => {
     // Get approval details including image URLs BEFORE deleting the record
     const { data: approval, error: approvalFetchError } = await supabase
       .from('approvals')
-      .select('proof_url, proof_url2')
+      .select('user_id, pokemon_id, proof_url, proof_url2')
       .eq('id', id)
       .single();
     
@@ -1448,6 +1630,18 @@ app.post('/api/approvals/:id/reject', async (req, res) => {
     }
     
     console.log('Rejection successful:', data);
+    
+    // Clear cache for board (user's board state hasn't changed, but good practice)
+    // Leaderboard doesn't change on rejection
+    cache.clear('board:');
+    console.log('Cleared board cache');
+    
+    // Send SSE notification to the user who submitted
+    sendSSEToUser(approval.user_id, 'approval', {
+      type: 'rejected',
+      pokemonId: approval.pokemon_id,
+      message: message || 'No reason provided'
+    });
     
     // Delete images from R2 if they exist (only for image uploads, not Twitch links)
     const R2_BUCKET_URL = process.env.R2_BUCKET_URL;
