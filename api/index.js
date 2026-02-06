@@ -4,15 +4,39 @@ const express = require('express');
 const cors = require('cors');
 const { createClient } = require('@supabase/supabase-js');
 const multer = require('multer');
+
+// Multer config with file size limits
 const upload = multer({ 
   storage: multer.memoryStorage(),
-  limits: { fileSize: 7 * 1024 * 1024 } // 7MB per file
+  limits: { 
+    fileSize: 4 * 1024 * 1024, // 4MB per file (Vercel limit is 4.5MB total)
+    files: 2 // Max 2 files
+  }
 });
 
 const app = express();
 app.use(cors());
 app.use(express.json({ limit: '50mb' })); // Increase JSON body limit
 app.use(express.urlencoded({ limit: '50mb', extended: true })); // Increase URL-encoded body limit
+
+// Multer error handling middleware
+app.use((err, req, res, next) => {
+  if (err instanceof multer.MulterError) {
+    if (err.code === 'LIMIT_FILE_SIZE') {
+      return res.status(413).json({ 
+        error: 'Image file is too large. Please compress to under 4MB.',
+        fileTooBig: true
+      });
+    }
+    if (err.code === 'LIMIT_FILE_COUNT') {
+      return res.status(400).json({ 
+        error: 'Too many files uploaded. Maximum 2 images allowed.',
+      });
+    }
+    return res.status(400).json({ error: `Upload error: ${err.message}` });
+  }
+  next(err);
+});
 
 // Debug: Check environment variables
 console.log('=== Environment Variables Debug ===');
@@ -1224,6 +1248,34 @@ app.post('/api/upload/submission', upload.fields([{ name: 'file', maxCount: 1 },
     // Validation: Either URL OR both files
     if (!url && (!file || !file2)) {
       return res.status(400).json({ error: 'Either Twitch link OR both proof images required' });
+    }
+    
+    // Check file sizes (Vercel has a 4.5MB request body limit)
+    const MAX_FILE_SIZE = 4 * 1024 * 1024; // 4MB to leave room for overhead
+    
+    if (file && file.size > MAX_FILE_SIZE) {
+      const sizeMB = (file.size / (1024 * 1024)).toFixed(1);
+      return res.status(413).json({ 
+        error: `Proof of Shiny image is too large (${sizeMB}MB). Please compress to under 4MB.`,
+        fileTooBig: true
+      });
+    }
+    
+    if (file2 && file2.size > MAX_FILE_SIZE) {
+      const sizeMB = (file2.size / (1024 * 1024)).toFixed(1);
+      return res.status(413).json({ 
+        error: `Proof of Date image is too large (${sizeMB}MB). Please compress to under 4MB.`,
+        fileTooBig: true
+      });
+    }
+    
+    // Check combined size
+    if (file && file2 && (file.size + file2.size) > MAX_FILE_SIZE) {
+      const totalMB = ((file.size + file2.size) / (1024 * 1024)).toFixed(1);
+      return res.status(413).json({ 
+        error: `Combined images are too large (${totalMB}MB). Please compress both images to under 4MB total.`,
+        fileTooBig: true
+      });
     }
     
     // Get active month

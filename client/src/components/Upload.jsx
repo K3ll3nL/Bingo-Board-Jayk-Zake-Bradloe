@@ -101,6 +101,27 @@ const Upload = () => {
       return;
     }
     
+    // Client-side file size validation (4MB limit)
+    const MAX_FILE_SIZE = 4 * 1024 * 1024; // 4MB
+    
+    if (mediaFile && mediaFile.size > MAX_FILE_SIZE) {
+      const sizeMB = (mediaFile.size / (1024 * 1024)).toFixed(1);
+      setError(`Proof of Shiny image is too large (${sizeMB}MB). Please compress to under 4MB before uploading.`);
+      return;
+    }
+    
+    if (mediaFile2 && mediaFile2.size > MAX_FILE_SIZE) {
+      const sizeMB = (mediaFile2.size / (1024 * 1024)).toFixed(1);
+      setError(`Proof of Date image is too large (${sizeMB}MB). Please compress to under 4MB before uploading.`);
+      return;
+    }
+    
+    if (mediaFile && mediaFile2 && (mediaFile.size + mediaFile2.size) > MAX_FILE_SIZE) {
+      const totalMB = ((mediaFile.size + mediaFile2.size) / (1024 * 1024)).toFixed(1);
+      setError(`Combined images are too large (${totalMB}MB). Please compress both images to under 4MB total.`);
+      return;
+    }
+    
     setSubmitting(true);
     setError(null);
     
