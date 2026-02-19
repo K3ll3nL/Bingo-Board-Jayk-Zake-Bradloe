@@ -1782,6 +1782,66 @@ app.post('/api/approvals/:id/reject', async (req, res) => {
   }
 });
 
+// Admin-only: Clear cache manually
+app.post('/api/admin/clear-cache', async (req, res) => {
+  try {
+    const authHeader = req.headers.authorization;
+    
+    if (!authHeader) {
+      return res.status(401).json({ error: 'Authentication required' });
+    }
+    
+    const userId = authHeader.replace('Bearer ', '');
+    
+    // Check if user is moderator (twitch_ambassador)
+    const { data: isMod, error: modError } = await supabase
+      .from('twitch_ambassadors')
+      .select('id')
+      .eq('id', userId)
+      .single();
+    
+    if (modError || !isMod) {
+      return res.status(403).json({ error: 'Admin access required' });
+    }
+    
+    const { type } = req.body; // 'all', 'board', 'leaderboard'
+    
+    let cleared = 0;
+    
+    if (type === 'all' || !type) {
+      // Clear all cache
+      const initialSize = cache.store.size;
+      cache.store.clear();
+      cleared = initialSize;
+      console.log(`Admin ${userId} cleared entire cache (${cleared} items)`);
+    } else if (type === 'board') {
+      // Clear only board cache
+      const initialSize = cache.store.size;
+      cache.clear('board:');
+      cleared = initialSize - cache.store.size;
+      console.log(`Admin ${userId} cleared board cache (${cleared} items)`);
+    } else if (type === 'leaderboard') {
+      // Clear only leaderboard cache
+      const initialSize = cache.store.size;
+      cache.clear('leaderboard:');
+      cleared = initialSize - cache.store.size;
+      console.log(`Admin ${userId} cleared leaderboard cache (${cleared} items)`);
+    } else {
+      return res.status(400).json({ error: 'Invalid cache type. Use: all, board, or leaderboard' });
+    }
+    
+    res.json({ 
+      success: true, 
+      message: `Cache cleared successfully`,
+      itemsCleared: cleared,
+      type: type || 'all'
+    });
+  } catch (error) {
+    console.error('Error clearing cache:', error);
+    res.status(500).json({ error: 'Failed to clear cache', details: error.message });
+  }
+});
+
 // Export for Vercel serverless
 module.exports = app;
 
