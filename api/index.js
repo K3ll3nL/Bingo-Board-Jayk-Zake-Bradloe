@@ -159,22 +159,40 @@ async function getAuthenticatedUserId(req) {
   return null;
 }
 
-// Helper function to get active month ID based on current date
-async function getActiveMonthId() {
-  const now = new Date().toISOString();
+// Helper function to get active month ID based on current date (with optional time offset for moderators)
+async function getActiveMonthId(userId = null) {
+  let timeOffsetDays = 0;
   
-  console.log('Getting active month for date:', now);
+  // If userId provided, check if they have a time offset
+  if (userId) {
+    const { data: userData, error: userError } = await supabase
+      .from('users')
+      .select('time_offset_days')
+      .eq('id', userId)
+      .single();
+    
+    if (!userError && userData && userData.time_offset_days) {
+      timeOffsetDays = userData.time_offset_days;
+    }
+  }
   
-  // Get active month based on current date
+  // Calculate effective date with offset
+  const now = new Date();
+  const effectiveDate = new Date(now.getTime() + (timeOffsetDays * 24 * 60 * 60 * 1000));
+  const effectiveDateISO = effectiveDate.toISOString();
+  
+  console.log('Getting active month - User:', userId, 'Offset days:', timeOffsetDays, 'Effective date:', effectiveDateISO);
+  
+  // Get active month based on effective date
   const { data: activeMonthData, error: monthError } = await supabase
     .from('bingo_months')
     .select('id')
-    .lte('start_date', now)
-    .gte('end_date', now)
+    .lte('start_date', effectiveDateISO)
+    .gte('end_date', effectiveDateISO)
     .single();
   
   if (monthError || !activeMonthData) {
-    console.error('No active month found for date:', now, monthError);
+    console.error('No active month found for date:', effectiveDateISO, monthError);
     return null;
   }
   
@@ -280,7 +298,7 @@ app.get('/api/bingo/board', async (req, res) => {
   try {
     const userId = await getAuthenticatedUserId(req);
     
-    const ACTIVE_MONTH_ID = await getActiveMonthId();
+    const ACTIVE_MONTH_ID = await getActiveMonthId(userId);
     if (!ACTIVE_MONTH_ID) {
       return res.status(404).json({ error: 'No active bingo month found' });
     }
@@ -460,12 +478,14 @@ app.get('/api/bingo/board', async (req, res) => {
 // Get leaderboard
 app.get('/api/leaderboard', async (req, res) => {
   try {
-    const ACTIVE_MONTH_ID = await getActiveMonthId();
+    const userId = await getAuthenticatedUserId(req);
+    
+    const ACTIVE_MONTH_ID = await getActiveMonthId(userId);
     if (!ACTIVE_MONTH_ID) {
       return res.status(404).json({ error: 'No active month found' });
     }
     
-    const cacheKey = `leaderboard:${ACTIVE_MONTH_ID}`;
+    const cacheKey = `leaderboard:${ACTIVE_MONTH_ID}:${userId || 'public'}`;
     
     // Check cache first (1 minute TTL - leaderboard changes when approvals happen)
     const cached = cache.get(cacheKey);
@@ -830,8 +850,9 @@ app.get('/api/profile/:userId', async (req, res) => {
 app.get('/api/profile/:userId/board', async (req, res) => {
   try {
     const { userId } = req.params;
+    const viewerId = await getAuthenticatedUserId(req);
     
-    const ACTIVE_MONTH_ID = await getActiveMonthId();
+    const ACTIVE_MONTH_ID = await getActiveMonthId(viewerId);
     if (!ACTIVE_MONTH_ID) {
       return res.status(404).json({ error: 'No active month found' });
     }
@@ -1161,7 +1182,7 @@ app.get('/api/upload/available-pokemon', async (req, res) => {
       return res.status(401).json({ error: 'Authentication required' });
     }
     
-    const ACTIVE_MONTH_ID = await getActiveMonthId();
+    const ACTIVE_MONTH_ID = await getActiveMonthId(userId);
     if (!ACTIVE_MONTH_ID) {
       return res.json([]);
     }
@@ -1392,10 +1413,11 @@ app.post('/api/upload/submission', upload.fields([{ name: 'file', maxCount: 1 },
 app.get('/api/pokemon/:pokemonId/recent-catches', async (req, res) => {
   try {
     const { pokemonId } = req.params;
+    const userId = await getAuthenticatedUserId(req);
     
     console.log('Fetching recent catches for Pokemon ID:', pokemonId);
     
-    const ACTIVE_MONTH_ID = await getActiveMonthId();
+    const ACTIVE_MONTH_ID = await getActiveMonthId(userId);
     if (!ACTIVE_MONTH_ID) {
       console.log('No active month found');
       return res.json([]);
