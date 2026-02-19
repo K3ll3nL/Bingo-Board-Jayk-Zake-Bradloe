@@ -315,6 +315,8 @@ app.get('/api/bingo/board', async (req, res) => {
       return res.json(cached);
     }
     
+    console.log('Cache miss - fetching fresh data from database');
+    
     // Get month data
     const { data: monthData, error: monthError } = await supabase
       .from('bingo_months')

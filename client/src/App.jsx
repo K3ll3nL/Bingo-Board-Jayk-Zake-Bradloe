@@ -44,6 +44,10 @@ const MainApp = () => {
   };
 
   const clearCache = async () => {
+    if (!confirm('Clear cache and reload the page? This will refresh all data.')) {
+      return;
+    }
+    
     try {
       const response = await fetch('/api/admin/clear-cache', {
         method: 'POST',
@@ -59,8 +63,10 @@ const MainApp = () => {
       }
       
       const result = await response.json();
-      alert(`Cache cleared successfully! (${result.itemsCleared} items cleared)\n\nRefresh the page to see updated data.`);
-      setShowDropdown(false); // Close dropdown after clearing
+      console.log(`Cache cleared: ${result.itemsCleared} items`);
+      
+      // Force hard reload to bypass browser cache
+      window.location.reload(true);
     } catch (err) {
       console.error('Error clearing cache:', err);
       alert('Failed to clear cache');
