@@ -1672,7 +1672,7 @@ app.post('/api/upload/submission', upload.fields([{ name: 'file', maxCount: 1 },
     // Note: pending notification is created automatically via DB trigger on approvals insert
 
     // Invalidate the user's board cache so is_pending shows immediately
-    cache.del(`board:${activeMonth.id}:${userId}`);
+    cache.store.delete(`board:${activeMonth.id}:${userId}`);
 
     res.json({ success: true, approval });
   } catch (error) {

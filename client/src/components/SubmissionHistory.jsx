@@ -21,7 +21,7 @@ const STATUS_CONFIG = {
   pending:  { label: 'Pending Review',       color: 'text-yellow-400', accentColor: '#facc15' },
   accepted: { label: 'Accepted',             color: 'text-green-400',  accentColor: '#4ade80' },
   rejected: { label: 'Rejected',             color: 'text-red-400',    accentColor: '#f87171' },
-  award:    { label: 'Achievement Unlocked', color: 'text-purple-400', accentColor: '#9147ff' },
+  award:    { label: 'Achievement Awarded', color: 'text-purple-400', accentColor: '#9147ff' },
 };
 
 const AwardIcon = ({ type }) => {
