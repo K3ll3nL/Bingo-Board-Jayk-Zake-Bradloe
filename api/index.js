@@ -477,14 +477,143 @@ app.get('/api/bingo/board', async (req, res) => {
 app.get('/api/leaderboard', async (req, res) => {
   try {
     const userId = await getAuthenticatedUserId(req);
-    
+    const mode = req.query.mode === 'alltime' ? 'alltime' : 'monthly';
+
+    // ── ALL-TIME BRANCH ──────────────────────────────────────────────────────
+    if (mode === 'alltime') {
+      const cacheKey = 'leaderboard:alltime';
+      const cached = cache.get(cacheKey);
+      if (cached) {
+        res.set('Cache-Control', 'public, max-age=60');
+        return res.json(cached);
+      }
+
+      // Sum points across all months per user
+      const { data: allPoints, error: allPointsError } = await supabase
+        .from('user_monthly_points')
+        .select('user_id, points');
+
+      if (allPointsError) throw allPointsError;
+
+      // Aggregate in JS
+      const pointsByUser = {};
+      allPoints.forEach(row => {
+        pointsByUser[row.user_id] = (pointsByUser[row.user_id] || 0) + row.points;
+      });
+
+      // Sort all users by total points
+      const top10 = Object.entries(pointsByUser)
+        .sort(([, a], [, b]) => b - a)
+        .map(([user_id, points]) => ({ user_id, points }));
+
+      if (top10.length === 0) {
+        cache.set(cacheKey, [], 60);
+        return res.json([]);
+      }
+
+      const userIds = top10.map(u => u.user_id);
+
+      // Fetch user info
+      const { data: usersData, error: usersError } = await supabase
+        .from('users')
+        .select('id, username, display_name, created_at, twitch_url')
+        .in('id', userIds);
+
+      if (usersError) throw usersError;
+
+      const usersMap = {};
+      usersData.forEach(u => { usersMap[u.id] = u; });
+
+      // Count all achievements across all months per user
+      const { data: allAchievements, error: achError } = await supabase
+        .from('bingo_achievements')
+        .select('user_id, bingo_type')
+        .in('user_id', userIds);
+
+      const achievementCounts = {};
+      if (!achError && allAchievements) {
+        allAchievements.forEach(ach => {
+          if (!achievementCounts[ach.user_id]) {
+            achievementCounts[ach.user_id] = { row: 0, column: 0, x: 0, blackout: 0 };
+          }
+          achievementCounts[ach.user_id][ach.bingo_type]++;
+        });
+      }
+
+      // Hex codes for ambassadors
+      const { data: ambassadors } = await supabase
+        .from('twitch_ambassadors')
+        .select('id, hex_code')
+        .in('id', userIds);
+
+      const hexCodeMap = {};
+      if (ambassadors) ambassadors.forEach(a => { hexCodeMap[a.id] = a.hex_code || '#9147ff'; });
+
+      // Twitch live status (reuse same logic as monthly)
+      const liveStatusMap = {};
+      try {
+        const TWITCH_CLIENT_ID = process.env.TWITCH_CLIENT_ID;
+        const TWITCH_CLIENT_SECRET = process.env.TWITCH_CLIENT_SECRET;
+        const twitchUsers = top10.filter(u => usersMap[u.user_id]?.twitch_url);
+
+        if (TWITCH_CLIENT_ID && TWITCH_CLIENT_SECRET && twitchUsers.length > 0) {
+          const tokenResponse = await fetch('https://id.twitch.tv/oauth2/token', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: `client_id=${TWITCH_CLIENT_ID}&client_secret=${TWITCH_CLIENT_SECRET}&grant_type=client_credentials`
+          });
+          const { access_token } = await tokenResponse.json();
+          const usernames = twitchUsers.map(u => usersMap[u.user_id].twitch_url.split('/').pop().toLowerCase());
+          const usersResponse = await fetch(`https://api.twitch.tv/helix/users?${usernames.map(u => `login=${u}`).join('&')}`, {
+            headers: { 'Authorization': `Bearer ${access_token}`, 'Client-Id': TWITCH_CLIENT_ID }
+          });
+          const { data: twitchApiUsers } = await usersResponse.json();
+          const twitchIds = twitchApiUsers?.map(u => u.id) || [];
+          if (twitchIds.length > 0) {
+            const streamsResponse = await fetch(`https://api.twitch.tv/helix/streams?${twitchIds.map(id => `user_id=${id}`).join('&')}`, {
+              headers: { 'Authorization': `Bearer ${access_token}`, 'Client-Id': TWITCH_CLIENT_ID }
+            });
+            const { data: streams } = await streamsResponse.json();
+            streams?.forEach(stream => {
+              const u = twitchApiUsers.find(u => u.id === stream.user_id);
+              if (u) liveStatusMap[u.login.toLowerCase()] = true;
+            });
+          }
+        }
+      } catch (err) {
+        console.error('Twitch live check error (alltime):', err);
+      }
+
+      const transformedAllTime = top10.map((entry, index) => {
+        const u = usersMap[entry.user_id] || {};
+        const username = u.twitch_url ? u.twitch_url.split('/').pop().toLowerCase() : null;
+        return {
+          id: entry.user_id,
+          user_id: entry.user_id,
+          username: u.username,
+          display_name: u.display_name,
+          points: entry.points,
+          created_at: u.created_at,
+          twitch_url: index < 10 ? u.twitch_url : null,
+          is_live: index < 10 && username ? (liveStatusMap[username] || false) : false,
+          achievement_counts: achievementCounts[entry.user_id] || { row: 0, column: 0, x: 0, blackout: 0 },
+          hex_code: hexCodeMap[entry.user_id] || '#9147ff'
+        };
+      });
+
+      cache.set(cacheKey, transformedAllTime, 60);
+      res.set('Cache-Control', 'public, max-age=60');
+      return res.json(transformedAllTime);
+    }
+
+    // ── MONTHLY BRANCH ───────────────────────────────────────────────────────
     const ACTIVE_MONTH_ID = await getActiveMonthId(userId);
     if (!ACTIVE_MONTH_ID) {
       return res.status(404).json({ error: 'No active month found' });
     }
-    
+
     const cacheKey = `leaderboard:${ACTIVE_MONTH_ID}:${userId || 'public'}`;
-    
+
     // Check cache first (1 minute TTL - leaderboard changes when approvals happen)
     const cached = cache.get(cacheKey);
     if (cached) {
@@ -492,7 +621,7 @@ app.get('/api/leaderboard', async (req, res) => {
       res.set('Cache-Control', 'public, max-age=60');
       return res.json(cached);
     }
-    
+
     // Get monthly leaderboard
     const { data: monthlyData, error: monthlyError } = await supabase
       .from('user_monthly_points')
@@ -508,8 +637,7 @@ app.get('/api/leaderboard', async (req, res) => {
         )
       `)
       .eq('month_id', ACTIVE_MONTH_ID)
-      .order('points', { ascending: false })
-      .limit(10);
+      .order('points', { ascending: false });
     
     if (monthlyError) throw monthlyError;
     const data = monthlyData;
@@ -626,7 +754,7 @@ app.get('/api/leaderboard', async (req, res) => {
       }
     }
     
-    const transformedData = dataWithAchievements.map(entry => {
+    const transformedData = dataWithAchievements.map((entry, index) => {
       const username = entry.users.twitch_url ? entry.users.twitch_url.split('/').pop().toLowerCase() : null;
       return {
         id: entry.id,
@@ -635,13 +763,13 @@ app.get('/api/leaderboard', async (req, res) => {
         display_name: entry.users.display_name,
         points: entry.points,
         created_at: entry.users.created_at,
-        twitch_url: entry.users.twitch_url,
-        is_live: username ? (liveStatusMap[username] || false) : false,
+        twitch_url: index < 10 ? entry.users.twitch_url : null,
+        is_live: index < 10 && username ? (liveStatusMap[username] || false) : false,
         achievement_counts: entry.achievement_counts || { row: 0, column: 0, x: 0, blackout: 0 },
         hex_code: hexCodeMap[entry.user_id] || '#9147ff'
       };
     });
-    
+
     // Cache leaderboard for 1 minute
     cache.set(cacheKey, transformedData, 60);
     
@@ -1503,7 +1631,21 @@ app.post('/api/upload/submission', upload.fields([{ name: 'file', maxCount: 1 },
       .single();
     
     if (approvalError) throw approvalError;
-    
+
+    // Record submission notification (non-fatal if it fails)
+    const { error: notifError } = await supabase
+      .from('notifications')
+      .insert({
+        user_id: userId,
+        status: 'submitted',
+        pokemon_id: parseInt(pokemon_id),
+        notified: false
+      });
+
+    if (notifError) {
+      console.error('Failed to insert submission notification:', notifError);
+    }
+
     res.json({ success: true, approval });
   } catch (error) {
     console.error('Error submitting catch:', error);

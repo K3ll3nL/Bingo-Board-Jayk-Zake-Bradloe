@@ -10,8 +10,10 @@ const Leaderboard = () => {
   const [viewMode, setViewMode] = useState('monthly'); // 'monthly' or 'alltime'
 
   useEffect(() => {
+    setLoading(true);
+    setLeaderboard([]);
     loadLeaderboard();
-    
+
     // Poll for updates every 30 seconds
     const interval = setInterval(loadLeaderboard, 30000);
     return () => clearInterval(interval);
@@ -112,10 +114,11 @@ const Leaderboard = () => {
             No players yet
           </div>
         ) : (
-          <div className="divide-y" style={{ borderColor: '#404040' }}>
+          <div className="divide-y overflow-y-auto" style={{ borderColor: '#404040', maxHeight: '630px' }}>
             {leaderboard.map((user, index) => {
               const position = index + 1;
               const medal = getMedalEmoji(position);
+              const showBadge = index < 10;
               
               return (
                 <div
@@ -123,6 +126,7 @@ const Leaderboard = () => {
                   onClick={() => navigate(`/profile/${user.user_id}`)}
                   className={`
                     p-2 flex items-center justify-between transition-colors cursor-pointer hover:bg-gray-600`}
+                  style={{ maxHeight: '55px' }}
                 >
                   <div className="flex items-center gap-3">
                     <div className="flex items-center justify-center w-8 h-8">
@@ -132,14 +136,14 @@ const Leaderboard = () => {
                         <span className={`font-semibold text-xl text-gray-400`}>#{position}</span>
                       )}
                     </div>
-                    
+
                     <div>
                       <div className={`font-semibold text-l text-white flex items-center gap-1`}>
                         <span>{user.display_name}</span>
-                        {user.is_live && user.twitch_url && (
-                          <a 
-                            href={user.twitch_url} 
-                            target="_blank" 
+                        {showBadge && user.is_live && user.twitch_url && (
+                          <a
+                            href={user.twitch_url}
+                            target="_blank"
                             rel="noopener noreferrer"
                             onClick={(e) => e.stopPropagation()}
                             className="inline-flex"
