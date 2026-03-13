@@ -1,6 +1,7 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, useNavigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
+import { createClient } from '@supabase/supabase-js';
 import BingoBoard from './components/BingoBoard';
 import Leaderboard from './components/Leaderboard';
 import AuthCallback from './components/AuthCallback';
@@ -10,6 +11,20 @@ import TwitchAmbassadors from './components/TwitchAmbassadors';
 import Upload from './components/Upload';
 import Approvals from './components/Approvals';
 import logoImage from './Icons/pokemon-bounty-board.png';
+
+const supabase = createClient(
+  import.meta.env.VITE_SUPABASE_URL,
+  import.meta.env.VITE_SUPABASE_ANON_KEY
+);
+
+const getAuthHeader = async () => {
+  if (import.meta.env.DEV &&
+      (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')) {
+    return 'Bearer dev_token';
+  }
+  const { data: { session } } = await supabase.auth.getSession();
+  return `Bearer ${session?.access_token}`;
+};
 
 const MainApp = () => {
   const { user, signInWithDiscord, signOut, loading } = useAuth();
@@ -31,11 +46,9 @@ const MainApp = () => {
 
   const checkModeratorStatus = async () => {
     try {
-      const devToken = import.meta.env.DEV &&
-        (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
       const response = await fetch('/api/user/is-moderator', {
         headers: {
-          'Authorization': devToken ? 'Bearer dev_token' : `Bearer ${user?.id}`
+          'Authorization': await getAuthHeader()
         }
       });
       const data = await response.json();
@@ -51,12 +64,10 @@ const MainApp = () => {
     }
     
     try {
-      const devToken = import.meta.env.DEV &&
-        (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
       const response = await fetch('/api/admin/clear-cache', {
         method: 'POST',
         headers: {
-          'Authorization': devToken ? 'Bearer dev_token' : `Bearer ${user?.id}`,
+          'Authorization': await getAuthHeader(),
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({ type: 'all' })
