@@ -327,16 +327,26 @@ app.get('/api/bingo/board', async (req, res) => {
     
     // Get entries - either for authenticated user or no one (show unchecked board)
     let completedPokemonIds = new Set();
-    
+    let pendingPokemonIds = new Set();
+
     if (userId) {
       const { data: entries, error: entriesError } = await supabase
         .from('entries')
         .select('pokemon_id')
         .eq('user_id', userId)
         .eq('month_id', ACTIVE_MONTH_ID);
-      
+
       if (!entriesError && entries) {
         completedPokemonIds = new Set(entries.map(entry => entry.pokemon_id));
+      }
+
+      const { data: approvals, error: approvalsError } = await supabase
+        .from('approvals')
+        .select('pokemon_id')
+        .eq('user_id', userId);
+
+      if (!approvalsError && approvals) {
+        pendingPokemonIds = new Set(approvals.map(a => a.pokemon_id));
       }
     }
     
@@ -385,7 +395,7 @@ app.get('/api/bingo/board', async (req, res) => {
     
     // Build the 25-square board (24 Pokemon + 1 free space at position 13)
     const board = [];
-    
+
     for (let position = 1; position <= 25; position++) {
       if (position === 13) {
         // Free space at position 13
@@ -394,6 +404,7 @@ app.get('/api/bingo/board', async (req, res) => {
           position: 13,
           national_dex_id: null,
           is_checked: true, // Free space is always checked
+          is_pending: false,
           pokemon_name: 'FREE SPACE',
           pokemon_gif: null,
         });
@@ -407,6 +418,7 @@ app.get('/api/bingo/board', async (req, res) => {
             pokemon_id: pokemon.pokemon_id,
             national_dex_id: pokemon.pokemon_master.national_dex_id,
             is_checked: completedPokemonIds.has(pokemon.pokemon_id),
+            is_pending: !completedPokemonIds.has(pokemon.pokemon_id) && pendingPokemonIds.has(pokemon.pokemon_id),
             pokemon_name: pokemon.pokemon_master.name || 'Unknown',
             pokemon_gif: pokemon.pokemon_master.img_url,
           });
@@ -418,6 +430,7 @@ app.get('/api/bingo/board', async (req, res) => {
             pokemon_id: pokemon?.pokemon_id ?? null,
             national_dex_id: null,
             is_checked: false,
+            is_pending: false,
             pokemon_name: 'EMPTY',
             pokemon_gif: null,
           });
@@ -998,10 +1011,20 @@ app.get('/api/profile/:userId/board', async (req, res) => {
       .select('pokemon_id')
       .eq('user_id', userId)
       .eq('month_id', ACTIVE_MONTH_ID);
-    
+
     if (entriesError) throw entriesError;
-    
+
     const completedPokemonIds = new Set(entries.map(entry => entry.pokemon_id));
+
+    // Get user's pending approvals
+    const { data: approvals, error: approvalsError } = await supabase
+      .from('approvals')
+      .select('pokemon_id')
+      .eq('user_id', userId);
+
+    const pendingPokemonIds = new Set(
+      (!approvalsError && approvals) ? approvals.map(a => a.pokemon_id) : []
+    );
     
     // Get the month's Pokemon pool
     // Using manual join due to Supabase schema cache delay
@@ -1039,7 +1062,7 @@ app.get('/api/profile/:userId/board', async (req, res) => {
     
     // Build the 25-square board
     const board = [];
-    
+
     for (let position = 1; position <= 25; position++) {
       if (position === 13) {
         board.push({
@@ -1047,6 +1070,7 @@ app.get('/api/profile/:userId/board', async (req, res) => {
           position: 13,
           national_dex_id: null,
           is_checked: true,
+          is_pending: false,
           pokemon_name: 'FREE SPACE',
           pokemon_gif: null,
         });
@@ -1060,6 +1084,7 @@ app.get('/api/profile/:userId/board', async (req, res) => {
             pokemon_id: pokemon.pokemon_id,
             national_dex_id: pokemon.pokemon_master.national_dex_id,
             is_checked: completedPokemonIds.has(pokemon.pokemon_id),
+            is_pending: !completedPokemonIds.has(pokemon.pokemon_id) && pendingPokemonIds.has(pokemon.pokemon_id),
             pokemon_name: pokemon.pokemon_master.name || 'Unknown',
             pokemon_gif: pokemon.pokemon_master.img_url,
           });
@@ -1071,6 +1096,7 @@ app.get('/api/profile/:userId/board', async (req, res) => {
             pokemon_id: pokemon?.pokemon_id ?? null,
             national_dex_id: null,
             is_checked: false,
+            is_pending: false,
             pokemon_name: 'EMPTY',
             pokemon_gif: null,
           });
@@ -1643,19 +1669,10 @@ app.post('/api/upload/submission', upload.fields([{ name: 'file', maxCount: 1 },
     
     if (approvalError) throw approvalError;
 
-    // Record submission notification (non-fatal if it fails)
-    const { error: notifError } = await supabase
-      .from('notifications')
-      .insert({
-        user_id: userId,
-        status: 'submitted',
-        pokemon_id: parseInt(pokemon_id),
-        notified: false
-      });
+    // Note: pending notification is created automatically via DB trigger on approvals insert
 
-    if (notifError) {
-      console.error('Failed to insert submission notification:', notifError);
-    }
+    // Invalidate the user's board cache so is_pending shows immediately
+    cache.del(`board:${activeMonth.id}:${userId}`);
 
     res.json({ success: true, approval });
   } catch (error) {
