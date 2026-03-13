@@ -1303,12 +1303,23 @@ app.get('/api/upload/available-pokemon', async (req, res) => {
       .select('pokemon_id')
       .eq('user_id', userId)
       .in('month_id', monthIds);
-    
+
     if (entriesError) throw entriesError;
-    
-    const caughtPokemonIds = new Set(userEntries.map(e => e.pokemon_id));
-    
-    // Filter out already caught Pokemon
+
+    // Get user's pending approvals (pokemon already submitted, awaiting review)
+    const { data: pendingApprovals, error: approvalsError } = await supabase
+      .from('approvals')
+      .select('pokemon_id')
+      .eq('user_id', userId);
+
+    if (approvalsError) throw approvalsError;
+
+    const caughtPokemonIds = new Set([
+      ...userEntries.map(e => e.pokemon_id),
+      ...pendingApprovals.map(a => a.pokemon_id),
+    ]);
+
+    // Filter out already caught or pending Pokemon
     const availablePokemonIds = pokemonIds.filter(id => !caughtPokemonIds.has(id));
     
     // Get Pokemon details
@@ -2098,6 +2109,45 @@ app.get('/api/user/is-moderator', async (req, res) => {
   } catch (error) {
     console.error('Error checking moderator status:', error);
     res.json({ isModerator: false });
+  }
+});
+
+// Get notification history for the authenticated user
+app.get('/api/notifications', async (req, res) => {
+  try {
+    const userId = await getAuthenticatedUserId(req);
+    if (!userId) return res.status(401).json({ error: 'Authentication required' });
+
+    const { data: notifications, error } = await supabase
+      .from('notifications')
+      .select('id, status, pokemon_id, award, message, created_at')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false })
+      .limit(100);
+
+    if (error) throw error;
+
+    // Enrich with pokemon details
+    const pokemonIds = [...new Set(notifications.filter(n => n.pokemon_id).map(n => n.pokemon_id))];
+    let pokemonMap = {};
+    if (pokemonIds.length > 0) {
+      const { data: pokemon, error: pokemonError } = await supabase
+        .from('pokemon_master')
+        .select('id, national_dex_id, name, img_url')
+        .in('id', pokemonIds);
+      if (pokemonError) throw pokemonError;
+      pokemonMap = Object.fromEntries(pokemon.map(p => [p.id, p]));
+    }
+
+    const enriched = notifications.map(n => ({
+      ...n,
+      pokemon: n.pokemon_id ? (pokemonMap[n.pokemon_id] || null) : null,
+    }));
+
+    res.json(enriched);
+  } catch (error) {
+    console.error('Error fetching notifications:', error);
+    res.status(500).json({ error: 'Failed to fetch notifications' });
   }
 });
 
