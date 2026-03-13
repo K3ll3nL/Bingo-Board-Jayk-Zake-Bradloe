@@ -31,9 +31,11 @@ const MainApp = () => {
 
   const checkModeratorStatus = async () => {
     try {
+      const devToken = import.meta.env.DEV &&
+        (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
       const response = await fetch('/api/user/is-moderator', {
         headers: {
-          'Authorization': `Bearer ${user?.id}`
+          'Authorization': devToken ? 'Bearer dev_token' : `Bearer ${user?.id}`
         }
       });
       const data = await response.json();
@@ -49,10 +51,12 @@ const MainApp = () => {
     }
     
     try {
+      const devToken = import.meta.env.DEV &&
+        (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
       const response = await fetch('/api/admin/clear-cache', {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${user?.id}`,
+          'Authorization': devToken ? 'Bearer dev_token' : `Bearer ${user?.id}`,
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({ type: 'all' })
@@ -183,7 +187,7 @@ const MainApp = () => {
                     </div>
                   </div>
                 </div>
-              ) : (
+              ) : !import.meta.env.DEV && (
                 <button
                   onClick={handleLogin}
                   className="flex items-center gap-2 bg-[#5865F2] hover:bg-[#4752C4] text-white px-4 py-2 rounded-full transition-colors"
@@ -201,7 +205,7 @@ const MainApp = () => {
 
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 py-8">
-        {!user && (
+        {!user && !import.meta.env.DEV && (
           <div className="mb-6 rounded-lg p-4 text-center" style={{ backgroundColor: '#35373b', borderColor: '#5865F2', borderWidth: '1px' }}>
             <p className="text-blue-300 text-sm">
               👋 Sign in with Discord to track your own Pokemon progress!

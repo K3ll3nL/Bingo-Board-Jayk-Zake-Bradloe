@@ -10,7 +10,14 @@ const getAuthHeaders = async () => {
   const headers = {
     'Content-Type': 'application/json'
   };
-  
+
+  // Development only: send the dev bypass token recognised by the API
+  if (import.meta.env.DEV &&
+      (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')) {
+    headers['Authorization'] = 'Bearer dev_token';
+    return headers;
+  }
+
   try {
     const { data: { session } } = await supabase.auth.getSession();
     if (session?.access_token) {
@@ -20,7 +27,7 @@ const getAuthHeaders = async () => {
     // No auth token - that's okay, API will show public board
     console.log('No auth session');
   }
-  
+
   return headers;
 };
 

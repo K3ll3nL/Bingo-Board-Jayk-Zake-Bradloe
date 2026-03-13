@@ -30,3 +30,6 @@ Thumbs.db
 *.swp
 *.swo
 *~
+
+# Claude files
+.claude/

@@ -1,4 +1,4 @@
-require('dotenv').config();
+require('dotenv').config({ path: require('path').join(__dirname, '.env') });
 
 const express = require('express');
 const cors = require('cors');
@@ -38,16 +38,9 @@ app.use((err, req, res, next) => {
   next(err);
 });
 
-// Debug: Check environment variables
-console.log('=== Environment Variables Debug ===');
-console.log('SUPABASE_URL exists:', !!process.env.SUPABASE_URL);
-console.log('SUPABASE_ANON_KEY exists:', !!process.env.SUPABASE_ANON_KEY);
-console.log('SUPABASE_URL value:', process.env.SUPABASE_URL?.substring(0, 30) + '...');
-console.log('===================================');
-
 const supabase = createClient(
   process.env.SUPABASE_URL,
-  process.env.SUPABASE_ANON_KEY
+  process.env.SUPABASE_SERVICE_ROLE_KEY
 );
 
 // Simple in-memory cache
@@ -122,10 +115,10 @@ function broadcastSSE(event, data) {
 }
 
 // DEVELOPMENT ONLY: Auth bypass middleware
-const DEV_USER_ID = '3bb8389d-5147-4405-ad47-156315248565';
+const DEV_USER_ID = process.env.DEBUG_USER_ID;
 app.use((req, res, next) => {
   const authHeader = req.headers.authorization;
-  const isDev = process.env.NODE_ENV !== 'production' && authHeader === 'Bearer dev_token';
+  const isDev = process.env.NODE_ENV !== 'production' && DEV_USER_ID && authHeader === 'Bearer dev_token';
   
   if (isDev) {
     console.log('🔧 Dev token detected - bypassing auth for user:', DEV_USER_ID);
@@ -263,8 +256,11 @@ app.get('/api/events', async (req, res) => {
   });
 });
 
-// Debug endpoint to check database state
+// Debug endpoint to check database state (dev only)
 app.get('/api/debug/data', async (req, res) => {
+  if (process.env.NODE_ENV === 'production') {
+    return res.status(404).json({ error: 'Not found' });
+  }
   try {
     const { data: points, error: pointsError } = await supabase
       .from('user_monthly_points')
@@ -419,7 +415,7 @@ app.get('/api/bingo/board', async (req, res) => {
           board.push({
             id: `empty-${ACTIVE_MONTH_ID}-${position}`,
             position: position,
-            pokemon_id: pokemon.pokemon_id,
+            pokemon_id: pokemon?.pokemon_id ?? null,
             national_dex_id: null,
             is_checked: false,
             pokemon_name: 'EMPTY',
@@ -428,7 +424,7 @@ app.get('/api/bingo/board', async (req, res) => {
         }
       }
     }
-    
+
     // Get bingo achievements for this month (for everyone, not just logged-in user)
     let achievements = { row: null, column: null, x: null, blackout: null };
     
@@ -944,7 +940,7 @@ app.get('/api/profile/:userId/board', async (req, res) => {
           board.push({
             id: `empty-${ACTIVE_MONTH_ID}-${position}`,
             position: position,
-            pokemon_id: pokemon.pokemon_id,
+            pokemon_id: pokemon?.pokemon_id ?? null,
             national_dex_id: null,
             is_checked: false,
             pokemon_name: 'EMPTY',
@@ -953,7 +949,7 @@ app.get('/api/profile/:userId/board', async (req, res) => {
         }
       }
     }
-    
+
     res.json({
       month: monthData.month_year_display,
       board: board
@@ -967,22 +963,8 @@ app.get('/api/profile/:userId/board', async (req, res) => {
 // Get user's Pokedex (all pokemon with caught status)
 app.get('/api/pokedex', async (req, res) => {
   try {
-    let userId = null;
-    
-    // Check if user is authenticated
-    const authHeader = req.headers.authorization;
-    if (authHeader) {
-      try {
-        const token = authHeader.replace('Bearer ', '');
-        const { data: { user }, error: authError } = await supabase.auth.getUser(token);
-        if (user && !authError) {
-          userId = user.id;
-        }
-      } catch (err) {
-        console.log('Auth check failed');
-      }
-    }
-    
+    const userId = await getAuthenticatedUserId(req);
+
     if (!userId) {
       return res.status(401).json({ error: 'Authentication required' });
     }
@@ -1164,22 +1146,8 @@ app.get('/api/ambassadors', async (req, res) => {
 // Get available Pokemon for upload (active months, not yet caught)
 app.get('/api/upload/available-pokemon', async (req, res) => {
   try {
-    let userId = null;
-    
-    // Check if user is authenticated
-    const authHeader = req.headers.authorization;
-    if (authHeader) {
-      try {
-        const token = authHeader.replace('Bearer ', '');
-        const { data: { user }, error: authError } = await supabase.auth.getUser(token);
-        if (user && !authError) {
-          userId = user.id;
-        }
-      } catch (err) {
-        console.log('Auth check failed');
-      }
-    }
-    
+    const userId = await getAuthenticatedUserId(req);
+
     if (!userId) {
       return res.status(401).json({ error: 'Authentication required' });
     }
@@ -1231,28 +1199,160 @@ app.get('/api/upload/available-pokemon', async (req, res) => {
   }
 });
 
+// Get available Pokemon for historical upload (past months, most recent appearance only)
+app.get('/api/upload/available-pokemon-historical', async (req, res) => {
+  try {
+    const userId = await getAuthenticatedUserId(req);
+    if (!userId) {
+      return res.status(401).json({ error: 'Authentication required' });
+    }
+
+    const ACTIVE_MONTH_ID = await getActiveMonthId(userId);
+    console.log('Active month ID:', ACTIVE_MONTH_ID);
+    if (!ACTIVE_MONTH_ID) {
+      console.log('No active month found, returning empty array');
+      return res.json([]);
+    }
+    
+    // Get all past months (before current month)
+    const { data: pastMonths, error: monthsError } = await supabase
+      .from('bingo_months')
+      .select('id')
+      .lt('id', ACTIVE_MONTH_ID)
+      .order('id', { ascending: false });
+    
+    console.log('Past months found:', pastMonths?.length, pastMonths?.map(m => m.id));
+    if (monthsError) throw monthsError;
+    
+    if (!pastMonths || pastMonths.length === 0) {
+      console.log('No past months found, returning empty array');
+      return res.json([]);
+    }
+    
+    // Get Pokemon from all past month pools with their most recent month
+    const { data: allPastPokemon, error: poolError } = await supabase
+      .from('monthly_pokemon_pool')
+      .select('pokemon_id, month_id')
+      .in('month_id', pastMonths.map(m => m.id))
+      .order('month_id', { ascending: false });
+    
+    console.log('All past Pokemon entries:', allPastPokemon?.length);
+    if (poolError) throw poolError;
+    
+    // Get current month's pool to exclude them
+    const { data: currentMonthPool, error: currentPoolError } = await supabase
+      .from('monthly_pokemon_pool')
+      .select('pokemon_id')
+      .eq('month_id', ACTIVE_MONTH_ID);
+    
+    console.log('Current month pool size:', currentMonthPool?.length);
+    if (currentPoolError) throw currentPoolError;
+    
+    const currentMonthPokemonIds = new Set(currentMonthPool.map(p => p.pokemon_id));
+    console.log('Current month Pokemon IDs (first 5):', Array.from(currentMonthPokemonIds).slice(0, 5));
+    
+    // Build map: pokemon_id => most_recent_month_id
+    // Only include the MOST RECENT occurrence of each Pokemon (excluding current month)
+    const pokemonMostRecentMonth = {};
+    let skippedCurrentMonth = 0;
+    for (const entry of allPastPokemon) {
+      // Skip if Pokemon is in current month (use current upload instead)
+      if (currentMonthPokemonIds.has(entry.pokemon_id)) {
+        skippedCurrentMonth++;
+        continue;
+      }
+      
+      // Only keep if we haven't seen this Pokemon yet (first = most recent due to ordering)
+      if (!pokemonMostRecentMonth[entry.pokemon_id]) {
+        pokemonMostRecentMonth[entry.pokemon_id] = entry.month_id;
+      }
+    }
+    
+    console.log('Skipped (in current month):', skippedCurrentMonth);
+    console.log('Unique historical Pokemon:', Object.keys(pokemonMostRecentMonth).length);
+    console.log('First 5 historical Pokemon:', Object.entries(pokemonMostRecentMonth).slice(0, 5));
+    
+    // Get user's already caught Pokemon (from ALL months, not just historical)
+    const { data: userEntries, error: entriesError } = await supabase
+      .from('entries')
+      .select('pokemon_id, month_id')
+      .eq('user_id', userId);
+    
+    console.log('User total entries:', userEntries?.length);
+    if (entriesError) throw entriesError;
+    
+    // Build map: pokemon_id => Set of month_ids where user caught it
+    const userCaughtByMonth = {};
+    for (const entry of userEntries) {
+      if (!userCaughtByMonth[entry.pokemon_id]) {
+        userCaughtByMonth[entry.pokemon_id] = new Set();
+      }
+      userCaughtByMonth[entry.pokemon_id].add(entry.month_id);
+    }
+    
+    console.log('User caught Pokemon (unique):', Object.keys(userCaughtByMonth).length);
+    
+    // Filter: Keep Pokemon where user hasn't caught it in its most recent month
+    const availableHistoricalPokemon = [];
+    for (const [pokemonId, monthId] of Object.entries(pokemonMostRecentMonth)) {
+      const caughtInMonths = userCaughtByMonth[parseInt(pokemonId)] || new Set();
+      
+      // Only available if user hasn't caught it in this specific month
+      if (!caughtInMonths.has(monthId)) {
+        availableHistoricalPokemon.push({
+          pokemon_id: parseInt(pokemonId),
+          month_id: monthId
+        });
+      }
+    }
+    
+    console.log('Available historical Pokemon (after filtering):', availableHistoricalPokemon.length);
+    console.log('First 5 available:', availableHistoricalPokemon.slice(0, 5));
+    
+    if (availableHistoricalPokemon.length === 0) {
+      console.log('No historical Pokemon available for user, returning empty array');
+      return res.json([]);
+    }
+    
+    // Get Pokemon details
+    const pokemonIds = availableHistoricalPokemon.map(p => p.pokemon_id);
+    const { data: pokemon, error: pokemonError } = await supabase
+      .from('pokemon_master')
+      .select('id, national_dex_id, name, img_url')
+      .in('id', pokemonIds)
+      .eq('shiny_available', true);
+    
+    if (pokemonError) throw pokemonError;
+    
+    console.log('Pokemon details fetched:', pokemon?.length);
+    
+    // Attach month_id to each Pokemon for submission
+    const pokemonWithMonth = pokemon.map(p => {
+      const entry = availableHistoricalPokemon.find(h => h.pokemon_id === p.id);
+      return {
+        ...p,
+        month_id: entry.month_id
+      };
+    });
+    
+    console.log('Returning Pokemon with month info (first 3):', pokemonWithMonth.slice(0, 3));
+    console.log('=== END TESTING MODE ===');
+    
+    res.json(pokemonWithMonth || []);
+  } catch (error) {
+    console.error('Error fetching historical Pokemon:', error);
+    res.status(500).json({ error: 'Failed to fetch historical Pokemon' });
+  }
+});
+
 // Submit catch
 app.post('/api/upload/submission', upload.fields([{ name: 'file', maxCount: 1 }, { name: 'file2', maxCount: 1 }]), async (req, res) => {
   try {
     console.log('Request body:', req.body);
     console.log('Request files:', req.files);
-    
-    let userId = null;
-    
-    // Check if user is authenticated
-    const authHeader = req.headers.authorization;
-    if (authHeader) {
-      try {
-        const token = authHeader.replace('Bearer ', '');
-        const { data: { user }, error: authError } = await supabase.auth.getUser(token);
-        if (user && !authError) {
-          userId = user.id;
-        }
-      } catch (err) {
-        console.log('Auth check failed');
-      }
-    }
-    
+
+    const userId = await getAuthenticatedUserId(req);
+
     if (!userId) {
       return res.status(401).json({ error: 'Authentication required' });
     }
@@ -1520,17 +1620,15 @@ app.get('/api/pokemon/:pokemonId/recent-catches', async (req, res) => {
 app.post('/api/approvals/:id/approve', async (req, res) => {
   try {
     const { id } = req.params;
-    const authHeader = req.headers.authorization;
-    
+
     console.log('Approving submission:', id);
-    
-    if (!authHeader) {
+
+    const moderatorId = await getAuthenticatedUserId(req);
+    if (!moderatorId) {
       return res.status(401).json({ error: 'Authentication required' });
     }
-    
-    const moderatorId = authHeader.replace('Bearer ', '');
     console.log('Moderator ID:', moderatorId);
-    
+
     // Check if user is moderator
     const { data: isMod, error: modError } = await supabase
       .from('twitch_ambassadors')
@@ -1656,17 +1754,15 @@ app.post('/api/approvals/:id/reject', async (req, res) => {
   try {
     const { id } = req.params;
     const { message } = req.body;
-    const authHeader = req.headers.authorization;
-    
+
     console.log('Rejecting submission:', id, 'Message:', message);
-    
-    if (!authHeader) {
+
+    const moderatorId = await getAuthenticatedUserId(req);
+    if (!moderatorId) {
       return res.status(401).json({ error: 'Authentication required' });
     }
-    
-    const moderatorId = authHeader.replace('Bearer ', '');
     console.log('Moderator ID:', moderatorId);
-    
+
     // Check if user is moderator
     const { data: isMod, error: modError } = await supabase
       .from('twitch_ambassadors')
@@ -1787,14 +1883,12 @@ app.post('/api/approvals/:id/reject', async (req, res) => {
 // Admin-only: Clear cache manually
 app.post('/api/admin/clear-cache', async (req, res) => {
   try {
-    const authHeader = req.headers.authorization;
-    
-    if (!authHeader) {
+    const userId = await getAuthenticatedUserId(req);
+
+    if (!userId) {
       return res.status(401).json({ error: 'Authentication required' });
     }
-    
-    const userId = authHeader.replace('Bearer ', '');
-    
+
     // Check if user is moderator (twitch_ambassador)
     const { data: isMod, error: modError } = await supabase
       .from('twitch_ambassadors')
@@ -1844,25 +1938,20 @@ app.post('/api/admin/clear-cache', async (req, res) => {
   }
 });
 
-// Export for Vercel serverless
-module.exports = app;
-
 // Check if user is a moderator (Twitch Ambassador)
 app.get('/api/user/is-moderator', async (req, res) => {
   try {
-    const authHeader = req.headers.authorization;
-    if (!authHeader) {
+    const userId = await getAuthenticatedUserId(req);
+    if (!userId) {
       return res.json({ isModerator: false });
     }
 
-    const userId = authHeader.replace('Bearer ', '');
-    
     const { data: ambassador, error } = await supabase
       .from('twitch_ambassadors')
       .select('id')
       .eq('id', userId)
       .single();
-    
+
     res.json({ isModerator: !error && !!ambassador });
   } catch (error) {
     console.error('Error checking moderator status:', error);
@@ -1873,6 +1962,22 @@ app.get('/api/user/is-moderator', async (req, res) => {
 // Get pending approvals (moderators only)
 app.get('/api/approvals/pending', async (req, res) => {
   try {
+    const userId = await getAuthenticatedUserId(req);
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    // Verify moderator status
+    const { data: ambassador, error: modError } = await supabase
+      .from('twitch_ambassadors')
+      .select('id')
+      .eq('id', userId)
+      .single();
+
+    if (modError || !ambassador) {
+      return res.status(403).json({ error: 'Forbidden' });
+    }
+
     console.log('Fetching pending approvals...');
     
     // Get all approvals with user and pokemon info
@@ -1933,3 +2038,6 @@ if (require.main === module) {
     console.log(`🚀 Server running on http://localhost:${PORT}`);
   });
 }
+
+// Export for Vercel serverless
+module.exports = app;

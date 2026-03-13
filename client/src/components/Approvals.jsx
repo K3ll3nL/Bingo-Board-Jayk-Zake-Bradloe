@@ -1,6 +1,21 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
+import { createClient } from '@supabase/supabase-js';
+
+const supabase = createClient(
+  import.meta.env.VITE_SUPABASE_URL,
+  import.meta.env.VITE_SUPABASE_ANON_KEY
+);
+
+const getAuthHeader = async () => {
+  if (import.meta.env.DEV &&
+      (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')) {
+    return 'Bearer dev_token';
+  }
+  const { data: { session } } = await supabase.auth.getSession();
+  return `Bearer ${session?.access_token}`;
+};
 
 const Approvals = () => {
   const { user } = useAuth();
@@ -34,7 +49,7 @@ const Approvals = () => {
     try {
       const response = await fetch(`/api/user/is-moderator`, {
         headers: {
-          'Authorization': `Bearer ${user?.id}`
+          'Authorization': await getAuthHeader()
         }
       });
       const data = await response.json();
@@ -52,7 +67,9 @@ const Approvals = () => {
   const loadApprovals = async () => {
     try {
       setLoading(true);
-      const response = await fetch('/api/approvals/pending');
+      const response = await fetch('/api/approvals/pending', {
+        headers: { 'Authorization': await getAuthHeader() }
+      });
       if (!response.ok) throw new Error('Failed to load approvals');
       const data = await response.json();
       setApprovals(data);
@@ -80,7 +97,7 @@ const Approvals = () => {
       const response = await fetch(`/api/approvals/${approvalId}/approve`, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${user?.id}`,
+          'Authorization': await getAuthHeader(),
           'Content-Type': 'application/json'
         }
       });
@@ -106,7 +123,7 @@ const Approvals = () => {
       const response = await fetch(`/api/approvals/${approvalId}/reject`, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${user?.id}`,
+          'Authorization': await getAuthHeader(),
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({

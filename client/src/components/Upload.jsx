@@ -8,6 +8,15 @@ const supabase = createClient(
   import.meta.env.VITE_SUPABASE_ANON_KEY
 );
 
+const getAuthHeader = async () => {
+  if (import.meta.env.DEV &&
+      (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')) {
+    return 'Bearer dev_token';
+  }
+  const { data: { session } } = await supabase.auth.getSession();
+  return `Bearer ${session?.access_token}`;
+};
+
 const Upload = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -51,11 +60,9 @@ const Upload = () => {
 
   const loadAvailablePokemon = async () => {
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      
       const response = await fetch('/api/upload/available-pokemon', {
         headers: {
-          'Authorization': `Bearer ${session?.access_token}`
+          'Authorization': await getAuthHeader()
         }
       });
       if (!response.ok) throw new Error('Failed to fetch available Pokemon');
@@ -126,22 +133,20 @@ const Upload = () => {
     setError(null);
     
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      
       const formData = new FormData();
       formData.append('pokemon_id', selectedPokemon);
-      
+
       if (mediaFile && mediaFile2) {
         formData.append('file', mediaFile);
         formData.append('file2', mediaFile2);
       } else if (mediaUrl) {
         formData.append('url', mediaUrl);
       }
-      
+
       const response = await fetch('/api/upload/submission', {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${session?.access_token}`
+          'Authorization': await getAuthHeader()
         },
         body: formData
       });

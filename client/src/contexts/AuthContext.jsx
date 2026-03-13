@@ -16,18 +16,32 @@ export const useAuth = () => {
   return context;
 };
 
+// Only true during `npm run dev` on localhost — statically false in production builds
+const isLocalhostDev = () =>
+  import.meta.env.DEV &&
+  (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Check active sessions
+    if (isLocalhostDev() && import.meta.env.VITE_DEV_USER_ID) {
+      setUser({
+        id: import.meta.env.VITE_DEV_USER_ID,
+        email: 'dev@localhost',
+        user_metadata: { full_name: 'Dev (localhost)' }
+      });
+      setLoading(false);
+      return;
+    }
+
+    // Production: normal Supabase auth
     supabase.auth.getSession().then(({ data: { session } }) => {
       setUser(session?.user ?? null);
       setLoading(false);
     });
 
-    // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setUser(session?.user ?? null);
     });
@@ -39,12 +53,12 @@ export const AuthProvider = ({ children }) => {
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'discord',
       options: {
-        redirectTo: import.meta.env.DEV 
+        redirectTo: import.meta.env.DEV
           ? 'http://localhost:5173/auth/callback'
           : `${window.location.origin}/auth/callback`
       }
     });
-    
+
     if (error) {
       console.error('Error signing in:', error);
       throw error;
@@ -52,6 +66,10 @@ export const AuthProvider = ({ children }) => {
   };
 
   const signOut = async () => {
+    if (isLocalhostDev()) {
+      setUser(null);
+      return;
+    }
     const { error } = await supabase.auth.signOut();
     if (error) {
       console.error('Error signing out:', error);
