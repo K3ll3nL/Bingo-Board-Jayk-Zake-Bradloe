@@ -114,7 +114,7 @@ const Leaderboard = () => {
             No players yet
           </div>
         ) : (
-          <div className="divide-y overflow-y-auto" style={{ borderColor: '#404040', maxHeight: '630px' }}>
+          <div className="divide-y overflow-y-auto" style={{ borderColor: '#404040', maxHeight: '610px' }}>
             {leaderboard.map((user, index) => {
               const position = index + 1;
               const medal = getMedalEmoji(position);
@@ -126,7 +126,7 @@ const Leaderboard = () => {
                   onClick={() => navigate(`/profile/${user.user_id}`)}
                   className={`
                     p-2 flex items-center justify-between transition-colors cursor-pointer hover:bg-gray-600`}
-                  style={{ maxHeight: '55px' }}
+                  style={{ maxHeight: '70px' }}
                 >
                   <div className="flex items-center gap-3">
                     <div className="flex items-center justify-center w-8 h-8">
