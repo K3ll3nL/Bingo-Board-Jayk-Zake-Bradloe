@@ -24,6 +24,61 @@ const isLocalhostDev = () =>
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [boardVersion, setBoardVersion] = useState(0);
+  const [leaderboardVersion, setLeaderboardVersion] = useState(0);
+
+  // Realtime subscriptions live here so they survive route changes
+  useEffect(() => {
+    const channels = [];
+
+    // Broadcast: works in dev + prod without any DB setup
+    const boardBroadcast = supabase
+      .channel('board-updates')
+      .on('broadcast', { event: 'board-changed' }, () => setBoardVersion(v => v + 1))
+      .subscribe();
+    channels.push(boardBroadcast);
+
+    const leaderboardBroadcast = supabase
+      .channel('leaderboard-updates')
+      .on('broadcast', { event: 'leaderboard-changed' }, () => setLeaderboardVersion(v => v + 1))
+      .subscribe();
+    channels.push(leaderboardBroadcast);
+
+    // postgres_changes: direct DB events.
+    // Only works in production where supabase has a real auth session with a valid JWT.
+    if (!isLocalhostDev() && user?.id) {
+      const dbChanges = supabase
+        .channel('db-entry-changes')
+        .on('postgres_changes', {
+          event: '*',
+          schema: 'public',
+          table: 'entries',
+          filter: `user_id=eq.${user.id}`
+        }, () => {
+          setBoardVersion(v => v + 1);
+        })
+        .on('postgres_changes', {
+          event: '*',
+          schema: 'public',
+          table: 'approvals',
+          filter: `user_id=eq.${user.id}`
+        }, () => {
+          setBoardVersion(v => v + 1);
+        })
+        .on('postgres_changes', {
+          event: '*',
+          schema: 'public',
+          table: 'user_monthly_points',
+          filter: `user_id=eq.${user.id}`
+        }, () => {
+          setLeaderboardVersion(v => v + 1);
+        })
+        .subscribe();
+      channels.push(dbChanges);
+    }
+
+    return () => channels.forEach(c => supabase.removeChannel(c));
+  }, [user]);
 
   useEffect(() => {
     if (isLocalhostDev() && import.meta.env.VITE_DEV_USER_ID) {
@@ -82,7 +137,9 @@ export const AuthProvider = ({ children }) => {
     loading,
     signInWithDiscord,
     signOut,
-    supabase
+    supabase,
+    boardVersion,
+    leaderboardVersion
   };
 
   return (

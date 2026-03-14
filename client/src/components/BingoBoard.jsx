@@ -5,7 +5,7 @@ import backgroundImage from '../Icons/2026Jan.png';
 import PokemonModal from './PokemonModal';
 
 const BingoBoard = () => {
-  const { user } = useAuth();
+  const { user, boardVersion } = useAuth();
   const [board, setBoard] = useState([]);
   const [month, setMonth] = useState('');
   const [loading, setLoading] = useState(true);
@@ -17,11 +17,7 @@ const BingoBoard = () => {
 
   useEffect(() => {
     loadBoard();
-    
-    // Check for completion updates every 5 minutes (not images, just data)
-    const interval = setInterval(checkForUpdates, 5 * 60 * 1000);
-    return () => clearInterval(interval);
-  }, [user]);
+  }, [user, boardVersion]);
 
   useEffect(() => {
     // Reset images loaded when board changes
@@ -51,25 +47,6 @@ const BingoBoard = () => {
       console.error(err);
     } finally {
       setLoading(false);
-    }
-  };
-
-  // Check only for completion status updates, not reload images
-  const checkForUpdates = async () => {
-    try {
-      const data = await api.getBingoBoard();
-      // Only update completion status, not the entire board
-      setBoard(prevBoard => 
-        prevBoard.map(cell => {
-          const updated = data.board.find(c => c.id === cell.id);
-          if (updated && cell.is_checked !== updated.is_checked) {
-            return { ...cell, is_checked: updated.is_checked };
-          }
-          return cell;
-        })
-      );
-    } catch (err) {
-      console.error('Failed to check for updates:', err);
     }
   };
 

@@ -161,7 +161,7 @@ const Upload = () => {
       setMediaUrl('');
       setMediaFile(null);
       setMediaFile2(null);
-      
+
       setTimeout(() => {
         setSuccess(false);
         loadAvailablePokemon();

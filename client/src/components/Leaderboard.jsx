@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../services/api';
+import { useAuth } from '../contexts/AuthContext';
 
 const Leaderboard = () => {
   const navigate = useNavigate();
+  const { leaderboardVersion } = useAuth();
   const [leaderboard, setLeaderboard] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -13,11 +15,7 @@ const Leaderboard = () => {
     setLoading(true);
     setLeaderboard([]);
     loadLeaderboard();
-
-    // Poll for updates every 30 seconds
-    const interval = setInterval(loadLeaderboard, 30000);
-    return () => clearInterval(interval);
-  }, [viewMode]);
+  }, [viewMode, leaderboardVersion]);
 
   const loadLeaderboard = async () => {
     try {

@@ -43,6 +43,26 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY
 );
 
+// Supabase Realtime Broadcast helper — fire-and-forget, no WebSocket needed
+const broadcastUpdate = async (channel, event, payload = {}) => {
+  try {
+    const res = await fetch(`${process.env.SUPABASE_URL}/realtime/v1/api/broadcast`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`,
+        'apikey': process.env.SUPABASE_SERVICE_ROLE_KEY
+      },
+      body: JSON.stringify({
+        messages: [{ topic: channel, event, payload }]
+      })
+    });
+    if (!res.ok) console.error(`Broadcast ${event} failed: ${res.status}`);
+  } catch (err) {
+    console.error('Broadcast failed (non-fatal):', err.message);
+  }
+};
+
 // Simple in-memory cache
 const cache = {
   store: new Map(),
@@ -1674,6 +1694,9 @@ app.post('/api/upload/submission', upload.fields([{ name: 'file', maxCount: 1 },
     // Invalidate the user's board cache so is_pending shows immediately
     cache.store.delete(`board:${activeMonth.id}:${userId}`);
 
+    // Notify connected clients
+    await broadcastUpdate('board-updates', 'board-changed', { userId });
+
     res.json({ success: true, approval });
   } catch (error) {
     console.error('Error submitting catch:', error);
@@ -1842,17 +1865,12 @@ app.post('/api/approvals/:id/approve', async (req, res) => {
     cache.clear('board:');
     cache.clear('leaderboard:');
     console.log('Cleared board and leaderboard cache');
-    
-    // Send SSE notification to the user who submitted
-    sendSSEToUser(approval.user_id, 'approval', {
-      type: 'approved',
-      pokemonId: approval.pokemon_id,
-      points: data.points_awarded,
-      achievements: data.achievements || []
-    });
-    
-    // Broadcast board update to all connected clients
-    broadcastSSE('board-update', { refresh: true });
+
+    // Notify connected clients
+    await Promise.all([
+      broadcastUpdate('board-updates', 'board-changed', { userId: approval.user_id }),
+      broadcastUpdate('leaderboard-updates', 'leaderboard-changed', {})
+    ]);
     
     // Delete images from R2 if they exist (only for image uploads, not Twitch links)
     const R2_BUCKET_URL = process.env.R2_BUCKET_URL;
@@ -1977,13 +1995,9 @@ app.post('/api/approvals/:id/reject', async (req, res) => {
     // Leaderboard doesn't change on rejection
     cache.clear('board:');
     console.log('Cleared board cache');
-    
-    // Send SSE notification to the user who submitted
-    sendSSEToUser(approval.user_id, 'approval', {
-      type: 'rejected',
-      pokemonId: approval.pokemon_id,
-      message: message || 'No reason provided'
-    });
+
+    // Notify connected clients
+    await broadcastUpdate('board-updates', 'board-changed', { userId: approval.user_id });
     
     // Delete images from R2 if they exist (only for image uploads, not Twitch links)
     const R2_BUCKET_URL = process.env.R2_BUCKET_URL;
