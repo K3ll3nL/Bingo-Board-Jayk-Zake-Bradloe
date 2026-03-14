@@ -6,7 +6,7 @@ const API_BASE_URL = import.meta.env.VITE_API_URL || (
 );
 
 // Helper to get auth header (if user is logged in)
-const getAuthHeaders = async () => {
+export const getAuthHeaders = async () => {
   const headers = {
     'Content-Type': 'application/json'
   };

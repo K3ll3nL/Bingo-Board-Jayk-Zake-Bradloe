@@ -11,6 +11,7 @@ import TwitchAmbassadors from './components/TwitchAmbassadors';
 import Upload from './components/Upload';
 import Approvals from './components/Approvals';
 import SubmissionHistory from './components/SubmissionHistory';
+import NotificationToast from './components/NotificationToast';
 import logoImage from './Icons/pokemon-bounty-board.png';
 
 const supabase = createClient(
@@ -262,6 +263,7 @@ function App() {
   return (
     <Router>
       <AuthProvider>
+        <NotificationToast />
         <Routes>
           <Route path="/auth/callback" element={<AuthCallback />} />
           <Route path="/profile/:userId" element={<Profile />} />

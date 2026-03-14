@@ -2149,12 +2149,18 @@ app.get('/api/notifications', async (req, res) => {
     const userId = await getAuthenticatedUserId(req);
     if (!userId) return res.status(401).json({ error: 'Authentication required' });
 
-    const { data: notifications, error } = await supabase
+    const unreadOnly = req.query.unread === 'true';
+
+    let query = supabase
       .from('notifications')
-      .select('id, status, pokemon_id, award, message, created_at')
+      .select('id, status, pokemon_id, award, message, created_at, notified')
       .eq('user_id', userId)
-      .order('created_at', { ascending: false })
+      .order('created_at', { ascending: true })
       .limit(100);
+
+    if (unreadOnly) query = query.eq('notified', false);
+
+    const { data: notifications, error } = await query;
 
     if (error) throw error;
 
@@ -2179,6 +2185,29 @@ app.get('/api/notifications', async (req, res) => {
   } catch (error) {
     console.error('Error fetching notifications:', error);
     res.status(500).json({ error: 'Failed to fetch notifications' });
+  }
+});
+
+// Mark a notification as notified
+app.patch('/api/notifications/:id/notified', async (req, res) => {
+  try {
+    const userId = await getAuthenticatedUserId(req);
+    if (!userId) return res.status(401).json({ error: 'Authentication required' });
+
+    const { id } = req.params;
+
+    const { error } = await supabase
+      .from('notifications')
+      .update({ notified: true })
+      .eq('id', id)
+      .eq('user_id', userId); // ensures users can only mark their own
+
+    if (error) throw error;
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error marking notification as notified:', error);
+    res.status(500).json({ error: 'Failed to mark notification' });
   }
 });
 
