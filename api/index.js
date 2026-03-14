@@ -2155,7 +2155,7 @@ app.get('/api/notifications', async (req, res) => {
       .from('notifications')
       .select('id, status, pokemon_id, award, message, created_at, notified')
       .eq('user_id', userId)
-      .order('created_at', { ascending: true })
+      .order('created_at', { ascending: false })
       .limit(100);
 
     if (unreadOnly) query = query.eq('notified', false);
@@ -2176,9 +2176,23 @@ app.get('/api/notifications', async (req, res) => {
       pokemonMap = Object.fromEntries(pokemon.map(p => [p.id, p]));
     }
 
+    // Enrich with award (bingo achievement) details
+    const awardIds = [...new Set(notifications.filter(n => n.award).map(n => n.award))];
+    let awardMap = {};
+    if (awardIds.length > 0) {
+      console.log('Looking up award IDs:', awardIds);
+      const { data: awards, error: awardsError } = await supabase
+        .from('bingo_achievements')
+        .select('id, bingo_type')
+        .in('id', awardIds);
+      console.log('Award lookup result:', { awards, awardsError });
+      if (!awardsError && awards) awardMap = Object.fromEntries(awards.map(a => [a.id, a]));
+    }
+
     const enriched = notifications.map(n => ({
       ...n,
       pokemon: n.pokemon_id ? (pokemonMap[n.pokemon_id] || null) : null,
+      achievement: n.award ? (awardMap[n.award] || null) : null,
     }));
 
     res.json(enriched);

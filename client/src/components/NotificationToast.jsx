@@ -4,10 +4,49 @@ import { getAuthHeaders } from '../services/api';
 
 const TOAST_DURATION = 5000;
 
+const BINGO_TYPE_LABELS = {
+  row: 'Row Bingo',
+  column: 'Column Bingo',
+  x: 'Diagonal Bingo',
+  blackout: 'Blackout Bingo',
+};
+
+const getBingoIcon = (bingoType, style = {}) => {
+  const base = { fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24', ...style };
+  switch (bingoType) {
+    case 'row':
+      return (
+        <svg {...base}><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 12h16" /></svg>
+      );
+    case 'column':
+      return (
+        <svg {...base}><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16" /></svg>
+      );
+    case 'x':
+      return (
+        <svg {...base}><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+      );
+    case 'blackout':
+      return (
+        <svg {...base} strokeWidth={2}>
+          <rect x="3" y="3" width="18" height="18" rx="1" />
+          <path d="M3 7.2h18M3 10.2h18M3 13.8h18M3 16.8h18" />
+          <path d="M7.2 3v18M10.2 3v18M13.8 3v18M16.8 3v18" />
+        </svg>
+      );
+    default:
+      return (
+        <svg {...base} fill="currentColor">
+          <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
+        </svg>
+      );
+  }
+};
+
 const STATUS_CONFIG = {
   approved: {
     borderColor: '#22c55e',
-    bgColor: '#052e16',
+    bgColor: '#071a0e',
     badgeBg: '#14532d',
     badgeText: '#86efac',
     label: 'Approved!',
@@ -19,7 +58,7 @@ const STATUS_CONFIG = {
   },
   rejected: {
     borderColor: '#ef4444',
-    bgColor: '#2d0a0a',
+    bgColor: '#1a0707',
     badgeBg: '#450a0a',
     badgeText: '#fca5a5',
     label: 'Rejected',
@@ -29,13 +68,21 @@ const STATUS_CONFIG = {
       </svg>
     ),
   },
+  achievement: {
+    borderColor: '#5865F2',
+    bgColor: '#0c0e1f',
+    badgeBg: '#1e2157',
+    badgeText: '#a5b4fc',
+    label: 'Achievement!',
+    icon: null, // rendered dynamically from bingo_type
+  },
 };
 
 const DEFAULT_CONFIG = {
-  borderColor: '#8b5cf6',
-  bgColor: '#1e1b4b',
-  badgeBg: '#2e1065',
-  badgeText: '#c4b5fd',
+  borderColor: '#5865F2',
+  bgColor: '#0c0e1f',
+  badgeBg: '#1e2157',
+  badgeText: '#a5b4fc',
   label: 'Notification',
   icon: (
     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -47,7 +94,10 @@ const DEFAULT_CONFIG = {
 const Toast = ({ notification, onDismiss }) => {
   const [visible, setVisible] = useState(false);
   const [progress, setProgress] = useState(100);
-  const config = STATUS_CONFIG[notification.status] || DEFAULT_CONFIG;
+  const isAchievement = notification.status === 'award' || !!notification.achievement;
+  const config = isAchievement
+    ? STATUS_CONFIG.achievement
+    : (STATUS_CONFIG[notification.status] || DEFAULT_CONFIG);
 
   useEffect(() => {
     // Trigger slide-in on next frame
@@ -79,6 +129,7 @@ const Toast = ({ notification, onDismiss }) => {
     setTimeout(onDismiss, 350);
   };
 
+  const bingoType = notification.achievement?.bingo_type;
   const spriteUrl = notification.pokemon?.img_url
     || (notification.pokemon?.national_dex_id
       ? `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/${notification.pokemon.national_dex_id}.png`
@@ -101,14 +152,22 @@ const Toast = ({ notification, onDismiss }) => {
     >
       {/* Main content */}
       <div className="flex items-start gap-3 p-3">
-        {/* Pokemon sprite */}
-        {spriteUrl && (
+        {/* Left icon: bingo type badge for achievements, pokemon sprite otherwise */}
+        {isAchievement ? (
+          <div style={{
+            width: '48px', height: '48px', borderRadius: '8px', flexShrink: 0,
+            backgroundColor: config.badgeBg, border: `2px solid ${config.borderColor}`,
+            display: 'flex', alignItems: 'center', justifyContent: 'center', color: config.badgeText,
+          }}>
+            {getBingoIcon(bingoType, { width: 28, height: 28 })}
+          </div>
+        ) : spriteUrl ? (
           <img
             src={spriteUrl}
             alt={notification.pokemon?.name || ''}
             style={{ width: '48px', height: '48px', imageRendering: 'pixelated', flexShrink: 0 }}
           />
-        )}
+        ) : null}
 
         {/* Text */}
         <div className="flex-1 min-w-0">
@@ -127,22 +186,34 @@ const Toast = ({ notification, onDismiss }) => {
                 gap: '4px',
               }}
             >
-              <span style={{ color: config.badgeText }}>{config.icon}</span>
+              <span style={{ color: config.badgeText, display: 'flex', alignItems: 'center' }}>
+                {isAchievement
+                  ? getBingoIcon(bingoType, { width: 12, height: 12 })
+                  : config.icon}
+              </span>
               {config.label}
             </span>
           </div>
 
-          {/* Pokemon name */}
-          {notification.pokemon?.name && (
+          {/* Title */}
+          {isAchievement ? (
             <p style={{ color: '#f1f5f9', fontWeight: 600, fontSize: '14px', margin: 0, lineHeight: 1.3 }}>
-              {notification.pokemon.name}
+              {notification.achievement?.bingo_type
+                ? `You were awarded the first ${BINGO_TYPE_LABELS[notification.achievement.bingo_type] || notification.achievement.bingo_type}! Congrats!`
+                : 'You earned an achievement! Congrats!'}
+            </p>
+          ) : (
+            <p style={{ color: '#f1f5f9', fontWeight: 600, fontSize: '14px', margin: 0, lineHeight: 1.3 }}>
+              {notification.pokemon?.name
+                ? `Your ${notification.pokemon.name} submission was ${notification.status}.`
+                : `Your submission was ${notification.status}.`}
             </p>
           )}
 
-          {/* Message */}
-          {notification.message && (
+          {/* Rejection reason */}
+          {notification.status === 'rejected' && notification.message && (
             <p style={{ color: '#94a3b8', fontSize: '12px', margin: '2px 0 0', lineHeight: 1.4 }}>
-              {notification.message}
+              Reason: {notification.message}
             </p>
           )}
         </div>
@@ -255,6 +326,16 @@ const NotificationToast = () => {
               .eq('id', notification.pokemon_id)
               .single();
             notification = { ...notification, pokemon };
+          }
+
+          // Fetch achievement details if needed
+          if (notification.award) {
+            const { data: achievement } = await supabase
+              .from('bingo_achievements')
+              .select('id, bingo_type')
+              .eq('id', notification.award)
+              .single();
+            notification = { ...notification, achievement };
           }
 
           enqueue([notification]);
