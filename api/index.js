@@ -63,6 +63,67 @@ const broadcastUpdate = async (channel, event, payload = {}) => {
   }
 };
 
+// Fetch, enrich, and broadcast fresh unnotified notifications to a user's toast feed.
+// Also fires to 'award-announcements' if any notification is an award (for other users' toasts).
+const broadcastNotificationToasts = async (userId) => {
+  try {
+    const { data: freshNotifs } = await supabase
+      .from('notifications')
+      .select('id, status, pokemon_id, award, message, created_at')
+      .eq('user_id', userId)
+      .eq('notified', false)
+      .order('created_at', { ascending: false })
+      .limit(5);
+
+    if (!freshNotifs?.length) return;
+
+    const pokemonIds = [...new Set(freshNotifs.filter(n => n.pokemon_id).map(n => n.pokemon_id))];
+    let pokemonMap = {};
+    if (pokemonIds.length > 0) {
+      const { data: pokemon } = await supabase
+        .from('pokemon_master').select('id, national_dex_id, name, img_url').in('id', pokemonIds);
+      if (pokemon) pokemonMap = Object.fromEntries(pokemon.map(p => [p.id, p]));
+    }
+
+    const awardIds = [...new Set(freshNotifs.filter(n => n.award).map(n => n.award))];
+    let awardMap = {};
+    if (awardIds.length > 0) {
+      const { data: awards } = await supabase
+        .from('bingo_achievements')
+        .select('id, bingo_type, bingo_months(month_year_display)')
+        .in('id', awardIds);
+      if (awards) awardMap = Object.fromEntries(awards.map(a => [a.id, a]));
+    }
+
+    for (const n of freshNotifs) {
+      const ach = n.award ? awardMap[n.award] : null;
+      const enriched = {
+        ...n,
+        pokemon: n.pokemon_id ? (pokemonMap[n.pokemon_id] || null) : null,
+        achievement: ach ? {
+          ...ach,
+          month_name: ach.bingo_months?.month_year_display?.split(' ')[0] || null,
+        } : null,
+      };
+
+      await broadcastUpdate(`notifications-${userId}`, 'new-notification', enriched);
+
+      if (n.status === 'award' && n.award) {
+        const { data: winner } = await supabase
+          .from('users').select('id, display_name').eq('id', userId).single();
+        await broadcastUpdate('award-announcements', 'new-award', {
+          ...enriched,
+          is_broadcast: true,
+          status: 'award_broadcast',
+          winner,
+        });
+      }
+    }
+  } catch (err) {
+    console.error('broadcastNotificationToasts failed (non-fatal):', err.message);
+  }
+};
+
 // Simple in-memory cache
 const cache = {
   store: new Map(),
@@ -1874,9 +1935,10 @@ app.post('/api/approvals/:id/approve', async (req, res) => {
     // Notify connected clients
     await Promise.all([
       broadcastUpdate('board-updates', 'board-changed', { userId: approval.user_id }),
-      broadcastUpdate('leaderboard-updates', 'leaderboard-changed', {})
+      broadcastUpdate('leaderboard-updates', 'leaderboard-changed', {}),
+      broadcastNotificationToasts(approval.user_id),
     ]);
-    
+
     // Delete images from R2 if they exist (only for image uploads, not Twitch links)
     const R2_BUCKET_URL = process.env.R2_BUCKET_URL;
     const imagesToDelete = [];
@@ -2002,8 +2064,11 @@ app.post('/api/approvals/:id/reject', async (req, res) => {
     console.log('Cleared board cache');
 
     // Notify connected clients
-    await broadcastUpdate('board-updates', 'board-changed', { userId: approval.user_id });
-    
+    await Promise.all([
+      broadcastUpdate('board-updates', 'board-changed', { userId: approval.user_id }),
+      broadcastNotificationToasts(approval.user_id),
+    ]);
+
     // Delete images from R2 if they exist (only for image uploads, not Twitch links)
     const R2_BUCKET_URL = process.env.R2_BUCKET_URL;
     const imagesToDelete = [];
@@ -2200,10 +2265,88 @@ app.get('/api/notifications', async (req, res) => {
       achievement: n.award ? (awardMap[n.award] || null) : null,
     }));
 
-    res.json(enriched);
+    // When fetching for the toast (unread=true), also consume broadcast notifications
+    let broadcasts = [];
+    if (unreadOnly) {
+      const { data: broadcastData, error: broadcastError } = await supabase
+        .from('broadcast_notifications')
+        .select('id, award, winner_user_id, created_at')
+        .eq('user_id', userId);
+
+      if (!broadcastError && broadcastData?.length) {
+        // Delete immediately — read and consume
+        await supabase
+          .from('broadcast_notifications')
+          .delete()
+          .eq('user_id', userId)
+          .in('id', broadcastData.map(b => b.id));
+
+        // Enrich with achievement type
+        const broadcastAwardIds = [...new Set(broadcastData.map(b => b.award))];
+        let broadcastAwardMap = {};
+        if (broadcastAwardIds.length > 0) {
+          const { data: awards } = await supabase
+            .from('bingo_achievements')
+            .select('id, bingo_type, bingo_months(month_year_display)')
+            .in('id', broadcastAwardIds);
+          if (awards) broadcastAwardMap = Object.fromEntries(awards.map(a => [a.id, a]));
+        }
+
+        // Enrich with winner display name
+        const winnerUserIds = [...new Set(broadcastData.map(b => b.winner_user_id))];
+        let winnerMap = {};
+        if (winnerUserIds.length > 0) {
+          const { data: winners } = await supabase
+            .from('users')
+            .select('id, display_name')
+            .in('id', winnerUserIds);
+          if (winners) winnerMap = Object.fromEntries(winners.map(u => [u.id, u]));
+        }
+
+        broadcasts = broadcastData.map(b => {
+          const ach = broadcastAwardMap[b.award] || null;
+          return {
+            id: b.id,
+            status: 'award_broadcast',
+            is_broadcast: true,
+            created_at: b.created_at,
+            achievement: ach ? {
+              ...ach,
+              month_name: ach.bingo_months?.month_year_display?.split(' ')[0] || null,
+            } : null,
+            winner: winnerMap[b.winner_user_id] || null,
+          };
+        });
+      }
+    }
+
+    res.json([...enriched, ...broadcasts]);
   } catch (error) {
     console.error('Error fetching notifications:', error);
     res.status(500).json({ error: 'Failed to fetch notifications' });
+  }
+});
+
+// Delete a broadcast notification (read-and-consume on dismiss)
+app.delete('/api/broadcast-notifications/:id', async (req, res) => {
+  try {
+    const userId = await getAuthenticatedUserId(req);
+    if (!userId) return res.status(401).json({ error: 'Authentication required' });
+
+    const { id } = req.params;
+
+    const { error } = await supabase
+      .from('broadcast_notifications')
+      .delete()
+      .eq('id', id)
+      .eq('user_id', userId); // ensures users can only delete their own
+
+    if (error) throw error;
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error deleting broadcast notification:', error);
+    res.status(500).json({ error: 'Failed to delete broadcast notification' });
   }
 });
 

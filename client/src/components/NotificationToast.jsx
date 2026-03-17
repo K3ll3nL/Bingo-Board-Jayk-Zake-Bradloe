@@ -198,9 +198,11 @@ const Toast = ({ notification, onDismiss }) => {
           {/* Title */}
           {isAchievement ? (
             <p style={{ color: '#f1f5f9', fontWeight: 600, fontSize: '14px', margin: 0, lineHeight: 1.3 }}>
-              {notification.achievement?.bingo_type
-                ? `You were awarded the first ${BINGO_TYPE_LABELS[notification.achievement.bingo_type] || notification.achievement.bingo_type}! Congrats!`
-                : 'You earned an achievement! Congrats!'}
+              {notification.is_broadcast
+                ? `${notification.winner?.display_name || 'Someone'} was awarded the first ${notification.achievement?.month_name ? `${notification.achievement.month_name} ` : ''}${BINGO_TYPE_LABELS[bingoType] || bingoType}!`
+                : notification.achievement?.bingo_type
+                  ? `You were awarded the first ${BINGO_TYPE_LABELS[notification.achievement.bingo_type] || notification.achievement.bingo_type}! Congrats!`
+                  : 'You earned an achievement! Congrats!'}
             </p>
           ) : (
             <p style={{ color: '#f1f5f9', fontWeight: 600, fontSize: '14px', margin: 0, lineHeight: 1.3 }}>
@@ -269,18 +271,36 @@ const NotificationToast = () => {
     }
   }, []);
 
+  const deleteBroadcast = useCallback(async (id) => {
+    try {
+      const headers = await getAuthHeaders();
+      await fetch(`/api/broadcast-notifications/${id}`, {
+        method: 'DELETE',
+        headers,
+      });
+    } catch (err) {
+      console.error('Failed to delete broadcast notification:', err);
+    }
+  }, []);
+
   const enqueue = useCallback((items) => {
     setQueue(prev => {
-      const existingIds = new Set(prev.map(n => n.id));
-      const fresh = items.filter(n => !existingIds.has(n.id));
+      const existingIds = new Set(prev.map(n => n._queueId));
+      const fresh = items
+        .map(n => ({ ...n, _queueId: n.is_broadcast ? `b_${n.id}` : `p_${n.id}` }))
+        .filter(n => !existingIds.has(n._queueId));
       return [...prev, ...fresh];
     });
   }, []);
 
-  const dismiss = useCallback((id) => {
-    setQueue(prev => prev.filter(n => n.id !== id));
-    markNotified(id);
-  }, [markNotified]);
+  const dismiss = useCallback((notification) => {
+    setQueue(prev => prev.filter(n => n._queueId !== notification._queueId));
+    if (notification.is_broadcast) {
+      deleteBroadcast(notification.id);
+    } else {
+      markNotified(notification.id);
+    }
+  }, [markNotified, deleteBroadcast]);
 
   // Fetch any unnotified notifications already in DB on mount (via API — works in dev too)
   useEffect(() => {
@@ -301,46 +321,41 @@ const NotificationToast = () => {
     fetchUnnotified();
   }, [user?.id, enqueue]);
 
-  // Subscribe to new notifications via postgres_changes
+  // Subscribe to personal notifications via broadcast (instant — matches Board Builder approach)
   useEffect(() => {
     if (!user?.id) return;
 
     const channel = supabase
-      .channel(`notifications-user-${user.id}`)
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'notifications',
-          filter: `user_id=eq.${user.id}`,
-        },
-        async (payload) => {
-          let notification = payload.new;
+      .channel(`notifications-${user.id}`)
+      .on('broadcast', { event: 'new-notification' }, ({ payload }) => {
+        enqueue([payload]);
+      })
+      .subscribe();
 
-          // Fetch pokemon details if needed
-          if (notification.pokemon_id) {
-            const { data: pokemon } = await supabase
-              .from('pokemon_master')
-              .select('name, img_url, national_dex_id')
-              .eq('id', notification.pokemon_id)
-              .single();
-            notification = { ...notification, pokemon };
-          }
+    return () => supabase.removeChannel(channel);
+  }, [user?.id, enqueue]);
 
-          // Fetch achievement details if needed
-          if (notification.award) {
-            const { data: achievement } = await supabase
-              .from('bingo_achievements')
-              .select('id, bingo_type')
-              .eq('id', notification.award)
-              .single();
-            notification = { ...notification, achievement };
-          }
+  // Subscribe to award announcements via broadcast (instant, shared channel for all users)
+  useEffect(() => {
+    if (!user?.id) return;
 
-          enqueue([notification]);
-        }
-      )
+    const channel = supabase
+      .channel('award-announcements')
+      .on('broadcast', { event: 'new-award' }, async ({ payload }) => {
+        let notification = { ...payload, is_broadcast: true, status: 'award_broadcast' };
+
+        // Look up the broadcast_notifications row ID so dismiss can clean it up
+        const { data: row } = await supabase
+          .from('broadcast_notifications')
+          .select('id')
+          .eq('user_id', user.id)
+          .eq('award', notification.achievement?.id)
+          .maybeSingle();
+
+        notification = { ...notification, id: row?.id || null };
+
+        enqueue([notification]);
+      })
       .subscribe();
 
     return () => supabase.removeChannel(channel);
@@ -363,9 +378,9 @@ const NotificationToast = () => {
     >
       {queue.slice(0, 4).map(notification => (
         <Toast
-          key={notification.id}
+          key={notification._queueId}
           notification={notification}
-          onDismiss={() => dismiss(notification.id)}
+          onDismiss={() => dismiss(notification)}
         />
       ))}
     </div>
