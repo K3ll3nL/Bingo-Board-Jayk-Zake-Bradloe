@@ -1300,6 +1300,11 @@ app.get('/api/ambassadors', async (req, res) => {
         brand_color: amb.hex_code // Use custom hex code from database
       }));
       
+      result.sort((a, b) => {
+        if (b.is_live !== a.is_live) return b.is_live ? 1 : -1;
+        return (b.viewer_count || 0) - (a.viewer_count || 0);
+      });
+
       res.json(result);
     } catch (twitchError) {
       console.error('Twitch API error:', twitchError);
