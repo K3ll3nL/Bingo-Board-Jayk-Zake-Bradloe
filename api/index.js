@@ -2550,10 +2550,10 @@ app.get('/api/mod/board-builder', async (req, res) => {
     let tiles;
 
     if (!existingPool || existingPool.length === 0) {
-      // Pull every shiny-available pokemon
+      // Pull every shiny-available pokemon (including family_id for exclusion logic)
       const { data: allPokemon, error: pkErr } = await supabase
         .from('pokemon_master')
-        .select('id, name, img_url, national_dex_id')
+        .select('id, name, img_url, national_dex_id, family_id')
         .eq('shiny_available', true);
 
       if (pkErr) return res.status(500).json({ error: 'Failed to fetch pokemon', details: pkErr.message });
@@ -2567,17 +2567,58 @@ app.get('/api/mod/board-builder', async (req, res) => {
       const usageCount = {};
       (history || []).forEach(r => { usageCount[r.pokemon_id] = (usageCount[r.pokemon_id] || 0) + 1; });
 
+      // Build family exclusion set from the previous month's board
+      const lastMonthFamilyIds = new Set();
+      const { data: prevMonthData } = await supabase
+        .from('bingo_months')
+        .select('id')
+        .neq('id', nextMonth.id)
+        .order('start_date', { ascending: false })
+        .limit(1);
+      if (prevMonthData && prevMonthData.length > 0) {
+        const { data: prevPool } = await supabase
+          .from('monthly_pokemon_pool')
+          .select('pokemon_id')
+          .eq('month_id', prevMonthData[0].id);
+        const prevIds = (prevPool || []).map(r => r.pokemon_id);
+        if (prevIds.length > 0) {
+          const { data: prevPk } = await supabase
+            .from('pokemon_master')
+            .select('id, family_id')
+            .in('id', prevIds);
+          (prevPk || []).forEach(p => { if (p.family_id != null) lastMonthFamilyIds.add(p.family_id); });
+        }
+      }
+
+      // Pick up to `count` from `pool`, skipping any family already in `excludedFamilies`.
+      // Mutates excludedFamilies as it picks so within-board families are also deduplicated.
+      function pickWithFamilyExclusion(pool, count, excludedFamilies) {
+        const picked = [];
+        for (const p of shuffleArray([...pool])) {
+          if (picked.length >= count) break;
+          if (p.family_id == null || !excludedFamilies.has(p.family_id)) {
+            picked.push(p);
+            if (p.family_id != null) excludedFamilies.add(p.family_id);
+          }
+        }
+        return picked;
+      }
+
       const neverUsed = (allPokemon || []).filter(p => !usageCount[p.id]);
       const usedOnce  = (allPokemon || []).filter(p => usageCount[p.id] === 1);
 
       let selected;
-      if (neverUsed.length >= 24) {
-        selected = shuffleArray(neverUsed).slice(0, 24).map(p => ({ ...p, is_second_round: false }));
+      const familyExclusionSet = new Set(lastMonthFamilyIds);
+      const neverPicked = pickWithFamilyExclusion(neverUsed, 24, familyExclusionSet);
+      if (neverPicked.length >= 24) {
+        selected = neverPicked.map(p => ({ ...p, is_second_round: false }));
       } else {
-        const need = 24 - neverUsed.length;
+        const need = 24 - neverPicked.length;
+        // familyExclusionSet already contains last month + whatever neverPicked added
+        const oncePicked = pickWithFamilyExclusion(usedOnce, need, familyExclusionSet);
         selected = [
-          ...shuffleArray(neverUsed).map(p => ({ ...p, is_second_round: false })),
-          ...shuffleArray(usedOnce).slice(0, need).map(p => ({ ...p, is_second_round: true })),
+          ...neverPicked.map(p => ({ ...p, is_second_round: false })),
+          ...oncePicked.map(p => ({ ...p, is_second_round: true })),
         ];
       }
 
@@ -2703,19 +2744,53 @@ app.post('/api/mod/board-builder/reroll', async (req, res) => {
     if (!position || !monthId) return res.status(400).json({ error: 'position, monthId required' });
     if (position === 13) return res.status(400).json({ error: 'Cannot reroll FREE SPACE' });
 
-    // Current pool for this month
+    // Current pool for this month (with position so we can exclude the rerolled slot's family)
     const { data: pool } = await supabase
       .from('monthly_pokemon_pool')
-      .select('pokemon_id')
+      .select('pokemon_id, position')
       .eq('month_id', monthId);
 
     const usedIds = new Set((pool || []).map(r => r.pokemon_id));
 
-    // All eligible pokemon
+    // All eligible pokemon (including family_id for exclusion logic)
     const { data: allPokemon } = await supabase
       .from('pokemon_master')
-      .select('id, name, img_url, national_dex_id')
+      .select('id, name, img_url, national_dex_id, family_id')
       .eq('shiny_available', true);
+
+    const pkFamilyMap = Object.fromEntries((allPokemon || []).map(p => [p.id, p.family_id]));
+
+    // Family IDs on the current board, excluding the slot being rerolled (its family is freed up)
+    const boardFamilyIds = new Set();
+    (pool || []).forEach(r => {
+      if (r.position !== position) {
+        const fam = pkFamilyMap[r.pokemon_id];
+        if (fam != null) boardFamilyIds.add(fam);
+      }
+    });
+
+    // Family IDs from the previous month's board
+    const lastMonthFamilyIds = new Set();
+    const { data: prevMonthData } = await supabase
+      .from('bingo_months')
+      .select('id')
+      .neq('id', monthId)
+      .order('start_date', { ascending: false })
+      .limit(1);
+    if (prevMonthData && prevMonthData.length > 0) {
+      const { data: prevPool } = await supabase
+        .from('monthly_pokemon_pool')
+        .select('pokemon_id')
+        .eq('month_id', prevMonthData[0].id);
+      const prevIds = (prevPool || []).map(r => r.pokemon_id);
+      if (prevIds.length > 0) {
+        const { data: prevPk } = await supabase
+          .from('pokemon_master')
+          .select('id, family_id')
+          .in('id', prevIds);
+        (prevPk || []).forEach(p => { if (p.family_id != null) lastMonthFamilyIds.add(p.family_id); });
+      }
+    }
 
     // Usage history excluding this month
     const { data: history } = await supabase
@@ -2726,9 +2801,13 @@ app.post('/api/mod/board-builder/reroll', async (req, res) => {
     const usageCount = {};
     (history || []).forEach(r => { usageCount[r.pokemon_id] = (usageCount[r.pokemon_id] || 0) + 1; });
 
-    // Pick from never-used first, then once-used — excluding what's already on the board
-    const neverUsed = (allPokemon || []).filter(p => !usageCount[p.id] && !usedIds.has(p.id));
-    const usedOnce  = (allPokemon || []).filter(p => usageCount[p.id] === 1 && !usedIds.has(p.id));
+    // Exclude: already on board, family on current board, family on last month's board
+    const isEligibleFamily = p =>
+      p.family_id == null || (!boardFamilyIds.has(p.family_id) && !lastMonthFamilyIds.has(p.family_id));
+
+    // Pick from never-used first, then once-used
+    const neverUsed = (allPokemon || []).filter(p => !usageCount[p.id] && !usedIds.has(p.id) && isEligibleFamily(p));
+    const usedOnce  = (allPokemon || []).filter(p => usageCount[p.id] === 1 && !usedIds.has(p.id) && isEligibleFamily(p));
 
     const candidates = neverUsed.length > 0 ? neverUsed : usedOnce;
     if (!candidates.length) return res.status(409).json({ error: 'No eligible pokemon available for reroll' });
