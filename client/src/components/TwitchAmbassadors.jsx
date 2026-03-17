@@ -33,14 +33,15 @@ const TwitchAmbassadors = () => {
       <div className="max-w-7xl mx-auto px-4 py-8">
         <h2 className="text-xl font-bold text-white mb-4">Check out these streamers!</h2>
         
-        <div className="flex gap-4 overflow-x-auto pb-4" style={{ scrollbarWidth: 'thin' }}>
+        <div className="flex overflow-x-auto pb-4" style={{ scrollbarWidth: 'thin', gap: '10.9px' }}>
           {ambassadors.map((ambassador) => (
             <a
               key={ambassador.id}
               href={ambassador.twitch_url}
               target="_blank"
               rel="noopener noreferrer"
-              className="flex-shrink-0 group"
+              className="flex-shrink-0 group flex flex-col items-center"
+              style={{ width: '110px' }}
             >
               <div className="relative">
                 {/* Profile Picture with Border */}
