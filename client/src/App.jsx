@@ -10,6 +10,7 @@ import Pokedex from './components/Pokedex';
 import TwitchAmbassadors from './components/TwitchAmbassadors';
 import Upload from './components/Upload';
 import Approvals from './components/Approvals';
+import BoardBuilder from './components/BoardBuilder';
 import SubmissionHistory from './components/SubmissionHistory';
 import NotificationToast from './components/NotificationToast';
 import logoImage from './Icons/pokemon-bounty-board.png';
@@ -186,6 +187,15 @@ const MainApp = () => {
                             Approvals
                           </button>
                           <button
+                            onClick={() => navigate('/board-builder')}
+                            className="w-full px-4 py-2 text-left text-sm text-purple-400 hover:bg-gray-700 flex items-center gap-2"
+                          >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 5a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1H5a1 1 0 01-1-1V5zm10 0a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1V5zM4 15a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1H5a1 1 0 01-1-1v-4zm10 0a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1v-4z" />
+                            </svg>
+                            Board Builder
+                          </button>
+                          <button
                             onClick={clearCache}
                             className="w-full px-4 py-2 text-left text-sm text-blue-400 hover:bg-gray-700 flex items-center gap-2"
                           >
@@ -272,6 +282,7 @@ function App() {
           <Route path="/upload" element={<Upload />} />
           <Route path="/approvals" element={<Approvals />} />
           <Route path="/history" element={<SubmissionHistory />} />
+          <Route path="/board-builder" element={<BoardBuilder />} />
           <Route path="*" element={<MainApp />} />
         </Routes>
       </AuthProvider>

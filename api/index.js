@@ -2297,6 +2297,328 @@ app.get('/api/approvals/pending', async (req, res) => {
   }
 });
 
+// ─────────────────────────────────────────────────────────────────────────────
+// BOARD BUILDER  (moderator-only)
+// ─────────────────────────────────────────────────────────────────────────────
+
+function shuffleArray(arr) {
+  const out = [...arr];
+  for (let i = out.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [out[i], out[j]] = [out[j], out[i]];
+  }
+  return out;
+}
+
+
+// GET /api/mod/board-builder
+app.get('/api/mod/board-builder', async (req, res) => {
+  try {
+    // ── Auth ────────────────────────────────────────────────────────────────
+    const userId = await getAuthenticatedUserId(req);
+    if (!userId) return res.status(401).json({ error: 'Authentication required' });
+
+    const { data: modRow, error: modErr } = await supabase
+      .from('twitch_ambassadors').select('id').eq('id', userId).maybeSingle();
+    if (modErr) return res.status(500).json({ error: 'Mod check failed', details: modErr.message });
+    if (!modRow) return res.status(403).json({ error: 'Moderator access required' });
+
+    // ── Compute next calendar month from today (UTC) ─────────────────────────
+    // No dependency on finding the "active" month — just use the real calendar.
+    const now = new Date();
+    const curYear  = now.getUTCFullYear();
+    const curMonth = now.getUTCMonth() + 1; // 1-12
+    const nYear    = curMonth === 12 ? curYear + 1 : curYear;
+    const nMonth   = curMonth === 12 ? 1 : curMonth + 1;
+    const pad      = n => String(n).padStart(2, '0');
+    const monthKey  = `${nYear}-${pad(nMonth)}`;
+    const startDate = `${nYear}-${pad(nMonth)}-01`;
+    const lastDay   = new Date(Date.UTC(nYear, nMonth, 0)).getUTCDate();
+    const endDate   = `${nYear}-${pad(nMonth)}-${pad(lastDay)}`;
+    const names     = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+    const display   = `${names[nMonth - 1]} ${nYear}`;
+
+    console.log(`[BoardBuilder] userId=${userId} month=${monthKey} start=${startDate} end=${endDate}`);
+    console.log(`[BoardBuilder] SUPABASE_URL set=${!!process.env.SUPABASE_URL} SERVICE_KEY set=${!!process.env.SUPABASE_SERVICE_ROLE_KEY} keyLen=${process.env.SUPABASE_SERVICE_ROLE_KEY?.length}`);
+
+    // ── Find or insert next month (never overwrite existing rows) ────────────
+    const sbUrl = process.env.SUPABASE_URL;
+    const sbKey  = process.env.SUPABASE_SERVICE_ROLE_KEY;
+    const restHeaders = {
+      'Content-Type': 'application/json',
+      'apikey':        sbKey,
+      'Authorization': `Bearer ${sbKey}`,
+    };
+
+    // Step 1: look for an existing row
+    const selectRes = await fetch(
+      `${sbUrl}/rest/v1/bingo_months?month_year=eq.${encodeURIComponent(monthKey)}&select=id,month_year_display,start_date,end_date`,
+      { headers: restHeaders }
+    );
+    const selectText = await selectRes.text();
+    console.log(`[BoardBuilder] SELECT HTTP ${selectRes.status}: ${selectText}`);
+
+    if (!selectRes.ok) {
+      return res.status(500).json({ error: 'Failed to query bingo_months', http_status: selectRes.status, response: selectText });
+    }
+
+    const existing = JSON.parse(selectText);
+    let nextMonth = Array.isArray(existing) && existing.length > 0 ? existing[0] : null;
+
+    // Step 2: insert only if the row does not exist yet
+    if (!nextMonth) {
+      console.log(`[BoardBuilder] Row not found — inserting month_year="${monthKey}"`);
+      const insertRes = await fetch(`${sbUrl}/rest/v1/bingo_months`, {
+        method: 'POST',
+        headers: { ...restHeaders, 'Prefer': 'return=representation' },
+        body: JSON.stringify({ month_year: monthKey, month_year_display: display, start_date: startDate, end_date: endDate }),
+      });
+      const insertText = await insertRes.text();
+      console.log(`[BoardBuilder] INSERT HTTP ${insertRes.status}: ${insertText}`);
+
+      if (!insertRes.ok) {
+        return res.status(500).json({ error: 'Failed to insert bingo_month', http_status: insertRes.status, response: insertText });
+      }
+
+      const inserted = JSON.parse(insertText);
+      nextMonth = Array.isArray(inserted) ? inserted[0] : inserted;
+    } else {
+      console.log(`[BoardBuilder] Found existing bingo_month id=${nextMonth.id}`);
+    }
+
+    if (!nextMonth) {
+      return res.status(500).json({ error: 'bingo_month row missing after insert' });
+    }
+
+    console.log(`[BoardBuilder] bingo_month id=${nextMonth.id} ready`);
+
+    // ── Find or generate pool ────────────────────────────────────────────────
+    const { data: existingPool } = await supabase
+      .from('monthly_pokemon_pool')
+      .select('position, pokemon_id')
+      .eq('month_id', nextMonth.id)
+      .order('position');
+
+    let tiles;
+
+    if (!existingPool || existingPool.length === 0) {
+      // Pull every shiny-available pokemon
+      const { data: allPokemon, error: pkErr } = await supabase
+        .from('pokemon_master')
+        .select('id, name, img_url, national_dex_id')
+        .eq('shiny_available', true);
+
+      if (pkErr) return res.status(500).json({ error: 'Failed to fetch pokemon', details: pkErr.message });
+
+      // Count how many months each pokemon has appeared in (excluding this one)
+      const { data: history } = await supabase
+        .from('monthly_pokemon_pool')
+        .select('pokemon_id')
+        .neq('month_id', nextMonth.id);
+
+      const usageCount = {};
+      (history || []).forEach(r => { usageCount[r.pokemon_id] = (usageCount[r.pokemon_id] || 0) + 1; });
+
+      const neverUsed = (allPokemon || []).filter(p => !usageCount[p.id]);
+      const usedOnce  = (allPokemon || []).filter(p => usageCount[p.id] === 1);
+
+      let selected;
+      if (neverUsed.length >= 24) {
+        selected = shuffleArray(neverUsed).slice(0, 24).map(p => ({ ...p, is_second_round: false }));
+      } else {
+        const need = 24 - neverUsed.length;
+        selected = [
+          ...shuffleArray(neverUsed).map(p => ({ ...p, is_second_round: false })),
+          ...shuffleArray(usedOnce).slice(0, need).map(p => ({ ...p, is_second_round: true })),
+        ];
+      }
+
+      // Positions 1-25 excluding 13 (FREE SPACE), shuffled
+      const positions = shuffleArray([1,2,3,4,5,6,7,8,9,10,11,12,14,15,16,17,18,19,20,21,22,23,24,25]);
+
+      const poolRows = selected.map((p, i) => ({
+        month_id:   nextMonth.id,
+        pokemon_id: p.id,
+        position:   positions[i],
+      }));
+
+      const { error: poolInsertErr } = await supabase.from('monthly_pokemon_pool').insert(poolRows);
+      if (poolInsertErr) {
+        return res.status(500).json({ error: 'Failed to insert pokemon pool', details: poolInsertErr.message });
+      }
+
+      tiles = selected.map((p, i) => ({
+        position:       positions[i],
+        pokemon_id:     p.id,
+        name:           p.name,
+        img_url:        p.img_url,
+        national_dex_id: p.national_dex_id,
+        is_second_round: p.is_second_round,
+      }));
+
+    } else {
+      // Pool exists — hydrate from pokemon_master
+      const pokemonIds = existingPool.map(r => r.pokemon_id);
+
+      const { data: pkDetails } = await supabase
+        .from('pokemon_master')
+        .select('id, name, img_url, national_dex_id')
+        .in('id', pokemonIds);
+
+      const pkMap = {};
+      (pkDetails || []).forEach(p => { pkMap[p.id] = p; });
+
+      // Determine second-round: appeared in any OTHER month
+      const { data: histRows } = await supabase
+        .from('monthly_pokemon_pool')
+        .select('pokemon_id')
+        .neq('month_id', nextMonth.id)
+        .in('pokemon_id', pokemonIds);
+
+      const seenElsewhere = new Set((histRows || []).map(r => r.pokemon_id));
+
+      tiles = existingPool.map(r => ({
+        position:        r.position,
+        pokemon_id:      r.pokemon_id,
+        name:            pkMap[r.pokemon_id]?.name || 'Unknown',
+        img_url:         pkMap[r.pokemon_id]?.img_url || null,
+        national_dex_id: pkMap[r.pokemon_id]?.national_dex_id || null,
+        is_second_round: seenElsewhere.has(r.pokemon_id),
+      }));
+    }
+
+    res.json({ nextMonth, tiles });
+
+  } catch (err) {
+    console.error('[BoardBuilder] Unexpected error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// PUT /api/mod/board-builder/swap
+app.put('/api/mod/board-builder/swap', async (req, res) => {
+  try {
+    const userId = await getAuthenticatedUserId(req);
+    if (!userId) return res.status(401).json({ error: 'Authentication required' });
+
+    const { data: modRow } = await supabase
+      .from('twitch_ambassadors').select('id').eq('id', userId).maybeSingle();
+    if (!modRow) return res.status(403).json({ error: 'Moderator access required' });
+
+    const { pos1, pos2, monthId, operationId } = req.body;
+    if (!pos1 || !pos2 || !monthId) return res.status(400).json({ error: 'pos1, pos2, monthId required' });
+    if (pos1 === 13 || pos2 === 13) return res.status(400).json({ error: 'Cannot move FREE SPACE' });
+
+    // Fetch both rows
+    const { data: rows, error: fetchErr } = await supabase
+      .from('monthly_pokemon_pool')
+      .select('id, position, pokemon_id')
+      .eq('month_id', monthId)
+      .in('position', [pos1, pos2]);
+
+    if (fetchErr) return res.status(500).json({ error: 'Fetch failed', details: fetchErr.message });
+    if (!rows || rows.length !== 2) return res.status(404).json({ error: 'Could not find both positions' });
+
+    const rowA = rows.find(r => r.position === pos1);
+    const rowB = rows.find(r => r.position === pos2);
+
+    // Swap pokemon_ids
+    const { error: upA } = await supabase.from('monthly_pokemon_pool')
+      .update({ pokemon_id: rowB.pokemon_id }).eq('id', rowA.id);
+    const { error: upB } = await supabase.from('monthly_pokemon_pool')
+      .update({ pokemon_id: rowA.pokemon_id }).eq('id', rowB.id);
+
+    if (upA || upB) return res.status(500).json({ error: 'Swap update failed' });
+
+    await broadcastUpdate('board-builder-updates', 'tile-update', {
+      type: 'swap', pos1, pos2, operationId,
+    });
+
+    res.json({ ok: true });
+
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/mod/board-builder/reroll
+app.post('/api/mod/board-builder/reroll', async (req, res) => {
+  try {
+    const userId = await getAuthenticatedUserId(req);
+    if (!userId) return res.status(401).json({ error: 'Authentication required' });
+
+    const { data: modRow } = await supabase
+      .from('twitch_ambassadors').select('id').eq('id', userId).maybeSingle();
+    if (!modRow) return res.status(403).json({ error: 'Moderator access required' });
+
+    const { position, monthId, operationId } = req.body;
+    if (!position || !monthId) return res.status(400).json({ error: 'position, monthId required' });
+    if (position === 13) return res.status(400).json({ error: 'Cannot reroll FREE SPACE' });
+
+    // Current pool for this month
+    const { data: pool } = await supabase
+      .from('monthly_pokemon_pool')
+      .select('pokemon_id')
+      .eq('month_id', monthId);
+
+    const usedIds = new Set((pool || []).map(r => r.pokemon_id));
+
+    // All eligible pokemon
+    const { data: allPokemon } = await supabase
+      .from('pokemon_master')
+      .select('id, name, img_url, national_dex_id')
+      .eq('shiny_available', true);
+
+    // Usage history excluding this month
+    const { data: history } = await supabase
+      .from('monthly_pokemon_pool')
+      .select('pokemon_id')
+      .neq('month_id', monthId);
+
+    const usageCount = {};
+    (history || []).forEach(r => { usageCount[r.pokemon_id] = (usageCount[r.pokemon_id] || 0) + 1; });
+
+    // Pick from never-used first, then once-used — excluding what's already on the board
+    const neverUsed = (allPokemon || []).filter(p => !usageCount[p.id] && !usedIds.has(p.id));
+    const usedOnce  = (allPokemon || []).filter(p => usageCount[p.id] === 1 && !usedIds.has(p.id));
+
+    const candidates = neverUsed.length > 0 ? neverUsed : usedOnce;
+    if (!candidates.length) return res.status(409).json({ error: 'No eligible pokemon available for reroll' });
+
+    const pick = candidates[Math.floor(Math.random() * candidates.length)];
+
+    // Is it second-round?
+    const is_second_round = (usageCount[pick.id] || 0) > 0;
+
+    // Update the row
+    const { error: upErr } = await supabase
+      .from('monthly_pokemon_pool')
+      .update({ pokemon_id: pick.id })
+      .eq('month_id', monthId)
+      .eq('position', position);
+
+    if (upErr) return res.status(500).json({ error: 'Reroll update failed', details: upErr.message });
+
+    const tile = {
+      position,
+      pokemon_id:      pick.id,
+      name:            pick.name,
+      img_url:         pick.img_url,
+      national_dex_id: pick.national_dex_id,
+      is_second_round,
+    };
+
+    await broadcastUpdate('board-builder-updates', 'tile-update', {
+      type: 'reroll', tile, operationId,
+    });
+
+    res.json({ tile });
+
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // Start server locally (not needed in Vercel)
 if (require.main === module) {
   const PORT = process.env.PORT || 3000;
