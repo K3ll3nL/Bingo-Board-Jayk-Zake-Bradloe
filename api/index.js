@@ -1222,11 +1222,24 @@ app.get('/api/pokedex', async (req, res) => {
     
     if (entriesError) throw entriesError;
     
-    // Get all Pokemon that have ever been in any monthly pool
-    const { data: poolPokemon, error: poolError } = await supabase
-      .from('monthly_pokemon_pool')
-      .select('pokemon_id');
-    
+    // Get months that have already started (exclude future months to avoid spoilers)
+    const { data: pastMonths, error: monthsError } = await supabase
+      .from('bingo_months')
+      .select('id')
+      .lte('start_date', new Date().toISOString());
+
+    if (monthsError) throw monthsError;
+
+    const pastMonthIds = (pastMonths || []).map(m => m.id);
+
+    // Get all Pokemon that have ever been in a past or current monthly pool
+    const { data: poolPokemon, error: poolError } = pastMonthIds.length > 0
+      ? await supabase
+          .from('monthly_pokemon_pool')
+          .select('pokemon_id')
+          .in('month_id', pastMonthIds)
+      : { data: [], error: null };
+
     if (poolError) throw poolError;
     
     // Create set of caught pokemon_ids
