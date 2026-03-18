@@ -10,6 +10,7 @@ const Leaderboard = () => {
   const { leaderboardVersion } = useAuth();
   const [leaderboard, setLeaderboard] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState(null);
   const MODES = ['monthly', 'season', 'year', 'alltime'];
   const MODE_LABELS = { monthly: 'This Month', season: 'This Season', year: 'This Year', alltime: 'All Time' };
@@ -17,16 +18,17 @@ const Leaderboard = () => {
   const viewMode = MODES[modeIndex];
 
   useEffect(() => {
-    setLoading(true);
-    setLeaderboard([]);
+    if (leaderboard.length === 0) {
+      setLoading(true);
+    } else {
+      setRefreshing(true);
+    }
     loadLeaderboard();
   }, [modeIndex, leaderboardVersion]);
 
   const loadLeaderboard = async () => {
     try {
-      const data = await api.getLeaderboard(viewMode);
-      console.log('Leaderboard data received:', data);
-      console.log('First user achievement_counts:', data[0]?.achievement_counts);
+      const data = await api.getLeaderboard(viewMode, leaderboardVersion);
       setLeaderboard(data);
       setError(null);
     } catch (err) {
@@ -34,6 +36,7 @@ const Leaderboard = () => {
       console.error(err);
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   };
 
@@ -87,7 +90,7 @@ const Leaderboard = () => {
   return (
     <div className="w-full">
       {/* Header with Tab Switcher */}
-      <div className="flex items-center justify-between mb-4">
+      <div className="flex items-center justify-between mb-3">
         <button
           onClick={() => setModeIndex((modeIndex - 1 + MODES.length) % MODES.length)}
           className="text-gray-400 hover:text-white transition-colors"
@@ -98,7 +101,7 @@ const Leaderboard = () => {
         </button>
 
         <div className="text-center">
-          <h2 className="text-2xl font-bold text-white">{MODE_LABELS[viewMode]}</h2>
+          <h2 className="text-2xl font-bold text-white h-6">{MODE_LABELS[viewMode]}</h2>
           <div className="flex justify-center gap-1 mt-1">
             {MODES.map((_, i) => (
               <button
@@ -120,13 +123,18 @@ const Leaderboard = () => {
         </button>
       </div>
       
-      <div className="rounded-lg shadow-lg overflow-hidden" style={{ backgroundColor: '#212326' }}>
+      <div className="rounded-lg shadow-lg overflow-hidden relative" style={{ backgroundColor: '#212326' }}>
+        {refreshing && (
+          <div className="absolute top-0 left-0 right-0 h-0.5 bg-gray-700 overflow-hidden z-10">
+            <div className="h-full bg-purple-500 animate-pulse" style={{ width: '100%' }} />
+          </div>
+        )}
         {leaderboard.length === 0 ? (
           <div className="p-8 text-center text-gray-400">
             No players yet
           </div>
         ) : (
-          <div className="divide-y overflow-y-auto" style={{ borderColor: '#404040', maxHeight: '610px' }}>
+          <div className={`divide-y overflow-y-auto transition-opacity duration-150 ${refreshing ? 'opacity-50' : 'opacity-100'}`} style={{ borderColor: '#404040', maxHeight: '610px' }}>
             {leaderboard.map((user, index) => {
               const position = index + 1;
               const medal = getMedalEmoji(position);

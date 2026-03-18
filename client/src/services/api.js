@@ -33,18 +33,18 @@ export const getAuthHeaders = async () => {
 
 export const api = {
   // Bingo Board endpoints
-  getBingoBoard: async () => {
+  getBingoBoard: async (version = 0) => {
     const headers = await getAuthHeaders();
-    const response = await fetch(`${API_BASE_URL}/bingo/board`, { headers });
+    const response = await fetch(`${API_BASE_URL}/bingo/board?v=${version}`, { headers });
     if (!response.ok) throw new Error('Failed to fetch bingo board');
     return response.json();
   },
 
   // Leaderboard endpoints
-  getLeaderboard: async (viewMode = 'monthly') => {
+  getLeaderboard: async (viewMode = 'monthly', version = 0) => {
     const VALID_MODES = ['monthly', 'alltime', 'season', 'year'];
     const mode = VALID_MODES.includes(viewMode) ? viewMode : 'monthly';
-    const response = await fetch(`${API_BASE_URL}/leaderboard?mode=${mode}`);
+    const response = await fetch(`${API_BASE_URL}/leaderboard?mode=${mode}&v=${version}`);
     if (!response.ok) throw new Error('Failed to fetch leaderboard');
     return response.json();
   },

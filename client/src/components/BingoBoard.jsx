@@ -34,7 +34,7 @@ const BingoBoard = () => {
 
   const loadBoard = async () => {
     try {
-      const data = await api.getBingoBoard();
+      const data = await api.getBingoBoard(boardVersion);
       setBoard(data.board);
       setMonth(data.month);
       setAchievements(data.achievements || { row: null, column: null, x: null, blackout: null });

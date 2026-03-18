@@ -209,44 +209,48 @@ async function getAuthenticatedUserId(req) {
 }
 
 // Helper function to get active month ID based on current date (with optional time offset for moderators)
-async function getActiveMonthId(userId = null) {
+// Returns the full active month record { id, month_year_display, start_date, end_date }, or null
+async function getActiveMonth(userId = null) {
   let timeOffsetDays = 0;
-  
-  // If userId provided, check if they have a time offset
+
   if (userId) {
-    const { data: userData, error: userError } = await supabase
+    const { data: userData } = await supabase
       .from('users')
       .select('time_offset_days')
       .eq('id', userId)
       .single();
-    
-    if (!userError && userData && userData.time_offset_days) {
+
+    if (userData?.time_offset_days) {
       timeOffsetDays = userData.time_offset_days;
     }
   }
-  
-  // Calculate effective date with offset
+
   const now = new Date();
   const effectiveDate = new Date(now.getTime() + (timeOffsetDays * 24 * 60 * 60 * 1000));
   const effectiveDateISO = effectiveDate.toISOString();
-  
+
   console.log('Getting active month - User:', userId, 'Offset days:', timeOffsetDays, 'Effective date:', effectiveDateISO);
-  
-  // Get active month based on effective date
+
   const { data: activeMonthData, error: monthError } = await supabase
     .from('bingo_months')
-    .select('id')
+    .select('id, month_year_display, start_date, end_date')
     .lte('start_date', effectiveDateISO)
     .gte('end_date', effectiveDateISO)
     .single();
-  
+
   if (monthError || !activeMonthData) {
     console.error('No active month found for date:', effectiveDateISO, monthError);
     return null;
   }
-  
+
   console.log('Active month ID:', activeMonthData.id);
-  return activeMonthData.id;
+  return activeMonthData;
+}
+
+// Convenience wrapper for callers that only need the month ID
+async function getActiveMonthId(userId = null) {
+  const month = await getActiveMonth(userId);
+  return month?.id ?? null;
 }
 
 // Health check
@@ -349,95 +353,52 @@ app.get('/api/debug/data', async (req, res) => {
 app.get('/api/bingo/board', async (req, res) => {
   try {
     const userId = await getAuthenticatedUserId(req);
-    
-    const ACTIVE_MONTH_ID = await getActiveMonthId(userId);
-    if (!ACTIVE_MONTH_ID) {
+
+    const monthData = await getActiveMonth(userId);
+    if (!monthData) {
       return res.status(404).json({ error: 'No active bingo month found' });
     }
-    
-    
-    console.log('Cache miss - fetching fresh data from database');
-    
-    // Get month data
-    const { data: monthData, error: monthError } = await supabase
-      .from('bingo_months')
-      .select('id, month_year_display, start_date, end_date')
-      .eq('id', ACTIVE_MONTH_ID)
-      .single();
-    
-    if (monthError) {
-      console.error('Error fetching month data:', monthError);
-      return res.status(404).json({ error: 'No active bingo month found' });
-    }
-    
-    // Get entries - either for authenticated user or no one (show unchecked board)
-    let completedPokemonIds = new Set();
-    let pendingPokemonIds = new Set();
+    const ACTIVE_MONTH_ID = monthData.id;
 
-    if (userId) {
-      const { data: entries, error: entriesError } = await supabase
-        .from('entries')
-        .select('pokemon_id')
-        .eq('user_id', userId)
-        .eq('month_id', ACTIVE_MONTH_ID);
+    // Fetch all independent queries in parallel
+    const [
+      { data: entries },
+      { data: approvals },
+      { data: poolData, error: poolError },
+      { data: bingoAchievements }
+    ] = await Promise.all([
+      userId
+        ? supabase.from('entries').select('pokemon_id').eq('user_id', userId).eq('month_id', ACTIVE_MONTH_ID)
+        : Promise.resolve({ data: [] }),
+      userId
+        ? supabase.from('approvals').select('pokemon_id').eq('user_id', userId)
+        : Promise.resolve({ data: [] }),
+      supabase.from('monthly_pokemon_pool').select('position, pokemon_id').eq('month_id', ACTIVE_MONTH_ID).order('position', { ascending: true }),
+      supabase.from('bingo_achievements').select('bingo_type, users!bingo_achievements_user_id_fkey(display_name)').eq('month_id', ACTIVE_MONTH_ID),
+    ]);
 
-      if (!entriesError && entries) {
-        completedPokemonIds = new Set(entries.map(entry => entry.pokemon_id));
-      }
-
-      const { data: approvals, error: approvalsError } = await supabase
-        .from('approvals')
-        .select('pokemon_id')
-        .eq('user_id', userId);
-
-      if (!approvalsError && approvals) {
-        pendingPokemonIds = new Set(approvals.map(a => a.pokemon_id));
-      }
-    }
-    
-    // Get the month's Pokemon pool
-    // Using manual join due to Supabase schema cache delay
-    const { data: poolData, error: poolError } = await supabase
-      .from('monthly_pokemon_pool')
-      .select('position, pokemon_id')
-      .eq('month_id', ACTIVE_MONTH_ID)
-      .order('position', { ascending: true });
-    
     if (poolError) throw poolError;
-    
-    // Get all pokemon details
-    const pokemonIds = poolData.map(p => p.pokemon_id).filter(Boolean);
-    
+
+    const completedPokemonIds = new Set((entries || []).map(e => e.pokemon_id));
+    const pendingPokemonIds = new Set((approvals || []).map(a => a.pokemon_id));
+
+    // Get all pokemon details (needs pool IDs first)
+    const pokemonIds = (poolData || []).map(p => p.pokemon_id).filter(Boolean);
+
     const { data: pokemonData, error: pokemonError } = await supabase
       .from('pokemon_master')
       .select('id, national_dex_id, name, img_url')
       .in('id', pokemonIds)
       .eq('shiny_available', true);
-    console.log("Pokemon query error:", pokemonError);
-    console.log("Pokemon query result:", pokemonData);
-    
+
     if (pokemonError) throw pokemonError;
-    
-    // Create lookup map
+
     const pokemonMap = {};
-    pokemonData.forEach(p => {
-      pokemonMap[p.id] = p;
-    });
-    
-    // Combine data
-    const data = poolData.map(pool => ({
-      position: pool.position,
-      pokemon_id: pool.pokemon_id,
-      pokemon_master: pokemonMap[pool.pokemon_id]
-    }));
-    
-    console.log('=== BINGO BOARD DEBUG ===');
-    console.log('Pool data count:', poolData.length);
-    console.log('Pokemon IDs:', pokemonIds);
-    console.log('Pokemon data count:', pokemonData.length);
-    console.log('Combined data:', JSON.stringify(data, null, 2));
-    console.log('========================');
-    
+    (pokemonData || []).forEach(p => { pokemonMap[p.id] = p; });
+
+    const poolByPosition = {};
+    (poolData || []).forEach(pool => { poolByPosition[pool.position] = pool; });
+
     // Build the 25-square board (24 Pokemon + 1 free space at position 13)
     const board = [];
 
@@ -454,25 +415,24 @@ app.get('/api/bingo/board', async (req, res) => {
           pokemon_gif: null,
         });
       } else {
-        // Find Pokemon for this position
-        const pokemon = data.find(p => p.position === position);
-        if (pokemon && pokemon.pokemon_master) {
+        const pool = poolByPosition[position];
+        const poke = pool ? pokemonMap[pool.pokemon_id] : null;
+        if (poke) {
           board.push({
             id: `${ACTIVE_MONTH_ID}-${position}`,
             position: position,
-            pokemon_id: pokemon.pokemon_id,
-            national_dex_id: pokemon.pokemon_master.national_dex_id,
-            is_checked: completedPokemonIds.has(pokemon.pokemon_id),
-            is_pending: !completedPokemonIds.has(pokemon.pokemon_id) && pendingPokemonIds.has(pokemon.pokemon_id),
-            pokemon_name: pokemon.pokemon_master.name || 'Unknown',
-            pokemon_gif: pokemon.pokemon_master.img_url,
+            pokemon_id: pool.pokemon_id,
+            national_dex_id: poke.national_dex_id,
+            is_checked: completedPokemonIds.has(pool.pokemon_id),
+            is_pending: !completedPokemonIds.has(pool.pokemon_id) && pendingPokemonIds.has(pool.pokemon_id),
+            pokemon_name: poke.name || 'Unknown',
+            pokemon_gif: poke.img_url,
           });
         } else {
-          // Empty slot - no Pokemon assigned to this position
           board.push({
             id: `empty-${ACTIVE_MONTH_ID}-${position}`,
             position: position,
-            pokemon_id: pokemon?.pokemon_id ?? null,
+            pokemon_id: pool?.pokemon_id ?? null,
             national_dex_id: null,
             is_checked: false,
             is_pending: false,
@@ -483,20 +443,9 @@ app.get('/api/bingo/board', async (req, res) => {
       }
     }
 
-    // Get bingo achievements for this month (for everyone, not just logged-in user)
+    // Build achievements map from the already-fetched bingoAchievements
     let achievements = { row: null, column: null, x: null, blackout: null };
-    
-    const { data: bingoAchievements, error: achievementsError } = await supabase
-      .from('bingo_achievements')
-      .select(`
-        bingo_type,
-        users!bingo_achievements_user_id_fkey (
-          display_name
-        )
-      `)
-      .eq('month_id', ACTIVE_MONTH_ID);
-    
-    if (!achievementsError && bingoAchievements) {
+    if (bingoAchievements) {
       const find = type => bingoAchievements.find(a => a.bingo_type === type);
       const name = a => a?.users?.display_name ?? null;
       achievements = {
@@ -520,7 +469,7 @@ app.get('/api/bingo/board', async (req, res) => {
       achievements
     };
     
-    res.set('Cache-Control', 'no-store');
+    res.set('Cache-Control', 'private, max-age=30');
     res.json(responseData);
   } catch (error) {
     console.error('Error fetching bingo board:', error);
@@ -566,25 +515,24 @@ app.get('/api/leaderboard', async (req, res) => {
 
       const userIds = top10.map(u => u.user_id);
 
-      // Fetch user info
-      const { data: usersData, error: usersError } = await supabase
-        .from('users')
-        .select('id, username, display_name, created_at, twitch_url')
-        .in('id', userIds);
+      // Fetch user info, achievements, and hex codes in parallel
+      const [
+        { data: usersData, error: usersError },
+        { data: allAchievements },
+        { data: ambassadors },
+      ] = await Promise.all([
+        supabase.from('users').select('id, username, display_name, created_at, twitch_url').in('id', userIds),
+        supabase.from('bingo_achievements').select('user_id, bingo_type').in('user_id', userIds),
+        supabase.from('twitch_ambassadors').select('id, hex_code').in('id', userIds),
+      ]);
 
       if (usersError) throw usersError;
 
       const usersMap = {};
       usersData.forEach(u => { usersMap[u.id] = u; });
 
-      // Count all achievements across all months per user
-      const { data: allAchievements, error: achError } = await supabase
-        .from('bingo_achievements')
-        .select('user_id, bingo_type')
-        .in('user_id', userIds);
-
       const achievementCounts = {};
-      if (!achError && allAchievements) {
+      if (allAchievements) {
         allAchievements.forEach(ach => {
           if (!achievementCounts[ach.user_id]) {
             achievementCounts[ach.user_id] = { row: 0, column: 0, x: 0, blackout: 0 };
@@ -592,12 +540,6 @@ app.get('/api/leaderboard', async (req, res) => {
           achievementCounts[ach.user_id][ach.bingo_type] = (achievementCounts[ach.user_id][ach.bingo_type] || 0) + 1;
         });
       }
-
-      // Hex codes for ambassadors
-      const { data: ambassadors } = await supabase
-        .from('twitch_ambassadors')
-        .select('id, hex_code')
-        .in('id', userIds);
 
       const hexCodeMap = {};
       if (ambassadors) ambassadors.forEach(a => { hexCodeMap[a.id] = a.hex_code || '#9147ff'; });
@@ -654,7 +596,7 @@ app.get('/api/leaderboard', async (req, res) => {
         };
       });
 
-      res.set('Cache-Control', 'no-store');
+      res.set('Cache-Control', 'public, max-age=30');
       return res.json(transformedAllTime);
     }
 
@@ -663,16 +605,9 @@ app.get('/api/leaderboard', async (req, res) => {
 
       // Get the active month's start_date and derive grouping from it via date
       // arithmetic — so this works even if season_id/year_id are not yet set.
-      const ACTIVE_MONTH_ID = await getActiveMonthId(userId);
-      if (!ACTIVE_MONTH_ID) return res.status(404).json({ error: 'No active month found' });
-
-      const { data: activeMonth, error: activeMonthError } = await supabase
-        .from('bingo_months')
-        .select('id, start_date')
-        .eq('id', ACTIVE_MONTH_ID)
-        .single();
-
-      if (activeMonthError) throw activeMonthError;
+      const activeMonth = await getActiveMonth(userId);
+      if (!activeMonth) return res.status(404).json({ error: 'No active month found' });
+      const ACTIVE_MONTH_ID = activeMonth.id;
 
       // Compute game year (March → February) and seasonal quarter from start_date
       const ad        = new Date(activeMonth.start_date + 'T00:00:00Z');
@@ -714,19 +649,19 @@ app.get('/api/leaderboard', async (req, res) => {
 
       if (groupPointsError) throw groupPointsError;
 
-      // Aggregate — track min row id per user as a "first to score" tiebreaker
+      // Aggregate — track earliest last_updated per user as tiebreaker (consistent with monthly branch)
       const pointsByUser = {};
-      const firstIdByUser = {};
+      const firstUpdatedByUser = {};
       groupPoints.forEach(row => {
         pointsByUser[row.user_id] = (pointsByUser[row.user_id] || 0) + row.points;
-        if (firstIdByUser[row.user_id] === undefined || row.id < firstIdByUser[row.user_id]) {
-          firstIdByUser[row.user_id] = row.id;
+        if (!firstUpdatedByUser[row.user_id] || row.last_updated < firstUpdatedByUser[row.user_id]) {
+          firstUpdatedByUser[row.user_id] = row.last_updated;
         }
       });
 
-      // Sort: higher points first; ties broken by who scored first (lower row id)
+      // Sort: higher points first; ties broken by who reached that score first
       const sorted = Object.entries(pointsByUser)
-        .sort(([uidA, a], [uidB, b]) => b - a || firstIdByUser[uidA] - firstIdByUser[uidB])
+        .sort(([uidA, a], [uidB, b]) => b - a || (firstUpdatedByUser[uidA] < firstUpdatedByUser[uidB] ? -1 : 1))
         .map(([user_id, points]) => ({ user_id, points }));
 
       if (sorted.length === 0) {
@@ -735,23 +670,21 @@ app.get('/api/leaderboard', async (req, res) => {
 
       const userIds = sorted.map(u => u.user_id);
 
-      // User info
-      const { data: usersData, error: usersError } = await supabase
-        .from('users')
-        .select('id, username, display_name, created_at, twitch_url')
-        .in('id', userIds);
+      // Fetch user info, achievements, and hex codes in parallel
+      const [
+        { data: usersData, error: usersError },
+        { data: groupAchievements },
+        { data: ambassadors },
+      ] = await Promise.all([
+        supabase.from('users').select('id, username, display_name, created_at, twitch_url').in('id', userIds),
+        supabase.from('bingo_achievements').select('user_id, bingo_type').in('user_id', userIds).in('month_id', monthIds),
+        supabase.from('twitch_ambassadors').select('id, hex_code').in('id', userIds),
+      ]);
 
       if (usersError) throw usersError;
 
       const usersMap = {};
       usersData.forEach(u => { usersMap[u.id] = u; });
-
-      // Achievement counts across those months
-      const { data: groupAchievements } = await supabase
-        .from('bingo_achievements')
-        .select('user_id, bingo_type')
-        .in('user_id', userIds)
-        .in('month_id', monthIds);
 
       const achievementCounts = {};
       if (groupAchievements) {
@@ -760,12 +693,6 @@ app.get('/api/leaderboard', async (req, res) => {
           achievementCounts[ach.user_id][ach.bingo_type] = (achievementCounts[ach.user_id][ach.bingo_type] || 0) + 1;
         });
       }
-
-      // Hex codes
-      const { data: ambassadors } = await supabase
-        .from('twitch_ambassadors')
-        .select('id, hex_code')
-        .in('id', userIds);
 
       const hexCodeMap = {};
       if (ambassadors) ambassadors.forEach(a => { hexCodeMap[a.id] = a.hex_code || '#9147ff'; });
@@ -822,7 +749,7 @@ app.get('/api/leaderboard', async (req, res) => {
         };
       });
 
-      res.set('Cache-Control', 'no-store');
+      res.set('Cache-Control', 'public, max-age=30');
       return res.json(result);
     }
 
@@ -853,22 +780,24 @@ app.get('/api/leaderboard', async (req, res) => {
     
     if (monthlyError) throw monthlyError;
     const data = monthlyData;
-    
-    // Get monthly achievements for these users
+
     const userIds = data.map(entry => entry.user_id);
-    console.log('Fetching achievements for users:', userIds, 'month:', ACTIVE_MONTH_ID);
-    
-    const { data: achievements, error: achievementsError } = await supabase
-      .from('bingo_achievements')
-      .select('user_id, bingo_type')
-      .in('user_id', userIds)
-      .eq('month_id', ACTIVE_MONTH_ID);
-    
-    console.log('Achievements query result:', { achievements, error: achievementsError });
-    
-    // Count achievements by type for each user
+
+    // Fetch achievements and hex codes in parallel
+    const [
+      { data: achievements },
+      { data: ambassadors },
+    ] = await Promise.all([
+      userIds.length > 0
+        ? supabase.from('bingo_achievements').select('user_id, bingo_type').in('user_id', userIds).eq('month_id', ACTIVE_MONTH_ID)
+        : Promise.resolve({ data: [] }),
+      userIds.length > 0
+        ? supabase.from('twitch_ambassadors').select('id, hex_code').in('id', userIds)
+        : Promise.resolve({ data: [] }),
+    ]);
+
     const achievementCounts = {};
-    if (!achievementsError && achievements) {
+    if (achievements) {
       achievements.forEach(ach => {
         if (!achievementCounts[ach.user_id]) {
           achievementCounts[ach.user_id] = { row: 0, column: 0, x: 0, blackout: 0 };
@@ -877,25 +806,14 @@ app.get('/api/leaderboard', async (req, res) => {
       });
     }
 
-    console.log('Achievement counts:', achievementCounts);
-    
-    // Attach achievement counts to data
     const dataWithAchievements = data.map(entry => ({
       ...entry,
       achievement_counts: achievementCounts[entry.user_id] || { row: 0, column: 0, x: 0, blackout: 0 }
     }));
-    
-    // Get hex codes for ambassadors (reuse userIds from above)
-    const { data: ambassadors, error: ambassadorsError } = await supabase
-      .from('twitch_ambassadors')
-      .select('id, hex_code')
-      .in('id', userIds);
-    
+
     const hexCodeMap = {};
-    if (!ambassadorsError && ambassadors) {
-      ambassadors.forEach(amb => {
-        hexCodeMap[amb.id] = amb.hex_code || '#9147ff';
-      });
+    if (ambassadors) {
+      ambassadors.forEach(amb => { hexCodeMap[amb.id] = amb.hex_code || '#9147ff'; });
     }
     
     // Check Twitch live status
@@ -982,7 +900,7 @@ app.get('/api/leaderboard', async (req, res) => {
       };
     });
 
-    res.set('Cache-Control', 'no-store');
+    res.set('Cache-Control', 'public, max-age=30');
     res.json(transformedData);
   } catch (error) {
     console.error('Error fetching leaderboard:', error);
@@ -996,170 +914,68 @@ app.get('/api/profile/:userId', async (req, res) => {
     const { userId } = req.params;
     console.log('Fetching profile for user:', userId);
     
-    // Get user basic info
-    const { data: userData, error: userError } = await supabase
-      .from('users')
-      .select('username, display_name, avatar_url, created_at')
-      .eq('id', userId)
-      .single();
-    
-    if (userError) {
-      console.error('User fetch error:', userError);
-      throw userError;
-    }
-    console.log('User data:', userData);
-    
-    // Get total shinies (entries count)
-    const { count: totalShinies, error: shiniesError } = await supabase
-      .from('entries')
-      .select('*', { count: 'exact', head: true })
-      .eq('user_id', userId);
-    
-    if (shiniesError) {
-      console.error('Shinies fetch error:', shiniesError);
-      throw shiniesError;
-    }
-    console.log('Total shinies:', totalShinies);
-    
-    // Get all monthly points for graphs and totals
-    const { data: monthlyPoints, error: monthlyError } = await supabase
-      .from('user_monthly_points')
-      .select(`
-        points,
-        month_id,
-        bingo_months!inner (
-          month_year_display
-        )
-      `)
-      .eq('user_id', userId)
-      .order('month_id', { ascending: true });
-    
-    if (monthlyError) {
-      console.error('Monthly points fetch error:', monthlyError);
-      throw monthlyError;
-    }
-    console.log('Monthly points:', monthlyPoints);
-    
+    // Fetch all independent data in parallel
+    const [
+      { data: userData, error: userError },
+      { count: totalShinies, error: shiniesError },
+      { data: monthlyPoints, error: monthlyError },
+      { data: allMonthlyPoints, error: rankError },
+      { data: allBingos },
+      { data: allEntries },
+      { count: totalPokemon },
+    ] = await Promise.all([
+      supabase.from('users').select('username, display_name, avatar_url, created_at').eq('id', userId).single(),
+      supabase.from('entries').select('*', { count: 'exact', head: true }).eq('user_id', userId),
+      supabase.from('user_monthly_points').select('points, month_id, bingo_months!inner(month_year_display)').eq('user_id', userId).order('month_id', { ascending: true }),
+      supabase.from('user_monthly_points').select('user_id, month_id, points, bingo_months!inner(month_year_display)'),
+      supabase.from('bingo_achievements').select('bingo_type').eq('user_id', userId),
+      supabase.from('entries').select('pokemon_id').eq('user_id', userId),
+      supabase.from('pokemon_master').select('*', { count: 'exact', head: true }).eq('shiny_available', true),
+    ]);
+
+    if (userError) throw userError;
+    if (shiniesError) throw shiniesError;
+    if (monthlyError) throw monthlyError;
+    if (rankError) throw rankError;
+
     // Calculate total points and find best month
-    const totalPoints = monthlyPoints.reduce((sum, month) => sum + month.points, 0);
-    const bestPointsMonth = monthlyPoints.reduce((best, month) => 
+    const totalPoints = (monthlyPoints || []).reduce((sum, month) => sum + month.points, 0);
+    const bestPointsMonth = (monthlyPoints || []).reduce((best, month) =>
       month.points > (best?.points || 0) ? month : best, null);
-    
-    // Get overall ranking (position in total points)
-    const { data: allUserPoints, error: rankError } = await supabase
-      .from('user_monthly_points')
-      .select('user_id, points');
-    
-    if (rankError) {
-      console.error('Rank fetch error:', rankError);
-      throw rankError;
-    }
-    
-    // Calculate total points per user and rank
+
+    // Compute overall rank and best monthly rank from the single allMonthlyPoints query
     const userTotals = {};
-    allUserPoints.forEach(entry => {
-      userTotals[entry.user_id] = (userTotals[entry.user_id] || 0) + entry.points;
-    });
-    
-    const sortedUsers = Object.entries(userTotals)
-      .sort(([, a], [, b]) => b - a);
-    
-    const overallRank = sortedUsers.findIndex(([id]) => id === userId) + 1;
-    
-    // Get best ranked month (lowest rank number = best)
-    const { data: allMonthlyRankings, error: bestRankError } = await supabase
-      .from('user_monthly_points')
-      .select('user_id, month_id, points, bingo_months!inner (month_year_display)');
-    
-    if (bestRankError) {
-      console.error('Best rank fetch error:', bestRankError);
-      throw bestRankError;
-    }
-    
-    // Calculate rankings per month
     const monthlyRankings = {};
-    allMonthlyRankings.forEach(entry => {
-      if (!monthlyRankings[entry.month_id]) {
-        monthlyRankings[entry.month_id] = [];
-      }
+    (allMonthlyPoints || []).forEach(entry => {
+      userTotals[entry.user_id] = (userTotals[entry.user_id] || 0) + entry.points;
+      if (!monthlyRankings[entry.month_id]) monthlyRankings[entry.month_id] = [];
       monthlyRankings[entry.month_id].push(entry);
     });
-    
+
+    const sortedUsers = Object.entries(userTotals).sort(([, a], [, b]) => b - a);
+    const overallRank = sortedUsers.findIndex(([id]) => id === userId) + 1;
+
     let bestRank = null;
     let bestRankMonth = null;
-    
-    Object.keys(monthlyRankings).forEach(monthId => {
-      const sorted = monthlyRankings[monthId].sort((a, b) => b.points - a.points);
+    Object.values(monthlyRankings).forEach(entries => {
+      const sorted = entries.slice().sort((a, b) => b.points - a.points);
       const userRank = sorted.findIndex(u => u.user_id === userId) + 1;
-      
       if (userRank > 0 && (!bestRank || userRank < bestRank)) {
         bestRank = userRank;
-        const userEntry = sorted.find(u => u.user_id === userId);
-        bestRankMonth = userEntry?.bingo_months?.month_year_display;
+        bestRankMonth = sorted.find(u => u.user_id === userId)?.bingo_months?.month_year_display;
       }
     });
-    
-    // Get normal bingo achievements (exact type matches)
-    const { data: normalBingos, error: normalBingosError } = await supabase
-      .from('bingo_achievements')
-      .select('bingo_type')
-      .eq('user_id', userId)
-      .in('bingo_type', ['row', 'column', 'x', 'blackout']);
 
-    if (normalBingosError) {
-      console.error('Normal bingos fetch error:', normalBingosError);
-    }
+    // Count bingo achievements from the single query
+    const bingos = allBingos || [];
+    const totalBingos = bingos.filter(b => b.bingo_type === 'row' || b.bingo_type === 'column').length;
+    const totalXs = bingos.filter(b => b.bingo_type === 'x').length;
+    const totalBlackouts = bingos.filter(b => b.bingo_type === 'blackout').length;
+    const restrictedBingos = bingos.filter(b => b.bingo_type === 'row_restricted' || b.bingo_type === 'column_restricted').length;
+    const restrictedXs = bingos.filter(b => b.bingo_type === 'x_restricted').length;
+    const restrictedBlackouts = bingos.filter(b => b.bingo_type === 'blackout_restricted').length;
 
-    // Get restricted bingo achievements (exact type matches)
-    const { data: restrictedBingosData, error: restrictedBingosError } = await supabase
-      .from('bingo_achievements')
-      .select('bingo_type')
-      .eq('user_id', userId)
-      .in('bingo_type', ['row_restricted', 'column_restricted', 'x_restricted', 'blackout_restricted']);
-
-    if (restrictedBingosError) {
-      console.error('Restricted bingos fetch error:', restrictedBingosError);
-    }
-
-    const totalBingos = normalBingos
-      ? normalBingos.filter(b => b.bingo_type === 'row' || b.bingo_type === 'column').length : 0;
-    const totalXs = normalBingos
-      ? normalBingos.filter(b => b.bingo_type === 'x').length : 0;
-    const totalBlackouts = normalBingos
-      ? normalBingos.filter(b => b.bingo_type === 'blackout').length : 0;
-    const restrictedBingos = restrictedBingosData
-      ? restrictedBingosData.filter(b => b.bingo_type === 'row_restricted' || b.bingo_type === 'column_restricted').length : 0;
-    const restrictedXs = restrictedBingosData
-      ? restrictedBingosData.filter(b => b.bingo_type === 'x_restricted').length : 0;
-    const restrictedBlackouts = restrictedBingosData
-      ? restrictedBingosData.filter(b => b.bingo_type === 'blackout_restricted').length : 0;
-    
-    // Get total Pokemon caught (distinct pokemon_id count from entries)
-    const { data: allEntries, error: entriesError } = await supabase
-      .from('entries')
-      .select('pokemon_id')
-      .eq('user_id', userId);
-    
-    if (entriesError) {
-      console.error('Entries fetch error:', entriesError);
-    }
-    
-    console.log('All entries for user:', allEntries);
     const totalCaught = allEntries ? new Set(allEntries.map(e => e.pokemon_id)).size : 0;
-    console.log('Total caught:', totalCaught);
-    
-    // Get total Pokemon count
-    const { count: totalPokemon, error: countError } = await supabase
-      .from('pokemon_master')
-      .select('*', { count: 'exact', head: true })
-      .eq('shiny_available', true);
-    
-    if (countError) {
-      console.error('Pokemon count error:', countError);
-    }
-    
-    console.log('Total Pokemon:', totalPokemon);
-    console.log('Total Caught value:', totalCaught);
     
     // Format monthly data for graphs
     const monthlyData = monthlyPoints.map(month => ({
@@ -1550,35 +1366,23 @@ app.get('/api/upload/available-pokemon', async (req, res) => {
     if (!ACTIVE_MONTH_ID) {
       return res.json([]);
     }
-    
-    const monthIds = [ACTIVE_MONTH_ID];
-    
-    // Get Pokemon in active months' pools
-    const { data: poolPokemon, error: poolError } = await supabase
-      .from('monthly_pokemon_pool')
-      .select('pokemon_id')
-      .in('month_id', monthIds);
-    
+
+    // Fetch pool, entries, and pending approvals in parallel
+    const [
+      { data: poolPokemon, error: poolError },
+      { data: userEntries, error: entriesError },
+      { data: pendingApprovals, error: approvalsError },
+    ] = await Promise.all([
+      supabase.from('monthly_pokemon_pool').select('pokemon_id').eq('month_id', ACTIVE_MONTH_ID),
+      supabase.from('entries').select('pokemon_id').eq('user_id', userId).eq('month_id', ACTIVE_MONTH_ID),
+      supabase.from('approvals').select('pokemon_id').eq('user_id', userId),
+    ]);
+
     if (poolError) throw poolError;
-    
-    const pokemonIds = [...new Set(poolPokemon.map(p => p.pokemon_id))];
-    
-    // Get user's already caught Pokemon
-    const { data: userEntries, error: entriesError } = await supabase
-      .from('entries')
-      .select('pokemon_id')
-      .eq('user_id', userId)
-      .in('month_id', monthIds);
-
     if (entriesError) throw entriesError;
-
-    // Get user's pending approvals (pokemon already submitted, awaiting review)
-    const { data: pendingApprovals, error: approvalsError } = await supabase
-      .from('approvals')
-      .select('pokemon_id')
-      .eq('user_id', userId);
-
     if (approvalsError) throw approvalsError;
+
+    const pokemonIds = [...new Set((poolPokemon || []).map(p => p.pokemon_id))];
 
     const caughtPokemonIds = new Set([
       ...userEntries.map(e => e.pokemon_id),
@@ -1587,7 +1391,11 @@ app.get('/api/upload/available-pokemon', async (req, res) => {
 
     // Filter out already caught or pending Pokemon
     const availablePokemonIds = pokemonIds.filter(id => !caughtPokemonIds.has(id));
-    
+
+    if (availablePokemonIds.length === 0) {
+      return res.json([]);
+    }
+
     // Get Pokemon details
     const { data: pokemon, error: pokemonError } = await supabase
       .from('pokemon_master')
@@ -1613,35 +1421,22 @@ app.get('/api/upload/available-pokemon-restricted', async (req, res) => {
     const ACTIVE_MONTH_ID = await getActiveMonthId(userId);
     if (!ACTIVE_MONTH_ID) return res.json([]);
 
-    // Get all Pokemon in the active month's pool
-    const { data: poolPokemon, error: poolError } = await supabase
-      .from('monthly_pokemon_pool')
-      .select('pokemon_id')
-      .eq('month_id', ACTIVE_MONTH_ID);
+    // Fetch pool, entries, and pending approvals in parallel
+    const [
+      { data: poolPokemon, error: poolError },
+      { data: restrictedEntries, error: entriesError },
+      { data: restrictedApprovals, error: approvalsError },
+    ] = await Promise.all([
+      supabase.from('monthly_pokemon_pool').select('pokemon_id').eq('month_id', ACTIVE_MONTH_ID),
+      supabase.from('entries').select('pokemon_id').eq('user_id', userId).eq('month_id', ACTIVE_MONTH_ID).eq('restricted_submission', true),
+      supabase.from('approvals').select('pokemon_id').eq('user_id', userId).eq('month_id', ACTIVE_MONTH_ID).eq('restricted_submission', true),
+    ]);
 
     if (poolError) throw poolError;
-
-    const pokemonIds = [...new Set(poolPokemon.map(p => p.pokemon_id))];
-
-    // Get user's already accepted restricted entries this month
-    const { data: restrictedEntries, error: entriesError } = await supabase
-      .from('entries')
-      .select('pokemon_id')
-      .eq('user_id', userId)
-      .eq('month_id', ACTIVE_MONTH_ID)
-      .eq('restricted_submission', true);
-
     if (entriesError) throw entriesError;
-
-    // Get user's pending restricted approvals this month (any status — still in queue)
-    const { data: restrictedApprovals, error: approvalsError } = await supabase
-      .from('approvals')
-      .select('pokemon_id')
-      .eq('user_id', userId)
-      .eq('month_id', ACTIVE_MONTH_ID)
-      .eq('restricted_submission', true);
-
     if (approvalsError) throw approvalsError;
+
+    const pokemonIds = [...new Set((poolPokemon || []).map(p => p.pokemon_id))];
 
     const restrictedIds = new Set([
       ...restrictedEntries.map(e => e.pokemon_id),
@@ -1650,6 +1445,10 @@ app.get('/api/upload/available-pokemon-restricted', async (req, res) => {
 
     // Exclude pokemon already submitted as restricted
     const availableIds = pokemonIds.filter(id => !restrictedIds.has(id));
+
+    if (availableIds.length === 0) {
+      return res.json([]);
+    }
 
     const { data: pokemon, error: pokemonError } = await supabase
       .from('pokemon_master')
