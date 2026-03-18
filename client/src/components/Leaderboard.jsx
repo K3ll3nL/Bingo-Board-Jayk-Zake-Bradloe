@@ -11,13 +11,16 @@ const Leaderboard = () => {
   const [leaderboard, setLeaderboard] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [viewMode, setViewMode] = useState('monthly'); // 'monthly' or 'alltime'
+  const MODES = ['monthly', 'season', 'year', 'alltime'];
+  const MODE_LABELS = { monthly: 'This Month', season: 'This Season', year: 'This Year', alltime: 'All Time' };
+  const [modeIndex, setModeIndex] = useState(0);
+  const viewMode = MODES[modeIndex];
 
   useEffect(() => {
     setLoading(true);
     setLeaderboard([]);
     loadLeaderboard();
-  }, [viewMode, leaderboardVersion]);
+  }, [modeIndex, leaderboardVersion]);
 
   const loadLeaderboard = async () => {
     try {
@@ -86,20 +89,29 @@ const Leaderboard = () => {
       {/* Header with Tab Switcher */}
       <div className="flex items-center justify-between mb-4">
         <button
-          onClick={() => setViewMode(viewMode === 'monthly' ? 'alltime' : 'monthly')}
+          onClick={() => setModeIndex((modeIndex - 1 + MODES.length) % MODES.length)}
           className="text-gray-400 hover:text-white transition-colors"
         >
           <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
           </svg>
         </button>
-        
-        <h2 className="text-2xl font-bold text-white">
-          {viewMode === 'monthly' ? 'This Month' : 'All Time'}
-        </h2>
-        
+
+        <div className="text-center">
+          <h2 className="text-2xl font-bold text-white">{MODE_LABELS[viewMode]}</h2>
+          <div className="flex justify-center gap-1 mt-1">
+            {MODES.map((_, i) => (
+              <button
+                key={i}
+                onClick={() => setModeIndex(i)}
+                className={`w-1.5 h-1.5 rounded-full transition-colors ${i === modeIndex ? 'bg-purple-400' : 'bg-gray-600 hover:bg-gray-500'}`}
+              />
+            ))}
+          </div>
+        </div>
+
         <button
-          onClick={() => setViewMode(viewMode === 'monthly' ? 'alltime' : 'monthly')}
+          onClick={() => setModeIndex((modeIndex + 1) % MODES.length)}
           className="text-gray-400 hover:text-white transition-colors"
         >
           <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -160,61 +172,52 @@ const Leaderboard = () => {
                   </div>
                   
                   <div className="flex items-center gap-2">
-                    {/* Achievement icons with counts (all-time) or boolean (monthly) */}
+                    {/* Achievement icons — with counts for multi-month views, icon-only for monthly */}
                     <div className="flex items-center gap-1">
-                      {viewMode === 'alltime' ? (
-                        <>
-                          {['row', 'column', 'x', 'blackout'].map(type => (
-                            user.achievement_counts?.[type] > 0 && (
-                              <div key={type} className="flex items-center gap-0.5">
-                                <AchievementIcon
-                                  type={type}
-                                  color={user.hex_code || '#9147ff'}
-                                  svgClassName={type === 'blackout' ? 'w-4 h-4' : 'w-3 h-3'}
-                                />
-                                <span className="text-xs text-gray-400">x{user.achievement_counts[type]}</span>
-                              </div>
-                            )
-                          ))}
-                          {restrictedEnabled && ['row', 'column', 'x', 'blackout'].map(type => (
-                            user.achievement_counts?.[`${type}_restricted`] > 0 && (
-                              <div key={`${type}_r`} className="flex items-center gap-0.5">
-                                <AchievementIcon
-                                  type={type}
-                                  restricted={true}
-                                  color={user.hex_code || '#9147ff'}
-                                  svgClassName={type === 'blackout' ? 'w-4 h-4' : 'w-3 h-3'}
-                                />
-                                <span className="text-xs text-gray-400">x{user.achievement_counts[`${type}_restricted`]}</span>
-                              </div>
-                            )
-                          ))}
-                        </>
-                      ) : (
-                        <>
-                          {['row', 'column', 'x', 'blackout'].map(type => (
-                            user.achievement_counts?.[type] > 0 && (
+                      {['row', 'column', 'x', 'blackout'].map(type => (
+                        user.achievement_counts?.[type] > 0 && (
+                          viewMode === 'monthly' ? (
+                            <AchievementIcon
+                              key={type}
+                              type={type}
+                              color={user.hex_code || '#9147ff'}
+                              svgClassName={type === 'blackout' ? 'w-4 h-4' : 'w-3 h-3'}
+                            />
+                          ) : (
+                            <div key={type} className="flex items-center gap-0.5">
                               <AchievementIcon
-                                key={type}
                                 type={type}
                                 color={user.hex_code || '#9147ff'}
                                 svgClassName={type === 'blackout' ? 'w-4 h-4' : 'w-3 h-3'}
                               />
-                            )
-                          ))}
-                          {restrictedEnabled && ['row', 'column', 'x', 'blackout'].map(type => (
-                            user.achievement_counts?.[`${type}_restricted`] > 0 && (
+                              <span className="text-xs text-gray-400">x{user.achievement_counts[type]}</span>
+                            </div>
+                          )
+                        )
+                      ))}
+                      {restrictedEnabled && ['row', 'column', 'x', 'blackout'].map(type => (
+                        user.achievement_counts?.[`${type}_restricted`] > 0 && (
+                          viewMode === 'monthly' ? (
+                            <AchievementIcon
+                              key={`${type}_r`}
+                              type={type}
+                              restricted={true}
+                              color={user.hex_code || '#9147ff'}
+                              svgClassName={type === 'blackout' ? 'w-4 h-4' : 'w-3 h-3'}
+                            />
+                          ) : (
+                            <div key={`${type}_r`} className="flex items-center gap-0.5">
                               <AchievementIcon
-                                key={`${type}_r`}
                                 type={type}
                                 restricted={true}
                                 color={user.hex_code || '#9147ff'}
                                 svgClassName={type === 'blackout' ? 'w-4 h-4' : 'w-3 h-3'}
                               />
-                            )
-                          ))}
-                        </>
-                      )}
+                              <span className="text-xs text-gray-400">x{user.achievement_counts[`${type}_restricted`]}</span>
+                            </div>
+                          )
+                        )
+                      ))}
                     </div>
                     
                     <span className="text-xl font-bold text-purple-400">

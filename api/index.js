@@ -575,7 +575,8 @@ app.get('/api/bingo/board', async (req, res) => {
 app.get('/api/leaderboard', async (req, res) => {
   try {
     const userId = await getAuthenticatedUserId(req);
-    const mode = req.query.mode === 'alltime' ? 'alltime' : 'monthly';
+    const VALID_MODES = ['monthly', 'alltime', 'season', 'year'];
+    const mode = VALID_MODES.includes(req.query.mode) ? req.query.mode : 'monthly';
 
     // ── ALL-TIME BRANCH ──────────────────────────────────────────────────────
     if (mode === 'alltime') {
@@ -702,6 +703,160 @@ app.get('/api/leaderboard', async (req, res) => {
       cache.set(cacheKey, transformedAllTime, 60);
       res.set('Cache-Control', 'public, max-age=60');
       return res.json(transformedAllTime);
+    }
+
+    // ── SEASON / YEAR BRANCH ─────────────────────────────────────────────────
+    if (mode === 'season' || mode === 'year') {
+      const groupField = mode === 'season' ? 'season_id' : 'year_id';
+      const cacheKey = `leaderboard:${mode}`;
+      const cached = cache.get(cacheKey);
+      if (cached) {
+        res.set('Cache-Control', 'public, max-age=60');
+        return res.json(cached);
+      }
+
+      // Get active month's season_id / year_id
+      const ACTIVE_MONTH_ID = await getActiveMonthId(userId);
+      if (!ACTIVE_MONTH_ID) return res.status(404).json({ error: 'No active month found' });
+
+      const { data: activeMonth, error: activeMonthError } = await supabase
+        .from('bingo_months')
+        .select('season_id, year_id')
+        .eq('id', ACTIVE_MONTH_ID)
+        .single();
+
+      if (activeMonthError) throw activeMonthError;
+
+      const groupId = activeMonth[groupField];
+      if (!groupId) {
+        cache.set(cacheKey, [], 60);
+        return res.json([]); // No season/year assigned to active month
+      }
+
+      // All month IDs in this season/year
+      const { data: groupMonths, error: groupMonthsError } = await supabase
+        .from('bingo_months')
+        .select('id')
+        .eq(groupField, groupId);
+
+      if (groupMonthsError) throw groupMonthsError;
+
+      const monthIds = groupMonths.map(m => m.id);
+
+      // Sum points across those months
+      const { data: groupPoints, error: groupPointsError } = await supabase
+        .from('user_monthly_points')
+        .select('user_id, points')
+        .in('month_id', monthIds);
+
+      if (groupPointsError) throw groupPointsError;
+
+      const pointsByUser = {};
+      groupPoints.forEach(row => {
+        pointsByUser[row.user_id] = (pointsByUser[row.user_id] || 0) + row.points;
+      });
+
+      const sorted = Object.entries(pointsByUser)
+        .sort(([, a], [, b]) => b - a)
+        .map(([user_id, points]) => ({ user_id, points }));
+
+      if (sorted.length === 0) {
+        cache.set(cacheKey, [], 60);
+        return res.json([]);
+      }
+
+      const userIds = sorted.map(u => u.user_id);
+
+      // User info
+      const { data: usersData, error: usersError } = await supabase
+        .from('users')
+        .select('id, username, display_name, created_at, twitch_url')
+        .in('id', userIds);
+
+      if (usersError) throw usersError;
+
+      const usersMap = {};
+      usersData.forEach(u => { usersMap[u.id] = u; });
+
+      // Achievement counts across those months
+      const { data: groupAchievements } = await supabase
+        .from('bingo_achievements')
+        .select('user_id, bingo_type')
+        .in('user_id', userIds)
+        .in('month_id', monthIds);
+
+      const achievementCounts = {};
+      if (groupAchievements) {
+        groupAchievements.forEach(ach => {
+          if (!achievementCounts[ach.user_id]) achievementCounts[ach.user_id] = {};
+          achievementCounts[ach.user_id][ach.bingo_type] = (achievementCounts[ach.user_id][ach.bingo_type] || 0) + 1;
+        });
+      }
+
+      // Hex codes
+      const { data: ambassadors } = await supabase
+        .from('twitch_ambassadors')
+        .select('id, hex_code')
+        .in('id', userIds);
+
+      const hexCodeMap = {};
+      if (ambassadors) ambassadors.forEach(a => { hexCodeMap[a.id] = a.hex_code || '#9147ff'; });
+
+      // Twitch live status
+      const liveStatusMap = {};
+      try {
+        const TWITCH_CLIENT_ID = process.env.TWITCH_CLIENT_ID;
+        const TWITCH_CLIENT_SECRET = process.env.TWITCH_CLIENT_SECRET;
+        const twitchUsers = sorted.filter(u => usersMap[u.user_id]?.twitch_url);
+
+        if (TWITCH_CLIENT_ID && TWITCH_CLIENT_SECRET && twitchUsers.length > 0) {
+          const tokenResponse = await fetch('https://id.twitch.tv/oauth2/token', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: `client_id=${TWITCH_CLIENT_ID}&client_secret=${TWITCH_CLIENT_SECRET}&grant_type=client_credentials`
+          });
+          const { access_token } = await tokenResponse.json();
+          const usernames = twitchUsers.map(u => usersMap[u.user_id].twitch_url.split('/').pop().toLowerCase());
+          const usersResponse = await fetch(`https://api.twitch.tv/helix/users?${usernames.map(u => `login=${u}`).join('&')}`, {
+            headers: { 'Authorization': `Bearer ${access_token}`, 'Client-Id': TWITCH_CLIENT_ID }
+          });
+          const { data: twitchApiUsers } = await usersResponse.json();
+          const twitchIds = twitchApiUsers?.map(u => u.id) || [];
+          if (twitchIds.length > 0) {
+            const streamsResponse = await fetch(`https://api.twitch.tv/helix/streams?${twitchIds.map(id => `user_id=${id}`).join('&')}`, {
+              headers: { 'Authorization': `Bearer ${access_token}`, 'Client-Id': TWITCH_CLIENT_ID }
+            });
+            const { data: streams } = await streamsResponse.json();
+            streams?.forEach(stream => {
+              const u = twitchApiUsers.find(u => u.id === stream.user_id);
+              if (u) liveStatusMap[u.login.toLowerCase()] = true;
+            });
+          }
+        }
+      } catch (err) {
+        console.error(`Twitch live check error (${mode}):`, err);
+      }
+
+      const result = sorted.map((entry, index) => {
+        const u = usersMap[entry.user_id] || {};
+        const username = u.twitch_url ? u.twitch_url.split('/').pop().toLowerCase() : null;
+        return {
+          id: entry.user_id,
+          user_id: entry.user_id,
+          username: u.username,
+          display_name: u.display_name,
+          points: entry.points,
+          created_at: u.created_at,
+          twitch_url: index < 10 ? u.twitch_url : null,
+          is_live: index < 10 && username ? (liveStatusMap[username] || false) : false,
+          achievement_counts: achievementCounts[entry.user_id] || {},
+          hex_code: hexCodeMap[entry.user_id] || '#9147ff'
+        };
+      });
+
+      cache.set(cacheKey, result, 60);
+      res.set('Cache-Control', 'public, max-age=60');
+      return res.json(result);
     }
 
     // ── MONTHLY BRANCH ───────────────────────────────────────────────────────
@@ -2621,6 +2776,67 @@ app.get('/api/mod/board-builder', async (req, res) => {
     console.log(`[BoardBuilder] userId=${userId} month=${monthKey} start=${startDate} end=${endDate}`);
     console.log(`[BoardBuilder] SUPABASE_URL set=${!!process.env.SUPABASE_URL} SERVICE_KEY set=${!!process.env.SUPABASE_SERVICE_ROLE_KEY} keyLen=${process.env.SUPABASE_SERVICE_ROLE_KEY?.length}`);
 
+    // ── Compute season_id and year_id ────────────────────────────────────────
+    // Game year runs March → February. e.g. Mar 2025–Feb 2026 = game year 2025.
+    const gameYear = nMonth >= 3 ? nYear : nYear - 1;
+
+    // Which seasonal quarter does this month fall in?
+    // 0 = Winter (Dec/Jan/Feb), 1 = Spring (Mar/Apr/May),
+    // 2 = Summer (Jun/Jul/Aug),  3 = Fall  (Sep/Oct/Nov)
+    const seasonQuarter = nMonth >= 3 && nMonth <= 5  ? 1
+                        : nMonth >= 6 && nMonth <= 8  ? 2
+                        : nMonth >= 9 && nMonth <= 11 ? 3
+                        : 0; // Dec, Jan, Feb → Winter
+
+    // Helper: does a bingo_month row fall in the same seasonal quarter?
+    const isInSameQuarter = (startDateStr) => {
+      const d    = new Date(startDateStr + 'T00:00:00Z');
+      const m    = d.getUTCMonth() + 1;
+      const y    = d.getUTCFullYear();
+      const q    = m >= 3 && m <= 5  ? 1
+                 : m >= 6 && m <= 8  ? 2
+                 : m >= 9 && m <= 11 ? 3
+                 : 0;
+      if (q !== seasonQuarter) return false;
+      // Winter crosses the calendar year boundary
+      const rowGameYear = m >= 3 ? y : y - 1;
+      return rowGameYear === gameYear;
+    };
+
+    // Fetch all months in the same game year (Mar {gameYear} – Feb {gameYear+1})
+    const { data: yearMonths } = await supabase
+      .from('bingo_months')
+      .select('id, season_id, year_id, start_date')
+      .gte('start_date', `${gameYear}-03-01`)
+      .lt('start_date', `${gameYear + 1}-03-01`);
+
+    // Reuse existing year_id for this game year, or assign max + 1
+    const existingYearId = yearMonths?.find(m => m.year_id != null)?.year_id ?? null;
+    let year_id;
+    if (existingYearId != null) {
+      year_id = existingYearId;
+    } else {
+      const { data: maxYearRow } = await supabase
+        .from('bingo_months').select('year_id').not('year_id', 'is', null)
+        .order('year_id', { ascending: false }).limit(1);
+      year_id = (maxYearRow?.[0]?.year_id ?? 0) + 1;
+    }
+
+    // Reuse existing season_id for this quarter, or assign max + 1
+    const seasonMonths   = (yearMonths || []).filter(m => isInSameQuarter(m.start_date));
+    const existingSeasonId = seasonMonths.find(m => m.season_id != null)?.season_id ?? null;
+    let season_id;
+    if (existingSeasonId != null) {
+      season_id = existingSeasonId;
+    } else {
+      const { data: maxSeasonRow } = await supabase
+        .from('bingo_months').select('season_id').not('season_id', 'is', null)
+        .order('season_id', { ascending: false }).limit(1);
+      season_id = (maxSeasonRow?.[0]?.season_id ?? 0) + 1;
+    }
+
+    console.log(`[BoardBuilder] gameYear=${gameYear} quarter=${seasonQuarter} season_id=${season_id} year_id=${year_id}`);
+
     // ── Find or insert next month (never overwrite existing rows) ────────────
     const sbUrl = process.env.SUPABASE_URL;
     const sbKey  = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -2632,7 +2848,7 @@ app.get('/api/mod/board-builder', async (req, res) => {
 
     // Step 1: look for an existing row
     const selectRes = await fetch(
-      `${sbUrl}/rest/v1/bingo_months?month_year=eq.${encodeURIComponent(monthKey)}&select=id,month_year_display,start_date,end_date`,
+      `${sbUrl}/rest/v1/bingo_months?month_year=eq.${encodeURIComponent(monthKey)}&select=id,month_year_display,start_date,end_date,season_id,year_id`,
       { headers: restHeaders }
     );
     const selectText = await selectRes.text();
@@ -2651,7 +2867,14 @@ app.get('/api/mod/board-builder', async (req, res) => {
       const insertRes = await fetch(`${sbUrl}/rest/v1/bingo_months`, {
         method: 'POST',
         headers: { ...restHeaders, 'Prefer': 'return=representation' },
-        body: JSON.stringify({ month_year: monthKey, month_year_display: display, start_date: startDate, end_date: endDate }),
+        body: JSON.stringify({
+          month_year: monthKey,
+          month_year_display: display,
+          start_date: startDate,
+          end_date: endDate,
+          season_id,
+          year_id,
+        }),
       });
       const insertText = await insertRes.text();
       console.log(`[BoardBuilder] INSERT HTTP ${insertRes.status}: ${insertText}`);
@@ -2664,6 +2887,24 @@ app.get('/api/mod/board-builder', async (req, res) => {
       nextMonth = Array.isArray(inserted) ? inserted[0] : inserted;
     } else {
       console.log(`[BoardBuilder] Found existing bingo_month id=${nextMonth.id}`);
+
+      // Backfill season_id / year_id if the existing row is missing them
+      const needsPatch = nextMonth.season_id == null || nextMonth.year_id == null;
+      if (needsPatch) {
+        console.log(`[BoardBuilder] Patching missing season_id/year_id on id=${nextMonth.id}`);
+        await fetch(
+          `${sbUrl}/rest/v1/bingo_months?id=eq.${nextMonth.id}`,
+          {
+            method: 'PATCH',
+            headers: { ...restHeaders, 'Prefer': 'return=minimal' },
+            body: JSON.stringify({
+              ...(nextMonth.season_id == null ? { season_id } : {}),
+              ...(nextMonth.year_id   == null ? { year_id }   : {}),
+            }),
+          }
+        );
+        nextMonth = { ...nextMonth, season_id, year_id };
+      }
     }
 
     if (!nextMonth) {

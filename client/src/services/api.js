@@ -42,7 +42,8 @@ export const api = {
 
   // Leaderboard endpoints
   getLeaderboard: async (viewMode = 'monthly') => {
-    const mode = viewMode === 'alltime' ? 'alltime' : 'monthly';
+    const VALID_MODES = ['monthly', 'alltime', 'season', 'year'];
+    const mode = VALID_MODES.includes(viewMode) ? viewMode : 'monthly';
     const response = await fetch(`${API_BASE_URL}/leaderboard?mode=${mode}`);
     if (!response.ok) throw new Error('Failed to fetch leaderboard');
     return response.json();
