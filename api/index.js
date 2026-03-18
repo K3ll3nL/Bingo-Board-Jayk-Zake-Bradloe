@@ -1997,7 +1997,7 @@ app.post('/api/approvals/:id/approve', async (req, res) => {
 
     // Check if user is moderator
     const { data: isMod, error: modError } = await supabase
-      .from('twitch_ambassadors')
+      .from('moderators')
       .select('id')
       .eq('id', moderatorId)
       .single();
@@ -2131,7 +2131,7 @@ app.post('/api/approvals/:id/reject', async (req, res) => {
 
     // Check if user is moderator
     const { data: isMod, error: modError } = await supabase
-      .from('twitch_ambassadors')
+      .from('moderators')
       .select('id')
       .eq('id', moderatorId)
       .single();
@@ -2271,9 +2271,9 @@ app.post('/api/admin/clear-cache', async (req, res) => {
       return res.status(401).json({ error: 'Authentication required' });
     }
 
-    // Check if user is moderator (twitch_ambassador)
+    // Check if user is moderator
     const { data: isMod, error: modError } = await supabase
-      .from('twitch_ambassadors')
+      .from('moderators')
       .select('id')
       .eq('id', userId)
       .single();
@@ -2320,7 +2320,7 @@ app.post('/api/admin/clear-cache', async (req, res) => {
   }
 });
 
-// Check if user is a moderator (Twitch Ambassador)
+// Check if user is a moderator
 app.get('/api/user/is-moderator', async (req, res) => {
   try {
     const userId = await getAuthenticatedUserId(req);
@@ -2328,13 +2328,13 @@ app.get('/api/user/is-moderator', async (req, res) => {
       return res.json({ isModerator: false });
     }
 
-    const { data: ambassador, error } = await supabase
-      .from('twitch_ambassadors')
+    const { data: mod, error } = await supabase
+      .from('moderators')
       .select('id')
       .eq('id', userId)
       .single();
 
-    res.json({ isModerator: !error && !!ambassador });
+    res.json({ isModerator: !error && !!mod });
   } catch (error) {
     console.error('Error checking moderator status:', error);
     res.json({ isModerator: false });
@@ -2511,7 +2511,7 @@ app.get('/api/approvals/pending', async (req, res) => {
 
     // Verify moderator status
     const { data: ambassador, error: modError } = await supabase
-      .from('twitch_ambassadors')
+      .from('moderators')
       .select('id')
       .eq('id', userId)
       .single();
@@ -2599,7 +2599,7 @@ app.get('/api/mod/board-builder', async (req, res) => {
     if (!userId) return res.status(401).json({ error: 'Authentication required' });
 
     const { data: modRow, error: modErr } = await supabase
-      .from('twitch_ambassadors').select('id').eq('id', userId).maybeSingle();
+      .from('moderators').select('id').eq('id', userId).maybeSingle();
     if (modErr) return res.status(500).json({ error: 'Mod check failed', details: modErr.message });
     if (!modRow) return res.status(403).json({ error: 'Moderator access required' });
 
@@ -2823,7 +2823,7 @@ app.put('/api/mod/board-builder/swap', async (req, res) => {
     if (!userId) return res.status(401).json({ error: 'Authentication required' });
 
     const { data: modRow } = await supabase
-      .from('twitch_ambassadors').select('id').eq('id', userId).maybeSingle();
+      .from('moderators').select('id').eq('id', userId).maybeSingle();
     if (!modRow) return res.status(403).json({ error: 'Moderator access required' });
 
     const { pos1, pos2, monthId, operationId } = req.body;
@@ -2869,7 +2869,7 @@ app.post('/api/mod/board-builder/reroll', async (req, res) => {
     if (!userId) return res.status(401).json({ error: 'Authentication required' });
 
     const { data: modRow } = await supabase
-      .from('twitch_ambassadors').select('id').eq('id', userId).maybeSingle();
+      .from('moderators').select('id').eq('id', userId).maybeSingle();
     if (!modRow) return res.status(403).json({ error: 'Moderator access required' });
 
     const { position, monthId, operationId } = req.body;

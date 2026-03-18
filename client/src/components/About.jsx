@@ -217,10 +217,10 @@ const About = () => {
               </thead>
               <tbody className="divide-y divide-gray-700">
                 {[
-                  { name: 'Horizontal Line', std: 3, res: 6 },
-                  { name: 'Vertical Line',   std: 3, res: 6 },
-                  { name: 'X',               std: 6, res: 12 },
-                  { name: 'Blackout',        std: 12, res: 24 },
+                  { name: 'Horizontal Line', std: 3, res: 3 },
+                  { name: 'Vertical Line',   std: 3, res: 3 },
+                  { name: 'X',               std: 6, res: 6 },
+                  { name: 'Blackout',        std: 12, res: 12 },
                 ].map(({ name, std, res }) => (
                   <tr key={name} className="hover:bg-gray-700/30 transition-colors">
                     <td className="px-4 py-2.5 text-white font-medium">{name}</td>
@@ -285,7 +285,7 @@ const About = () => {
             <p className="text-gray-300 leading-relaxed mb-5">
               The Restricted Challenge is an optional, higher-difficulty challenge that runs alongside
               the standard board each month. Restricted submissions are held to a higher evidence
-              standard and award double points for bingo achievements and submissions.
+              standard and award extra points for bingo achievements and submissions.
             </p>
 
             {/* Key differences */}
