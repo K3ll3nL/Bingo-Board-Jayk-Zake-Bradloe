@@ -590,19 +590,23 @@ app.get('/api/leaderboard', async (req, res) => {
       // Sum points across all months per user
       const { data: allPoints, error: allPointsError } = await supabase
         .from('user_monthly_points')
-        .select('user_id, points');
+        .select('user_id, points, last_updated');
 
       if (allPointsError) throw allPointsError;
 
-      // Aggregate in JS
+      // Aggregate in JS — track earliest last_updated per user as tiebreaker
       const pointsByUser = {};
+      const firstUpdatedByUser = {};
       allPoints.forEach(row => {
         pointsByUser[row.user_id] = (pointsByUser[row.user_id] || 0) + row.points;
+        if (!firstUpdatedByUser[row.user_id] || row.last_updated < firstUpdatedByUser[row.user_id]) {
+          firstUpdatedByUser[row.user_id] = row.last_updated;
+        }
       });
 
-      // Sort all users by total points
+      // Sort: higher points first; ties broken by who reached that score first
       const top10 = Object.entries(pointsByUser)
-        .sort(([, a], [, b]) => b - a)
+        .sort(([uidA, a], [uidB, b]) => b - a || (firstUpdatedByUser[uidA] < firstUpdatedByUser[uidB] ? -1 : 1))
         .map(([user_id, points]) => ({ user_id, points }));
 
       if (top10.length === 0) {
@@ -762,18 +766,24 @@ app.get('/api/leaderboard', async (req, res) => {
       // Sum points across those months
       const { data: groupPoints, error: groupPointsError } = await supabase
         .from('user_monthly_points')
-        .select('user_id, points')
+        .select('user_id, points, last_updated')
         .in('month_id', monthIds);
 
       if (groupPointsError) throw groupPointsError;
 
+      // Aggregate — track min row id per user as a "first to score" tiebreaker
       const pointsByUser = {};
+      const firstIdByUser = {};
       groupPoints.forEach(row => {
         pointsByUser[row.user_id] = (pointsByUser[row.user_id] || 0) + row.points;
+        if (firstIdByUser[row.user_id] === undefined || row.id < firstIdByUser[row.user_id]) {
+          firstIdByUser[row.user_id] = row.id;
+        }
       });
 
+      // Sort: higher points first; ties broken by who scored first (lower row id)
       const sorted = Object.entries(pointsByUser)
-        .sort(([, a], [, b]) => b - a)
+        .sort(([uidA, a], [uidB, b]) => b - a || firstIdByUser[uidA] - firstIdByUser[uidB])
         .map(([user_id, points]) => ({ user_id, points }));
 
       if (sorted.length === 0) {
@@ -906,7 +916,8 @@ app.get('/api/leaderboard', async (req, res) => {
         )
       `)
       .eq('month_id', ACTIVE_MONTH_ID)
-      .order('points', { ascending: false });
+      .order('points', { ascending: false })
+      .order('last_updated', { ascending: true }); // tiebreaker: reached score first
     
     if (monthlyError) throw monthlyError;
     const data = monthlyData;
