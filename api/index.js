@@ -1959,69 +1959,59 @@ app.post('/api/approvals/:id/approve', async (req, res) => {
     }
     
     console.log('Approval successful:', data);
-    
 
-    // Notify connected clients
-    await Promise.all([
+    // Respond immediately — broadcasts and cleanup are non-critical side effects
+    res.json(data);
+
+    // Notify connected clients (fire-and-forget; a broadcast failure must never
+    // make the client think the approval failed when the DB already committed it)
+    Promise.all([
       broadcastUpdate('board-updates', 'board-changed', { userId: approval.user_id }),
       broadcastUpdate('leaderboard-updates', 'leaderboard-changed', {}),
       broadcastNotificationToasts(approval.user_id),
-    ]);
+    ]).catch(err => console.error('Post-approval broadcast failed (non-fatal):', err.message));
 
-    // Delete images from R2 if they exist (only for image uploads, not Twitch links)
+    // Delete images from R2 (fire-and-forget; same reasoning)
     const R2_BUCKET_URL = process.env.R2_BUCKET_URL;
     const imagesToDelete = [];
-    
-    // Check if proof_url is an R2 image (not a Twitch link)
+
     if (approval.proof_url && approval.proof_url.startsWith(R2_BUCKET_URL)) {
       imagesToDelete.push(approval.proof_url);
     }
-    
     if (approval.proof_url2 && approval.proof_url2.startsWith(R2_BUCKET_URL)) {
       imagesToDelete.push(approval.proof_url2);
     }
-    
+
     if (imagesToDelete.length > 0) {
-      try {
-        const R2_ACCESS_KEY_ID = process.env.R2_ACCESS_KEY_ID;
-        const R2_SECRET_ACCESS_KEY = process.env.R2_SECRET_ACCESS_KEY;
-        const R2_ACCOUNT_ID = process.env.R2_ACCOUNT_ID;
-        const R2_BUCKET_NAME = process.env.R2_BUCKET_NAME || 'shiny-sprites';
-        
-        if (R2_ACCESS_KEY_ID && R2_SECRET_ACCESS_KEY && R2_ACCOUNT_ID) {
-          const { S3Client, DeleteObjectCommand } = require('@aws-sdk/client-s3');
-          
-          const s3Client = new S3Client({
-            region: 'auto',
-            endpoint: `https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com`,
-            credentials: {
-              accessKeyId: R2_ACCESS_KEY_ID,
-              secretAccessKey: R2_SECRET_ACCESS_KEY,
-            },
-          });
-          
-          for (const imageUrl of imagesToDelete) {
-            // Extract the key from the URL (everything after the bucket URL)
-            const key = imageUrl.replace(`${R2_BUCKET_URL}/`, '');
-            console.log('Deleting R2 object:', key);
-            
-            await s3Client.send(new DeleteObjectCommand({
-              Bucket: R2_BUCKET_NAME,
-              Key: key,
-            }));
-            
-            console.log('Successfully deleted:', key);
+      (async () => {
+        try {
+          const R2_ACCESS_KEY_ID = process.env.R2_ACCESS_KEY_ID;
+          const R2_SECRET_ACCESS_KEY = process.env.R2_SECRET_ACCESS_KEY;
+          const R2_ACCOUNT_ID = process.env.R2_ACCOUNT_ID;
+          const R2_BUCKET_NAME = process.env.R2_BUCKET_NAME || 'shiny-sprites';
+
+          if (R2_ACCESS_KEY_ID && R2_SECRET_ACCESS_KEY && R2_ACCOUNT_ID) {
+            const { S3Client, DeleteObjectCommand } = require('@aws-sdk/client-s3');
+            const s3Client = new S3Client({
+              region: 'auto',
+              endpoint: `https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com`,
+              credentials: { accessKeyId: R2_ACCESS_KEY_ID, secretAccessKey: R2_SECRET_ACCESS_KEY },
+            });
+
+            for (const imageUrl of imagesToDelete) {
+              const key = imageUrl.replace(`${R2_BUCKET_URL}/`, '');
+              console.log('Deleting R2 object:', key);
+              await s3Client.send(new DeleteObjectCommand({ Bucket: R2_BUCKET_NAME, Key: key }));
+              console.log('Successfully deleted:', key);
+            }
+          } else {
+            console.warn('R2 credentials not configured, skipping image deletion');
           }
-        } else {
-          console.warn('R2 credentials not configured, skipping image deletion');
+        } catch (r2Error) {
+          console.error('Error deleting images from R2 (non-fatal):', r2Error);
         }
-      } catch (r2Error) {
-        // Don't fail the approval if image deletion fails
-        console.error('Error deleting images from R2:', r2Error);
-      }
+      })();
     }
-    
-    res.json(data);
   } catch (error) {
     console.error('Error approving submission:', error);
     res.status(500).json({ 
@@ -2091,81 +2081,76 @@ app.post('/api/approvals/:id/reject', async (req, res) => {
 
     console.log('Rejection successful:', data);
 
-    // For warn: increment restricted_strikes on the user
-    if (rejectAction === 'warn') {
-      const { data: userData } = await supabase
-        .from('users')
-        .select('restricted_strikes')
-        .eq('id', approval.user_id)
-        .single();
-      await supabase
-        .from('users')
-        .update({ restricted_strikes: (userData?.restricted_strikes || 0) + 1 })
-        .eq('id', approval.user_id);
-      console.log('Incremented restricted_strikes for user:', approval.user_id);
-    }
-    
+    // Respond immediately — side effects below must never roll back a committed rejection
+    res.json(data);
 
-    // Notify connected clients
-    await Promise.all([
+    // For warn: increment restricted_strikes on the user (fire-and-forget)
+    if (rejectAction === 'warn') {
+      (async () => {
+        try {
+          const { data: userData } = await supabase
+            .from('users')
+            .select('restricted_strikes')
+            .eq('id', approval.user_id)
+            .single();
+          await supabase
+            .from('users')
+            .update({ restricted_strikes: (userData?.restricted_strikes || 0) + 1 })
+            .eq('id', approval.user_id);
+          console.log('Incremented restricted_strikes for user:', approval.user_id);
+        } catch (err) {
+          console.error('Failed to increment restricted_strikes (non-fatal):', err.message);
+        }
+      })();
+    }
+
+    // Notify connected clients (fire-and-forget)
+    Promise.all([
       broadcastUpdate('board-updates', 'board-changed', { userId: approval.user_id }),
       broadcastNotificationToasts(approval.user_id),
-    ]);
+    ]).catch(err => console.error('Post-rejection broadcast failed (non-fatal):', err.message));
 
-    // Delete images from R2 if they exist (only for image uploads, not Twitch links)
+    // Delete images from R2 (fire-and-forget)
     const R2_BUCKET_URL = process.env.R2_BUCKET_URL;
     const imagesToDelete = [];
-    
-    // Check if proof_url is an R2 image (not a Twitch link)
+
     if (approval.proof_url && approval.proof_url.startsWith(R2_BUCKET_URL)) {
       imagesToDelete.push(approval.proof_url);
     }
-    
     if (approval.proof_url2 && approval.proof_url2.startsWith(R2_BUCKET_URL)) {
       imagesToDelete.push(approval.proof_url2);
     }
-    
+
     if (imagesToDelete.length > 0) {
-      try {
-        const R2_ACCESS_KEY_ID = process.env.R2_ACCESS_KEY_ID;
-        const R2_SECRET_ACCESS_KEY = process.env.R2_SECRET_ACCESS_KEY;
-        const R2_ACCOUNT_ID = process.env.R2_ACCOUNT_ID;
-        const R2_BUCKET_NAME = process.env.R2_BUCKET_NAME || 'shiny-sprites';
-        
-        if (R2_ACCESS_KEY_ID && R2_SECRET_ACCESS_KEY && R2_ACCOUNT_ID) {
-          const { S3Client, DeleteObjectCommand } = require('@aws-sdk/client-s3');
-          
-          const s3Client = new S3Client({
-            region: 'auto',
-            endpoint: `https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com`,
-            credentials: {
-              accessKeyId: R2_ACCESS_KEY_ID,
-              secretAccessKey: R2_SECRET_ACCESS_KEY,
-            },
-          });
-          
-          for (const imageUrl of imagesToDelete) {
-            // Extract the key from the URL (everything after the bucket URL)
-            const key = imageUrl.replace(`${R2_BUCKET_URL}/`, '');
-            console.log('Deleting R2 object:', key);
-            
-            await s3Client.send(new DeleteObjectCommand({
-              Bucket: R2_BUCKET_NAME,
-              Key: key,
-            }));
-            
-            console.log('Successfully deleted:', key);
+      (async () => {
+        try {
+          const R2_ACCESS_KEY_ID = process.env.R2_ACCESS_KEY_ID;
+          const R2_SECRET_ACCESS_KEY = process.env.R2_SECRET_ACCESS_KEY;
+          const R2_ACCOUNT_ID = process.env.R2_ACCOUNT_ID;
+          const R2_BUCKET_NAME = process.env.R2_BUCKET_NAME || 'shiny-sprites';
+
+          if (R2_ACCESS_KEY_ID && R2_SECRET_ACCESS_KEY && R2_ACCOUNT_ID) {
+            const { S3Client, DeleteObjectCommand } = require('@aws-sdk/client-s3');
+            const s3Client = new S3Client({
+              region: 'auto',
+              endpoint: `https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com`,
+              credentials: { accessKeyId: R2_ACCESS_KEY_ID, secretAccessKey: R2_SECRET_ACCESS_KEY },
+            });
+
+            for (const imageUrl of imagesToDelete) {
+              const key = imageUrl.replace(`${R2_BUCKET_URL}/`, '');
+              console.log('Deleting R2 object:', key);
+              await s3Client.send(new DeleteObjectCommand({ Bucket: R2_BUCKET_NAME, Key: key }));
+              console.log('Successfully deleted:', key);
+            }
+          } else {
+            console.warn('R2 credentials not configured, skipping image deletion');
           }
-        } else {
-          console.warn('R2 credentials not configured, skipping image deletion');
+        } catch (r2Error) {
+          console.error('Error deleting images from R2 (non-fatal):', r2Error);
         }
-      } catch (r2Error) {
-        // Don't fail the rejection if image deletion fails
-        console.error('Error deleting images from R2:', r2Error);
-      }
+      })();
     }
-    
-    res.json(data);
   } catch (error) {
     console.error('Error rejecting submission:', error);
     res.status(500).json({ 
