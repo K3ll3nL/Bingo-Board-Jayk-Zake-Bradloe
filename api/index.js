@@ -1,6 +1,7 @@
 require('dotenv').config({ path: require('path').join(__dirname, '.env') });
 
 const express = require('express');
+const crypto = require('crypto');
 const cors = require('cors');
 const { createClient } = require('@supabase/supabase-js');
 const multer = require('multer');
@@ -251,6 +252,21 @@ async function getActiveMonth(userId = null) {
 async function getActiveMonthId(userId = null) {
   const month = await getActiveMonth(userId);
   return month?.id ?? null;
+}
+
+// Validate an API key (pb_xxx) and return its owner's user_id, or null if invalid.
+// Updates last_used_at fire-and-forget.
+async function validateApiKey(key) {
+  if (!key || typeof key !== 'string' || !key.startsWith('pb_')) return null;
+  const hash = crypto.createHash('sha256').update(key).digest('hex');
+  const { data } = await supabase
+    .from('api_keys')
+    .select('id, user_id')
+    .eq('key_hash', hash)
+    .maybeSingle();
+  if (!data) return null;
+  supabase.from('api_keys').update({ last_used_at: new Date().toISOString() }).eq('id', data.id).then(() => {});
+  return data.user_id;
 }
 
 // Health check
@@ -2935,6 +2951,266 @@ app.post('/api/mod/board-builder/reroll', async (req, res) => {
 
   } catch (err) {
     res.status(500).json({ error: err.message });
+  }
+});
+
+// ── Site Pro & API Key management ────────────────────────────────────────────
+
+// GET /api/user/is-pro
+app.get('/api/user/is-pro', async (req, res) => {
+  try {
+    const userId = await getAuthenticatedUserId(req);
+    if (!userId) return res.json({ isPro: false });
+    const { data } = await supabase.from('site_pro').select('user_id').eq('user_id', userId).maybeSingle();
+    res.json({ isPro: !!data });
+  } catch { res.json({ isPro: false }); }
+});
+
+// GET /api/keys — list current user's keys (prefix + metadata only, never the secret)
+app.get('/api/keys', async (req, res) => {
+  try {
+    const userId = await getAuthenticatedUserId(req);
+    if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+    const { data: pro } = await supabase.from('site_pro').select('user_id').eq('user_id', userId).maybeSingle();
+    if (!pro) return res.status(403).json({ error: 'Pro access required' });
+    const { data: keys, error } = await supabase
+      .from('api_keys')
+      .select('id, name, key_prefix, created_at, last_used_at')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false });
+    if (error) throw error;
+    res.json(keys || []);
+  } catch (err) {
+    console.error('List keys error:', err);
+    res.status(500).json({ error: 'Failed to load keys' });
+  }
+});
+
+// POST /api/keys — generate a new named API key (shown once, never stored plain)
+app.post('/api/keys', async (req, res) => {
+  try {
+    const userId = await getAuthenticatedUserId(req);
+    if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+    const { data: pro } = await supabase.from('site_pro').select('user_id').eq('user_id', userId).maybeSingle();
+    if (!pro) return res.status(403).json({ error: 'Pro access required' });
+
+    const name = (req.body.name || '').trim();
+    if (!name || name.length > 50) return res.status(400).json({ error: 'Name must be 1–50 characters' });
+
+    // Enforce 5-key limit
+    const { count } = await supabase
+      .from('api_keys')
+      .select('id', { count: 'exact', head: true })
+      .eq('user_id', userId);
+    if (count >= 5) return res.status(400).json({ error: 'Maximum of 5 API keys allowed. Delete one first.' });
+
+    // Generate: pb_ + 24 random bytes = pb_ + 48 hex chars (51 chars total)
+    const rawKey = 'pb_' + crypto.randomBytes(24).toString('hex');
+    const keyHash = crypto.createHash('sha256').update(rawKey).digest('hex');
+    const keyPrefix = rawKey.substring(0, 12); // "pb_" + first 9 hex chars
+
+    const { data: newKey, error: insertError } = await supabase
+      .from('api_keys')
+      .insert({ user_id: userId, name, key_hash: keyHash, key_prefix: keyPrefix })
+      .select('id, name, key_prefix, created_at')
+      .single();
+
+    if (insertError) {
+      if (insertError.code === '23505') return res.status(400).json({ error: 'A key with that name already exists' });
+      throw insertError;
+    }
+
+    // Return the raw key exactly once — never stored in DB
+    res.json({ ...newKey, key: rawKey });
+  } catch (err) {
+    console.error('Create key error:', err);
+    res.status(500).json({ error: 'Failed to create key' });
+  }
+});
+
+// DELETE /api/keys/:id
+app.delete('/api/keys/:id', async (req, res) => {
+  try {
+    const userId = await getAuthenticatedUserId(req);
+    if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+    const { error } = await supabase
+      .from('api_keys')
+      .delete()
+      .eq('id', req.params.id)
+      .eq('user_id', userId); // belt-and-suspenders: can only delete own keys
+    if (error) throw error;
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Delete key error:', err);
+    res.status(500).json({ error: 'Failed to delete key' });
+  }
+});
+
+// ── Overlay data endpoints (API key auth, no Discord auth required) ──────────
+
+// GET /api/overlay/board?key=pb_xxx&mode=live|template
+app.get('/api/overlay/board', async (req, res) => {
+  try {
+    const userId = await validateApiKey(req.query.key);
+    if (!userId) return res.status(401).json({ error: 'Invalid or missing API key' });
+
+    const mode = req.query.mode === 'template' ? 'template' : 'live';
+    const monthData = await getActiveMonth();
+    if (!monthData) return res.status(404).json({ error: 'No active bingo month' });
+    const ACTIVE_MONTH_ID = monthData.id;
+
+    const [
+      { data: entries },
+      { data: approvals },
+      { data: poolData, error: poolError },
+    ] = await Promise.all([
+      mode === 'live'
+        ? supabase.from('entries').select('pokemon_id').eq('user_id', userId).eq('month_id', ACTIVE_MONTH_ID)
+        : Promise.resolve({ data: [] }),
+      mode === 'live'
+        ? supabase.from('approvals').select('pokemon_id').eq('user_id', userId)
+        : Promise.resolve({ data: [] }),
+      supabase.from('monthly_pokemon_pool').select('position, pokemon_id').eq('month_id', ACTIVE_MONTH_ID).order('position', { ascending: true }),
+    ]);
+
+    if (poolError) throw poolError;
+
+    const completedSet = new Set((entries || []).map(e => e.pokemon_id));
+    const pendingSet   = new Set((approvals || []).map(a => a.pokemon_id));
+    const pokemonIds   = (poolData || []).map(p => p.pokemon_id).filter(Boolean);
+
+    const { data: pokemonData } = await supabase
+      .from('pokemon_master')
+      .select('id, name, img_url')
+      .in('id', pokemonIds);
+
+    const pokemonMap = {};
+    (pokemonData || []).forEach(p => { pokemonMap[p.id] = p; });
+
+    const poolByPosition = {};
+    (poolData || []).forEach(pool => { poolByPosition[pool.position] = pool; });
+
+    const board = [];
+    for (let pos = 1; pos <= 25; pos++) {
+      if (pos === 13) {
+        board.push({ position: 13, is_checked: true, is_pending: false, pokemon_name: 'FREE', pokemon_gif: null });
+        continue;
+      }
+      const pool = poolByPosition[pos];
+      const poke = pool ? pokemonMap[pool.pokemon_id] : null;
+      board.push(poke ? {
+        position: pos,
+        pokemon_id: pool.pokemon_id,
+        is_checked: mode === 'live' && completedSet.has(pool.pokemon_id),
+        is_pending: mode === 'live' && !completedSet.has(pool.pokemon_id) && pendingSet.has(pool.pokemon_id),
+        pokemon_name: poke.name || 'Unknown',
+        pokemon_gif: poke.img_url,
+      } : {
+        position: pos,
+        is_checked: false,
+        is_pending: false,
+        pokemon_name: 'EMPTY',
+        pokemon_gif: null,
+      });
+    }
+
+    res.set('Cache-Control', 'no-store');
+    res.json({ month: monthData.month_year_display, board, mode });
+  } catch (err) {
+    console.error('Overlay board error:', err);
+    res.status(500).json({ error: 'Failed to fetch overlay board' });
+  }
+});
+
+// GET /api/overlay/leaderboard?key=pb_xxx&period=monthly|season|year|alltime&limit=5|10|20|25
+app.get('/api/overlay/leaderboard', async (req, res) => {
+  try {
+    const userId = await validateApiKey(req.query.key);
+    if (!userId) return res.status(401).json({ error: 'Invalid or missing API key' });
+
+    const VALID_PERIODS = ['monthly', 'season', 'year', 'alltime'];
+    const period = VALID_PERIODS.includes(req.query.period) ? req.query.period : 'monthly';
+    const rawLimit = parseInt(req.query.limit, 10);
+    const limit = [5, 10, 20, 25].includes(rawLimit) ? rawLimit : 10;
+
+    const PERIOD_LABELS = { monthly: 'This Month', season: 'This Season', year: 'This Year', alltime: 'All Time' };
+
+    let rankedUsers = [];
+
+    if (period === 'alltime') {
+      const { data: allPoints } = await supabase.from('user_monthly_points').select('user_id, points, last_updated');
+      const byUser = {}, firstBy = {};
+      (allPoints || []).forEach(row => {
+        byUser[row.user_id] = (byUser[row.user_id] || 0) + row.points;
+        if (!firstBy[row.user_id] || row.last_updated < firstBy[row.user_id]) firstBy[row.user_id] = row.last_updated;
+      });
+      rankedUsers = Object.entries(byUser)
+        .sort(([a, va], [b, vb]) => vb - va || (firstBy[a] < firstBy[b] ? -1 : 1))
+        .slice(0, limit)
+        .map(([user_id, points]) => ({ user_id, points }));
+    } else {
+      const activeMonth = await getActiveMonth();
+      if (!activeMonth) return res.json({ label: PERIOD_LABELS[period], rows: [] });
+
+      let fromDate;
+      if (period === 'monthly') {
+        fromDate = activeMonth.start_date;
+      } else if (period === 'season') {
+        const m = new Date(activeMonth.start_date);
+        fromDate = new Date(m.getFullYear(), Math.floor(m.getMonth() / 3) * 3, 1).toISOString();
+      } else { // year
+        fromDate = new Date(new Date(activeMonth.start_date).getFullYear(), 0, 1).toISOString();
+      }
+
+      const { data: months } = await supabase
+        .from('bingo_months')
+        .select('id')
+        .gte('start_date', fromDate)
+        .lte('start_date', activeMonth.start_date);
+
+      const monthIds = (months || []).map(m => m.id);
+      if (monthIds.length === 0) return res.json({ label: PERIOD_LABELS[period], rows: [] });
+
+      const { data: groupPoints } = await supabase
+        .from('user_monthly_points')
+        .select('user_id, points, last_updated')
+        .in('month_id', monthIds);
+
+      const byUser = {}, firstBy = {};
+      (groupPoints || []).forEach(row => {
+        byUser[row.user_id] = (byUser[row.user_id] || 0) + row.points;
+        if (!firstBy[row.user_id] || row.last_updated < firstBy[row.user_id]) firstBy[row.user_id] = row.last_updated;
+      });
+      rankedUsers = Object.entries(byUser)
+        .sort(([a, va], [b, vb]) => vb - va || (firstBy[a] < firstBy[b] ? -1 : 1))
+        .slice(0, limit)
+        .map(([user_id, points]) => ({ user_id, points }));
+    }
+
+    if (rankedUsers.length === 0) return res.json({ label: PERIOD_LABELS[period], rows: [] });
+
+    const userIds = rankedUsers.map(u => u.user_id);
+    const { data: usersData } = await supabase
+      .from('users')
+      .select('id, display_name, username')
+      .in('id', userIds);
+
+    const usersMap = {};
+    (usersData || []).forEach(u => { usersMap[u.id] = u; });
+
+    const rows = rankedUsers.map((u, i) => ({
+      rank: i + 1,
+      user_id: u.user_id,
+      display_name: usersMap[u.user_id]?.display_name || 'Unknown',
+      username: usersMap[u.user_id]?.username || '',
+      points: u.points,
+    }));
+
+    res.set('Cache-Control', 'no-store');
+    res.json({ label: PERIOD_LABELS[period], rows });
+  } catch (err) {
+    console.error('Overlay leaderboard error:', err);
+    res.status(500).json({ error: 'Failed to fetch overlay leaderboard' });
   }
 });
 

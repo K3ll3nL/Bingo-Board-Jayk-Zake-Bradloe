@@ -26,6 +26,29 @@ export const AuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
   const [boardVersion, setBoardVersion] = useState(0);
   const [leaderboardVersion, setLeaderboardVersion] = useState(0);
+  const [isPro, setIsPro] = useState(false);
+
+  // Check pro status whenever the user changes
+  useEffect(() => {
+    if (!user) { setIsPro(false); return; }
+    const checkPro = async () => {
+      try {
+        let authHeader;
+        if (isLocalhostDev()) {
+          authHeader = 'Bearer dev_token';
+        } else {
+          const { data: { session } } = await supabase.auth.getSession();
+          authHeader = session ? `Bearer ${session.access_token}` : null;
+        }
+        if (!authHeader) { setIsPro(false); return; }
+        const API_BASE = isLocalhostDev() ? 'http://localhost:3000/api' : '/api';
+        const res = await fetch(`${API_BASE}/user/is-pro`, { headers: { Authorization: authHeader } });
+        const d = await res.json();
+        setIsPro(!!d.isPro);
+      } catch { setIsPro(false); }
+    };
+    checkPro();
+  }, [user]);
 
   // Realtime subscriptions live here so they survive route changes
   useEffect(() => {
@@ -106,7 +129,8 @@ export const AuthProvider = ({ children }) => {
     signOut,
     supabase,
     boardVersion,
-    leaderboardVersion
+    leaderboardVersion,
+    isPro,
   };
 
   return (
