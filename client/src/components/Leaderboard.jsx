@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useLayoutEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
@@ -12,23 +12,28 @@ const Leaderboard = () => {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState(null);
+  const loadedKeys = useRef(new Set());
+  const rowRefs = useRef({});
+  const prevTops = useRef({});
+  const prevModeIndex = useRef(0);
+  const shouldRunFlip = useRef(false);
   const MODES = ['monthly', 'season', 'year', 'alltime'];
   const MODE_LABELS = { monthly: 'This Month', season: 'This Season', year: 'This Year', alltime: 'All Time' };
   const [modeIndex, setModeIndex] = useState(0);
   const viewMode = MODES[modeIndex];
 
-  useEffect(() => {
-    if (leaderboard.length === 0) {
-      setLoading(true);
-    } else {
-      setRefreshing(true);
-    }
-    loadLeaderboard();
-  }, [modeIndex, leaderboardVersion]);
+  const capturePositions = () => {
+    const positions = {};
+    Object.entries(rowRefs.current).forEach(([id, el]) => {
+      if (el) positions[id] = el.getBoundingClientRect().top;
+    });
+    prevTops.current = positions;
+  };
 
-  const loadLeaderboard = async () => {
+  const loadLeaderboard = async (key, mode, version) => {
     try {
-      const data = await api.getLeaderboard(viewMode, leaderboardVersion);
+      const data = await api.getLeaderboard(mode, version);
+      loadedKeys.current.add(key);
       setLeaderboard(data);
       setError(null);
     } catch (err) {
@@ -39,6 +44,53 @@ const Leaderboard = () => {
       setRefreshing(false);
     }
   };
+
+  useEffect(() => {
+    const key = `${viewMode}_${leaderboardVersion}`;
+    const isCached = loadedKeys.current.has(key);
+    const modeChanged = prevModeIndex.current !== modeIndex;
+    prevModeIndex.current = modeIndex;
+
+    // Only animate when version bumped on the same view (real DB refetch, not a tab switch)
+    shouldRunFlip.current = !modeChanged && !isCached && leaderboard.length > 0;
+
+    if (leaderboard.length === 0) {
+      setLoading(true);
+    } else if (!isCached) {
+      setRefreshing(true);
+    }
+
+    // Capture positions NOW (synchronously, before the async fetch) so the DOM
+    // still reflects the old order when we record the "First" positions for FLIP.
+    if (shouldRunFlip.current) capturePositions();
+
+    loadLeaderboard(key, viewMode, leaderboardVersion);
+  }, [modeIndex, leaderboardVersion]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // FLIP animation: only runs when a live version update changed the current view
+  useLayoutEffect(() => {
+    if (!shouldRunFlip.current) return;
+    shouldRunFlip.current = false;
+
+    const currentIds = new Set(leaderboard.map(u => u.user_id));
+    Object.keys(rowRefs.current).forEach(id => {
+      if (!currentIds.has(id)) delete rowRefs.current[id];
+    });
+
+    Object.entries(rowRefs.current).forEach(([id, el]) => {
+      if (!el || prevTops.current[id] === undefined) return;
+      const delta = prevTops.current[id] - el.getBoundingClientRect().top;
+      if (Math.abs(delta) < 1) return;
+      el.style.transition = 'none';
+      el.style.transform = `translateY(${delta}px)`;
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          el.style.transition = 'transform 0.35s cubic-bezier(0.25, 0.46, 0.45, 0.94)';
+          el.style.transform = '';
+        });
+      });
+    });
+  }, [leaderboard]);
 
   const formatDate = (dateString) => {
     if (!dateString) return 'Recently';
@@ -142,10 +194,10 @@ const Leaderboard = () => {
               
               return (
                 <div
-                  key={user.id}
+                  key={user.user_id}
+                  ref={el => { rowRefs.current[user.user_id] = el; }}
                   onClick={() => navigate(`/profile/${user.user_id}`)}
-                  className={`
-                    p-2 flex items-center justify-between transition-colors cursor-pointer hover:bg-gray-600`}
+                  className="p-2 flex items-center justify-between transition-colors cursor-pointer hover:bg-gray-600"
                 >
                   <div className="flex items-center gap-3">
                     <div className="flex items-center justify-center w-8 h-8">

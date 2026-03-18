@@ -469,7 +469,7 @@ app.get('/api/bingo/board', async (req, res) => {
       achievements
     };
     
-    res.set('Cache-Control', 'private, max-age=30');
+    res.set('Cache-Control', 'no-store');
     res.json(responseData);
   } catch (error) {
     console.error('Error fetching bingo board:', error);
@@ -596,7 +596,7 @@ app.get('/api/leaderboard', async (req, res) => {
         };
       });
 
-      res.set('Cache-Control', 'public, max-age=30');
+      res.set('Cache-Control', 'no-store');
       return res.json(transformedAllTime);
     }
 
@@ -749,7 +749,7 @@ app.get('/api/leaderboard', async (req, res) => {
         };
       });
 
-      res.set('Cache-Control', 'public, max-age=30');
+      res.set('Cache-Control', 'no-store');
       return res.json(result);
     }
 
@@ -900,7 +900,7 @@ app.get('/api/leaderboard', async (req, res) => {
       };
     });
 
-    res.set('Cache-Control', 'public, max-age=30');
+    res.set('Cache-Control', 'no-store');
     res.json(transformedData);
   } catch (error) {
     console.error('Error fetching leaderboard:', error);
