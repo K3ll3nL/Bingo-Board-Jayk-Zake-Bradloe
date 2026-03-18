@@ -52,16 +52,24 @@ const OverlayLeaderboard = () => {
 
   useEffect(() => { fetchLeaderboard(); }, []);
 
-  // Live updates
+  // Live updates + polling fallback
   useEffect(() => {
+    // Subscribe to the same channel the API broadcasts on
     const channel = supabase
-      .channel('overlay-leaderboard-updates')
+      .channel('leaderboard-updates')
       .on('broadcast', { event: 'leaderboard-changed' }, () => {
         versionRef.current += 1;
         fetchLeaderboard();
       })
       .subscribe();
-    return () => supabase.removeChannel(channel);
+
+    // Polling fallback: catches any broadcast missed during a WS reconnect
+    const poll = setInterval(() => fetchLeaderboard(), 30_000);
+
+    return () => {
+      supabase.removeChannel(channel);
+      clearInterval(poll);
+    };
   }, []);
 
   // Font size scales with viewport width, clamped to a readable range

@@ -49,17 +49,26 @@ const OverlayBoard = () => {
   // Initial load
   useEffect(() => { fetchBoard(); }, []);
 
-  // Live Realtime updates (only in live mode)
+  // Live Realtime updates + polling fallback (only in live mode)
   useEffect(() => {
     if (mode !== 'live') return;
+
+    // Subscribe to the same channel the API broadcasts on
     const channel = supabase
-      .channel('overlay-board-updates')
+      .channel('board-updates')
       .on('broadcast', { event: 'board-changed' }, () => {
         versionRef.current += 1;
         fetchBoard();
       })
       .subscribe();
-    return () => supabase.removeChannel(channel);
+
+    // Polling fallback: catches any broadcast missed during a WS reconnect
+    const poll = setInterval(() => fetchBoard(), 30_000);
+
+    return () => {
+      supabase.removeChannel(channel);
+      clearInterval(poll);
+    };
   }, [mode]);
 
   const fullPage = { width: '100vw', height: '100vh', background: 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center' };
