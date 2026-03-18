@@ -44,6 +44,16 @@ const Approvals = () => {
     }
   }, [isModerator, approvalsLoaded]);
 
+  // Live queue updates — reload whenever any submission, approval, or rejection fires
+  useEffect(() => {
+    if (!isModerator) return;
+    const channel = supabase
+      .channel('approvals-updates')
+      .on('broadcast', { event: 'queue-changed' }, () => loadApprovals())
+      .subscribe();
+    return () => supabase.removeChannel(channel);
+  }, [isModerator]);
+
   const checkModeratorStatus = async () => {
     try {
       const response = await fetch(`/api/user/is-moderator`, {

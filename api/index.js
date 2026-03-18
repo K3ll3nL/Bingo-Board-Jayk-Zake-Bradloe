@@ -1790,10 +1790,14 @@ app.post('/api/upload/submission', upload.fields([{ name: 'file', maxCount: 1 },
 
     // Note: pending notification is created automatically via DB trigger on approvals insert
 
-    // Notify connected clients
-    await broadcastUpdate('board-updates', 'board-changed', { userId });
-
+    // Respond immediately, then broadcast (same pattern as approve/reject)
     res.json({ success: true, approval });
+
+    // Notify board (user's pending tile) and mod queue
+    Promise.all([
+      broadcastUpdate('board-updates', 'board-changed', { userId }),
+      broadcastUpdate('approvals-updates', 'queue-changed', {}),
+    ]).catch(err => console.error('Post-submission broadcast failed (non-fatal):', err.message));
   } catch (error) {
     console.error('Error submitting catch:', error);
     res.status(500).json({ error: 'Failed to submit catch', details: error.message });
@@ -1968,6 +1972,7 @@ app.post('/api/approvals/:id/approve', async (req, res) => {
     Promise.all([
       broadcastUpdate('board-updates', 'board-changed', { userId: approval.user_id }),
       broadcastUpdate('leaderboard-updates', 'leaderboard-changed', {}),
+      broadcastUpdate('approvals-updates', 'queue-changed', {}),
       broadcastNotificationToasts(approval.user_id),
     ]).catch(err => console.error('Post-approval broadcast failed (non-fatal):', err.message));
 
@@ -2107,6 +2112,7 @@ app.post('/api/approvals/:id/reject', async (req, res) => {
     // Notify connected clients (fire-and-forget)
     Promise.all([
       broadcastUpdate('board-updates', 'board-changed', { userId: approval.user_id }),
+      broadcastUpdate('approvals-updates', 'queue-changed', {}),
       broadcastNotificationToasts(approval.user_id),
     ]).catch(err => console.error('Post-rejection broadcast failed (non-fatal):', err.message));
 
