@@ -1,0 +1,356 @@
+import React from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
+import { restrictedEnabled } from '../featureFlags';
+import PageBackground from './PageBackground';
+
+/* ── Reusable section card ────────────────────────────────────────────── */
+const Section = ({ id, title, icon, accentColor = '#9147ff', headerBg = 'rgba(145,71,255,0.08)', children }) => (
+  <section
+    id={id}
+    className="rounded-xl shadow-xl overflow-hidden border border-gray-600"
+    style={{ backgroundColor: '#35373b' }}
+  >
+    <div
+      className="px-6 py-4 border-b flex items-center gap-3"
+      style={{ borderColor: accentColor + '55', backgroundColor: headerBg }}
+    >
+      {icon && (
+        <span style={{ color: accentColor }}>{icon}</span>
+      )}
+      <h2 className="text-base font-semibold text-white tracking-wide">{title}</h2>
+    </div>
+    <div className="px-6 py-5">
+      {children}
+    </div>
+  </section>
+);
+
+/* ── Upload icon ── */
+const UploadIcon = () => (
+  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+      d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+  </svg>
+);
+
+/* ── Rules icon ── */
+const RulesIcon = () => (
+  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+      d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+  </svg>
+);
+
+/* ── Trophy icon ── */
+const TrophyIcon = () => (
+  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+      d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z" />
+  </svg>
+);
+
+/* ── Lock icon ── */
+const LockIcon = () => (
+  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+      d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+  </svg>
+);
+
+/* ════════════════════════════════════════════════════════════════════════ */
+const About = () => {
+  const navigate = useNavigate();
+  const location = useLocation();
+
+  // Scroll to hash anchor after the page has rendered
+  React.useEffect(() => {
+    const hash = location.hash; // e.g. "#restricted"
+    if (!hash) return;
+    // Small timeout lets the DOM finish painting before scrolling
+    const id = setTimeout(() => {
+      const el = document.querySelector(hash);
+      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 100);
+    return () => clearTimeout(id);
+  }, [location.hash]);
+
+  return (
+    <div className="min-h-screen" style={{ isolation: 'isolate', position: 'relative' }}>
+      <PageBackground />
+
+      {/* ── Header - matches all other pages ─────────────────────────────── */}
+      <header className="sticky top-0 z-50 shadow-md" style={{ backgroundColor: '#35373b' }}>
+        <div className="max-w-7xl mx-auto px-4 py-4">
+          <div className="flex items-center gap-4">
+            <button
+              onClick={() => navigate(-1)}
+              className="text-gray-400 hover:text-white transition-colors"
+            >
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+              </svg>
+            </button>
+            <h1 className="text-xl font-bold text-white">How to Play</h1>
+          </div>
+        </div>
+      </header>
+
+      {/* ── Body ─────────────────────────────────────────────────────────── */}
+      <div className="max-w-3xl mx-auto px-4 pt-8 pb-40 space-y-6" style={{ minHeight: 'calc(100vh - 56px)' }}>
+
+        {/* ── How to Submit ─────────────────────────────────────────────── */}
+        <Section
+          title="How to Submit"
+          icon={<UploadIcon />}
+          accentColor="#9147ff"
+          headerBg="rgba(145,71,255,0.10)"
+        >
+          <p className="text-gray-300 leading-relaxed mb-6">
+            There are two ways to submit a Pokémon. You can click directly on any Pokémon tile on
+            the bingo board to open the submission form for that slot, or you can click your profile
+            picture in the top-right corner and select{' '}
+            <span className="text-white font-medium">Upload</span> from the menu.
+          </p>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <figure className="rounded-lg overflow-hidden" style={{ backgroundColor: '#2a2c30' }}>
+              <img
+                src="https://pub-583ae6cd5f8b4b58b0ee7053ea1d4b0b.r2.dev/assets/gif_website_1.gif"
+                alt="Clicking a Pokémon tile to submit"
+                className="w-full object-cover"
+                loading="lazy"
+              />
+              <figcaption className="text-center text-gray-500 text-xs py-2 px-3">
+                Clicking a tile on the board
+              </figcaption>
+            </figure>
+
+            <figure className="rounded-lg overflow-hidden" style={{ backgroundColor: '#2a2c30' }}>
+              <img
+                src="https://pub-583ae6cd5f8b4b58b0ee7053ea1d4b0b.r2.dev/assets/gif_website_2.gif"
+                alt="Using the Upload option from the profile menu"
+                className="w-full object-cover"
+                loading="lazy"
+              />
+              <figcaption className="text-center text-gray-500 text-xs py-2 px-3">
+                Using the Upload option from the menu
+              </figcaption>
+            </figure>
+          </div>
+        </Section>
+
+        {/* ── Rules for Submission ──────────────────────────────────────── */}
+        <Section
+          title="Rules for Submission"
+          icon={<RulesIcon />}
+          accentColor="#60a5fa"
+          headerBg="rgba(96,165,250,0.08)"
+        >
+          <p className="text-gray-300 leading-relaxed mb-5">
+            Each submission requires a minimum of two screenshots as proof of capture:
+          </p>
+
+          <ol className="space-y-4 mb-5">
+            <li className="flex gap-3">
+              <span
+                className="flex-shrink-0 w-6 h-6 rounded-full text-white text-xs font-bold flex items-center justify-center mt-0.5"
+                style={{ backgroundColor: '#3b82f6' }}
+              >1</span>
+              <p className="text-gray-300 leading-relaxed">
+                <span className="text-white font-medium">Encounter screenshot -</span> A clear image
+                of the Pokémon either in battle, in the overworld, or on the summary screen. If using
+                the summary screen, your Trainer ID must be visible.
+              </p>
+            </li>
+            <li className="flex gap-3">
+              <span
+                className="flex-shrink-0 w-6 h-6 rounded-full text-white text-xs font-bold flex items-center justify-center mt-0.5"
+                style={{ backgroundColor: '#3b82f6' }}
+              >2</span>
+              <p className="text-gray-300 leading-relaxed">
+                <span className="text-white font-medium">Date screenshot -</span> A screenshot
+                showing the in-game or system date on which the Pokémon was caught.
+              </p>
+            </li>
+          </ol>
+
+          {/* Gen I–III callout */}
+          <div className="rounded-lg border px-4 py-3 mb-5" style={{ borderColor: '#92400e', backgroundColor: 'rgba(120,53,15,0.20)' }}>
+            <p className="text-yellow-300 text-sm leading-relaxed">
+              <span className="font-semibold">Generations I-III:</span> Because those games do not
+              store a date of capture, a video submission is required instead of screenshots.
+            </p>
+          </div>
+
+          <p className="text-gray-300 leading-relaxed">
+            As an alternative to screenshots, a short video clip such as a Twitch clip or an
+            unlisted YouTube video may be submitted in their place, provided it clearly captures
+            both the actual encounter and the date caught in a single continuous recording. Additional
+            game-specific requirements may apply; these are listed in the sections below.
+          </p>
+        </Section>
+
+        {/* ── Bonus Bounties ────────────────────────────────────────────── */}
+        <Section
+          title="Bonus Bounties"
+          icon={<TrophyIcon />}
+          accentColor="#f59e0b"
+          headerBg="rgba(245,158,11,0.08)"
+        >
+          <p className="text-gray-300 leading-relaxed mb-5">
+            Bonus Bounties are the classic bingo win conditions, rewarding players with additional
+            points on top of their standard submission score. There are four Bonus Bounties in
+            total, each corresponding to a distinct pattern on the board:
+          </p>
+
+          {/* Point value table */}
+          <div className="rounded-lg overflow-hidden border border-gray-700 mb-6">
+            <table className="w-full text-sm">
+              <thead>
+                <tr style={{ backgroundColor: 'rgba(245,158,11,0.12)' }}>
+                  <th className="text-left px-4 py-2.5 text-gray-300 font-semibold">Bounty</th>
+                  <th className="text-center px-4 py-2.5 text-gray-300 font-semibold">Points</th>
+                  {restrictedEnabled && (
+                    <th className="text-center px-4 py-2.5 text-gray-300 font-semibold">Restricted</th>
+                  )}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-700">
+                {[
+                  { name: 'Horizontal Line', std: 3, res: 6 },
+                  { name: 'Vertical Line',   std: 3, res: 6 },
+                  { name: 'X',               std: 6, res: 12 },
+                  { name: 'Blackout',        std: 12, res: 24 },
+                ].map(({ name, std, res }) => (
+                  <tr key={name} className="hover:bg-gray-700/30 transition-colors">
+                    <td className="px-4 py-2.5 text-white font-medium">{name}</td>
+                    <td className="px-4 py-2.5 text-center">
+                      <span className="text-yellow-400 font-bold">{std}</span>
+                      <span className="text-gray-500 text-xs ml-1">pts</span>
+                    </td>
+                    {restrictedEnabled && (
+                      <td className="px-4 py-2.5 text-center">
+                        <span className="text-red-400 font-bold">{res}</span>
+                        <span className="text-gray-500 text-xs ml-1">pts</span>
+                      </td>
+                    )}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          {/* 2×2 image grid */}
+          <div className="grid grid-cols-2 gap-4 mb-5">
+            {[
+              { src: 'bingo_board1.png', caption: 'Horizontal Line' },
+              { src: 'bingo_board2.png', caption: 'Vertical Line'   },
+              { src: 'bingo_board3.png', caption: 'X'               },
+              { src: 'bingo_board4.png', caption: 'Blackout'        },
+            ].map(({ src, caption }) => (
+              <figure key={src} className="rounded-lg overflow-hidden" style={{ backgroundColor: '#2a2c30' }}>
+                <img
+                  src={`https://pub-583ae6cd5f8b4b58b0ee7053ea1d4b0b.r2.dev/assets/${src}`}
+                  alt={caption}
+                  className="w-full object-cover"
+                  loading="lazy"
+                />
+                <figcaption className="text-center text-gray-500 text-xs py-2 px-3">
+                  {caption}
+                </figcaption>
+              </figure>
+            ))}
+          </div>
+
+          {/* Important note */}
+          <div className="rounded-lg border px-4 py-3" style={{ borderColor: '#92400e', backgroundColor: 'rgba(120,53,15,0.20)' }}>
+            <p className="text-yellow-300 text-sm leading-relaxed">
+              <span className="font-semibold">Important:</span> Each Bonus Bounty may only be
+              claimed <span className="text-white font-medium">once per month</span>, regardless
+              of how many players complete the bounty. The first eligible player to have their
+              submission approved claims it.
+            </p>
+          </div>
+        </Section>
+
+        {/* ── Restricted Challenge ──────────────────────────────────────── */}
+        {restrictedEnabled && (
+          <Section
+            id="restricted"
+            title="Restricted Challenge"
+            icon={<LockIcon />}
+            accentColor="#c0392b"
+            headerBg="rgba(120,21,10,0.20)"
+          >
+            <p className="text-gray-300 leading-relaxed mb-5">
+              The Restricted Challenge is an optional, higher-difficulty challenge that runs alongside
+              the standard board each month. Restricted submissions are held to a higher evidence
+              standard and award double points for bingo achievements and submissions.
+            </p>
+
+            {/* Key differences */}
+            <div className="space-y-3 mb-5">
+              <div className="flex gap-3 items-start">
+                <span className="flex-shrink-0 mt-1" style={{ color: '#c0392b' }}>
+                  <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                  </svg>
+                </span>
+                <p className="text-gray-300 text-sm leading-relaxed">
+                  <span className="text-white font-medium">Video required -</span> A stored video
+                  link (Twitch clip, unlisted YouTube, etc.) must be provided. Screenshots alone are
+                  not accepted for restricted submissions.
+                </p>
+              </div>
+              <div className="flex gap-3 items-start">
+                <span className="flex-shrink-0 mt-1" style={{ color: '#c0392b' }}>
+                  <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                  </svg>
+                </span>
+                <p className="text-gray-300 text-sm leading-relaxed">
+                  <span className="text-white font-medium">Double bounty points -</span> Bounty 
+                  Submissions and Bonus Bounties earned through the restricted challenge give an extra bonus point payout of that achievement.
+                </p>
+              </div>
+              <div className="flex gap-3 items-start">
+                <span className="flex-shrink-0 mt-1" style={{ color: '#c0392b' }}>
+                  <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                  </svg>
+                </span>
+                <p className="text-gray-300 text-sm leading-relaxed">
+                  <span className="text-white font-medium">Full restricted requirement -</span> A 
+                  Bonus Bounty for the restricted challenge only counts if every Pokémon in that line was
+                  submitted as a restricted entry.
+                </p>
+              </div>
+            </div>
+
+            {/* How to toggle */}
+            <div className="rounded-lg border px-4 py-3" style={{ borderColor: '#78150a55', backgroundColor: 'rgba(120,21,10,0.15)' }}>
+              <p className="text-gray-300 text-sm leading-relaxed">
+                To submit as restricted, toggle the{' '}
+                <span
+                  className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-medium text-white"
+                  style={{ backgroundColor: '#78150a' }}
+                >
+                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                      d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                  </svg>
+                  Restricted
+                </span>{' '}
+                button on the Upload page before submitting. Image uploads are disabled in restricted
+                mode, and only a video link will be accepted.
+              </p>
+            </div>
+          </Section>
+        )}
+
+      </div>
+    </div>
+  );
+};
+
+export default About;

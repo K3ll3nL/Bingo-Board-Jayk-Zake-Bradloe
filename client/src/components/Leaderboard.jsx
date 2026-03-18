@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
+import AchievementIcon from './AchievementIcon';
+import { restrictedEnabled } from '../featureFlags';
 
 const Leaderboard = () => {
   const navigate = useNavigate();
@@ -124,7 +126,6 @@ const Leaderboard = () => {
                   onClick={() => navigate(`/profile/${user.user_id}`)}
                   className={`
                     p-2 flex items-center justify-between transition-colors cursor-pointer hover:bg-gray-600`}
-                  style={{ maxHeight: '70px' }}
                 >
                   <div className="flex items-center gap-3">
                     <div className="flex items-center justify-center w-8 h-8">
@@ -162,84 +163,56 @@ const Leaderboard = () => {
                     {/* Achievement icons with counts (all-time) or boolean (monthly) */}
                     <div className="flex items-center gap-1">
                       {viewMode === 'alltime' ? (
-                        // All-time: Show counts
                         <>
-                          {user.achievement_counts?.row > 0 && (
-                            <div className="flex items-center gap-0.5">
-                              <div className="w-5 h-5 rounded flex items-center justify-center" style={{ backgroundColor: user.hex_code || '#9147ff' }}>
-                                <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 12h16" />
-                                </svg>
+                          {['row', 'column', 'x', 'blackout'].map(type => (
+                            user.achievement_counts?.[type] > 0 && (
+                              <div key={type} className="flex items-center gap-0.5">
+                                <AchievementIcon
+                                  type={type}
+                                  color={user.hex_code || '#9147ff'}
+                                  svgClassName={type === 'blackout' ? 'w-4 h-4' : 'w-3 h-3'}
+                                />
+                                <span className="text-xs text-gray-400">x{user.achievement_counts[type]}</span>
                               </div>
-                              <span className="text-xs text-gray-400">x{user.achievement_counts.row}</span>
-                            </div>
-                          )}
-                          {user.achievement_counts?.column > 0 && (
-                            <div className="flex items-center gap-0.5">
-                              <div className="w-5 h-5 rounded flex items-center justify-center" style={{ backgroundColor: user.hex_code || '#9147ff' }}>
-                                <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16" />
-                                </svg>
+                            )
+                          ))}
+                          {restrictedEnabled && ['row', 'column', 'x', 'blackout'].map(type => (
+                            user.achievement_counts?.[`${type}_restricted`] > 0 && (
+                              <div key={`${type}_r`} className="flex items-center gap-0.5">
+                                <AchievementIcon
+                                  type={type}
+                                  restricted={true}
+                                  color={user.hex_code || '#9147ff'}
+                                  svgClassName={type === 'blackout' ? 'w-4 h-4' : 'w-3 h-3'}
+                                />
+                                <span className="text-xs text-gray-400">x{user.achievement_counts[`${type}_restricted`]}</span>
                               </div>
-                              <span className="text-xs text-gray-400">x{user.achievement_counts.column}</span>
-                            </div>
-                          )}
-                          {user.achievement_counts?.x > 0 && (
-                            <div className="flex items-center gap-0.5">
-                              <div className="w-5 h-5 rounded flex items-center justify-center" style={{ backgroundColor: user.hex_code || '#9147ff' }}>
-                                <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                                </svg>
-                              </div>
-                              <span className="text-xs text-gray-400">x{user.achievement_counts.x}</span>
-                            </div>
-                          )}
-                          {user.achievement_counts?.blackout > 0 && (
-                            <div className="flex items-center gap-0.5">
-                              <div className="w-5 h-5 rounded flex items-center justify-center" style={{ backgroundColor: user.hex_code || '#9147ff' }}>
-                                <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
-                                  <rect x="3" y="3" width="18" height="18" rx="1" />
-                                  <path d="M3 7.2h18M3 10.2h18M3 13.8h18M3 16.8h18" />
-                                  <path d="M7.2 3v18M10.2 3v18M13.8 3v18M16.8 3v18" />
-                                </svg>
-                              </div>
-                              <span className="text-xs text-gray-400">x{user.achievement_counts.blackout}</span>
-                            </div>
-                          )}
+                            )
+                          ))}
                         </>
                       ) : (
-                        // Monthly: Show boolean icons (only if they have the achievement)
                         <>
-                          {user.achievement_counts?.row > 0 && (
-                            <div className="w-5 h-5 rounded flex items-center justify-center" style={{ backgroundColor: user.hex_code || '#9147ff' }}>
-                              <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 12h16" />
-                              </svg>
-                            </div>
-                          )}
-                          {user.achievement_counts?.column > 0 && (
-                            <div className="w-5 h-5 rounded flex items-center justify-center" style={{ backgroundColor: user.hex_code || '#9147ff' }}>
-                              <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16" />
-                              </svg>
-                            </div>
-                          )}
-                          {user.achievement_counts?.x > 0 && (
-                            <div className="w-5 h-5 rounded flex items-center justify-center" style={{ backgroundColor: user.hex_code || '#9147ff' }}>
-                              <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                              </svg>
-                            </div>
-                          )}
-                          {user.achievement_counts?.blackout > 0 && (
-                            <div className="w-5 h-5 rounded flex items-center justify-center" style={{ backgroundColor: user.hex_code || '#9147ff' }}>
-                              <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
-                                <rect x="3" y="3" width="18" height="18" rx="1" />
-                                <path d="M3 7.2h18M3 10.2h18M3 13.8h18M3 16.8h18" />
-                                <path d="M7.2 3v18M10.2 3v18M13.8 3v18M16.8 3v18" />
-                              </svg>
-                            </div>
-                          )}
+                          {['row', 'column', 'x', 'blackout'].map(type => (
+                            user.achievement_counts?.[type] > 0 && (
+                              <AchievementIcon
+                                key={type}
+                                type={type}
+                                color={user.hex_code || '#9147ff'}
+                                svgClassName={type === 'blackout' ? 'w-4 h-4' : 'w-3 h-3'}
+                              />
+                            )
+                          ))}
+                          {restrictedEnabled && ['row', 'column', 'x', 'blackout'].map(type => (
+                            user.achievement_counts?.[`${type}_restricted`] > 0 && (
+                              <AchievementIcon
+                                key={`${type}_r`}
+                                type={type}
+                                restricted={true}
+                                color={user.hex_code || '#9147ff'}
+                                svgClassName={type === 'blackout' ? 'w-4 h-4' : 'w-3 h-3'}
+                              />
+                            )
+                          ))}
                         </>
                       )}
                     </div>

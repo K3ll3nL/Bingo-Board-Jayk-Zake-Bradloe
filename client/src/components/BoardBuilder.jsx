@@ -4,6 +4,7 @@ import { createClient } from '@supabase/supabase-js';
 import { useAuth } from '../contexts/AuthContext';
 import backgroundImage from '../Icons/2026Jan.png';
 import logoImage from '../Icons/pokemon-bounty-board.png';
+import PageBackground from './PageBackground';
 
 const supabaseClient = createClient(
   import.meta.env.VITE_SUPABASE_URL,
@@ -240,9 +241,10 @@ export default function BoardBuilder() {
   const hasSecondRound = tiles.some(t => t.is_second_round);
 
   return (
-    <div className="min-h-screen" style={{ backgroundColor: '#212326' }}>
+    <div className="min-h-screen" style={{ isolation: 'isolate', position: 'relative' }}>
+      <PageBackground />
       {/* Header */}
-      <header className="shadow-md" style={{ backgroundColor: '#35373b' }}>
+      <header className="sticky top-0 z-50 shadow-md" style={{ backgroundColor: '#35373b' }}>
         <div className="max-w-7xl mx-auto px-4 py-4">
           <div className="flex items-center gap-4">
             <button

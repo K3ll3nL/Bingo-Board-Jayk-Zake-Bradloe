@@ -1,7 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { createClient } from '@supabase/supabase-js';
+import { RESTRICTED_LAUNCH_DATE } from '../featureFlags';
+import PageBackground from './PageBackground';
 
 const supabase = createClient(
   import.meta.env.VITE_SUPABASE_URL,
@@ -20,7 +22,9 @@ const getAuthHeader = async () => {
 const Upload = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const isRestrictedEnabled = new Date() >= RESTRICTED_LAUNCH_DATE;
   const [availablePokemon, setAvailablePokemon] = useState([]);
+  const [restrictedAvailablePokemon, setRestrictedAvailablePokemon] = useState(null);
   const [selectedPokemon, setSelectedPokemon] = useState('');
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [mediaUrl, setMediaUrl] = useState('');
@@ -28,6 +32,10 @@ const Upload = () => {
   const [mediaFile2, setMediaFile2] = useState(null);
   const [sortBy, setSortBy] = useState('dex');
   const [loading, setLoading] = useState(true);
+  const [isRestricted, setIsRestricted] = useState(false);
+  const [showTooltip, setShowTooltip] = useState(false);
+  const tooltipHideTimer = useRef(null);
+  const tooltipShowTimer = useRef(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(false);
@@ -37,6 +45,12 @@ const Upload = () => {
       loadAvailablePokemon();
     }
   }, [user]);
+
+  useEffect(() => {
+    if (isRestricted && isRestrictedEnabled && restrictedAvailablePokemon === null && user) {
+      loadRestrictedAvailablePokemon();
+    }
+  }, [isRestricted]);
 
   useEffect(() => {
     // Pre-select Pokemon from URL param
@@ -79,6 +93,21 @@ const Upload = () => {
     }
   };
 
+  const loadRestrictedAvailablePokemon = async () => {
+    try {
+      const response = await fetch('/api/upload/available-pokemon-restricted', {
+        headers: { 'Authorization': await getAuthHeader() }
+      });
+      if (!response.ok) throw new Error('Failed to fetch restricted available Pokemon');
+      const data = await response.json();
+      setRestrictedAvailablePokemon(data);
+    } catch (err) {
+      console.error('Error loading restricted available Pokemon:', err);
+      // Keep null so currentPokemonList falls back to availablePokemon
+      setRestrictedAvailablePokemon(null);
+    }
+  };
+
   const handleFileChange = (e) => {
     const file = e.target.files[0];
     if (file) {
@@ -103,7 +132,12 @@ const Upload = () => {
       return;
     }
     
-    if (!mediaUrl && (!mediaFile || !mediaFile2)) {
+    if (isRestricted && !mediaUrl) {
+      setError('Restricted submissions require a VOD or video link.');
+      return;
+    }
+
+    if (!isRestricted && !mediaUrl && (!mediaFile || !mediaFile2)) {
       setError('Please provide either a Twitch link OR both proof images');
       return;
     }
@@ -135,6 +169,7 @@ const Upload = () => {
     try {
       const formData = new FormData();
       formData.append('pokemon_id', selectedPokemon);
+      formData.append('restricted_submission', isRestricted ? 'true' : 'false');
 
       if (mediaFile && mediaFile2) {
         formData.append('file', mediaFile);
@@ -161,6 +196,7 @@ const Upload = () => {
       setMediaUrl('');
       setMediaFile(null);
       setMediaFile2(null);
+      setIsRestricted(false);
 
       setTimeout(() => {
         setSuccess(false);
@@ -174,7 +210,11 @@ const Upload = () => {
     }
   };
 
-  const sortedPokemon = [...availablePokemon].sort((a, b) => {
+  const currentPokemonList = (isRestricted && isRestrictedEnabled && restrictedAvailablePokemon !== null)
+    ? restrictedAvailablePokemon
+    : availablePokemon;
+
+  const sortedPokemon = [...currentPokemonList].sort((a, b) => {
     if (sortBy === 'dex') {
       return a.national_dex_id - b.national_dex_id;
     } else {
@@ -199,22 +239,21 @@ const Upload = () => {
   }
 
   return (
-    <div className="min-h-screen" style={{ backgroundColor: '#212326' }}>
+    <div className="min-h-screen" style={{ isolation: 'isolate', position: 'relative' }}>
+      <PageBackground />
       {/* Header */}
-      <header className="shadow-md" style={{ backgroundColor: '#35373b' }}>
-        <div className="max-w-7xl mx-auto px-4 py-6">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <button
-                onClick={() => navigate('/')}
-                className="text-gray-400 hover:text-white transition-colors"
-              >
-                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-                </svg>
-              </button>
-              <h1 className="text-2xl font-bold text-white">Upload Catch</h1>
-            </div>
+      <header className="sticky top-0 z-50 shadow-md" style={{ backgroundColor: '#35373b' }}>
+        <div className="max-w-7xl mx-auto px-4 py-4">
+          <div className="flex items-center gap-4">
+            <button
+              onClick={() => navigate('/')}
+              className="text-gray-400 hover:text-white transition-colors"
+            >
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+              </svg>
+            </button>
+            <h1 className="text-xl font-bold text-white">Upload Catch</h1>
           </div>
         </div>
       </header>
@@ -222,7 +261,7 @@ const Upload = () => {
       {/* Upload Form */}
       <div className="p-8">
         <div className="max-w-2xl mx-auto">
-          <div className="rounded-lg shadow-lg p-6" style={{ backgroundColor: '#35373b' }}>
+          <div className="rounded-lg shadow-lg p-6 border border-gray-600" style={{ backgroundColor: '#35373b' }}>
             {error && (
               <div className="mb-4 p-3 bg-red-900 border border-red-700 rounded-lg text-red-200 text-sm">
                 {error}
@@ -313,8 +352,8 @@ const Upload = () => {
             </div>
           </div>
 
-          {/* URL Text Box */}
-          <div className="mb-3">
+          {/* URL Text Box + Restricted Toggle */}
+          <div className="mb-3 flex items-stretch gap-2">
             <input
               type="url"
               value={mediaUrl}
@@ -324,12 +363,70 @@ const Upload = () => {
                 setMediaFile2(null);
               }}
               placeholder="Paste Twitch clip, VOD, or YouTube link here"
-              className="w-full p-3 bg-gray-700 text-white rounded-lg border border-gray-600 focus:border-purple-500 focus:outline-none"
+              className="flex-1 p-3 bg-gray-700 text-white rounded-lg border border-gray-600 focus:border-purple-500 focus:outline-none"
               disabled={submitting || mediaFile !== null || mediaFile2 !== null}
             />
+
+            {isRestrictedEnabled && (
+              <div
+                className="relative flex-shrink-0"
+                onMouseEnter={() => {
+                  clearTimeout(tooltipHideTimer.current);
+                  tooltipShowTimer.current = setTimeout(() => setShowTooltip(true), 600);
+                }}
+                onMouseLeave={() => {
+                  clearTimeout(tooltipShowTimer.current);
+                  tooltipHideTimer.current = setTimeout(() => setShowTooltip(false), 150);
+                }}
+              >
+                <button
+                  type="button"
+                  onClick={() => {
+                    const next = !isRestricted;
+                    setIsRestricted(next);
+                    if (next) {
+                      setMediaFile(null);
+                      setMediaFile2(null);
+                    }
+                  }}
+                  className={`h-full flex items-center gap-1.5 px-3 rounded-lg border transition-colors ${
+                    isRestricted
+                      ? 'border-[#78150a] bg-[#78150a] text-white'
+                      : 'border-gray-600 bg-gray-700 text-gray-400 hover:border-gray-500 hover:text-gray-300'
+                  }`}
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                      d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                  </svg>
+                  <span className="text-xs font-medium">Restricted</span>
+                </button>
+
+                {/* Tooltip */}
+                {showTooltip && (
+                  <div
+                    className="absolute left-full top-1/2 -translate-y-1/2 ml-2 w-52 bg-gray-900 border border-gray-700 rounded-lg p-3 text-xs z-10 shadow-lg"
+                    onMouseEnter={() => {
+                      clearTimeout(tooltipHideTimer.current);
+                      clearTimeout(tooltipShowTimer.current);
+                    }}
+                    onMouseLeave={() => {
+                      tooltipHideTimer.current = setTimeout(() => setShowTooltip(false), 150);
+                    }}
+                  >
+                    <p className="font-medium text-white mb-1">Restricted Challenge</p>
+                    <p className="text-gray-400 mb-2">Submit a VOD or stored video link to count toward the restricted challenge.</p>
+                    <a href="/about#restricted" className="text-purple-400 hover:text-purple-300 transition-colors">
+                      Learn more →
+                    </a>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
-          {/* OR Divider */}
+          {/* OR Divider + Image Upload (disabled when restricted) */}
+          <div className={`transition-opacity duration-200 ${isRestricted ? 'opacity-40 pointer-events-none select-none' : ''}`}>
           <div className="text-center text-gray-400 text-sm my-4">OR</div>
 
           {/* Two Image Upload Boxes */}
@@ -408,11 +505,12 @@ const Upload = () => {
               </label>
             </div>
           </div>
+          </div>{/* end restricted-disabled wrapper */}
 
           {/* Submit Button */}
           <button
             type="submit"
-            disabled={submitting || !selectedPokemon || (!mediaUrl && (!mediaFile || !mediaFile2))}
+            disabled={submitting || !selectedPokemon || (isRestricted ? !mediaUrl : !mediaUrl && (!mediaFile || !mediaFile2))}
             className="w-full py-3 bg-purple-500 text-white rounded-lg font-medium hover:bg-purple-600 disabled:bg-gray-600 disabled:cursor-not-allowed transition-colors"
           >
             {submitting ? 'Submitting...' : 'Submit Catch'}

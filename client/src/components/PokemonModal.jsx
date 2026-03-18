@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import AchievementIcon from './AchievementIcon';
 
 const PokemonModal = ({ pokemon, onClose }) => {
   const navigate = useNavigate();
@@ -124,36 +125,17 @@ const PokemonModal = ({ pokemon, onClose }) => {
                     <div className="flex items-center gap-2">
                       {/* Achievement icons */}
                       <div className="flex items-center gap-1">
-                        {entry.achievements?.row && (
-                          <div className="w-5 h-5 rounded flex items-center justify-center" style={{ backgroundColor: entry.hex_code || '#9147ff' }}>
-                            <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 12h16" />
-                            </svg>
-                          </div>
-                        )}
-                        {entry.achievements?.column && (
-                          <div className="w-5 h-5 rounded flex items-center justify-center" style={{ backgroundColor: entry.hex_code || '#9147ff' }}>
-                            <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16" />
-                            </svg>
-                          </div>
-                        )}
-                        {entry.achievements?.x && (
-                          <div className="w-5 h-5 rounded flex items-center justify-center" style={{ backgroundColor: entry.hex_code || '#9147ff' }}>
-                            <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                            </svg>
-                          </div>
-                        )}
-                        {entry.achievements?.blackout && (
-                          <div className="w-5 h-5 rounded flex items-center justify-center" style={{ backgroundColor: entry.hex_code || '#9147ff' }}>
-                            <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
-                              <rect x="3" y="3" width="18" height="18" rx="1" />
-                              <path d="M3 7.2h18M3 10.2h18M3 13.8h18M3 16.8h18" />
-                              <path d="M7.2 3v18M10.2 3v18M13.8 3v18M16.8 3v18" />
-                            </svg>
-                          </div>
-                        )}
+                        {['row', 'column', 'x', 'blackout'].map(type => (
+                          entry.achievements?.[type] && (
+                            <AchievementIcon
+                              key={type}
+                              type={type}
+                              restricted={entry.achievements?.[`${type}_restricted`] ?? false}
+                              color={entry.hex_code || '#9147ff'}
+                              svgClassName={type === 'blackout' ? 'w-4 h-4' : 'w-3 h-3'}
+                            />
+                          )
+                        ))}
                       </div>
                       
                       <span className="text-xl font-bold text-purple-400">

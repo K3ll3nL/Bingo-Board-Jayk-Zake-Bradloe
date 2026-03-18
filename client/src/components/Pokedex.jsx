@@ -2,11 +2,21 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { createClient } from '@supabase/supabase-js';
+import PageBackground from './PageBackground';
 
 const supabase = createClient(
   import.meta.env.VITE_SUPABASE_URL,
   import.meta.env.VITE_SUPABASE_ANON_KEY
 );
+
+const getAuthHeader = async () => {
+  if (import.meta.env.DEV &&
+      (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')) {
+    return 'Bearer dev_token';
+  }
+  const { data: { session } } = await supabase.auth.getSession();
+  return `Bearer ${session?.access_token}`;
+};
 
 const Pokedex = () => {
   const { user } = useAuth();
@@ -25,9 +35,7 @@ const Pokedex = () => {
   const loadPokedex = async () => {
     try {
       const response = await fetch('/api/pokedex', {
-        headers: {
-          'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`
-        }
+        headers: { 'Authorization': await getAuthHeader() }
       });
       
       if (!response.ok) throw new Error('Failed to fetch pokedex');
@@ -46,9 +54,9 @@ const Pokedex = () => {
 
   if (!user) {
     return (
-      <div className="min-h-screen" style={{ backgroundColor: '#212326' }}>
-        <header className="shadow-md" style={{ backgroundColor: '#35373b' }}>
-          <div className="max-w-7xl mx-auto px-4 py-6">
+      <div className="min-h-screen" style={{ isolation: 'isolate', position: 'relative' }}>
+        <header className="sticky top-0 z-50 shadow-md" style={{ backgroundColor: '#35373b' }}>
+          <div className="max-w-7xl mx-auto px-4 py-4">
             <div className="flex items-center gap-4">
               <button
                 onClick={() => navigate('/')}
@@ -58,7 +66,7 @@ const Pokedex = () => {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
                 </svg>
               </button>
-              <h1 className="text-2xl font-bold text-white">Pokédex</h1>
+              <h1 className="text-xl font-bold text-white">Pokédex</h1>
             </div>
           </div>
         </header>
@@ -79,9 +87,9 @@ const Pokedex = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen" style={{ backgroundColor: '#212326' }}>
-        <header className="shadow-md" style={{ backgroundColor: '#35373b' }}>
-          <div className="max-w-7xl mx-auto px-4 py-6">
+      <div className="min-h-screen" style={{ isolation: 'isolate', position: 'relative' }}>
+        <header className="sticky top-0 z-50 shadow-md" style={{ backgroundColor: '#35373b' }}>
+          <div className="max-w-7xl mx-auto px-4 py-4">
             <div className="flex items-center gap-4">
               <button
                 onClick={() => navigate('/')}
@@ -91,7 +99,7 @@ const Pokedex = () => {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
                 </svg>
               </button>
-              <h1 className="text-2xl font-bold text-white">Pokédex</h1>
+              <h1 className="text-xl font-bold text-white">Pokédex</h1>
             </div>
           </div>
         </header>
@@ -104,9 +112,9 @@ const Pokedex = () => {
 
   if (error) {
     return (
-      <div className="min-h-screen" style={{ backgroundColor: '#212326' }}>
-        <header className="shadow-md" style={{ backgroundColor: '#35373b' }}>
-          <div className="max-w-7xl mx-auto px-4 py-6">
+      <div className="min-h-screen" style={{ isolation: 'isolate', position: 'relative' }}>
+        <header className="sticky top-0 z-50 shadow-md" style={{ backgroundColor: '#35373b' }}>
+          <div className="max-w-7xl mx-auto px-4 py-4">
             <div className="flex items-center gap-4">
               <button
                 onClick={() => navigate('/')}
@@ -116,7 +124,7 @@ const Pokedex = () => {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
                 </svg>
               </button>
-              <h1 className="text-2xl font-bold text-white">Pokédex</h1>
+              <h1 className="text-xl font-bold text-white">Pokédex</h1>
             </div>
           </div>
         </header>
@@ -128,10 +136,11 @@ const Pokedex = () => {
   }
 
   return (
-    <div className="min-h-screen" style={{ backgroundColor: '#212326' }}>
+    <div className="min-h-screen" style={{ isolation: 'isolate', position: 'relative' }}>
+      <PageBackground />
       {/* Header */}
-      <header className="shadow-md" style={{ backgroundColor: '#35373b' }}>
-        <div className="max-w-7xl mx-auto px-4 py-6">
+      <header className="sticky top-0 z-50 shadow-md" style={{ backgroundColor: '#35373b' }}>
+        <div className="max-w-7xl mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
               <button
@@ -142,11 +151,11 @@ const Pokedex = () => {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
                 </svg>
               </button>
-              <h1 className="text-2xl font-bold text-white">Pokédex</h1>
+              <h1 className="text-xl font-bold text-white">Pokédex</h1>
             </div>
             <div className="text-right">
               <div className="text-sm text-gray-400">Caught</div>
-              <div className="text-2xl font-bold text-purple-400">
+              <div className="text-xl font-bold text-purple-400">
                 {caughtCount} / {pokemon.length}
               </div>
             </div>

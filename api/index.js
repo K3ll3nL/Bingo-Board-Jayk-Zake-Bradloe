@@ -117,6 +117,9 @@ const broadcastNotificationToasts = async (userId) => {
           status: 'award_broadcast',
           winner,
         });
+        // Clear board + leaderboard caches so the new achievement shows immediately
+        cache.clear('board:');
+        cache.clear('leaderboard:');
       }
     }
   } catch (err) {
@@ -533,16 +536,17 @@ app.get('/api/bingo/board', async (req, res) => {
       .eq('month_id', ACTIVE_MONTH_ID);
     
     if (!achievementsError && bingoAchievements) {
-      const rowAchievement = bingoAchievements.find(a => a.bingo_type === 'row');
-      const columnAchievement = bingoAchievements.find(a => a.bingo_type === 'column');
-      const xAchievement = bingoAchievements.find(a => a.bingo_type === 'x');
-      const blackoutAchievement = bingoAchievements.find(a => a.bingo_type === 'blackout');
-      
+      const find = type => bingoAchievements.find(a => a.bingo_type === type);
+      const name = a => a?.users?.display_name ?? null;
       achievements = {
-        row: rowAchievement ? rowAchievement.users.display_name : null,
-        column: columnAchievement ? columnAchievement.users.display_name : null,
-        x: xAchievement ? xAchievement.users.display_name : null,
-        blackout: blackoutAchievement ? blackoutAchievement.users.display_name : null
+        row:                name(find('row')),
+        column:             name(find('column')),
+        x:                  name(find('x')),
+        blackout:           name(find('blackout')),
+        row_restricted:     name(find('row_restricted')),
+        column_restricted:  name(find('column_restricted')),
+        x_restricted:       name(find('x_restricted')),
+        blackout_restricted: name(find('blackout_restricted')),
       };
     }
     
@@ -630,7 +634,7 @@ app.get('/api/leaderboard', async (req, res) => {
           if (!achievementCounts[ach.user_id]) {
             achievementCounts[ach.user_id] = { row: 0, column: 0, x: 0, blackout: 0 };
           }
-          achievementCounts[ach.user_id][ach.bingo_type]++;
+          achievementCounts[ach.user_id][ach.bingo_type] = (achievementCounts[ach.user_id][ach.bingo_type] || 0) + 1;
         });
       }
 
@@ -755,10 +759,10 @@ app.get('/api/leaderboard', async (req, res) => {
         if (!achievementCounts[ach.user_id]) {
           achievementCounts[ach.user_id] = { row: 0, column: 0, x: 0, blackout: 0 };
         }
-        achievementCounts[ach.user_id][ach.bingo_type]++;
+        achievementCounts[ach.user_id][ach.bingo_type] = (achievementCounts[ach.user_id][ach.bingo_type] || 0) + 1;
       });
     }
-    
+
     console.log('Achievement counts:', achievementCounts);
     
     // Attach achievement counts to data
@@ -984,23 +988,40 @@ app.get('/api/profile/:userId', async (req, res) => {
       }
     });
     
-    // Get bingo achievements
-    const { data: bingos, error: bingosError } = await supabase
+    // Get normal bingo achievements (exact type matches)
+    const { data: normalBingos, error: normalBingosError } = await supabase
       .from('bingo_achievements')
       .select('bingo_type')
-      .eq('user_id', userId);
-    
-    if (bingosError) {
-      console.error('Bingos fetch error:', bingosError);
-      // Don't throw - this table might not exist yet
-      console.log('Bingos table may not exist, setting to 0');
+      .eq('user_id', userId)
+      .in('bingo_type', ['row', 'column', 'x', 'blackout']);
+
+    if (normalBingosError) {
+      console.error('Normal bingos fetch error:', normalBingosError);
     }
-    
-    const totalBingos = bingos ? bingos.filter(b => 
-      b.bingo_type === 'row' || b.bingo_type === 'column'
-    ).length : 0;
-    const totalXs = bingos ? bingos.filter(b => b.bingo_type === 'x').length : 0;
-    const totalBlackouts = bingos ? bingos.filter(b => b.bingo_type === 'blackout').length : 0;
+
+    // Get restricted bingo achievements (exact type matches)
+    const { data: restrictedBingosData, error: restrictedBingosError } = await supabase
+      .from('bingo_achievements')
+      .select('bingo_type')
+      .eq('user_id', userId)
+      .in('bingo_type', ['row_restricted', 'column_restricted', 'x_restricted', 'blackout_restricted']);
+
+    if (restrictedBingosError) {
+      console.error('Restricted bingos fetch error:', restrictedBingosError);
+    }
+
+    const totalBingos = normalBingos
+      ? normalBingos.filter(b => b.bingo_type === 'row' || b.bingo_type === 'column').length : 0;
+    const totalXs = normalBingos
+      ? normalBingos.filter(b => b.bingo_type === 'x').length : 0;
+    const totalBlackouts = normalBingos
+      ? normalBingos.filter(b => b.bingo_type === 'blackout').length : 0;
+    const restrictedBingos = restrictedBingosData
+      ? restrictedBingosData.filter(b => b.bingo_type === 'row_restricted' || b.bingo_type === 'column_restricted').length : 0;
+    const restrictedXs = restrictedBingosData
+      ? restrictedBingosData.filter(b => b.bingo_type === 'x_restricted').length : 0;
+    const restrictedBlackouts = restrictedBingosData
+      ? restrictedBingosData.filter(b => b.bingo_type === 'blackout_restricted').length : 0;
     
     // Get total Pokemon caught (distinct pokemon_id count from entries)
     const { data: allEntries, error: entriesError } = await supabase
@@ -1034,7 +1055,10 @@ app.get('/api/profile/:userId', async (req, res) => {
       month: month.bingo_months.month_year_display,
       points: month.points
     }));
-    
+
+    const monthsParticipated = monthlyPoints.length;
+    const avgPointsPerMonth = monthsParticipated > 0 ? Math.round(totalPoints / monthsParticipated) : 0;
+
     const response = {
       user: userData,
       stats: {
@@ -1053,7 +1077,12 @@ app.get('/api/profile/:userId', async (req, res) => {
         } : null,
         totalBingos,
         totalXs,
-        totalBlackouts
+        totalBlackouts,
+        restrictedBingos,
+        restrictedXs,
+        restrictedBlackouts,
+        monthsParticipated,
+        avgPointsPerMonth
       },
       monthlyData
     };
@@ -1223,10 +1252,11 @@ app.get('/api/pokedex', async (req, res) => {
     if (entriesError) throw entriesError;
     
     // Get months that have already started (exclude future months to avoid spoilers)
+    const today = new Date().toISOString().split('T')[0]; // 'YYYY-MM-DD'
     const { data: pastMonths, error: monthsError } = await supabase
       .from('bingo_months')
       .select('id')
-      .lte('start_date', new Date().toISOString());
+      .lte('start_date', today);
 
     if (monthsError) throw monthsError;
 
@@ -1463,6 +1493,68 @@ app.get('/api/upload/available-pokemon', async (req, res) => {
   }
 });
 
+// Get available Pokemon for restricted upload (active month pool, excluding already restricted-submitted)
+app.get('/api/upload/available-pokemon-restricted', async (req, res) => {
+  try {
+    const userId = await getAuthenticatedUserId(req);
+    if (!userId) return res.status(401).json({ error: 'Authentication required' });
+
+    const ACTIVE_MONTH_ID = await getActiveMonthId(userId);
+    if (!ACTIVE_MONTH_ID) return res.json([]);
+
+    // Get all Pokemon in the active month's pool
+    const { data: poolPokemon, error: poolError } = await supabase
+      .from('monthly_pokemon_pool')
+      .select('pokemon_id')
+      .eq('month_id', ACTIVE_MONTH_ID);
+
+    if (poolError) throw poolError;
+
+    const pokemonIds = [...new Set(poolPokemon.map(p => p.pokemon_id))];
+
+    // Get user's already accepted restricted entries this month
+    const { data: restrictedEntries, error: entriesError } = await supabase
+      .from('entries')
+      .select('pokemon_id')
+      .eq('user_id', userId)
+      .eq('month_id', ACTIVE_MONTH_ID)
+      .eq('restricted_submission', true);
+
+    if (entriesError) throw entriesError;
+
+    // Get user's pending restricted approvals this month (any status — still in queue)
+    const { data: restrictedApprovals, error: approvalsError } = await supabase
+      .from('approvals')
+      .select('pokemon_id')
+      .eq('user_id', userId)
+      .eq('month_id', ACTIVE_MONTH_ID)
+      .eq('restricted_submission', true);
+
+    if (approvalsError) throw approvalsError;
+
+    const restrictedIds = new Set([
+      ...restrictedEntries.map(e => e.pokemon_id),
+      ...restrictedApprovals.map(a => a.pokemon_id),
+    ]);
+
+    // Exclude pokemon already submitted as restricted
+    const availableIds = pokemonIds.filter(id => !restrictedIds.has(id));
+
+    const { data: pokemon, error: pokemonError } = await supabase
+      .from('pokemon_master')
+      .select('id, national_dex_id, name, img_url')
+      .in('id', availableIds)
+      .eq('shiny_available', true);
+
+    if (pokemonError) throw pokemonError;
+
+    res.json(pokemon || []);
+  } catch (error) {
+    console.error('Error fetching restricted available Pokemon:', error);
+    res.status(500).json({ error: 'Failed to fetch available Pokemon for restricted' });
+  }
+});
+
 // Get available Pokemon for historical upload (past months, most recent appearance only)
 app.get('/api/upload/available-pokemon-historical', async (req, res) => {
   try {
@@ -1623,6 +1715,7 @@ app.post('/api/upload/submission', upload.fields([{ name: 'file', maxCount: 1 },
     
     const pokemon_id = req.body.pokemon_id;
     const url = req.body.url;
+    const restricted_submission = req.body.restricted_submission === 'true';
     const file = req.files?.file?.[0];
     const file2 = req.files?.file2?.[0];
     
@@ -1761,7 +1854,8 @@ app.post('/api/upload/submission', upload.fields([{ name: 'file', maxCount: 1 },
         pokemon_id: parseInt(pokemon_id),
         month_id: activeMonth.id,
         proof_url: proofUrl,
-        proof_url2: proofUrl2
+        proof_url2: proofUrl2,
+        restricted_submission,
       })
       .select()
       .single();
@@ -1926,11 +2020,14 @@ app.post('/api/approvals/:id/approve', async (req, res) => {
     }
     
     console.log('Calling approve_submission RPC...');
-    
+
+    const { status: approvalStatus } = req.body;
+
     // Call stored procedure
     const { data, error } = await supabase.rpc('approve_submission', {
       p_approval_id: parseInt(id),
-      p_moderator_id: moderatorId
+      p_moderator_id: moderatorId,
+      p_status: approvalStatus || 'accepted'
     });
     
     if (error) {
@@ -2021,9 +2118,10 @@ app.post('/api/approvals/:id/approve', async (req, res) => {
 app.post('/api/approvals/:id/reject', async (req, res) => {
   try {
     const { id } = req.params;
-    const { message } = req.body;
+    const { message, status: rejectAction } = req.body;
+    // rejectAction: 'rejected' (plain) | 'warn' (reject + increment strikes) | 'ban' (rejected_restricted_ban)
 
-    console.log('Rejecting submission:', id, 'Message:', message);
+    console.log('Rejecting submission:', id, 'Action:', rejectAction, 'Message:', message);
 
     const moderatorId = await getAuthenticatedUserId(req);
     if (!moderatorId) {
@@ -2056,20 +2154,37 @@ app.post('/api/approvals/:id/reject', async (req, res) => {
     }
     
     console.log('Calling reject_submission RPC...');
-    
+
+    const rpcStatus = rejectAction === 'ban' ? 'rejected_restricted_ban' : 'rejected';
+
     // Call stored procedure
     const { data, error } = await supabase.rpc('reject_submission', {
       p_approval_id: parseInt(id),
       p_moderator_id: moderatorId,
-      p_rejection_message: message || 'No reason provided'
+      p_rejection_message: message || 'No reason provided',
+      p_status: rpcStatus
     });
-    
+
     if (error) {
       console.error('RPC error:', error);
       throw error;
     }
-    
+
     console.log('Rejection successful:', data);
+
+    // For warn: increment restricted_strikes on the user
+    if (rejectAction === 'warn') {
+      const { data: userData } = await supabase
+        .from('users')
+        .select('restricted_strikes')
+        .eq('id', approval.user_id)
+        .single();
+      await supabase
+        .from('users')
+        .update({ restricted_strikes: (userData?.restricted_strikes || 0) + 1 })
+        .eq('id', approval.user_id);
+      console.log('Incremented restricted_strikes for user:', approval.user_id);
+    }
     
     // Clear cache for board (user's board state hasn't changed, but good practice)
     // Leaderboard doesn't change on rejection
@@ -2417,8 +2532,10 @@ app.get('/api/approvals/pending', async (req, res) => {
         proof_url2,
         user_id,
         pokemon_id,
+        restricted_submission,
         users!apptovals_user_id_fkey (
-          display_name
+          display_name,
+          restricted_strikes
         ),
         pokemon_master!apptovals_pokemon_id_fkey (
           name,
@@ -2448,7 +2565,9 @@ app.get('/api/approvals/pending', async (req, res) => {
       display_name: approval.users?.display_name || 'Unknown',
       pokemon_name: approval.pokemon_master?.name || 'Unknown',
       national_dex_id: approval.pokemon_master?.national_dex_id || 0,
-      pokemon_img: approval.pokemon_master?.img_url || ''
+      pokemon_img: approval.pokemon_master?.img_url || '',
+      restricted_submission: approval.restricted_submission || false,
+      restricted_strikes: approval.users?.restricted_strikes || 0
     }));
     
     res.json(formattedApprovals);

@@ -3,6 +3,8 @@ import { api } from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
 import backgroundImage from '../Icons/2026Jan.png';
 import PokemonModal from './PokemonModal';
+import AchievementIcon from './AchievementIcon';
+import { restrictedEnabled } from '../featureFlags';
 
 const BingoBoard = () => {
   const { user, boardVersion } = useAuth();
@@ -109,12 +111,13 @@ const BingoBoard = () => {
       )}
       
       {/* Show board with opacity transition */}
-      <div 
-        style={{ 
-          opacity: imagesLoaded || !hasImagesToLoad ? 1 : 0, 
-          transition: 'opacity 0.3s'
+      <div
+        style={{
+          opacity: imagesLoaded || !hasImagesToLoad ? 1 : 0,
+          transition: 'opacity 0.3s',
+          maxWidth: '645px',
         }}
-        className="max-w-2xl mx-auto"
+        className="mx-auto"
       >
       <div className="mb-4">
         <h2 className="text-2xl font-bold text-center text-white">{month || 'Bingo Board'}</h2>
@@ -198,56 +201,61 @@ const BingoBoard = () => {
 
       {/* Bingo Achievements - Show for everyone */}
         <div className="mt-4 grid grid-cols-2 md:flex md:justify-center gap-3 md:gap-4">
-          {/* Row Bingo */}
-          <div className="flex items-center gap-2">
-            <div className={`w-6 h-6 md:w-9 md:h-9 rounded-lg flex items-center flex-shrink-0 justify-center ${achievements.row ? 'bg-purple-500' : 'bg-gray-700'}`}>
-              <svg className={`w-4 h-4 md:w-6 md:h-6 ${achievements.row ? 'text-white' : 'text-gray-500'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 12h16" />
-              </svg>
+          {[
+            { type: 'row',     label: achievements.row },
+            { type: 'column',  label: achievements.column },
+            { type: 'x',       label: achievements.x },
+            { type: 'blackout',label: achievements.blackout },
+          ].map(({ type, label }) => (
+            <div key={type} className="flex items-center gap-2">
+              <AchievementIcon
+                type={type}
+                claimed={!!label}
+                color="#9147ff"
+                containerClassName="w-6 h-6 md:w-9 md:h-9 rounded-lg"
+                svgClassName={type === 'blackout' ? 'w-6 h-6 md:w-9 md:h-9' : 'w-4 h-4 md:w-6 md:h-6'}
+              />
+              <span className="text-[10px] md:text-xs text-gray-400">
+                {label
+                  ? `Claimed by: ${label.length > 15 ? `${label.slice(0, 12)}...` : label}`
+                  : 'Unclaimed'}
+              </span>
             </div>
-            <span className="text-[10px] md:text-xs text-gray-400">
-              {achievements.row ? `Claimed by: ${achievements.row.length > 15 ? `${achievements.row.slice(0, 12)}...` : achievements.row }`: 'Unclaimed'}
-            </span>
-          </div>
-
-          {/* Column Bingo */}
-          <div className="flex items-center gap-2">
-            <div className={`w-6 h-6 md:w-9 md:h-9 rounded-lg flex items-center flex-shrink-0 justify-center ${achievements.column ? 'bg-purple-500' : 'bg-gray-700'}`}>
-              <svg className={`w-4 h-4 md:w-6 md:h-6 ${achievements.column ? 'text-white' : 'text-gray-500'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16" />
-              </svg>
-            </div>
-            <span className="text-[10px] md:text-xs text-gray-400">
-              {achievements.column ? `Claimed by: ${achievements.column.length > 15 ? `${achievements.column.slice(0, 12)}...` : achievements.column }`: 'Unclaimed'}
-            </span>
-          </div>
-
-          {/* X Bingo */}
-          <div className="flex items-center gap-2">
-            <div className={`w-6 h-6 md:w-9 md:h-9 rounded-lg flex items-center flex-shrink-0 justify-center ${achievements.x ? 'bg-purple-500' : 'bg-gray-700'}`}>
-              <svg className={`w-4 h-4 md:w-6 md:h-6 ${achievements.x ? 'text-white' : 'text-gray-500'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </div>
-            <span className="text-[10px] md:text-xs text-gray-400">
-                {achievements.x ? `Claimed by: ${achievements.x.length > 15 ? `${achievements.x.slice(0, 12)}...` : achievements.x }`: 'Unclaimed'}
-            </span>
-          </div>
-
-          {/* Blackout */}
-          <div className="flex items-center gap-2">
-            <div className={`w-6 h-6 md:w-9 md:h-9 rounded-lg flex items-center flex-shrink-0 justify-center ${achievements.blackout ? 'bg-purple-500' : 'bg-gray-700'}`}>
-              <svg className={`w-6 h-6 md:w-9 md:h-9 ${achievements.blackout ? 'text-white' : 'text-gray-500'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
-                <rect x="3" y="3" width="18" height="18" rx="1" />
-                <path d="M3 7.2h18M3 10.2h18M3 13.8h18M3 16.8h18" />
-                <path d="M7.2 3v18M10.2 3v18M13.8 3v18M16.8 3v18" />
-              </svg>
-            </div>
-            <span className="text-[10px] md:text-xs text-gray-400">
-              {achievements.blackout ? `Claimed by: ${achievements.blackout.length > 15 ? `${achievements.blackout.slice(0, 12)}...` : achievements.blackout }`: 'Unclaimed'}
-            </span>
-          </div>
+          ))}
         </div>
+
+        {/* Restricted Challenge Achievements — gated until RESTRICTED_LAUNCH_DATE */}
+        {restrictedEnabled && (
+          <div className="mt-3">
+            <p className="text-center text-[10px] md:text-xs text-gray-500 uppercase tracking-wider mb-2">
+              Restricted Challenge
+            </p>
+            <div className="grid grid-cols-2 md:flex md:justify-center gap-3 md:gap-4">
+              {[
+                { type: 'row',     label: achievements.row_restricted },
+                { type: 'column',  label: achievements.column_restricted },
+                { type: 'x',       label: achievements.x_restricted },
+                { type: 'blackout',label: achievements.blackout_restricted },
+              ].map(({ type, label }) => (
+                <div key={`${type}_restricted`} className="flex items-center gap-2">
+                  <AchievementIcon
+                    type={type}
+                    claimed={!!label}
+                    restricted={true}
+                    color="#9147ff"
+                    containerClassName="w-6 h-6 md:w-9 md:h-9 rounded-lg"
+                    svgClassName={type === 'blackout' ? 'w-6 h-6 md:w-9 md:h-9' : 'w-4 h-4 md:w-6 md:h-6'}
+                  />
+                  <span className="text-[10px] md:text-xs text-gray-400">
+                    {label
+                      ? `Claimed by: ${label.length > 15 ? `${label.slice(0, 12)}...` : label}`
+                      : 'Unclaimed'}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
       
       {/* Pokemon Modal */}

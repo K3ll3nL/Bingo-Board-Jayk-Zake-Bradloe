@@ -11,24 +11,25 @@ const BINGO_TYPE_LABELS = {
   blackout: 'Blackout Bingo',
 };
 
-const getBingoIcon = (bingoType, style = {}) => {
+const getBingoIcon = (bingoType, style = {}, restricted = false) => {
   const base = { fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24', ...style };
+  const dash = restricted ? { strokeDasharray: '4 2' } : {};
   switch (bingoType) {
     case 'row':
       return (
-        <svg {...base}><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 12h16" /></svg>
+        <svg {...base}><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 12h16" {...dash} /></svg>
       );
     case 'column':
       return (
-        <svg {...base}><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16" /></svg>
+        <svg {...base}><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16" {...dash} /></svg>
       );
     case 'x':
       return (
-        <svg {...base}><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+        <svg {...base}><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" {...dash} /></svg>
       );
     case 'blackout':
       return (
-        <svg {...base} strokeWidth={2}>
+        <svg {...base} strokeWidth={2} {...dash}>
           <rect x="3" y="3" width="18" height="18" rx="1" />
           <path d="M3 7.2h18M3 10.2h18M3 13.8h18M3 16.8h18" />
           <path d="M7.2 3v18M10.2 3v18M13.8 3v18M16.8 3v18" />
@@ -130,6 +131,7 @@ const Toast = ({ notification, onDismiss }) => {
   };
 
   const bingoType = notification.achievement?.bingo_type;
+  const isRestricted = notification.restricted ?? notification.achievement?.restricted ?? false;
   const spriteUrl = notification.pokemon?.img_url
     || (notification.pokemon?.national_dex_id
       ? `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/${notification.pokemon.national_dex_id}.png`
@@ -155,11 +157,24 @@ const Toast = ({ notification, onDismiss }) => {
         {/* Left icon: bingo type badge for achievements, pokemon sprite otherwise */}
         {isAchievement ? (
           <div style={{
-            width: '48px', height: '48px', borderRadius: '8px', flexShrink: 0,
-            backgroundColor: config.badgeBg, border: `2px solid ${config.borderColor}`,
+            width: '48px', height: '48px', borderRadius: '8px', flexShrink: 0, position: 'relative',
+            backgroundColor: isRestricted ? '#78150a' : config.badgeBg,
+            border: `2px solid ${isRestricted ? '#9a2010' : config.borderColor}`,
             display: 'flex', alignItems: 'center', justifyContent: 'center', color: config.badgeText,
           }}>
-            {getBingoIcon(bingoType, { width: 28, height: 28 })}
+            {getBingoIcon(bingoType, { width: 28, height: 28 }, isRestricted)}
+            {isRestricted && (
+              <div style={{
+                position: 'absolute', top: '-6px', right: '-6px',
+                width: '14px', height: '14px', borderRadius: '50%',
+                backgroundColor: '#1a0302', border: '1.5px solid rgba(255,255,255,0.2)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+              }}>
+                <svg width="9" height="9" fill="none" stroke="white" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                </svg>
+              </div>
+            )}
           </div>
         ) : spriteUrl ? (
           <img
@@ -188,7 +203,7 @@ const Toast = ({ notification, onDismiss }) => {
             >
               <span style={{ color: config.badgeText, display: 'flex', alignItems: 'center' }}>
                 {isAchievement
-                  ? getBingoIcon(bingoType, { width: 12, height: 12 })
+                  ? getBingoIcon(bingoType, { width: 12, height: 12 }, isRestricted)
                   : config.icon}
               </span>
               {config.label}

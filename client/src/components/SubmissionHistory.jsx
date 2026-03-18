@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import AchievementIcon from './AchievementIcon';
 import { createClient } from '@supabase/supabase-js';
+import PageBackground from './PageBackground';
 
 const supabase = createClient(
   import.meta.env.VITE_SUPABASE_URL,
@@ -24,32 +26,15 @@ const STATUS_CONFIG = {
   award:    { label: 'Achievement Awarded', color: 'text-purple-400', accentColor: '#9147ff' },
 };
 
-const AwardIcon = ({ type }) => {
-  const cls = 'text-white';
-  if (type === 'row') return (
-    <svg className={`w-3 h-3 ${cls}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 12h16" />
-    </svg>
-  );
-  if (type === 'column') return (
-    <svg className={`w-3 h-3 ${cls}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16" />
-    </svg>
-  );
-  if (type === 'x') return (
-    <svg className={`w-3 h-3 ${cls}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-    </svg>
-  );
-  if (type === 'blackout') return (
-    <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
-      <rect x="3" y="3" width="18" height="18" rx="1" />
-      <path d="M3 7.2h18M3 10.2h18M3 13.8h18M3 16.8h18" />
-      <path d="M7.2 3v18M10.2 3v18M13.8 3v18M16.8 3v18" />
-    </svg>
-  );
-  return null;
-};
+// AwardIcon is now handled by AchievementIcon — kept as a thin wrapper for local use
+const AwardIcon = ({ type, restricted = false }) => (
+  <AchievementIcon
+    type={type}
+    restricted={restricted}
+    containerClassName="w-5 h-5"
+    svgClassName={type === 'blackout' ? 'w-4 h-4' : 'w-3 h-3'}
+  />
+);
 
 const AWARD_LABELS = {
   row: 'Row Bingo',
@@ -91,22 +76,21 @@ const SubmissionHistory = () => {
   };
 
   return (
-    <div className="min-h-screen" style={{ backgroundColor: '#212326' }}>
+    <div className="min-h-screen" style={{ isolation: 'isolate', position: 'relative' }}>
+      <PageBackground />
       {/* Header */}
-      <header className="shadow-md" style={{ backgroundColor: '#35373b' }}>
-        <div className="max-w-7xl mx-auto px-4 py-6">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <button
-                onClick={() => navigate('/')}
-                className="text-gray-400 hover:text-white transition-colors"
-              >
-                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-                </svg>
-              </button>
-              <h1 className="text-2xl font-bold text-white">Notification History</h1>
-            </div>
+      <header className="sticky top-0 z-50 shadow-md" style={{ backgroundColor: '#35373b' }}>
+        <div className="max-w-7xl mx-auto px-4 py-4">
+          <div className="flex items-center gap-4">
+            <button
+              onClick={() => navigate('/')}
+              className="text-gray-400 hover:text-white transition-colors"
+            >
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+              </svg>
+            </button>
+            <h1 className="text-xl font-bold text-white">Notification History</h1>
           </div>
         </div>
       </header>
@@ -136,15 +120,13 @@ const SubmissionHistory = () => {
                 <div
                   key={n.id}
                   className="rounded-xl shadow-xl p-4 flex items-start gap-4"
-                  style={{ backgroundColor: '#35373b', borderLeft: `3px solid ${cfg.accentColor}` }}
+                  style={{ backgroundColor: '#35373b', border: '1px solid #4b5563', borderLeft: `3px solid ${cfg.accentColor}` }}
                 >
                   {/* Icon */}
                   <div className="flex-shrink-0 flex flex-col items-center gap-2">
                     {isAward ? (
                       <div className="w-10 h-10 rounded-full bg-purple-500/30 flex items-center justify-center">
-                        <div className="w-6 h-6 rounded flex items-center justify-center" style={{ backgroundColor: '#9147ff' }}>
-                          <AwardIcon type={n.message} />
-                        </div>
+                        <AwardIcon type={n.message} restricted={n.restricted ?? false} />
                       </div>
                     ) : n.pokemon?.img_url ? (
                       <img

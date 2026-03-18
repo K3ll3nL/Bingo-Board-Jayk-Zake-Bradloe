@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate, useParams } from 'react-router-dom';
 import PokemonModal from './PokemonModal';
+import { RESTRICTED_LAUNCH_DATE } from '../featureFlags';
+import PageBackground from './PageBackground';
 
 const Profile = () => {
   const { user } = useAuth();
@@ -12,7 +14,6 @@ const Profile = () => {
   const [error, setError] = useState(null);
   const [selectedPokemon, setSelectedPokemon] = useState(null);
 
-  // Use userId from URL param if present, otherwise use logged-in user
   const profileUserId = paramUserId || user?.id;
   const [board, setBoard] = useState([]);
   const [boardMonth, setBoardMonth] = useState('');
@@ -22,7 +23,6 @@ const Profile = () => {
       loadProfile();
       loadBoard();
     } else {
-      // No param and not logged in - viewing /profile without being logged in
       setLoading(false);
     }
   }, [profileUserId]);
@@ -62,7 +62,6 @@ const Profile = () => {
     );
   }
 
-  // Only show "please log in" if trying to view /profile without being logged in (no param)
   if (!profileUserId && !paramUserId) {
     return (
       <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: '#212326' }}>
@@ -87,13 +86,19 @@ const Profile = () => {
     );
   }
 
+  const stats = profile.stats;
   const maxPoints = Math.max(...profile.monthlyData.map(m => m.points), 1);
+  const caughtPct = stats.totalPokemon > 0
+    ? Math.round((stats.totalCaught / stats.totalPokemon) * 100)
+    : 0;
+  const showRestricted = new Date() >= RESTRICTED_LAUNCH_DATE;
 
   return (
-    <div className="min-h-screen" style={{ backgroundColor: '#212326' }}>
-      {/* Header with Back Button */}
-      <header className="shadow-md" style={{ backgroundColor: '#35373b' }}>
-        <div className="max-w-7xl mx-auto px-4 py-6">
+    <div className="min-h-screen" style={{ isolation: 'isolate', position: 'relative' }}>
+      <PageBackground />
+      {/* Back Button Bar */}
+      <header className="sticky top-0 z-50 shadow-md" style={{ backgroundColor: '#35373b' }}>
+        <div className="max-w-7xl mx-auto px-4 py-4">
           <div className="flex items-center gap-4">
             <button
               onClick={() => navigate('/')}
@@ -103,125 +108,183 @@ const Profile = () => {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
               </svg>
             </button>
-            <h1 className="text-2xl font-bold text-white">Profile</h1>
+            <h1 className="text-xl font-bold text-white">Profile</h1>
           </div>
         </div>
       </header>
 
-      <div className="p-8">
-      <div className="max-w-6xl mx-auto">
-        {/* Header with Avatar and Name */}
-        <div className="rounded-xl shadow-xl p-8 mb-8" style={{ backgroundColor: '#35373b' }}>
-          <div className="flex items-center gap-6">
-            {profile.user.avatar_url && (
-              <img
-                src={profile.user.avatar_url}
-                alt="Profile"
-                className="w-24 h-24 rounded-full ring-4 ring-purple-500"
-              />
-            )}
-            <div>
-              <h1 className="text-4xl font-bold text-white mb-2">
-                {profile.user.display_name}
-              </h1>
-              <p className="text-gray-400">@{profile.user.username}</p>
-              <p className="text-sm text-gray-500 mt-1">
-                Joined {new Date(profile.user.created_at).toLocaleDateString('en-US', { 
-                  month: 'long', 
-                  day: 'numeric', 
-                  year: 'numeric' 
-                })}
-              </p>
+      <div className="max-w-6xl mx-auto px-4 py-8 space-y-6">
+
+        {/* Row 1 - Hero Banner */}
+        <div
+          className="rounded-2xl shadow-2xl overflow-hidden border border-gray-600"
+          style={{ backgroundColor: '#35373b' }}
+        >
+          {/* Top gradient strip */}
+          <div className="h-2 bg-gradient-to-r from-purple-600 via-pink-500 to-purple-400" />
+
+          <div className="px-8 pt-8 pb-6">
+            {/* Avatar + Name */}
+            <div className="flex items-center gap-6 mb-8">
+              {profile.user.avatar_url ? (
+                <div className="relative flex-shrink-0">
+                  <div className="absolute inset-0 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 blur-sm opacity-60" style={{ margin: '-3px' }} />
+                  <img
+                    src={profile.user.avatar_url}
+                    alt="Avatar"
+                    className="relative w-28 h-28 rounded-full ring-4 ring-purple-500 shadow-xl"
+                  />
+                </div>
+              ) : (
+                <div className="w-28 h-28 rounded-full ring-4 ring-purple-500 bg-gray-700 flex items-center justify-center text-4xl text-gray-400">
+                  ?
+                </div>
+              )}
+              <div>
+                <h1 className="text-5xl font-extrabold text-white leading-tight">
+                  {profile.user.display_name}
+                </h1>
+                <p className="text-purple-400 text-lg mt-1">@{profile.user.username}</p>
+                <p className="text-sm text-gray-500 mt-1">
+                  Joined{' '}
+                  {new Date(profile.user.created_at).toLocaleDateString('en-US', {
+                    month: 'long',
+                    day: 'numeric',
+                    year: 'numeric',
+                  })}
+                </p>
+              </div>
+            </div>
+
+            {/* Inline pill stats */}
+            <div className="flex flex-wrap gap-3">
+              <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-purple-500/20 border border-purple-500/30">
+                <span className="text-gray-400 text-sm">Overall Rank</span>
+                <span className="text-purple-300 font-bold text-sm">
+                  {stats.overallRank === 0 ? 'Unranked' : `#${stats.overallRank}`}
+                </span>
+              </div>
+              <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-purple-500/20 border border-purple-500/30">
+                <span className="text-gray-400 text-sm">Total Points</span>
+                <span className="text-purple-300 font-bold text-sm">{stats.totalPoints || 0}</span>
+              </div>
+              <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-purple-500/20 border border-purple-500/30">
+                <span className="text-gray-400 text-sm">Total Shinies</span>
+                <span className="text-purple-300 font-bold text-sm">{stats.totalShinies || 0}</span>
+              </div>
             </div>
           </div>
         </div>
 
-        {/* Stats Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-6 mb-8">
-          {/* Overall Rank */}
-          <div className="rounded-xl shadow-xl p-6" style={{ backgroundColor: '#35373b' }}>
-            <div className="text-gray-400 text-sm mb-2">Overall Rank</div>
-            <div className="text-4xl font-bold text-purple-400">#{profile.stats.overallRank}</div>
-          </div>
-
-          {/* Total Points */}
-          <div className="rounded-xl shadow-xl p-6" style={{ backgroundColor: '#35373b' }}>
-            <div className="text-gray-400 text-sm mb-2">Total Points</div>
-            <div className="text-4xl font-bold text-purple-400">{profile.stats.totalPoints}</div>
-          </div>
-
-          {/* Total Shinies */}
-          <div className="rounded-xl shadow-xl p-6" style={{ backgroundColor: '#35373b' }}>
-            <div className="text-gray-400 text-sm mb-2">Shinies Caught</div>
-            <div className="text-4xl font-bold text-purple-400">{profile.stats.totalShinies}</div>
-          </div>
-
-          {/* Total Bingos */}
-          <div className="rounded-xl shadow-xl p-6" style={{ backgroundColor: '#35373b' }}>
-            <div className="text-gray-400 text-sm mb-2">Bingos</div>
-            <div className="text-4xl font-bold text-purple-400">{profile.stats.totalBingos}</div>
-          </div>
-
-          {/* Pokemon Caught */}
-          <div className="rounded-xl shadow-xl p-6" style={{ backgroundColor: '#35373b' }}>
-            <div className="text-gray-400 text-sm mb-2">Pokémon Caught</div>
-            <div className="text-4xl font-bold text-purple-400">
-              {profile.stats.totalCaught} / {profile.stats.totalPokemon}
+        {/* Row 2 - 5 Stat Cards */}
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 border-gray-600">
+          <div className="rounded-xl shadow-xl p-5 border border-gray-600" style={{ backgroundColor: '#35373b' }}>
+            <div className="text-gray-400 text-xs uppercase tracking-wider mb-2">Pokémon Caught</div>
+            <div className="text-3xl font-bold text-purple-400 leading-tight">
+              {stats.totalCaught || 0}
+              <span className="text-lg text-gray-500 font-normal"> / {stats.totalPokemon || 0}</span>
+            </div>
+            <div className="flex items-center gap-2 mt-1">
+              <div className="flex-1 bg-gray-700 rounded-full h-1.5">
+                <div
+                  className="bg-gradient-to-r from-purple-500 to-pink-500 h-1.5 rounded-full transition-all"
+                  style={{ width: `${caughtPct}%` }}
+                />
+              </div>
+              <span className="text-xs text-gray-500 flex-shrink-0">{caughtPct}%</span>
             </div>
           </div>
-        </div>
 
-        {/* Best Months & Blackouts */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-          {/* Highest Point Month */}
-          <div className="rounded-xl shadow-xl p-6" style={{ backgroundColor: '#35373b' }}>
-            <div className="text-gray-400 text-sm mb-2">🏆 Best Points Month</div>
-            {profile.stats.highestPointMonth ? (
+          <div className="rounded-xl shadow-xl p-5 border border-gray-600" style={{ backgroundColor: '#35373b' }}>
+            <div className="text-gray-400 text-xs uppercase tracking-wider mb-2">Months Active</div>
+            <div className="text-5xl font-bold text-purple-400">{stats.monthsParticipated || 0}</div>
+          </div>
+
+          <div className="rounded-xl shadow-xl p-5 border border-gray-600" style={{ backgroundColor: '#35373b' }}>
+            <div className="text-gray-400 text-xs uppercase tracking-wider mb-2">Avg Pts / Month</div>
+            <div className="text-5xl font-bold text-purple-400">{stats.avgPointsPerMonth || 0}</div>
+          </div>
+
+          <div className="rounded-xl shadow-xl p-5 border border-gray-600" style={{ backgroundColor: '#35373b' }}>
+            <div className="text-gray-400 text-xs uppercase tracking-wider mb-2">🏆 Best Points</div>
+            {stats.highestPointMonth ? (
               <>
-                <div className="text-2xl font-bold text-white">{profile.stats.highestPointMonth.month}</div>
-                <div className="text-purple-400 text-lg">{profile.stats.highestPointMonth.points} pts</div>
+                <div className="text-lg font-bold text-white leading-tight">{stats.highestPointMonth.month}</div>
+                <div className="text-purple-400 text-m mt-0.5">{stats.highestPointMonth.points} pts</div>
               </>
-            ) : (
-              <div className="text-gray-500">No data yet</div>
-            )}
+            ) : <div className="text-gray-600 text-m mt-2">No data yet</div>}
           </div>
 
-          {/* Best Ranked Month */}
-          <div className="rounded-xl shadow-xl p-6" style={{ backgroundColor: '#35373b' }}>
-            <div className="text-gray-400 text-sm mb-2">📈 Best Rank Month</div>
-            {profile.stats.bestRankedMonth ? (
+          <div className="rounded-xl shadow-xl p-5 border border-gray-600" style={{ backgroundColor: '#35373b' }}>
+            <div className="text-gray-400 text-xs uppercase tracking-wider mb-2">📈 Best Rank</div>
+            {stats.bestRankedMonth ? (
               <>
-                <div className="text-2xl font-bold text-white">{profile.stats.bestRankedMonth.month}</div>
-                <div className="text-purple-400 text-lg">Rank #{profile.stats.bestRankedMonth.rank}</div>
+                <div className="text-lg font-bold text-white leading-tight">{stats.bestRankedMonth.month}</div>
+                <div className="text-purple-400 text-m mt-0.5">Rank #{stats.bestRankedMonth.rank}</div>
               </>
-            ) : (
-              <div className="text-gray-500">No data yet</div>
-            )}
-          </div>
-
-          {/* X Bingos */}
-          <div className="rounded-xl shadow-xl p-6" style={{ backgroundColor: '#35373b' }}>
-            <div className="text-gray-400 text-sm mb-2">X Bingos</div>
-            <div className="text-4xl font-bold text-purple-400">{profile.stats.totalXs || 0}</div>
-          </div>
-
-          {/* Blackouts */}
-          <div className="rounded-xl shadow-xl p-6" style={{ backgroundColor: '#35373b' }}>
-            <div className="text-gray-400 text-sm mb-2">Blackouts</div>
-            <div className="text-4xl font-bold text-purple-400">{profile.stats.totalBlackouts || 0}</div>
+            ) : <div className="text-gray-600 text-m mt-2">No data yet</div>}
           </div>
         </div>
 
-        {/* Current Month Bingo Board */}
+        {/* Row 3 - Achievements + Restricted side by side */}
+        <div className={`grid gap-4 ${showRestricted ? 'grid-cols-1 lg:grid-cols-2' : 'grid-cols-1'}`}>
+          {/* Normal Achievements */}
+          <div className="rounded-xl shadow-xl p-5 border border-gray-600" style={{ backgroundColor: '#35373b' }}>
+            <h2 className="text-s font-semibold text-gray-400 uppercase tracking-wider mb-3">Bonus Bounties</h2>
+            <div className="grid grid-cols-3 gap-2">
+              <div className="text-center">
+                <div className="text-4xl font-extrabold text-purple-400 leading-tight">{stats.totalBingos || 0}</div>
+                <div className="text-gray-500 text-xs mt-0.5">Bingos</div>
+              </div>
+              <div className="text-center">
+                <div className="text-4xl font-extrabold text-purple-400 leading-tight">{stats.totalXs || 0}</div>
+                <div className="text-gray-500 text-xs mt-0.5">X Bingos</div>
+              </div>
+              <div className="text-center">
+                <div className="text-4xl font-extrabold text-purple-400 leading-tight">{stats.totalBlackouts || 0}</div>
+                <div className="text-gray-500 text-xs mt-0.5">Blackouts</div>
+              </div>
+            </div>
+          </div>
+
+          {/* Restricted Challenge - only shown after feature launch date */}
+          {showRestricted && (
+            <div className="rounded-xl shadow-xl p-5 border border-[#78150a]/40" style={{ backgroundColor: '#35373b' }}>
+              <div className="flex items-center gap-1.5 mb-3">
+                <svg className="w-3 h-3 text-[#e07060]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                    d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                </svg>
+                <h2 className="text-s font-semibold text-[#e07060] uppercase tracking-wider">Restricted Bonus Bounties</h2>
+              </div>
+              <div className="grid grid-cols-3 gap-2">
+                <div className="text-center">
+                  <div className="text-4xl font-extrabold text-[#e07060] leading-tight">{stats.restrictedBingos || 0}</div>
+                  <div className="text-gray-500 text-xs mt-0.5">Bingos</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-4xl font-extrabold text-[#e07060] leading-tight">{stats.restrictedXs || 0}</div>
+                  <div className="text-gray-500 text-xs mt-0.5">X Bingos</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-4xl font-extrabold text-[#e07060] leading-tight">{stats.restrictedBlackouts || 0}</div>
+                  <div className="text-gray-500 text-xs mt-0.5">Blackouts</div>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Row 5 - Current Month Bingo Board */}
         {board.length > 0 && (
-          <div className="rounded-xl shadow-xl p-6 mb-8" style={{ backgroundColor: '#35373b' }}>
+          <div className="rounded-xl shadow-xl p-6 border border-gray-600" style={{ backgroundColor: '#35373b' }}>
             <h2 className="text-2xl font-bold text-white mb-6">{boardMonth} Bingo Progress</h2>
             <div className="grid grid-cols-5 gap-2 max-w-2xl mx-auto">
               {board.map((cell) => {
                 const isFreeSpace = cell.position === 13;
                 const isEmpty = cell.pokemon_name === 'EMPTY';
                 const isClickable = !isFreeSpace && !isEmpty;
-                
+
                 return (
                   <div
                     key={cell.id}
@@ -263,14 +326,23 @@ const Profile = () => {
                     {cell.is_checked && !isFreeSpace && (
                       <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-40">
                         <svg className="w-8 h-8 text-white" fill="currentColor" viewBox="0 0 20 20">
-                          <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                          <path
+                            fillRule="evenodd"
+                            d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
+                            clipRule="evenodd"
+                          />
                         </svg>
                       </div>
                     )}
                     {cell.is_pending && !isFreeSpace && (
                       <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-40">
                         <svg className="w-8 h-8 text-yellow-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
+                          />
                         </svg>
                       </div>
                     )}
@@ -281,8 +353,8 @@ const Profile = () => {
           </div>
         )}
 
-        {/* Points Per Month Graph */}
-        <div className="rounded-xl shadow-xl p-6" style={{ backgroundColor: '#35373b' }}>
+        {/* Row 6 - Points Per Month Chart */}
+        <div className="rounded-xl shadow-xl p-6 border border-gray-600" style={{ backgroundColor: '#35373b' }}>
           <h2 className="text-2xl font-bold text-white mb-6">Points Per Month</h2>
           {profile.monthlyData.length > 0 ? (
             <div className="space-y-4">
@@ -296,7 +368,7 @@ const Profile = () => {
                     <div
                       className="bg-gradient-to-r from-purple-500 to-pink-500 h-3 rounded-full transition-all"
                       style={{ width: `${(month.points / maxPoints) * 100}%` }}
-                    ></div>
+                    />
                   </div>
                 </div>
               ))}
@@ -305,13 +377,13 @@ const Profile = () => {
             <div className="text-center text-gray-500 py-8">No monthly data yet</div>
           )}
         </div>
+
       </div>
-      </div>
-      
+
       {/* Pokemon Modal */}
       {selectedPokemon && (
-        <PokemonModal 
-          pokemon={selectedPokemon} 
+        <PokemonModal
+          pokemon={selectedPokemon}
           onClose={() => setSelectedPokemon(null)}
         />
       )}
