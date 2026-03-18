@@ -368,7 +368,7 @@ const Pro = () => {
           <div className="px-6 py-5 space-y-4">
             <div>
               <h2 className="text-base font-bold text-white">Board Overlay</h2>
-              <p className="text-xs text-gray-400 mt-0.5">Browser source size: <strong className="text-gray-300">400 × 400 px</strong></p>
+              <p className="text-xs text-gray-400 mt-0.5">Scales to any browser source size — set it to whatever fits your layout.</p>
             </div>
 
             {/* Mode toggle */}
@@ -414,7 +414,7 @@ const Pro = () => {
           <div className="px-6 py-5 space-y-4">
             <div>
               <h2 className="text-base font-bold text-white">Leaderboard Overlay</h2>
-              <p className="text-xs text-gray-400 mt-0.5">Browser source size: <strong className="text-gray-300">400 × 720 px</strong></p>
+              <p className="text-xs text-gray-400 mt-0.5">Scales to any browser source size — taller layouts fit more rows cleanly.</p>
             </div>
 
             <div className="grid grid-cols-2 gap-4">

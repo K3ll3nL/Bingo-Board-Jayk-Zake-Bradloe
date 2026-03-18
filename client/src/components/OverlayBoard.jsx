@@ -62,10 +62,12 @@ const OverlayBoard = () => {
     return () => supabase.removeChannel(channel);
   }, [mode]);
 
+  const fullPage = { width: '100vw', height: '100vh', background: 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center' };
+
   if (error) {
     return (
-      <div style={{ width: 400, height: 400, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'transparent' }}>
-        <div style={{ color: '#ef4444', fontSize: 14, textAlign: 'center', padding: 16, background: 'rgba(0,0,0,0.7)', borderRadius: 8 }}>
+      <div style={fullPage}>
+        <div style={{ color: '#ef4444', fontSize: '2vmin', textAlign: 'center', padding: '2vmin', background: 'rgba(0,0,0,0.7)', borderRadius: '1vmin' }}>
           {error}
         </div>
       </div>
@@ -74,22 +76,22 @@ const OverlayBoard = () => {
 
   if (!board.length) {
     return (
-      <div style={{ width: 400, height: 400, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'transparent' }}>
-        <div style={{ width: 32, height: 32, borderRadius: '50%', border: '3px solid #8b5cf6', borderTopColor: 'transparent', animation: 'spin 0.8s linear infinite' }} />
+      <div style={fullPage}>
+        <div style={{ width: '5vmin', height: '5vmin', borderRadius: '50%', border: '0.5vmin solid #8b5cf6', borderTopColor: 'transparent', animation: 'spin 0.8s linear infinite' }} />
         <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
       </div>
     );
   }
 
   return (
-    <div style={{ width: 400, height: 400, background: 'transparent', padding: 0, margin: 0, overflow: 'hidden' }}>
+    <div style={{ width: '100vw', height: '100vh', background: 'transparent', padding: 0, margin: 0, overflow: 'hidden' }}>
       <div style={{
         display: 'grid',
         gridTemplateColumns: 'repeat(5, 1fr)',
         gridTemplateRows: 'repeat(5, 1fr)',
-        gap: 2,
-        width: 400,
-        height: 400,
+        gap: '0.4vmin',
+        width: '100%',
+        height: '100%',
       }}>
         {board.map((cell) => {
           const isFree = cell.position === 13;
@@ -108,8 +110,8 @@ const OverlayBoard = () => {
               style={{
                 position: 'relative',
                 background: bg,
-                border: `2px solid ${borderColor}`,
-                borderRadius: 4,
+                border: `0.3vmin solid ${borderColor}`,
+                borderRadius: '0.5vmin',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
@@ -127,14 +129,14 @@ const OverlayBoard = () => {
 
               {/* Free space label */}
               {isFree && (
-                <span style={{ color: '#fff', fontSize: 9, fontWeight: 700, textAlign: 'center', lineHeight: 1.2, padding: '0 2px', textShadow: '0 1px 2px rgba(0,0,0,0.8)' }}>
-                  FREE{'\n'}SPACE
+                <span style={{ color: '#fff', fontSize: '2vmin', fontWeight: 700, textAlign: 'center', lineHeight: 1.2, padding: '0 0.5vmin', textShadow: '0 0.2vmin 0.4vmin rgba(0,0,0,0.8)' }}>
+                  FREE SPACE
                 </span>
               )}
 
               {/* Empty cell */}
               {isEmpty && (
-                <span style={{ color: '#4b5563', fontSize: 8, fontWeight: 600 }}>EMPTY</span>
+                <span style={{ color: '#4b5563', fontSize: '1.5vmin', fontWeight: 600 }}>EMPTY</span>
               )}
 
               {/* Approved overlay */}
@@ -144,7 +146,7 @@ const OverlayBoard = () => {
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
                   background: 'rgba(0,0,0,0.35)',
                 }}>
-                  <svg width="28" height="28" viewBox="0 0 20 20" fill="#ffffff">
+                  <svg width="35%" height="35%" viewBox="0 0 20 20" fill="#ffffff">
                     <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
                   </svg>
                 </div>
@@ -157,7 +159,7 @@ const OverlayBoard = () => {
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
                   background: 'rgba(0,0,0,0.35)',
                 }}>
-                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#fbbf24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <svg width="30%" height="30%" viewBox="0 0 24 24" fill="none" stroke="#fbbf24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                     <circle cx="12" cy="12" r="10" />
                     <polyline points="12 6 12 12 16 14" />
                   </svg>

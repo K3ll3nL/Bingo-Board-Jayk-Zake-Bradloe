@@ -64,59 +64,64 @@ const OverlayLeaderboard = () => {
     return () => supabase.removeChannel(channel);
   }, []);
 
-  // Row height scales down for larger limits so everything fits in 720px
-  // Header ~56px, footer ~4px padding → available ~660px for rows
-  const rowHeight = limit <= 10 ? 60 : limit <= 20 ? 30 : 24;
-  const fontSize = limit <= 10 ? 15 : limit <= 20 ? 12 : 11;
+  // Font size scales with viewport width, clamped to a readable range
+  const nameFontSize = 'clamp(11px, 2.8vw, 22px)';
+  const ptsFontSize  = 'clamp(10px, 2.4vw, 19px)';
+  const rankFontSize = 'clamp(12px, 3vw, 24px)';
 
   return (
     <div style={{
-      width: 400,
-      height: 720,
+      width: '100vw',
+      height: '100vh',
       background: 'transparent',
       overflow: 'hidden',
       display: 'flex',
       flexDirection: 'column',
       fontFamily: "'Segoe UI', system-ui, sans-serif",
     }}>
-      {/* Header */}
+      {/* Header — 9% of height */}
       <div style={{
-        padding: '10px 16px',
+        height: '9vh',
+        minHeight: 36,
+        padding: '0 2.5vw',
         background: 'linear-gradient(135deg, rgba(124,58,237,0.92), rgba(219,39,119,0.92))',
         display: 'flex',
         alignItems: 'center',
-        gap: 8,
+        gap: '1.5vw',
         flexShrink: 0,
         backdropFilter: 'blur(4px)',
       }}>
-        <span style={{ fontSize: 18 }}>🏆</span>
-        <span style={{ color: '#fff', fontWeight: 800, fontSize: 16, letterSpacing: 0.3 }}>
+        <span style={{ fontSize: 'clamp(14px, 3.5vw, 28px)' }}>🏆</span>
+        <span style={{ color: '#fff', fontWeight: 800, fontSize: 'clamp(13px, 3vw, 24px)', letterSpacing: 0.3 }}>
           Leaderboard
         </span>
         <span style={{
           marginLeft: 'auto',
-          color: 'rgba(255,255,255,0.75)',
-          fontSize: 12,
+          color: 'rgba(255,255,255,0.8)',
+          fontSize: 'clamp(10px, 2.2vw, 17px)',
           fontWeight: 600,
           background: 'rgba(0,0,0,0.25)',
-          padding: '2px 8px',
+          padding: '0.4vh 1.2vw',
           borderRadius: 9999,
+          whiteSpace: 'nowrap',
         }}>
           {label}
         </span>
       </div>
 
-      {/* Body */}
+      {/* Body — remaining 91% split equally among rows */}
       <div style={{
         flex: 1,
         background: 'rgba(33,35,38,0.88)',
         overflow: 'hidden',
         backdropFilter: 'blur(4px)',
+        display: 'flex',
+        flexDirection: 'column',
       }}>
         {error ? (
-          <div style={{ color: '#ef4444', fontSize: 13, textAlign: 'center', padding: 24 }}>{error}</div>
+          <div style={{ color: '#ef4444', fontSize: nameFontSize, textAlign: 'center', padding: '3vh 2vw', flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{error}</div>
         ) : rows.length === 0 ? (
-          <div style={{ color: '#6b7280', fontSize: 13, textAlign: 'center', padding: 24 }}>No data yet.</div>
+          <div style={{ color: '#6b7280', fontSize: nameFontSize, textAlign: 'center', flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>No data yet.</div>
         ) : (
           rows.map((row, i) => {
             const rankColor = RANK_COLORS[i] || '#d1d5db';
@@ -125,23 +130,24 @@ const OverlayLeaderboard = () => {
               <div
                 key={row.user_id}
                 style={{
-                  height: rowHeight,
+                  flex: 1,                   // each row shares the remaining height equally
                   display: 'flex',
                   alignItems: 'center',
-                  padding: `0 14px`,
+                  padding: `0 2.5vw`,
                   borderBottom: '1px solid rgba(255,255,255,0.05)',
                   background: isTop3
                     ? `linear-gradient(90deg, rgba(${i === 0 ? '245,158,11' : i === 1 ? '156,163,175' : '180,83,9'},0.08) 0%, transparent 60%)`
                     : 'transparent',
-                  gap: 10,
+                  gap: '1.5vw',
+                  minHeight: 0,
                 }}
               >
                 {/* Rank */}
                 <div style={{
-                  width: 28,
+                  width: '6vw',
                   textAlign: 'center',
                   fontWeight: 800,
-                  fontSize: isTop3 ? fontSize + 1 : fontSize,
+                  fontSize: rankFontSize,
                   color: isTop3 ? rankColor : '#6b7280',
                   flexShrink: 0,
                 }}>
@@ -152,7 +158,7 @@ const OverlayLeaderboard = () => {
                 <div style={{
                   flex: 1,
                   fontWeight: isTop3 ? 700 : 500,
-                  fontSize,
+                  fontSize: nameFontSize,
                   color: isTop3 ? '#f3f4f6' : '#d1d5db',
                   overflow: 'hidden',
                   textOverflow: 'ellipsis',
@@ -164,11 +170,12 @@ const OverlayLeaderboard = () => {
                 {/* Points */}
                 <div style={{
                   fontWeight: 700,
-                  fontSize,
+                  fontSize: ptsFontSize,
                   color: '#a78bfa',
                   flexShrink: 0,
+                  whiteSpace: 'nowrap',
                 }}>
-                  {row.points} <span style={{ fontWeight: 400, color: '#6b7280', fontSize: fontSize - 1 }}>pts</span>
+                  {row.points} <span style={{ fontWeight: 400, color: '#6b7280' }}>pts</span>
                 </div>
               </div>
             );
