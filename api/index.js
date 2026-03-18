@@ -707,7 +707,6 @@ app.get('/api/leaderboard', async (req, res) => {
 
     // ── SEASON / YEAR BRANCH ─────────────────────────────────────────────────
     if (mode === 'season' || mode === 'year') {
-      const groupField = mode === 'season' ? 'season_id' : 'year_id';
       const cacheKey = `leaderboard:${mode}`;
       const cached = cache.get(cacheKey);
       if (cached) {
@@ -715,33 +714,50 @@ app.get('/api/leaderboard', async (req, res) => {
         return res.json(cached);
       }
 
-      // Get active month's season_id / year_id
+      // Get the active month's start_date and derive grouping from it via date
+      // arithmetic — so this works even if season_id/year_id are not yet set.
       const ACTIVE_MONTH_ID = await getActiveMonthId(userId);
       if (!ACTIVE_MONTH_ID) return res.status(404).json({ error: 'No active month found' });
 
       const { data: activeMonth, error: activeMonthError } = await supabase
         .from('bingo_months')
-        .select('season_id, year_id')
+        .select('id, start_date')
         .eq('id', ACTIVE_MONTH_ID)
         .single();
 
       if (activeMonthError) throw activeMonthError;
 
-      const groupId = activeMonth[groupField];
-      if (!groupId) {
-        cache.set(cacheKey, [], 60);
-        return res.json([]); // No season/year assigned to active month
-      }
+      // Compute game year (March → February) and seasonal quarter from start_date
+      const ad        = new Date(activeMonth.start_date + 'T00:00:00Z');
+      const aMon      = ad.getUTCMonth() + 1; // 1-12
+      const aYear     = ad.getUTCFullYear();
+      const gameYear  = aMon >= 3 ? aYear : aYear - 1;
+      // 0=Winter(Dec/Jan/Feb) 1=Spring(Mar-May) 2=Summer(Jun-Aug) 3=Fall(Sep-Nov)
+      const activeQ   = aMon >= 3 && aMon <= 5  ? 1
+                      : aMon >= 6 && aMon <= 8  ? 2
+                      : aMon >= 9 && aMon <= 11 ? 3
+                      : 0;
 
-      // All month IDs in this season/year
-      const { data: groupMonths, error: groupMonthsError } = await supabase
+      // Fetch all months in this game year (Mar {gameYear} – Feb {gameYear+1})
+      const { data: yearMonthRows, error: yearMonthsError } = await supabase
         .from('bingo_months')
-        .select('id')
-        .eq(groupField, groupId);
+        .select('id, start_date')
+        .gte('start_date', `${gameYear}-03-01`)
+        .lt('start_date', `${gameYear + 1}-03-01`);
 
-      if (groupMonthsError) throw groupMonthsError;
+      if (yearMonthsError) throw yearMonthsError;
 
-      const monthIds = groupMonths.map(m => m.id);
+      // For 'season' further filter to the same quarter
+      const monthIds = (yearMonthRows || []).filter(m => {
+        if (mode === 'year') return true;
+        const d  = new Date(m.start_date + 'T00:00:00Z');
+        const mn = d.getUTCMonth() + 1;
+        const q  = mn >= 3 && mn <= 5  ? 1
+                 : mn >= 6 && mn <= 8  ? 2
+                 : mn >= 9 && mn <= 11 ? 3
+                 : 0;
+        return q === activeQ;
+      }).map(m => m.id);
 
       // Sum points across those months
       const { data: groupPoints, error: groupPointsError } = await supabase
