@@ -105,18 +105,17 @@ const MainApp = () => {
       {/* Header */}
       <header className="sticky top-0 z-50 shadow-md" style={{ backgroundColor: '#35373b' }}>
         <div className="max-w-7xl mx-auto px-4 py-4">
-          <div className="flex justify-between items-center">
-            <div className="flex-1 flex justify-center">
-              <img 
-                src={logoImage} 
-                alt="Pokemon Bounty Board" 
-                className="h-16 md:h-20 object-contain cursor-pointer"
-                onClick={() => navigate('/')}
-              />
-            </div>
-            
-            {/* Login/Profile Button */}
-            <div className="flex items-center gap-3">
+          <div className="relative flex items-center justify-center">
+            {/* Logo — absolutely centered across the full header width */}
+            <img
+              src={logoImage}
+              alt="Pokemon Bounty Board"
+              className="h-16 md:h-20 object-contain cursor-pointer"
+              onClick={() => navigate('/')}
+            />
+
+            {/* Login/Profile Button — sits in the right corner without displacing the logo */}
+            <div className="absolute right-0 flex items-center gap-3">
               {loading ? (
                 <div className="w-10 h-10 rounded-full bg-gray-600 animate-pulse"></div>
               ) : user ? (
