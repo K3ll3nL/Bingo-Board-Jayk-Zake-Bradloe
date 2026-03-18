@@ -117,9 +117,7 @@ const broadcastNotificationToasts = async (userId) => {
           status: 'award_broadcast',
           winner,
         });
-        // Clear board + leaderboard caches so the new achievement shows immediately
-        cache.clear('board:');
-        cache.clear('leaderboard:');
+        // (cache removed — no-op)
       }
     }
   } catch (err) {
@@ -127,34 +125,8 @@ const broadcastNotificationToasts = async (userId) => {
   }
 };
 
-// Simple in-memory cache
-const cache = {
-  store: new Map(),
-  set(key, value, ttlSeconds) {
-    const expiresAt = Date.now() + (ttlSeconds * 1000);
-    this.store.set(key, { value, expiresAt });
-  },
-  get(key) {
-    const item = this.store.get(key);
-    if (!item) return null;
-    if (Date.now() > item.expiresAt) {
-      this.store.delete(key);
-      return null;
-    }
-    return item.value;
-  },
-  clear(pattern) {
-    if (pattern) {
-      for (const key of this.store.keys()) {
-        if (key.includes(pattern)) {
-          this.store.delete(key);
-        }
-      }
-    } else {
-      this.store.clear();
-    }
-  }
-};
+// Cache removed — Vercel serverless instances don't share memory,
+// so per-instance caching caused stale data after broadcasts.
 
 // SSE connections manager
 const sseClients = new Map(); // userId -> Set of response objects
@@ -383,17 +355,6 @@ app.get('/api/bingo/board', async (req, res) => {
       return res.status(404).json({ error: 'No active bingo month found' });
     }
     
-    // Cache key includes user ID for authenticated requests
-    const cacheKey = `board:${ACTIVE_MONTH_ID}:${userId || 'public'}`;
-    
-    // Check cache first (5 minute TTL for authenticated, 2 minutes for public)
-    const cached = cache.get(cacheKey);
-    if (cached) {
-      console.log('Serving bingo board from cache');
-      // Set cache headers
-      res.set('Cache-Control', userId ? 'private, max-age=300' : 'public, max-age=120');
-      return res.json(cached);
-    }
     
     console.log('Cache miss - fetching fresh data from database');
     
@@ -559,11 +520,7 @@ app.get('/api/bingo/board', async (req, res) => {
       achievements
     };
     
-    // Cache the response (5 minutes for authenticated, 2 minutes for public)
-    cache.set(cacheKey, responseData, userId ? 300 : 120);
-    
-    // Set cache headers
-    res.set('Cache-Control', userId ? 'private, max-age=300' : 'public, max-age=120');
+    res.set('Cache-Control', 'no-store');
     res.json(responseData);
   } catch (error) {
     console.error('Error fetching bingo board:', error);
@@ -580,12 +537,6 @@ app.get('/api/leaderboard', async (req, res) => {
 
     // ── ALL-TIME BRANCH ──────────────────────────────────────────────────────
     if (mode === 'alltime') {
-      const cacheKey = 'leaderboard:alltime';
-      const cached = cache.get(cacheKey);
-      if (cached) {
-        res.set('Cache-Control', 'public, max-age=60');
-        return res.json(cached);
-      }
 
       // Sum points across all months per user
       const { data: allPoints, error: allPointsError } = await supabase
@@ -610,7 +561,6 @@ app.get('/api/leaderboard', async (req, res) => {
         .map(([user_id, points]) => ({ user_id, points }));
 
       if (top10.length === 0) {
-        cache.set(cacheKey, [], 60);
         return res.json([]);
       }
 
@@ -704,19 +654,12 @@ app.get('/api/leaderboard', async (req, res) => {
         };
       });
 
-      cache.set(cacheKey, transformedAllTime, 60);
-      res.set('Cache-Control', 'public, max-age=60');
+      res.set('Cache-Control', 'no-store');
       return res.json(transformedAllTime);
     }
 
     // ── SEASON / YEAR BRANCH ─────────────────────────────────────────────────
     if (mode === 'season' || mode === 'year') {
-      const cacheKey = `leaderboard:${mode}`;
-      const cached = cache.get(cacheKey);
-      if (cached) {
-        res.set('Cache-Control', 'public, max-age=60');
-        return res.json(cached);
-      }
 
       // Get the active month's start_date and derive grouping from it via date
       // arithmetic — so this works even if season_id/year_id are not yet set.
@@ -787,7 +730,6 @@ app.get('/api/leaderboard', async (req, res) => {
         .map(([user_id, points]) => ({ user_id, points }));
 
       if (sorted.length === 0) {
-        cache.set(cacheKey, [], 60);
         return res.json([]);
       }
 
@@ -880,8 +822,7 @@ app.get('/api/leaderboard', async (req, res) => {
         };
       });
 
-      cache.set(cacheKey, result, 60);
-      res.set('Cache-Control', 'public, max-age=60');
+      res.set('Cache-Control', 'no-store');
       return res.json(result);
     }
 
@@ -891,15 +832,6 @@ app.get('/api/leaderboard', async (req, res) => {
       return res.status(404).json({ error: 'No active month found' });
     }
 
-    const cacheKey = `leaderboard:${ACTIVE_MONTH_ID}:${userId || 'public'}`;
-
-    // Check cache first (1 minute TTL - leaderboard changes when approvals happen)
-    const cached = cache.get(cacheKey);
-    if (cached) {
-      console.log('Serving leaderboard from cache');
-      res.set('Cache-Control', 'public, max-age=60');
-      return res.json(cached);
-    }
 
     // Get monthly leaderboard
     const { data: monthlyData, error: monthlyError } = await supabase
@@ -1050,10 +982,7 @@ app.get('/api/leaderboard', async (req, res) => {
       };
     });
 
-    // Cache leaderboard for 1 minute
-    cache.set(cacheKey, transformedData, 60);
-    
-    res.set('Cache-Control', 'public, max-age=60');
+    res.set('Cache-Control', 'no-store');
     res.json(transformedData);
   } catch (error) {
     console.error('Error fetching leaderboard:', error);
@@ -2046,9 +1975,6 @@ app.post('/api/upload/submission', upload.fields([{ name: 'file', maxCount: 1 },
 
     // Note: pending notification is created automatically via DB trigger on approvals insert
 
-    // Invalidate the user's board cache so is_pending shows immediately
-    cache.store.delete(`board:${activeMonth.id}:${userId}`);
-
     // Notify connected clients
     await broadcastUpdate('board-updates', 'board-changed', { userId });
 
@@ -2219,10 +2145,6 @@ app.post('/api/approvals/:id/approve', async (req, res) => {
     
     console.log('Approval successful:', data);
     
-    // Clear cache for board and leaderboard since data changed
-    cache.clear('board:');
-    cache.clear('leaderboard:');
-    console.log('Cleared board and leaderboard cache');
 
     // Notify connected clients
     await Promise.all([
@@ -2368,10 +2290,6 @@ app.post('/api/approvals/:id/reject', async (req, res) => {
       console.log('Incremented restricted_strikes for user:', approval.user_id);
     }
     
-    // Clear cache for board (user's board state hasn't changed, but good practice)
-    // Leaderboard doesn't change on rejection
-    cache.clear('board:');
-    console.log('Cleared board cache');
 
     // Notify connected clients
     await Promise.all([
@@ -2464,37 +2382,12 @@ app.post('/api/admin/clear-cache', async (req, res) => {
       return res.status(403).json({ error: 'Admin access required' });
     }
     
-    const { type } = req.body; // 'all', 'board', 'leaderboard'
-    
-    let cleared = 0;
-    
-    if (type === 'all' || !type) {
-      // Clear all cache
-      const initialSize = cache.store.size;
-      cache.store.clear();
-      cleared = initialSize;
-      console.log(`Admin ${userId} cleared entire cache (${cleared} items)`);
-    } else if (type === 'board') {
-      // Clear only board cache
-      const initialSize = cache.store.size;
-      cache.clear('board:');
-      cleared = initialSize - cache.store.size;
-      console.log(`Admin ${userId} cleared board cache (${cleared} items)`);
-    } else if (type === 'leaderboard') {
-      // Clear only leaderboard cache
-      const initialSize = cache.store.size;
-      cache.clear('leaderboard:');
-      cleared = initialSize - cache.store.size;
-      console.log(`Admin ${userId} cleared leaderboard cache (${cleared} items)`);
-    } else {
-      return res.status(400).json({ error: 'Invalid cache type. Use: all, board, or leaderboard' });
-    }
-    
-    res.json({ 
-      success: true, 
-      message: `Cache cleared successfully`,
-      itemsCleared: cleared,
-      type: type || 'all'
+    // In-memory cache has been removed (Vercel instances don't share memory).
+    // This endpoint is now a no-op kept for backwards compatibility.
+    res.json({
+      success: true,
+      message: 'Cache is disabled — no-op',
+      itemsCleared: 0
     });
   } catch (error) {
     console.error('Error clearing cache:', error);
