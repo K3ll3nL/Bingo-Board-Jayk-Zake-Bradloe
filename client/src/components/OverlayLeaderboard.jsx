@@ -133,59 +133,78 @@ const OverlayLeaderboard = () => {
         ) : (
           rows.map((row, i) => {
             const rankColor = RANK_COLORS[i] || '#d1d5db';
-            const isTop3 = i < 3;
+            const isTop3 = i < 3 && !row.pinned;
             return (
-              <div
-                key={row.user_id}
-                style={{
-                  flex: 1,                   // each row shares the remaining height equally
-                  display: 'flex',
-                  alignItems: 'center',
-                  padding: `0 2.5vw`,
-                  borderBottom: '1px solid rgba(255,255,255,0.05)',
-                  background: isTop3
-                    ? `linear-gradient(90deg, rgba(${i === 0 ? '245,158,11' : i === 1 ? '156,163,175' : '180,83,9'},0.08) 0%, transparent 60%)`
-                    : 'transparent',
-                  gap: '1.5vw',
-                  minHeight: 0,
-                }}
-              >
-                {/* Rank */}
-                <div style={{
-                  width: '6vw',
-                  textAlign: 'center',
-                  fontWeight: 800,
-                  fontSize: rankFontSize,
-                  color: isTop3 ? rankColor : '#6b7280',
-                  flexShrink: 0,
-                }}>
-                  {row.rank <= 3 ? ['🥇', '🥈', '🥉'][row.rank - 1] : `#${row.rank}`}
-                </div>
+              <React.Fragment key={row.user_id}>
+                {/* Separator before pinned row */}
+                {row.pinned && (
+                  <div style={{
+                    flexShrink: 0,
+                    height: '0.5vh',
+                    minHeight: 4,
+                    display: 'flex',
+                    alignItems: 'center',
+                    padding: '0 2.5vw',
+                    gap: '1vw',
+                  }}>
+                    <div style={{ flex: 1, height: 1, background: 'rgba(124,58,237,0.4)', borderTop: '1px dashed rgba(124,58,237,0.4)' }} />
+                    <span style={{ fontSize: 'clamp(8px, 1.6vw, 12px)', color: '#6b7280', whiteSpace: 'nowrap' }}>you</span>
+                    <div style={{ flex: 1, height: 1, background: 'rgba(124,58,237,0.4)', borderTop: '1px dashed rgba(124,58,237,0.4)' }} />
+                  </div>
+                )}
+                <div
+                  style={{
+                    flex: 1,
+                    display: 'flex',
+                    alignItems: 'center',
+                    padding: `0 2.5vw`,
+                    borderBottom: row.pinned ? 'none' : '1px solid rgba(255,255,255,0.05)',
+                    background: row.pinned
+                      ? 'linear-gradient(90deg, rgba(124,58,237,0.12) 0%, transparent 70%)'
+                      : isTop3
+                        ? `linear-gradient(90deg, rgba(${i === 0 ? '245,158,11' : i === 1 ? '156,163,175' : '180,83,9'},0.08) 0%, transparent 60%)`
+                        : 'transparent',
+                    gap: '1.5vw',
+                    minHeight: 0,
+                  }}
+                >
+                  {/* Rank */}
+                  <div style={{
+                    width: '6vw',
+                    textAlign: 'center',
+                    fontWeight: 800,
+                    fontSize: rankFontSize,
+                    color: row.pinned ? '#a78bfa' : isTop3 ? rankColor : '#6b7280',
+                    flexShrink: 0,
+                  }}>
+                    {!row.pinned && row.rank <= 3 ? ['🥇', '🥈', '🥉'][row.rank - 1] : `#${row.rank}`}
+                  </div>
 
-                {/* Name */}
-                <div style={{
-                  flex: 1,
-                  fontWeight: isTop3 ? 700 : 500,
-                  fontSize: nameFontSize,
-                  color: isTop3 ? '#f3f4f6' : '#d1d5db',
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis',
-                  whiteSpace: 'nowrap',
-                }}>
-                  {row.display_name}
-                </div>
+                  {/* Name */}
+                  <div style={{
+                    flex: 1,
+                    fontWeight: row.pinned ? 700 : isTop3 ? 700 : 500,
+                    fontSize: nameFontSize,
+                    color: row.pinned ? '#e9d5ff' : isTop3 ? '#f3f4f6' : '#d1d5db',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap',
+                  }}>
+                    {row.display_name}
+                  </div>
 
-                {/* Points */}
-                <div style={{
-                  fontWeight: 700,
-                  fontSize: ptsFontSize,
-                  color: '#a78bfa',
-                  flexShrink: 0,
-                  whiteSpace: 'nowrap',
-                }}>
-                  {row.points} <span style={{ fontWeight: 400, color: '#6b7280' }}>pts</span>
+                  {/* Points */}
+                  <div style={{
+                    fontWeight: 700,
+                    fontSize: ptsFontSize,
+                    color: '#a78bfa',
+                    flexShrink: 0,
+                    whiteSpace: 'nowrap',
+                  }}>
+                    {row.points} <span style={{ fontWeight: 400, color: '#6b7280' }}>pts</span>
+                  </div>
                 </div>
-              </div>
+              </React.Fragment>
             );
           })
         )}

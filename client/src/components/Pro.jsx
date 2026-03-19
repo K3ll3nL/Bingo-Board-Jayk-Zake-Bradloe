@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { getAuthHeaders } from '../services/api';
@@ -14,10 +14,11 @@ const PERIODS = [
 ];
 const LIMITS = [5, 10, 20, 25];
 
-// ── Small reusable "copy URL" button ────────────────────────────────────────
-const CopyButton = ({ text, label = 'Copy URL' }) => {
+// ── Copy button ──────────────────────────────────────────────────────────────
+const CopyButton = ({ text, label = 'Copy URL', disabled = false }) => {
   const [copied, setCopied] = useState(false);
   const handle = async () => {
+    if (disabled || !text) return;
     await navigator.clipboard.writeText(text);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
@@ -25,7 +26,8 @@ const CopyButton = ({ text, label = 'Copy URL' }) => {
   return (
     <button
       onClick={handle}
-      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors"
+      disabled={disabled}
+      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
       style={{ backgroundColor: copied ? '#166534' : '#5865F2', color: '#fff' }}
     >
       {copied ? (
@@ -37,9 +39,29 @@ const CopyButton = ({ text, label = 'Copy URL' }) => {
   );
 };
 
-// ── Warning banner used in two places ───────────────────────────────────────
-const KeyWarning = ({ children }) => (
-  <div className="flex gap-2 p-3 rounded-lg text-xs" style={{ backgroundColor: 'rgba(245,158,11,0.12)', border: '1px solid rgba(245,158,11,0.3)', color: '#fbbf24' }}>
+// ── URL display row ──────────────────────────────────────────────────────────
+const UrlRow = ({ label, url, disabled }) => (
+  <div className="space-y-1.5">
+    <div className="text-xs text-gray-400 font-medium">{label}</div>
+    <div className="flex items-center gap-2">
+      <code
+        className="flex-1 text-xs rounded px-3 py-2 truncate"
+        style={{
+          backgroundColor: '#161819',
+          color: disabled ? '#4b5563' : '#a78bfa',
+          border: `1px solid ${disabled ? '#1f2937' : '#374151'}`,
+        }}
+      >
+        {url}
+      </code>
+      <CopyButton text={url} disabled={disabled} />
+    </div>
+  </div>
+);
+
+// ── Warning banner ───────────────────────────────────────────────────────────
+const Warn = ({ children }) => (
+  <div className="flex gap-2 p-3 rounded-lg text-xs" style={{ backgroundColor: 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.25)', color: '#fbbf24' }}>
     <svg className="w-4 h-4 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
     </svg>
@@ -47,215 +69,79 @@ const KeyWarning = ({ children }) => (
   </div>
 );
 
-// ── URL display row ──────────────────────────────────────────────────────────
-const UrlRow = ({ label, url }) => (
-  <div className="space-y-1.5">
-    <div className="text-xs text-gray-400 font-medium">{label}</div>
-    <div className="flex items-center gap-2">
-      <code
-        className="flex-1 text-xs rounded px-3 py-2 truncate"
-        style={{ backgroundColor: '#161819', color: '#a78bfa', border: '1px solid #374151' }}
-      >
-        {url}
-      </code>
-      <CopyButton text={url} />
-    </div>
-  </div>
-);
-
-// ── Key generation modal ─────────────────────────────────────────────────────
-const NewKeyModal = ({ onClose, onCreated }) => {
-  const [name, setName] = useState('');
-  const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState('');
-  const [result, setResult] = useState(null); // { key, id, name, key_prefix }
-  const inputRef = useRef(null);
-
-  useEffect(() => { setTimeout(() => inputRef.current?.focus(), 50); }, []);
-
-  const origin = window.location.origin;
-
-  const handleCreate = async () => {
-    if (!name.trim()) { setError('Please enter a name for this key.'); return; }
-    setSubmitting(true);
-    setError('');
-    try {
-      const headers = await getAuthHeaders();
-      const res = await fetch(`${API_BASE_URL}/keys`, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({ name: name.trim() }),
-      });
-      const data = await res.json();
-      if (!res.ok) { setError(data.error || 'Failed to create key.'); return; }
-      setResult(data);
-      onCreated(data);
-    } catch {
-      setError('Failed to create key.');
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ backgroundColor: 'rgba(0,0,0,0.7)' }}>
-      <div className="w-full max-w-lg rounded-2xl shadow-2xl overflow-hidden" style={{ backgroundColor: '#2a2d31', border: '1px solid #374151' }}>
-        {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4" style={{ borderBottom: '1px solid #374151' }}>
-          <h2 className="text-lg font-bold text-white">
-            {result ? '🔑 Save Your API Key' : 'Generate API Key'}
-          </h2>
-          <button onClick={onClose} className="text-gray-400 hover:text-white transition-colors">
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
-        </div>
-
-        <div className="px-6 py-5 space-y-4">
-          {!result ? (
-            /* ── Step 1: Name the key ── */
-            <>
-              <p className="text-sm text-gray-400">
-                Give this key a name so you can identify it later (e.g. "Home PC", "Stream Laptop").
-              </p>
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-1.5">Key name</label>
-                <input
-                  ref={inputRef}
-                  value={name}
-                  onChange={e => setName(e.target.value)}
-                  onKeyDown={e => e.key === 'Enter' && handleCreate()}
-                  maxLength={50}
-                  placeholder="e.g. Home PC OBS"
-                  className="w-full px-3 py-2 rounded-lg text-sm text-white placeholder-gray-500 outline-none focus:ring-2 focus:ring-purple-500"
-                  style={{ backgroundColor: '#161819', border: '1px solid #374151' }}
-                />
-                {error && <p className="mt-1.5 text-xs text-red-400">{error}</p>}
-              </div>
-              <KeyWarning>
-                If you're not sure which overlay URLs you'll need, use the most restrictive option
-                (Template mode for the board, shortest row count for the leaderboard). You can always
-                delete this key and generate a new one.
-              </KeyWarning>
-              <div className="flex justify-end gap-3 pt-1">
-                <button onClick={onClose} className="px-4 py-2 text-sm text-gray-400 hover:text-white transition-colors rounded-lg">
-                  Cancel
-                </button>
-                <button
-                  onClick={handleCreate}
-                  disabled={submitting}
-                  className="px-5 py-2 rounded-lg text-sm font-semibold text-white transition-colors"
-                  style={{ backgroundColor: submitting ? '#4b5563' : '#7c3aed' }}
-                >
-                  {submitting ? 'Generating…' : 'Generate Key'}
-                </button>
-              </div>
-            </>
-          ) : (
-            /* ── Step 2: Show the key and ready-to-use URLs ── */
-            <>
-              <div className="p-3 rounded-lg" style={{ backgroundColor: '#161819', border: '1px solid #dc2626' }}>
-                <p className="text-xs font-bold text-red-400 mb-2 uppercase tracking-wider">⚠ Save this key now — it will never be shown again</p>
-                <div className="flex items-center gap-2">
-                  <code className="flex-1 text-sm font-mono break-all" style={{ color: '#a78bfa' }}>{result.key}</code>
-                  <CopyButton text={result.key} label="Copy Key" />
-                </div>
-              </div>
-
-              <div className="space-y-3">
-                <p className="text-sm font-semibold text-gray-300">Ready-to-use overlay URLs:</p>
-                <UrlRow label="Board — Live (shows your completion)" url={`${origin}/overlay/board?key=${result.key}&mode=live`} />
-                <UrlRow label="Board — Template (layout only, no completion)" url={`${origin}/overlay/board?key=${result.key}&mode=template`} />
-                <UrlRow label="Leaderboard — This Month, Top 10" url={`${origin}/overlay/leaderboard?key=${result.key}&period=monthly&limit=10`} />
-              </div>
-
-              <KeyWarning>
-                These URLs contain your API key. Anyone with the URL can view your bingo board or the
-                leaderboard. Never share them publicly or show them on stream.
-              </KeyWarning>
-
-              <div className="flex justify-end pt-1">
-                <button
-                  onClick={onClose}
-                  className="px-5 py-2 rounded-lg text-sm font-semibold text-white"
-                  style={{ backgroundColor: '#374151' }}
-                >
-                  Done
-                </button>
-              </div>
-            </>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-};
-
-// ── Main Pro page ────────────────────────────────────────────────────────────
+// ── Main ─────────────────────────────────────────────────────────────────────
 const Pro = () => {
   const { user, isPro } = useAuth();
   const navigate = useNavigate();
 
-  const [keys, setKeys] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [showNewKeyModal, setShowNewKeyModal] = useState(false);
-  const [deletingId, setDeletingId] = useState(null);
+  // undefined = loading, null = no key, object = has key
+  const [keyInfo, setKeyInfo]       = useState(undefined);
+  const [generating, setGenerating] = useState(false);
+  const [regenConfirm, setRegenConfirm] = useState(false);
 
-  // URL builder state
   const [boardMode, setBoardMode] = useState('live');
-  const [lbPeriod, setLbPeriod] = useState('monthly');
-  const [lbLimit, setLbLimit] = useState(10);
+  const [lbPeriod, setLbPeriod]   = useState('monthly');
+  const [lbLimit, setLbLimit]     = useState(10);
+  const [lbPin, setLbPin]         = useState(true);
 
-  const origin = window.location.origin;
+  const origin   = window.location.origin;
+  const keyValue = keyInfo?.key_value ?? null;
+  const hasKey   = !!keyValue;
+
+  const boardUrl = hasKey
+    ? `${origin}/overlay/board?key=${keyValue}&mode=${boardMode}`
+    : `${origin}/overlay/board?key=generate-your-key&mode=${boardMode}`;
+
+  const lbUrl = hasKey
+    ? `${origin}/overlay/leaderboard?key=${keyValue}&period=${lbPeriod}&limit=${lbLimit}${lbPin ? '&pin=1' : ''}`
+    : `${origin}/overlay/leaderboard?key=generate-your-key&period=${lbPeriod}&limit=${lbLimit}${lbPin ? '&pin=1' : ''}`;
+
+  useEffect(() => { if (user) loadKey(); }, [user]);
 
   useEffect(() => {
-    if (!user) return;
-    loadKeys();
-  }, [user]);
+    if (keyInfo !== undefined && !isPro) navigate('/');
+  }, [keyInfo, isPro]);
 
-  // Redirect non-pro users
-  useEffect(() => {
-    if (!loading && !isPro) navigate('/');
-  }, [loading, isPro]);
-
-  const loadKeys = async () => {
+  const loadKey = async () => {
     try {
       const headers = await getAuthHeaders();
       const res = await fetch(`${API_BASE_URL}/keys`, { headers });
-      if (res.ok) {
-        const data = await res.json();
-        setKeys(Array.isArray(data) ? data : []);
+      const data = res.ok ? await res.json() : null;
+      if (data) {
+        setKeyInfo(data);
+      } else {
+        // No key yet — generate one automatically
+        const genRes = await fetch(`${API_BASE_URL}/keys`, { method: 'POST', headers });
+        setKeyInfo(genRes.ok ? await genRes.json() : null);
       }
-    } catch { /* ignore */ }
-    finally { setLoading(false); }
+    } catch { setKeyInfo(null); }
   };
 
-  const handleKeyCreated = (newKey) => {
-    // Add to list (without the secret key value)
-    setKeys(prev => [{ id: newKey.id, name: newKey.name, key_prefix: newKey.key_prefix, created_at: newKey.created_at, last_used_at: null }, ...prev]);
-  };
-
-  const handleDelete = async (id) => {
-    if (!confirm('Delete this API key? Any overlay URLs using it will immediately stop working.')) return;
-    setDeletingId(id);
+  const handleGenerate = async () => {
+    setGenerating(true);
+    setRegenConfirm(false);
     try {
       const headers = await getAuthHeaders();
-      await fetch(`${API_BASE_URL}/keys/${id}`, { method: 'DELETE', headers });
-      setKeys(prev => prev.filter(k => k.id !== id));
+      const res = await fetch(`${API_BASE_URL}/keys`, { method: 'POST', headers });
+      if (res.ok) setKeyInfo(await res.json());
     } catch { /* ignore */ }
-    finally { setDeletingId(null); }
+    finally { setGenerating(false); }
   };
 
-  const formatDate = (ts) => {
-    if (!ts) return 'Never';
-    return new Date(ts).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  const handleDelete = async () => {
+    if (!confirm('Delete your overlay key? Your existing browser source URLs will immediately stop working.')) return;
+    try {
+      const headers = await getAuthHeaders();
+      await fetch(`${API_BASE_URL}/keys`, { method: 'DELETE', headers });
+      setKeyInfo(null);
+      setRegenConfirm(false);
+    } catch { /* ignore */ }
   };
 
-  const boardTemplateUrl = `${origin}/overlay/board?key=<your-saved-key>&mode=${boardMode}`;
-  const lbTemplateUrl = `${origin}/overlay/leaderboard?key=<your-saved-key>&period=${lbPeriod}&limit=${lbLimit}`;
+  const formatDate = (ts) =>
+    ts ? new Date(ts).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'Never';
 
-  if (loading) {
+  if (keyInfo === undefined) {
     return (
       <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: '#212326' }}>
         <div className="text-gray-400">Loading…</div>
@@ -277,106 +163,68 @@ const Pro = () => {
           </button>
           <div>
             <h1 className="text-xl font-bold text-white">Stream Overlays</h1>
-            <p className="text-xs text-gray-400">Manage API keys and browser source URLs</p>
+            <p className="text-xs text-gray-400">Browser source URLs for OBS and other streaming software</p>
           </div>
         </div>
       </header>
 
       <div className="max-w-3xl mx-auto px-4 py-8 space-y-6">
 
-        {/* Global warning */}
+        {/* Privacy warning */}
         <div className="flex gap-3 p-4 rounded-xl" style={{ backgroundColor: 'rgba(220,38,38,0.1)', border: '1px solid rgba(220,38,38,0.3)' }}>
           <svg className="w-5 h-5 text-red-400 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
           </svg>
           <div className="text-sm text-red-300">
-            <strong>Keep your overlay URLs private.</strong> Each URL embeds your API key, which grants
-            read-only access to your bingo board and the leaderboard. Never display them on stream,
-            share them in public chats, or commit them to source control. If a key is compromised,
-            delete it here and generate a new one — old URLs will immediately stop working.
+            <strong>Keep your overlay URLs private.</strong> They grant read-only access to your bingo board
+            and the leaderboard. Never display them on stream, paste them in public chats, or share screenshots
+            of your OBS source list. If a URL is exposed, click <strong>Regenerate</strong> — old URLs stop
+            working immediately.
           </div>
         </div>
 
-        {/* ── API Keys ── */}
-        <section className="rounded-2xl shadow-xl overflow-hidden" style={{ backgroundColor: '#35373b', border: '1px solid #4b5563' }}>
-          <div className="h-1 bg-gradient-to-r from-purple-600 via-pink-500 to-purple-400" />
-          <div className="px-6 py-5">
-            <div className="flex items-center justify-between mb-4">
-              <div>
-                <h2 className="text-base font-bold text-white">API Keys</h2>
-                <p className="text-xs text-gray-400 mt-0.5">Up to 5 keys. Keys are shown once at generation.</p>
-              </div>
-              {keys.length < 5 && (
-                <button
-                  onClick={() => setShowNewKeyModal(true)}
-                  className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold text-white transition-colors"
-                  style={{ backgroundColor: '#7c3aed' }}
-                >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                  </svg>
-                  New Key
-                </button>
-              )}
+        {/* ── Regenerate (collapsed, bottom of page intent — shown here as a low-profile row) ── */}
+        {regenConfirm && (
+          <div className="p-4 rounded-xl space-y-3" style={{ backgroundColor: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.3)' }}>
+            <p className="text-sm text-red-300">
+              This will invalidate your current overlay URLs immediately. Any browser sources using them
+              will go blank until you paste in the new URL.
+            </p>
+            <div className="flex items-center gap-3">
+              <button
+                onClick={handleGenerate}
+                disabled={generating}
+                className="px-4 py-2 rounded-lg text-sm font-semibold text-white transition-colors disabled:opacity-60"
+                style={{ backgroundColor: '#dc2626' }}
+              >
+                {generating ? 'Regenerating…' : 'Yes, Regenerate'}
+              </button>
+              <button
+                onClick={() => setRegenConfirm(false)}
+                className="px-4 py-2 text-sm text-gray-400 hover:text-white transition-colors"
+              >
+                Cancel
+              </button>
             </div>
-
-            {keys.length === 0 ? (
-              <div className="text-center py-8 text-gray-500 text-sm">
-                No keys yet. Generate one to get started.
-              </div>
-            ) : (
-              <div className="space-y-2">
-                {/* Table header */}
-                <div className="grid grid-cols-[1fr_auto_auto_auto] gap-4 px-3 pb-1 text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                  <span>Name</span>
-                  <span>Prefix</span>
-                  <span>Created</span>
-                  <span>Last Used</span>
-                </div>
-                {keys.map(k => (
-                  <div
-                    key={k.id}
-                    className="grid grid-cols-[1fr_auto_auto_auto] gap-4 items-center px-3 py-3 rounded-lg"
-                    style={{ backgroundColor: '#2a2d31' }}
-                  >
-                    <span className="text-sm font-medium text-white truncate">{k.name}</span>
-                    <code className="text-xs font-mono" style={{ color: '#a78bfa' }}>{k.key_prefix}…</code>
-                    <span className="text-xs text-gray-400">{formatDate(k.created_at)}</span>
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs text-gray-400">{k.last_used_at ? formatDate(k.last_used_at) : 'Never'}</span>
-                      <button
-                        onClick={() => handleDelete(k.id)}
-                        disabled={deletingId === k.id}
-                        className="ml-2 text-gray-600 hover:text-red-400 transition-colors"
-                        title="Delete key"
-                      >
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                        </svg>
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
           </div>
-        </section>
+        )}
 
-        {/* ── Board Overlay Builder ── */}
+        {/* ── Board Overlay ── */}
         <section className="rounded-2xl shadow-xl overflow-hidden" style={{ backgroundColor: '#35373b', border: '1px solid #4b5563' }}>
           <div className="h-1 bg-gradient-to-r from-purple-600 via-pink-500 to-purple-400" />
           <div className="px-6 py-5 space-y-4">
             <div>
               <h2 className="text-base font-bold text-white">Board Overlay</h2>
-              <p className="text-xs text-gray-400 mt-0.5">Scales to any browser source size — set it to whatever fits your layout.</p>
+              <p className="text-xs text-gray-400 mt-0.5">Scales to any browser source size.</p>
             </div>
 
-            {/* Mode toggle */}
             <div>
               <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Mode</label>
               <div className="flex gap-2">
-                {[{ v: 'live', l: 'Live', d: 'Your real completion state, updates automatically' },
-                  { v: 'template', l: 'Template', d: 'Board layout only, no personal data' }].map(({ v, l, d }) => (
+                {[
+                  { v: 'live',     l: 'Live',     d: 'Your real completion, updates automatically' },
+                  { v: 'template', l: 'Template', d: 'Board layout only, no personal data' },
+                ].map(({ v, l, d }) => (
                   <button
                     key={v}
                     onClick={() => setBoardMode(v)}
@@ -393,32 +241,24 @@ const Pro = () => {
               </div>
             </div>
 
-            <div className="space-y-2">
-              <UrlRow label="Generated URL template" url={boardTemplateUrl} />
-              <p className="text-xs text-gray-500">
-                Replace <code className="text-purple-400 text-xs">&lt;your-saved-key&gt;</code> with the full key you copied when generating it.
-                {keys.length === 0 && ' Generate a key above first.'}
-              </p>
-            </div>
-
-            <KeyWarning>
-              If you're unsure which mode to use, choose <strong>Template</strong> — it shares no personal completion data.
-              This URL contains your API key. Do not display it on stream or share it publicly.
-            </KeyWarning>
+            <UrlRow label="Browser source URL" url={boardUrl} disabled={!hasKey} />
+            <Warn>
+              If unsure which mode to use, choose <strong>Template</strong> — it shares no personal completion data.
+              Do not display this URL on stream or share it publicly.
+            </Warn>
           </div>
         </section>
 
-        {/* ── Leaderboard Overlay Builder ── */}
+        {/* ── Leaderboard Overlay ── */}
         <section className="rounded-2xl shadow-xl overflow-hidden" style={{ backgroundColor: '#35373b', border: '1px solid #4b5563' }}>
           <div className="h-1 bg-gradient-to-r from-purple-600 via-pink-500 to-purple-400" />
           <div className="px-6 py-5 space-y-4">
             <div>
               <h2 className="text-base font-bold text-white">Leaderboard Overlay</h2>
-              <p className="text-xs text-gray-400 mt-0.5">Scales to any browser source size — taller layouts fit more rows cleanly.</p>
+              <p className="text-xs text-gray-400 mt-0.5">Scales to any browser source size — taller layouts fit more rows.</p>
             </div>
 
             <div className="grid grid-cols-2 gap-4">
-              {/* Period */}
               <div>
                 <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Period</label>
                 <select
@@ -430,8 +270,6 @@ const Pro = () => {
                   {PERIODS.map(p => <option key={p.value} value={p.value}>{p.label}</option>)}
                 </select>
               </div>
-
-              {/* Rows */}
               <div>
                 <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Rows shown</label>
                 <select
@@ -445,30 +283,53 @@ const Pro = () => {
               </div>
             </div>
 
-            <div className="space-y-2">
-              <UrlRow label="Generated URL template" url={lbTemplateUrl} />
-              <p className="text-xs text-gray-500">
-                Replace <code className="text-purple-400 text-xs">&lt;your-saved-key&gt;</code> with the full key you copied when generating it.
-                {keys.length === 0 && ' Generate a key above first.'}
-              </p>
-            </div>
+            {/* Pin my rank toggle */}
+            <button
+              onClick={() => setLbPin(v => !v)}
+              className="flex items-center gap-3 w-full px-4 py-3 rounded-lg text-left transition-all"
+              style={{
+                backgroundColor: lbPin ? 'rgba(124,58,237,0.15)' : '#2a2d31',
+                border: `1.5px solid ${lbPin ? '#7c3aed' : '#374151'}`,
+              }}
+            >
+              <div
+                className="w-9 h-5 rounded-full flex-shrink-0 relative transition-colors"
+                style={{ backgroundColor: lbPin ? '#7c3aed' : '#374151' }}
+              >
+                <div
+                  className="absolute top-0.5 w-4 h-4 rounded-full bg-white transition-transform"
+                  style={{ transform: lbPin ? 'translateX(18px)' : 'translateX(2px)' }}
+                />
+              </div>
+              <div>
+                <div className="text-sm font-semibold" style={{ color: lbPin ? '#a78bfa' : '#d1d5db' }}>
+                  Always show my rank
+                </div>
+                <div className="text-xs text-gray-500 mt-0.5">
+                  If you're outside the top {lbLimit}, your row is pinned at the bottom with your actual rank
+                </div>
+              </div>
+            </button>
 
-            <KeyWarning>
-              If you're unsure how many rows to show, choose <strong>Top 10</strong> — it's the most readable on stream.
-              This URL contains your API key. Do not display it on stream or share it publicly.
-            </KeyWarning>
+            <UrlRow label="Browser source URL" url={lbUrl} disabled={!hasKey} />
+            <Warn>
+              If unsure how many rows to show, <strong>Top 10</strong> is the most readable on stream.
+              Do not display this URL on stream or share it publicly.
+            </Warn>
           </div>
         </section>
 
-      </div>
+        {/* Regenerate footer */}
+        <div className="text-center pb-2">
+          <button
+            onClick={() => setRegenConfirm(v => !v)}
+            className="text-xs text-gray-600 hover:text-gray-400 transition-colors"
+          >
+            If your overlay URLs stop working, regenerate your key here.
+          </button>
+        </div>
 
-      {/* New key modal */}
-      {showNewKeyModal && (
-        <NewKeyModal
-          onClose={() => setShowNewKeyModal(false)}
-          onCreated={handleKeyCreated}
-        />
-      )}
+      </div>
     </div>
   );
 };

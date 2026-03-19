@@ -2957,27 +2957,26 @@ app.get('/api/user/is-pro', async (req, res) => {
   } catch { res.json({ isPro: false }); }
 });
 
-// GET /api/keys — list current user's keys (prefix + metadata only, never the secret)
+// GET /api/keys — return the user's single overlay key (including value, for URL building)
 app.get('/api/keys', async (req, res) => {
   try {
     const userId = await getAuthenticatedUserId(req);
     if (!userId) return res.status(401).json({ error: 'Unauthorized' });
     const { data: pro } = await supabase.from('site_pro').select('user_id').eq('user_id', userId).maybeSingle();
     if (!pro) return res.status(403).json({ error: 'Pro access required' });
-    const { data: keys, error } = await supabase
+    const { data: key } = await supabase
       .from('api_keys')
-      .select('id, name, key_prefix, created_at, last_used_at')
+      .select('id, key_value, created_at, last_used_at')
       .eq('user_id', userId)
-      .order('created_at', { ascending: false });
-    if (error) throw error;
-    res.json(keys || []);
+      .maybeSingle();
+    res.json(key || null); // null = no key yet
   } catch (err) {
-    console.error('List keys error:', err);
-    res.status(500).json({ error: 'Failed to load keys' });
+    console.error('Get key error:', err);
+    res.status(500).json({ error: 'Failed to load key' });
   }
 });
 
-// POST /api/keys — generate a new named API key (shown once, never stored plain)
+// POST /api/keys — generate (or regenerate) the user's single overlay key
 app.post('/api/keys', async (req, res) => {
   try {
     const userId = await getAuthenticatedUserId(req);
@@ -2985,51 +2984,35 @@ app.post('/api/keys', async (req, res) => {
     const { data: pro } = await supabase.from('site_pro').select('user_id').eq('user_id', userId).maybeSingle();
     if (!pro) return res.status(403).json({ error: 'Pro access required' });
 
-    const name = (req.body.name || '').trim();
-    if (!name || name.length > 50) return res.status(400).json({ error: 'Name must be 1–50 characters' });
+    // Remove any existing key first (one key per user)
+    await supabase.from('api_keys').delete().eq('user_id', userId);
 
-    // Enforce 5-key limit
-    const { count } = await supabase
-      .from('api_keys')
-      .select('id', { count: 'exact', head: true })
-      .eq('user_id', userId);
-    if (count >= 5) return res.status(400).json({ error: 'Maximum of 5 API keys allowed. Delete one first.' });
-
-    // Generate: pb_ + 24 random bytes = pb_ + 48 hex chars (51 chars total)
+    // Generate: pb_ + 24 random bytes → 51-char key
     const rawKey = 'pb_' + crypto.randomBytes(24).toString('hex');
     const keyHash = crypto.createHash('sha256').update(rawKey).digest('hex');
-    const keyPrefix = rawKey.substring(0, 12); // "pb_" + first 9 hex chars
+    const keyPrefix = rawKey.substring(0, 12);
 
     const { data: newKey, error: insertError } = await supabase
       .from('api_keys')
-      .insert({ user_id: userId, name, key_hash: keyHash, key_prefix: keyPrefix })
-      .select('id, name, key_prefix, created_at')
+      .insert({ user_id: userId, key_hash: keyHash, key_prefix: keyPrefix, key_value: rawKey })
+      .select('id, key_value, created_at')
       .single();
 
-    if (insertError) {
-      if (insertError.code === '23505') return res.status(400).json({ error: 'A key with that name already exists' });
-      throw insertError;
-    }
+    if (insertError) throw insertError;
 
-    // Return the raw key exactly once — never stored in DB
-    res.json({ ...newKey, key: rawKey });
+    res.json(newKey);
   } catch (err) {
     console.error('Create key error:', err);
     res.status(500).json({ error: 'Failed to create key' });
   }
 });
 
-// DELETE /api/keys/:id
-app.delete('/api/keys/:id', async (req, res) => {
+// DELETE /api/keys — delete the user's overlay key
+app.delete('/api/keys', async (req, res) => {
   try {
     const userId = await getAuthenticatedUserId(req);
     if (!userId) return res.status(401).json({ error: 'Unauthorized' });
-    const { error } = await supabase
-      .from('api_keys')
-      .delete()
-      .eq('id', req.params.id)
-      .eq('user_id', userId); // belt-and-suspenders: can only delete own keys
-    if (error) throw error;
+    await supabase.from('api_keys').delete().eq('user_id', userId);
     res.json({ success: true });
   } catch (err) {
     console.error('Delete key error:', err);
@@ -3113,7 +3096,7 @@ app.get('/api/overlay/board', async (req, res) => {
   }
 });
 
-// GET /api/overlay/leaderboard?key=pb_xxx&period=monthly|season|year|alltime&limit=5|10|20|25
+// GET /api/overlay/leaderboard?key=pb_xxx&period=monthly|season|year|alltime&limit=5|10|20|25&pin=1
 app.get('/api/overlay/leaderboard', async (req, res) => {
   try {
     const userId = await validateApiKey(req.query.key);
@@ -3123,10 +3106,12 @@ app.get('/api/overlay/leaderboard', async (req, res) => {
     const period = VALID_PERIODS.includes(req.query.period) ? req.query.period : 'monthly';
     const rawLimit = parseInt(req.query.limit, 10);
     const limit = [5, 10, 20, 25].includes(rawLimit) ? rawLimit : 10;
+    const pin = req.query.pin === '1'; // append streamer's row if outside top N
 
     const PERIOD_LABELS = { monthly: 'This Month', season: 'This Season', year: 'This Year', alltime: 'All Time' };
 
-    let rankedUsers = [];
+    // Build the full sorted list (no slice yet — needed to find streamer's true rank)
+    let fullRanked = []; // [{ user_id, points }], sorted desc
 
     if (period === 'alltime') {
       const { data: allPoints } = await supabase.from('user_monthly_points').select('user_id, points, last_updated');
@@ -3135,9 +3120,8 @@ app.get('/api/overlay/leaderboard', async (req, res) => {
         byUser[row.user_id] = (byUser[row.user_id] || 0) + row.points;
         if (!firstBy[row.user_id] || row.last_updated < firstBy[row.user_id]) firstBy[row.user_id] = row.last_updated;
       });
-      rankedUsers = Object.entries(byUser)
+      fullRanked = Object.entries(byUser)
         .sort(([a, va], [b, vb]) => vb - va || (firstBy[a] < firstBy[b] ? -1 : 1))
-        .slice(0, limit)
         .map(([user_id, points]) => ({ user_id, points }));
     } else {
       const activeMonth = await getActiveMonth();
@@ -3149,7 +3133,7 @@ app.get('/api/overlay/leaderboard', async (req, res) => {
       } else if (period === 'season') {
         const m = new Date(activeMonth.start_date);
         fromDate = new Date(m.getFullYear(), Math.floor(m.getMonth() / 3) * 3, 1).toISOString();
-      } else { // year
+      } else {
         fromDate = new Date(new Date(activeMonth.start_date).getFullYear(), 0, 1).toISOString();
       }
 
@@ -3172,15 +3156,24 @@ app.get('/api/overlay/leaderboard', async (req, res) => {
         byUser[row.user_id] = (byUser[row.user_id] || 0) + row.points;
         if (!firstBy[row.user_id] || row.last_updated < firstBy[row.user_id]) firstBy[row.user_id] = row.last_updated;
       });
-      rankedUsers = Object.entries(byUser)
+      fullRanked = Object.entries(byUser)
         .sort(([a, va], [b, vb]) => vb - va || (firstBy[a] < firstBy[b] ? -1 : 1))
-        .slice(0, limit)
         .map(([user_id, points]) => ({ user_id, points }));
     }
 
-    if (rankedUsers.length === 0) return res.json({ label: PERIOD_LABELS[period], rows: [] });
+    if (fullRanked.length === 0) return res.json({ label: PERIOD_LABELS[period], rows: [] });
 
-    const userIds = rankedUsers.map(u => u.user_id);
+    // Find streamer's true rank before slicing
+    const streamerIndex = fullRanked.findIndex(u => u.user_id === userId);
+    const streamerOutside = pin && streamerIndex >= limit; // true rank is outside top N
+
+    // Slice to limit for the main list
+    const topN = fullRanked.slice(0, limit);
+
+    // Collect user IDs to look up — include streamer if pinning them
+    const userIds = topN.map(u => u.user_id);
+    if (streamerOutside && !userIds.includes(userId)) userIds.push(userId);
+
     const { data: usersData } = await supabase
       .from('users')
       .select('id, display_name, username')
@@ -3189,13 +3182,27 @@ app.get('/api/overlay/leaderboard', async (req, res) => {
     const usersMap = {};
     (usersData || []).forEach(u => { usersMap[u.id] = u; });
 
-    const rows = rankedUsers.map((u, i) => ({
+    const rows = topN.map((u, i) => ({
       rank: i + 1,
       user_id: u.user_id,
       display_name: usersMap[u.user_id]?.display_name || 'Unknown',
       username: usersMap[u.user_id]?.username || '',
       points: u.points,
+      pinned: false,
     }));
+
+    // Append streamer row if they're outside the top N
+    if (streamerOutside) {
+      const su = fullRanked[streamerIndex];
+      rows.push({
+        rank: streamerIndex + 1,
+        user_id: su.user_id,
+        display_name: usersMap[su.user_id]?.display_name || 'Unknown',
+        username: usersMap[su.user_id]?.username || '',
+        points: su.points,
+        pinned: true, // frontend uses this to draw the separator + highlight
+      });
+    }
 
     res.set('Cache-Control', 'no-store');
     res.json({ label: PERIOD_LABELS[period], rows });
