@@ -171,11 +171,11 @@ const Pro = () => {
       <div className="max-w-3xl mx-auto px-4 py-8 space-y-6">
 
         {/* Privacy warning */}
-        <div className="flex gap-3 p-4 rounded-xl" style={{ backgroundColor: 'rgba(220,38,38,0.1)', border: '1px solid rgba(220,38,38,0.3)' }}>
+        <div className="flex gap-3 p-4 rounded-xl" style={{ backgroundColor: 'rgba(220,38,38,0.5)', border: '1px solid rgba(220,38,38,0.3)' }}>
           <svg className="w-5 h-5 text-red-400 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
           </svg>
-          <div className="text-sm text-red-300">
+          <div className="text-m text-red-300">
             <strong>Keep your overlay URLs private.</strong> They grant read-only access to your bingo board
             and the leaderboard. Never display them on stream or share screenshots of your OBS source list. 
             If a URL is exposed, click <strong>the regenerate message at the bottom of the page.</strong> Old 
@@ -214,7 +214,7 @@ const Pro = () => {
           <div className="h-1 bg-gradient-to-r from-purple-600 via-pink-500 to-purple-400" />
           <div className="px-6 py-5 space-y-4">
             <div>
-              <h2 className="text-base font-bold text-white">Board Overlay</h2>
+              <h2 className="text-base text-white">Board Overlay</h2>
               <p className="text-xs text-gray-400 mt-0.5">Scales to any browser source size.</p>
             </div>
 
@@ -254,7 +254,7 @@ const Pro = () => {
           <div className="h-1 bg-gradient-to-r from-purple-600 via-pink-500 to-purple-400" />
           <div className="px-6 py-5 space-y-4">
             <div>
-              <h2 className="text-base font-bold text-white">Leaderboard Overlay</h2>
+              <h2 className="text-base text-white">Leaderboard Overlay</h2>
               <p className="text-xs text-gray-400 mt-0.5">Scales to any browser source size — taller layouts fit more rows.</p>
             </div>
 
