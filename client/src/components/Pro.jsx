@@ -93,8 +93,8 @@ const Pro = () => {
     : `${origin}/overlay/board?key=generate-your-key&mode=${boardMode}`;
 
   const lbUrl = hasKey
-    ? `${origin}/overlay/leaderboard?key=${keyValue}&period=${lbPeriod}&limit=${lbLimit}${lbPin ? '&pin=1' : ''}`
-    : `${origin}/overlay/leaderboard?key=generate-your-key&period=${lbPeriod}&limit=${lbLimit}${lbPin ? '&pin=1' : ''}`;
+    ? `${origin}/overlay/leaderboard?key=${keyValue}&period=${lbPeriod}&limit=${lbLimit}${lbPin ? '' : '&pin=0'}`
+    : `${origin}/overlay/leaderboard?key=generate-your-key&period=${lbPeriod}&limit=${lbLimit}${lbPin ? '' : '&pin=0'}`;
 
   useEffect(() => { if (user) loadKey(); }, [user]);
 
@@ -177,9 +177,9 @@ const Pro = () => {
           </svg>
           <div className="text-sm text-red-300">
             <strong>Keep your overlay URLs private.</strong> They grant read-only access to your bingo board
-            and the leaderboard. Never display them on stream, paste them in public chats, or share screenshots
-            of your OBS source list. If a URL is exposed, click <strong>Regenerate</strong> — old URLs stop
-            working immediately.
+            and the leaderboard. Never display them on stream or share screenshots of your OBS source list. 
+            If a URL is exposed, click <strong>the regenerate message at the bottom of the page.</strong> Old 
+            URLs will stop working immediately.
           </div>
         </div>
 

@@ -3106,7 +3106,7 @@ app.get('/api/overlay/leaderboard', async (req, res) => {
     const period = VALID_PERIODS.includes(req.query.period) ? req.query.period : 'monthly';
     const rawLimit = parseInt(req.query.limit, 10);
     const limit = [5, 10, 20, 25].includes(rawLimit) ? rawLimit : 10;
-    const pin = req.query.pin === '1'; // append streamer's row if outside top N
+    const pin = req.query.pin !== '0'; // append streamer's row if outside top N (opt-out with &pin=0)
 
     const PERIOD_LABELS = { monthly: 'This Month', season: 'This Season', year: 'This Year', alltime: 'All Time' };
 
