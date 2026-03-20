@@ -185,17 +185,41 @@ app.use((req, res, next) => {
   next();
 });
 
+// When avatar_url is null on a profile fetch, look up the user's Discord identity via the
+// Supabase admin API and reconstruct the Discord CDN URL from their stored identity data.
+// Updates the users table and returns the fresh URL (or null if unavailable).
+async function refreshAvatarFromDiscord(userId) {
+  try {
+    const { data: { user }, error } = await supabase.auth.admin.getUserById(userId);
+    if (error || !user) return null;
+
+    const discordIdentity = user.identities?.find(i => i.provider === 'discord');
+    if (!discordIdentity) return null;
+
+    // identity_data.avatar_url is set by Supabase from the last Discord OAuth exchange
+    const avatarUrl = discordIdentity.identity_data?.avatar_url;
+    if (!avatarUrl) return null;
+
+    await supabase.from('users').update({ avatar_url: avatarUrl }).eq('id', userId);
+    console.log(`[avatar-sync] Refreshed Discord avatar for user ${userId}`);
+    return avatarUrl;
+  } catch (err) {
+    console.error('[avatar-sync] Discord refresh failed (non-fatal):', err.message);
+    return null;
+  }
+}
+
 // Helper function to get authenticated user ID
 async function getAuthenticatedUserId(req) {
   // Check for dev bypass first
   if (req.devUserId) {
     return req.devUserId;
   }
-  
+
   // Normal Supabase auth
   const authHeader = req.headers.authorization;
   if (!authHeader) return null;
-  
+
   try {
     const token = authHeader.replace('Bearer ', '');
     const { data: { user }, error: authError } = await supabase.auth.getUser(token);
@@ -205,7 +229,7 @@ async function getAuthenticatedUserId(req) {
   } catch (err) {
     console.log('Auth check failed');
   }
-  
+
   return null;
 }
 
@@ -953,6 +977,12 @@ app.get('/api/profile/:userId', async (req, res) => {
     if (shiniesError) throw shiniesError;
     if (monthlyError) throw monthlyError;
     if (rankError) throw rankError;
+
+    // If avatar_url is missing, try to recover it from the user's Discord identity
+    if (userData && !userData.avatar_url) {
+      const refreshed = await refreshAvatarFromDiscord(userId);
+      if (refreshed) userData.avatar_url = refreshed;
+    }
 
     // Calculate total points and find best month
     const totalPoints = (monthlyPoints || []).reduce((sum, month) => sum + month.points, 0);
