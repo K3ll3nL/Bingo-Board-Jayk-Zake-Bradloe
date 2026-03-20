@@ -3589,6 +3589,67 @@ app.get('/api/admin/badge-families', async (req, res) => {
   }
 });
 
+// GET /api/admin/badges — all badges, full data (no hint hiding)
+app.get('/api/admin/badges', async (req, res) => {
+  try {
+    const userId = await getAuthenticatedUserId(req);
+    if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+    const { data: mod } = await supabase.from('moderators').select('id').eq('id', userId).single();
+    if (!mod) return res.status(403).json({ error: 'Moderators only' });
+
+    const { data, error } = await supabase
+      .from('badges')
+      .select('*')
+      .order('family_order');
+    if (error) throw error;
+    res.json(data || []);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// PATCH /api/admin/badge-families/reorder — must be before /:id to avoid param conflict
+app.patch('/api/admin/badge-families/reorder', async (req, res) => {
+  try {
+    const userId = await getAuthenticatedUserId(req);
+    if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+    const { data: mod } = await supabase.from('moderators').select('id').eq('id', userId).single();
+    if (!mod) return res.status(403).json({ error: 'Moderators only' });
+
+    const { order } = req.body;
+    if (!Array.isArray(order)) return res.status(400).json({ error: 'order must be an array' });
+
+    await Promise.all(
+      order.map(({ id, display_order }) =>
+        supabase.from('badge_families').update({ display_order }).eq('id', id)
+      )
+    );
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// PATCH /api/admin/badge-families/:id — inline edit display_name / is_sequential
+app.patch('/api/admin/badge-families/:id', async (req, res) => {
+  try {
+    const userId = await getAuthenticatedUserId(req);
+    if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+    const { data: mod } = await supabase.from('moderators').select('id').eq('id', userId).single();
+    if (!mod) return res.status(403).json({ error: 'Moderators only' });
+
+    const { display_name, is_sequential } = req.body;
+    const { error } = await supabase
+      .from('badge_families')
+      .update({ display_name, is_sequential })
+      .eq('id', req.params.id);
+    if (error) throw error;
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ── Collection management (mod only) ─────────────────────────────────────────
 
 // GET /api/admin/collections — all distinct collection slugs

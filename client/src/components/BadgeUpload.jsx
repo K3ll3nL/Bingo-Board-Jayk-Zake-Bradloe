@@ -115,6 +115,7 @@ export default function BadgeUpload() {
             {[
               { id: 'create',      label: 'Create Badge' },
               { id: 'collections', label: 'Manage Collections' },
+              { id: 'visualizer',  label: 'Visualize' },
             ].map(t => (
               <button
                 key={t.id}
@@ -132,6 +133,7 @@ export default function BadgeUpload() {
 
           {tab === 'create'      && <CreateBadgeTab />}
           {tab === 'collections' && <ManageCollectionsTab />}
+          {tab === 'visualizer'  && <BadgeVisualizerTab />}
         </div>
       </div>
     </div>
@@ -652,6 +654,369 @@ function ManageCollectionsTab() {
       {!slug.trim() && (
         <p className="text-sm text-gray-500 text-center py-4">
           Select a collection above, or choose <strong>＋ New collection…</strong> to create one.
+        </p>
+      )}
+    </div>
+  );
+}
+
+// ── Badge Visualizer tab ──────────────────────────────────────────────────────
+
+function checkDescription(badge) {
+  const v = badge.check_value;
+  const q = badge.check_qualifier;
+  switch (badge.check_type) {
+    case 'submission_count':      return `Submit ${v} time${v != 1 ? 's' : ''}`;
+    case 'approved_count':        return `Get ${v} approval${v != 1 ? 's' : ''}`;
+    case 'rejected_count':        return `Get ${v} rejection${v != 1 ? 's' : ''}`;
+    case 'restricted_count':      return `Get ${v} restricted approval${v != 1 ? 's' : ''}`;
+    case 'monthly_active_count':  return `Active for ${v} month${v != 1 ? 's' : ''}`;
+    case 'type_percentage':       return `Catch ${v}% of ${q} type`;
+    case 'generation_percentage': return `Catch ${v}% of Gen ${q}`;
+    case 'collection_complete':   return `Complete '${q}' collection`;
+    default:                      return 'Unknown criteria';
+  }
+}
+
+function GripIcon() {
+  return (
+    <svg className="w-4 h-4 text-gray-500 flex-shrink-0" fill="currentColor" viewBox="0 0 16 16">
+      <circle cx="5"  cy="4"  r="1.2" /><circle cx="11" cy="4"  r="1.2" />
+      <circle cx="5"  cy="8"  r="1.2" /><circle cx="11" cy="8"  r="1.2" />
+      <circle cx="5"  cy="12" r="1.2" /><circle cx="11" cy="12" r="1.2" />
+    </svg>
+  );
+}
+
+function ToggleChip({ active, onClick, label }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium transition-colors border ${
+        active
+          ? 'bg-purple-600 border-purple-500 text-white'
+          : 'bg-transparent border-gray-600 text-gray-400 hover:border-gray-400 hover:text-white'
+      }`}
+    >
+      <span className={`w-2 h-2 rounded-full flex-shrink-0 ${active ? 'bg-white' : 'bg-gray-600'}`} />
+      {label}
+    </button>
+  );
+}
+
+function BadgeCard({ badge, silhouette, publicView, isSequential }) {
+  const isHintLocked   = publicView && isSequential && (badge.family_order ?? 1) > 1;
+  const isSecretHidden = publicView && badge.is_secret;
+
+  return (
+    <div className="group relative flex-shrink-0">
+      {/* Image */}
+      <div className={`w-12 h-12 rounded-lg overflow-hidden border-2 transition-colors ${
+        badge.is_secret && !publicView ? 'border-yellow-600/50' : 'border-gray-600'
+      }`}>
+        {isSecretHidden ? (
+          <div className="w-full h-full flex items-center justify-center bg-gray-900 rounded-lg">
+            <span className="text-gray-600 text-xl font-bold select-none">?</span>
+          </div>
+        ) : (
+          <img
+            src={badge.image_url}
+            alt={badge.name}
+            className="w-full h-full object-cover"
+            style={{ filter: silhouette ? 'brightness(0)' : 'none' }}
+            onError={e => { e.target.style.display = 'none'; }}
+          />
+        )}
+      </div>
+
+      {/* Secret lock pip */}
+      {badge.is_secret && !publicView && (
+        <div className="absolute -top-1 -right-1 w-4 h-4 bg-yellow-500 rounded-full flex items-center justify-center text-xs leading-none">
+          🔒
+        </div>
+      )}
+
+      {/* Tooltip */}
+      {!isSecretHidden && (
+        <div
+          className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-56 rounded-lg p-3 text-xs
+                     opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-50
+                     shadow-xl border border-gray-700 space-y-1.5"
+          style={{ backgroundColor: '#1a1c1e' }}
+        >
+          <p className="font-bold text-white leading-snug">{badge.name}</p>
+          {badge.is_secret && <span className="text-yellow-400">🔒 Secret badge</span>}
+          <p className="text-gray-300 leading-snug">{badge.description}</p>
+          {badge.hint && !isHintLocked && <p className="text-purple-300">💡 {badge.hint}</p>}
+          {isHintLocked         && <p className="text-gray-600 italic">💡 Hint locked until previous earned</p>}
+          <p className="text-blue-400 pt-1.5 border-t border-gray-700">✓ {checkDescription(badge)}</p>
+          <p className="text-gray-600">Order: {badge.family_order ?? '—'}</p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function FamilyCard({
+  family, badges, silhouette, publicView,
+  isDragging, isDragOver,
+  isEditing, editForm, setEditForm,
+  onDragStart, onDragOver, onDrop, onDragEnd,
+  onEdit, onSaveEdit, onCancelEdit,
+}) {
+  return (
+    <div
+      draggable
+      onDragStart={onDragStart}
+      onDragOver={onDragOver}
+      onDrop={onDrop}
+      onDragEnd={onDragEnd}
+      className={`rounded-xl border p-4 transition-all select-none ${
+        isDragOver && !isDragging
+          ? 'border-purple-400 shadow-lg shadow-purple-500/20 scale-[1.01]'
+          : 'border-gray-600'
+      } ${isDragging ? 'opacity-30 scale-95' : 'opacity-100 cursor-grab active:cursor-grabbing'}`}
+      style={{ backgroundColor: '#35373b' }}
+    >
+      {/* Family header */}
+      <div className="flex items-center gap-2 mb-3 min-h-[28px]">
+        <GripIcon />
+
+        {isEditing ? (
+          <>
+            <input
+              value={editForm.display_name}
+              onChange={e => setEditForm(f => ({ ...f, display_name: e.target.value }))}
+              onClick={e => e.stopPropagation()}
+              className="flex-1 rounded px-2 py-1 text-sm text-white border border-gray-500
+                         focus:border-purple-400 focus:outline-none"
+              style={{ backgroundColor: '#2a2d31' }}
+            />
+            <label
+              className="flex items-center gap-1.5 text-xs text-gray-400 cursor-pointer flex-shrink-0"
+              onClick={e => e.stopPropagation()}
+            >
+              <input
+                type="checkbox"
+                checked={editForm.is_sequential}
+                onChange={e => setEditForm(f => ({ ...f, is_sequential: e.target.checked }))}
+                className="accent-purple-500"
+              />
+              Sequential
+            </label>
+            <button onClick={e => { e.stopPropagation(); onSaveEdit(); }}
+              className="text-green-400 hover:text-green-300 font-bold px-1 flex-shrink-0">✓</button>
+            <button onClick={e => { e.stopPropagation(); onCancelEdit(); }}
+              className="text-red-400 hover:text-red-300 font-bold px-1 flex-shrink-0">✕</button>
+          </>
+        ) : (
+          <>
+            <span className="font-semibold text-white">{family.display_name}</span>
+            <span className="text-xs text-gray-500">({family.id})</span>
+            {family.is_sequential
+              ? <span className="text-xs text-purple-400 bg-purple-400/10 px-1.5 py-0.5 rounded-full">sequential</span>
+              : <span className="text-xs text-gray-400 bg-gray-700/60 px-1.5 py-0.5 rounded-full">open</span>
+            }
+            <span className="text-xs text-gray-500 ml-auto">
+              {badges.length} badge{badges.length !== 1 ? 's' : ''}
+            </span>
+            <button
+              onClick={e => { e.stopPropagation(); onEdit(); }}
+              className="text-gray-500 hover:text-white transition-colors ml-1 text-xs flex-shrink-0"
+              title="Edit family"
+            >✏</button>
+          </>
+        )}
+      </div>
+
+      {/* Badge row */}
+      <div className="flex items-center gap-1.5 flex-wrap overflow-visible">
+        {badges.length === 0 && (
+          <span className="text-xs text-gray-600 italic">No badges in this family yet</span>
+        )}
+        {badges.map((badge, idx) => (
+          <React.Fragment key={badge.id}>
+            <BadgeCard
+              badge={badge}
+              silhouette={silhouette}
+              publicView={publicView}
+              isSequential={family.is_sequential}
+            />
+            {family.is_sequential && idx < badges.length - 1 && (
+              <svg className="w-3 h-3 text-gray-600 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
+              </svg>
+            )}
+          </React.Fragment>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function BadgeVisualizerTab() {
+  const [families,       setFamilies]       = useState([]);
+  const [badgesByFamily, setBadgesByFamily] = useState({});
+  const [orphaned,       setOrphaned]       = useState([]);
+  const [loading,        setLoading]        = useState(true);
+  const [silhouette,     setSilhouette]     = useState(false);
+  const [publicView,     setPublicView]     = useState(false);
+  const [saveFlash,      setSaveFlash]      = useState(false);
+  const [editingFamily,  setEditingFamily]  = useState(null);
+  const [editForm,       setEditForm]       = useState({ display_name: '', is_sequential: true });
+  const [draggedId,      setDraggedId]      = useState(null);
+  const [dragOverId,     setDragOverId]     = useState(null);
+
+  useEffect(() => { loadAll(); }, []);
+
+  const loadAll = async () => {
+    setLoading(true);
+    try {
+      const headers = await getAuthHeaders();
+      const [famRes, badgeRes] = await Promise.all([
+        fetch('/api/admin/badge-families', { headers }),
+        fetch('/api/admin/badges',         { headers }),
+      ]);
+      const [famData, badgeData] = await Promise.all([famRes.json(), badgeRes.json()]);
+      setFamilies(famData || []);
+
+      const grouped = {};
+      const orphans = [];
+      for (const b of (badgeData || [])) {
+        if (b.family) {
+          if (!grouped[b.family]) grouped[b.family] = [];
+          grouped[b.family].push(b);
+        } else {
+          orphans.push(b);
+        }
+      }
+      setBadgesByFamily(grouped);
+      setOrphaned(orphans);
+    } catch (err) {
+      console.error('Visualizer load failed:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // ── Drag handlers ───────────────────────────────────────────────────────────
+  const onDragStart = (e, id) => {
+    setDraggedId(id);
+    e.dataTransfer.effectAllowed = 'move';
+  };
+  const onDragOver = (e, id) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    if (id !== draggedId) setDragOverId(id);
+  };
+  const onDrop = (e, dropId) => {
+    e.preventDefault();
+    if (draggedId && dropId && draggedId !== dropId) reorder(draggedId, dropId);
+    setDraggedId(null);
+    setDragOverId(null);
+  };
+  const onDragEnd = () => { setDraggedId(null); setDragOverId(null); };
+
+  const reorder = async (dragId, dropId) => {
+    const next  = [...families];
+    const from  = next.findIndex(f => f.id === dragId);
+    const to    = next.findIndex(f => f.id === dropId);
+    next.splice(from, 1);
+    next.splice(to, 0, families[from]);
+    const updated = next.map((f, i) => ({ ...f, display_order: i + 1 }));
+    setFamilies(updated);
+    try {
+      await fetch('/api/admin/badge-families/reorder', {
+        method:  'PATCH',
+        headers: { ...(await getAuthHeaders()), 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ order: updated.map(f => ({ id: f.id, display_order: f.display_order })) }),
+      });
+      setSaveFlash(true);
+      setTimeout(() => setSaveFlash(false), 1500);
+    } catch (err) {
+      console.error('Reorder save failed:', err);
+    }
+  };
+
+  // ── Inline family edit ──────────────────────────────────────────────────────
+  const startEdit = (family) => {
+    setEditingFamily(family.id);
+    setEditForm({ display_name: family.display_name, is_sequential: family.is_sequential });
+  };
+  const saveEdit = async () => {
+    try {
+      await fetch(`/api/admin/badge-families/${editingFamily}`, {
+        method:  'PATCH',
+        headers: { ...(await getAuthHeaders()), 'Content-Type': 'application/json' },
+        body:    JSON.stringify(editForm),
+      });
+      setFamilies(fs => fs.map(f => f.id === editingFamily ? { ...f, ...editForm } : f));
+      setEditingFamily(null);
+      setSaveFlash(true);
+      setTimeout(() => setSaveFlash(false), 1500);
+    } catch (err) {
+      console.error('Family edit failed:', err);
+    }
+  };
+
+  if (loading) return (
+    <div className="flex justify-center py-16">
+      <div className="w-8 h-8 border-2 border-purple-400 border-t-transparent rounded-full animate-spin" />
+    </div>
+  );
+
+  return (
+    <div className="space-y-4">
+
+      {/* Toolbar */}
+      <div className="flex items-center gap-3 flex-wrap pb-2 border-b border-gray-700">
+        <ToggleChip active={silhouette} onClick={() => setSilhouette(s => !s)} label="Silhouette" />
+        <ToggleChip active={publicView} onClick={() => setPublicView(p => !p)} label="Public View" />
+        <span className="text-xs text-gray-600 ml-auto">Drag cards to reorder families</span>
+        {saveFlash && <span className="text-sm text-green-400 font-medium">✓ Saved</span>}
+      </div>
+
+      {/* Family cards */}
+      {families.map(family => (
+        <FamilyCard
+          key={family.id}
+          family={family}
+          badges={(badgesByFamily[family.id] || []).sort((a, b) => (a.family_order ?? 0) - (b.family_order ?? 0))}
+          silhouette={silhouette}
+          publicView={publicView}
+          isDragging={draggedId === family.id}
+          isDragOver={dragOverId === family.id && draggedId !== family.id}
+          isEditing={editingFamily === family.id}
+          editForm={editForm}
+          setEditForm={setEditForm}
+          onDragStart={e => onDragStart(e, family.id)}
+          onDragOver={e => onDragOver(e, family.id)}
+          onDrop={e => onDrop(e, family.id)}
+          onDragEnd={onDragEnd}
+          onEdit={() => startEdit(family)}
+          onSaveEdit={saveEdit}
+          onCancelEdit={() => setEditingFamily(null)}
+        />
+      ))}
+
+      {/* Orphaned badges */}
+      {orphaned.length > 0 && (
+        <div className="rounded-xl border border-dashed border-gray-600 p-4" style={{ backgroundColor: '#35373b' }}>
+          <p className="text-sm font-medium text-gray-500 mb-3">
+            Uncategorized — {orphaned.length} badge{orphaned.length !== 1 ? 's' : ''}
+          </p>
+          <div className="flex flex-wrap gap-2">
+            {orphaned.map(b => (
+              <BadgeCard key={b.id} badge={b} silhouette={silhouette} publicView={publicView} />
+            ))}
+          </div>
+        </div>
+      )}
+
+      {families.length === 0 && orphaned.length === 0 && (
+        <p className="text-center text-gray-500 py-16 text-sm">
+          No badges yet — create some in the Create Badge tab.
         </p>
       )}
     </div>
