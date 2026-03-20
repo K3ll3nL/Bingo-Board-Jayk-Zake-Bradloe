@@ -42,6 +42,7 @@ const GENERATIONS = [
   { value: '6', label: 'Gen VI — Kalos' },
   { value: '7', label: 'Gen VII — Alola' },
   { value: '8', label: 'Gen VIII — Galar' },
+  { value: '8.5', label: 'Gen VIII.5 — Hisui' },
   { value: '9', label: 'Gen IX — Paldea' },
 ];
 
