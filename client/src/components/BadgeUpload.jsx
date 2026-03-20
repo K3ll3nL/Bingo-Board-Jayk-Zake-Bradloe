@@ -61,13 +61,14 @@ const INITIAL_FORM = {
 // ── Main component ────────────────────────────────────────────────────────────
 
 export default function BadgeUpload() {
-  const { user }  = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const navigate  = useNavigate();
   const [isModerator, setIsModerator] = useState(null);
   const [tab, setTab] = useState('create'); // 'create' | 'collections'
 
   // ── Mod guard ──────────────────────────────────────────────────────────────
   useEffect(() => {
+    if (authLoading) return;
     if (!user) { navigate('/'); return; }
     (async () => {
       try {
@@ -77,7 +78,7 @@ export default function BadgeUpload() {
         setIsModerator(true);
       } catch { navigate('/'); }
     })();
-  }, [user, navigate]);
+  }, [user, authLoading, navigate]);
 
   if (isModerator === null) {
     return (
