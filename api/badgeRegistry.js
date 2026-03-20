@@ -129,6 +129,26 @@ const contextBuilders = {
       .eq('status', 'rejected');
     return { totalRejected: count ?? 0 };
   },
+
+  // Fired via Supabase webhook on INSERT into bingo_achievements.
+  // Restricted variants (row_restricted, etc.) are folded into their base type
+  // so check_qualifier uses plain names: 'row', 'column', 'x', 'blackout'.
+  async bingo_achievement(userId, supabase) {
+    const { data } = await supabase
+      .from('bingo_achievements')
+      .select('bingo_type')
+      .eq('user_id', userId);
+
+    const typeCounts = { row: 0, column: 0, x: 0, blackout: 0 };
+    for (const a of (data || [])) {
+      const base = a.bingo_type.replace('_restricted', '');
+      if (base in typeCounts) typeCounts[base]++;
+    }
+    return {
+      bingoTypeCounts: typeCounts,
+      bingoTotalCount: (data || []).length,
+    };
+  },
 };
 
 // ── Badge definitions ─────────────────────────────────────────────────────────
@@ -516,6 +536,18 @@ function buildCheckFromDB({ check_type, check_value, check_qualifier }) {
       return (ctx) => {
         const prog = ctx.collectionProgress[col];
         return prog != null && prog.total > 0 && prog.caught >= prog.total;
+      };
+    }
+    // ── Bingo achievement count ───────────────────────────────────────────────
+    // check_qualifier: 'any' | comma-separated base types e.g. 'row,blackout'
+    // Each base type includes its _restricted variant (folded in contextBuilder).
+    case 'bingo_achievement_count': {
+      const types = (!check_qualifier || check_qualifier === 'any')
+        ? ['row', 'column', 'x', 'blackout']
+        : check_qualifier.split(',').map(t => t.trim()).filter(Boolean);
+      return (ctx) => {
+        const count = types.reduce((sum, t) => sum + (ctx.bingoTypeCounts?.[t] ?? 0), 0);
+        return count >= check_value;
       };
     }
     default: return () => false;

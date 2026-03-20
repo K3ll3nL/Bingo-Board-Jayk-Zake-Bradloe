@@ -210,6 +210,207 @@ app.post('/api/internal/monthly-active', async (req, res) => {
   res.status(200).end();
 });
 
+// ── Supabase webhook — fires on INSERT into bingo_achievements ────────────────
+// Configure in Supabase Dashboard → Database → Webhooks:
+//   Table: bingo_achievements | Event: INSERT
+//   HTTP POST → <your api url>/api/internal/bingo-achievement
+//   Add header:  x-webhook-secret: <value of WEBHOOK_SECRET in api/.env>
+app.post('/api/internal/bingo-achievement', async (req, res) => {
+  if (req.headers['x-webhook-secret'] !== process.env.WEBHOOK_SECRET) {
+    return res.status(401).end();
+  }
+  const userId = req.body?.record?.user_id;
+  if (!userId) return res.status(400).json({ error: 'Missing user_id in record' });
+
+  await awardBadgesForTrigger(userId, 'bingo_achievement');
+  res.status(200).end();
+});
+
+// ── Vercel Cron — fires daily at 1am UTC ─────────────────────────────────────
+// vercel.json: { "crons": [{ "path": "/api/internal/period-end", "schedule": "0 1 * * *" }] }
+// Vercel sets x-vercel-cron-signature; we verify WEBHOOK_SECRET as a fallback
+// for manual triggers and local testing.
+app.post('/api/internal/period-end', async (req, res) => {
+  if (req.headers['x-webhook-secret'] !== process.env.WEBHOOK_SECRET &&
+      req.headers['authorization'] !== `Bearer ${process.env.CRON_SECRET}`) {
+    return res.status(401).end();
+  }
+
+  try {
+    const todayUTC     = new Date();
+    todayUTC.setUTCHours(0, 0, 0, 0);
+    const todayStr     = todayUTC.toISOString().split('T')[0];
+    const yesterdayStr = new Date(todayUTC - 864e5).toISOString().split('T')[0];
+
+    const results = { dateAwards: [], months: [], seasons: [], years: [] };
+
+    // ── Date-award badges — award ALL users on a specific calendar date ───────
+    const { data: dateAwardBadges } = await supabase
+      .from('badges')
+      .select('id, name')
+      .eq('trigger', 'date_award')
+      .eq('check_qualifier', yesterdayStr);
+
+    if (dateAwardBadges?.length) {
+      const { data: allUsers } = await supabase.from('users').select('id');
+      const userIds = (allUsers || []).map(u => u.id);
+      for (const badge of dateAwardBadges) {
+        const count = await bulkAwardBadge(badge.id, userIds);
+        results.dateAwards.push({ id: badge.id, name: badge.name, awarded: count });
+      }
+    }
+
+    // ── Period-end badges — tied to bingo_months.end_date ────────────────────
+    const { data: endedMonths, error } = await supabase
+      .from('bingo_months')
+      .select('id, season_id, year_id')
+      .eq('end_date', yesterdayStr);
+    if (error) throw error;
+
+    if (!endedMonths?.length && !dateAwardBadges?.length) {
+      console.log(`period-end: nothing to process on ${todayStr}`);
+      return res.status(200).json({ message: 'Nothing to process' });
+    }
+
+    const doneSeasons = new Set();
+    const doneYears   = new Set();
+
+    for (const month of endedMonths) {
+      results.months.push({ id: month.id, awarded: await processMonthEnd(month.id) });
+
+      if (month.season_id && !doneSeasons.has(month.season_id)) {
+        const { count } = await supabase
+          .from('bingo_months').select('*', { count: 'exact', head: true })
+          .eq('season_id', month.season_id).gt('end_date', yesterdayStr);
+        if (count === 0) {
+          doneSeasons.add(month.season_id);
+          results.seasons.push({ id: month.season_id, awarded: await processSeasonEnd(month.season_id) });
+        }
+      }
+
+      if (month.year_id && !doneYears.has(month.year_id)) {
+        const { count } = await supabase
+          .from('bingo_months').select('*', { count: 'exact', head: true })
+          .eq('year_id', month.year_id).gt('end_date', yesterdayStr);
+        if (count === 0) {
+          doneYears.add(month.year_id);
+          results.years.push({ id: month.year_id, awarded: await processYearEnd(month.year_id) });
+        }
+      }
+    }
+
+    console.log('period-end results:', JSON.stringify(results));
+    res.status(200).json({ success: true, results });
+  } catch (err) {
+    console.error('period-end error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── Bulk badge award helper ───────────────────────────────────────────────────
+// Awards a single badge to multiple users at once, skipping already-earned ones.
+// Returns the count of newly awarded badges.
+async function bulkAwardBadge(badgeId, userIds) {
+  if (!userIds?.length) return 0;
+
+  const { data: alreadyEarned } = await supabase
+    .from('user_badges').select('user_id')
+    .eq('badge_id', badgeId).in('user_id', userIds);
+
+  const earnedSet = new Set((alreadyEarned || []).map(e => e.user_id));
+  const newUsers  = userIds.filter(id => !earnedSet.has(id));
+  if (!newUsers.length) return 0;
+
+  const { data: inserted, error } = await supabase
+    .from('user_badges')
+    .insert(newUsers.map(user_id => ({ user_id, badge_id: badgeId })))
+    .select('user_id');
+  if (error) { console.error(`bulkAwardBadge error (badge ${badgeId}):`, error.message); return 0; }
+
+  if (inserted?.length) {
+    const { data: badgeDetails } = await supabase
+      .from('badges').select('id, name, description, image_url, is_secret')
+      .eq('id', badgeId).single();
+    if (badgeDetails) {
+      await Promise.all(
+        inserted.map(({ user_id }) =>
+          broadcastUpdate(`badge-awards-${user_id}`, 'badge-earned', badgeDetails)
+            .catch(e => console.error(`Badge broadcast failed for ${user_id}:`, e.message))
+        )
+      );
+    }
+  }
+  return inserted?.length ?? 0;
+}
+
+// ── Period-end processors ─────────────────────────────────────────────────────
+async function processMonthEnd(monthId) {
+  const awarded = {};
+  const { data: badges } = await supabase.from('badges').select('id, name, check_type, check_value, check_qualifier')
+    .eq('trigger', 'period_end').in('check_type', ['approved_count_in_month', 'top_placement_month']);
+  if (!badges?.length) return awarded;
+
+  for (const { id, name, check_type, check_value, check_qualifier } of badges) {
+    // qualifier = specific month_id to match; blank/null = fires every month
+    if (check_qualifier && Number(check_qualifier) !== monthId) continue;
+    let userIds = [];
+    if (check_type === 'approved_count_in_month') {
+      const { data } = await supabase.rpc('users_with_min_entries_in_month', { p_month_id: monthId, p_min_count: check_value });
+      userIds = (data || []).map(r => r.user_id);
+    } else {
+      const { data } = await supabase.rpc('rank_users_by_month_points', { p_month_id: monthId, p_max_rank: check_value });
+      userIds = (data || []).map(r => r.user_id);
+    }
+    const count = await bulkAwardBadge(id, userIds);
+    if (count > 0) awarded[name] = count;
+  }
+  return awarded;
+}
+
+async function processSeasonEnd(seasonId) {
+  const awarded = {};
+  const { data: badges } = await supabase.from('badges').select('id, name, check_type, check_value, check_qualifier')
+    .eq('trigger', 'period_end').in('check_type', ['approved_count_in_season', 'top_placement_season']);
+  if (!badges?.length) return awarded;
+
+  for (const { id, name, check_type, check_value, check_qualifier } of badges) {
+    if (check_qualifier && Number(check_qualifier) !== seasonId) continue;
+    let userIds = [];
+    if (check_type === 'approved_count_in_season') {
+      const { data } = await supabase.rpc('users_with_min_entries_in_season', { p_season_id: seasonId, p_min_count: check_value });
+      userIds = (data || []).map(r => r.user_id);
+    } else {
+      const { data } = await supabase.rpc('rank_users_by_season_points', { p_season_id: seasonId, p_max_rank: check_value });
+      userIds = (data || []).map(r => r.user_id);
+    }
+    const count = await bulkAwardBadge(id, userIds);
+    if (count > 0) awarded[name] = count;
+  }
+  return awarded;
+}
+
+async function processYearEnd(yearId) {
+  const awarded = {};
+  const { data: badges } = await supabase.from('badges').select('id, name, check_type, check_value, check_qualifier')
+    .eq('trigger', 'period_end').in('check_type', ['approved_count_in_year', 'top_placement_year']);
+  if (!badges?.length) return awarded;
+
+  for (const { id, name, check_type, check_value, check_qualifier } of badges) {
+    if (check_qualifier && Number(check_qualifier) !== yearId) continue;
+    let userIds = [];
+    if (check_type === 'approved_count_in_year') {
+      const { data } = await supabase.rpc('users_with_min_entries_in_year', { p_year_id: yearId, p_min_count: check_value });
+      userIds = (data || []).map(r => r.user_id);
+    } else {
+      const { data } = await supabase.rpc('rank_users_by_year_points', { p_year_id: yearId, p_max_rank: check_value });
+      userIds = (data || []).map(r => r.user_id);
+    }
+    const count = await bulkAwardBadge(id, userIds);
+    if (count > 0) awarded[name] = count;
+  }
+  return awarded;
+}
+
 // SSE connections manager
 const sseClients = new Map(); // userId -> Set of response objects
 const sseAnonymousClients = new Set(); // Set of anonymous response objects

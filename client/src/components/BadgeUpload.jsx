@@ -9,14 +9,17 @@ import PageBackground from './PageBackground';
 const BASE_BADGE_URL = 'https://pub-583ae6cd5f8b4b58b0ee7053ea1d4b0b.r2.dev/assets/badges';
 
 const TRIGGERS = [
-  { value: 'submission',     label: 'Submission — fires when a user submits' },
-  { value: 'approved',       label: 'Approved — fires when a submission is approved' },
-  { value: 'rejected',       label: 'Rejected — fires when a submission is rejected' },
-  { value: 'monthly_active', label: 'Monthly Active — fires on new active month' },
+  { value: 'submission',        label: 'Submission — fires when a user submits' },
+  { value: 'approved',          label: 'Approved — fires when a submission is approved' },
+  { value: 'rejected',          label: 'Rejected — fires when a submission is rejected' },
+  { value: 'monthly_active',    label: 'Monthly Active — fires on new active month' },
+  { value: 'period_end',        label: 'Period End — fires when a month / season / year closes' },
+  { value: 'bingo_achievement', label: 'Bingo Achievement — fires when a bingo is recorded' },
+  { value: 'date_award',        label: 'Date Award — award all users on a specific date' },
 ];
 
 const CHECK_TYPES_BY_TRIGGER = {
-  submission:     [{ value: 'submission_count',     label: 'Total submissions' }],
+  submission:     [{ value: 'submission_count',      label: 'Total submissions' }],
   approved: [
     { value: 'approved_count',        label: 'Total unique Pokémon approved' },
     { value: 'restricted_count',      label: 'Restricted approvals' },
@@ -24,8 +27,18 @@ const CHECK_TYPES_BY_TRIGGER = {
     { value: 'generation_percentage', label: '% of a generation caught' },
     { value: 'collection_complete',   label: 'Complete a collection (100%)' },
   ],
-  rejected:       [{ value: 'rejected_count',       label: 'Total rejections' }],
-  monthly_active: [{ value: 'monthly_active_count', label: 'Active months' }],
+  rejected:          [{ value: 'rejected_count',          label: 'Total rejections' }],
+  monthly_active:    [{ value: 'monthly_active_count',    label: 'Active months' }],
+  period_end: [
+    { value: 'approved_count_in_month',  label: 'Approved in a specific month' },
+    { value: 'approved_count_in_season', label: 'Approved in a specific season' },
+    { value: 'approved_count_in_year',   label: 'Approved in a specific year' },
+    { value: 'top_placement_month',      label: 'Top X finish — monthly' },
+    { value: 'top_placement_season',     label: 'Top X finish — seasonal' },
+    { value: 'top_placement_year',       label: 'Top X finish — yearly' },
+  ],
+  bingo_achievement: [{ value: 'bingo_achievement_count', label: 'Bingo achievement count' }],
+  date_award:        [{ value: 'date_award',              label: 'Award all users on a date' }],
 };
 
 const POKEMON_TYPES = [
@@ -166,10 +179,22 @@ function CreateBadgeTab() {
   }, []);
 
   // Derived
-  const checkTypes    = CHECK_TYPES_BY_TRIGGER[form.trigger] ?? [];
-  const isPercentage  = form.check_type === 'type_percentage' || form.check_type === 'generation_percentage';
-  const isCollection  = form.check_type === 'collection_complete';
-  const showQualifier = isPercentage || isCollection;
+  const checkTypes      = CHECK_TYPES_BY_TRIGGER[form.trigger] ?? [];
+  const isPercentage    = form.check_type === 'type_percentage' || form.check_type === 'generation_percentage';
+  const isCollection    = form.check_type === 'collection_complete';
+  const isPeriodId      = ['approved_count_in_month', 'approved_count_in_season', 'approved_count_in_year'].includes(form.check_type);
+  const isPlacement     = ['top_placement_month', 'top_placement_season', 'top_placement_year'].includes(form.check_type);
+  const isBingo         = form.check_type === 'bingo_achievement_count';
+  const isDateAward     = form.check_type === 'date_award';
+  const showQualifier   = isPercentage || isCollection || isPeriodId || isBingo || isDateAward;
+  const checkValueLabel = isPlacement ? 'Top X (max rank)' : isPercentage ? 'Percentage (0–100)' : 'Threshold';
+  const checkValuePH    = isPlacement ? '3' : isPercentage ? '100' : '1';
+
+  const defaultCheckValue = (type) => {
+    if (type === 'type_percentage' || type === 'generation_percentage') return '100';
+    if (['top_placement_month', 'top_placement_season', 'top_placement_year'].includes(type)) return '3';
+    return '1';
+  };
 
   const handleField = (e) => {
     const { name, value, type, checked } = e.target;
@@ -179,14 +204,22 @@ function CreateBadgeTab() {
   const handleTriggerChange = (e) => {
     const newTrigger = e.target.value;
     const firstType  = CHECK_TYPES_BY_TRIGGER[newTrigger][0].value;
-    const pct = firstType === 'type_percentage' || firstType === 'generation_percentage';
-    setForm(f => ({ ...f, trigger: newTrigger, check_type: firstType, check_qualifier: '', check_value: pct ? '100' : '1' }));
+    setForm(f => ({ ...f, trigger: newTrigger, check_type: firstType, check_qualifier: firstType === 'bingo_achievement_count' ? 'any' : '', check_value: defaultCheckValue(firstType) }));
   };
 
   const handleCheckTypeChange = (e) => {
     const newType = e.target.value;
-    const pct = newType === 'type_percentage' || newType === 'generation_percentage';
-    setForm(f => ({ ...f, check_type: newType, check_qualifier: '', check_value: newType === 'collection_complete' ? '' : pct ? '100' : '1' }));
+    setForm(f => ({ ...f, check_type: newType, check_qualifier: newType === 'bingo_achievement_count' ? 'any' : '', check_value: defaultCheckValue(newType) }));
+  };
+
+  // Bingo type checkbox helpers
+  const getBingoTypes = (qualifier) =>
+    (!qualifier || qualifier === 'any') ? ['row', 'column', 'x', 'blackout'] : qualifier.split(',').filter(Boolean);
+
+  const handleBingoTypeToggle = (type, checked) => {
+    const current = getBingoTypes(form.check_qualifier);
+    const updated  = checked ? [...new Set([...current, type])] : current.filter(t => t !== type);
+    setForm(f => ({ ...f, check_qualifier: updated.length === 4 ? 'any' : updated.join(',') }));
   };
 
   const handleFamilySelect = (e) => {
@@ -394,23 +427,67 @@ function CreateBadgeTab() {
         )}
 
         {/* Qualifier — collection slug */}
-        {form.check_type === 'collection_complete' && (
+        {isCollection && (
           <Field label="Collection Slug" name="check_qualifier" value={form.check_qualifier} onChange={handleField}
             note='must match the slug used in the Collections tab — e.g. "weather_trio"'
             placeholder="weather_trio" required />
         )}
 
-        {/* Check value */}
-        {!isCollection && (
+        {/* Qualifier — date picker for date_award */}
+        {form.check_type === 'date_award' && (
           <div>
             <label className="block text-sm font-medium text-gray-300 mb-1">
-              {isPercentage ? 'Percentage (1–100)' : 'Threshold'} <span className="text-red-400">*</span>
+              Award Date <span className="text-red-400">*</span>
+            </label>
+            <input type="date" name="check_qualifier" value={form.check_qualifier} onChange={handleField} required
+              className="w-full rounded-lg px-3 py-2 text-sm text-white border border-gray-500 focus:border-purple-400 focus:outline-none"
+              style={{ backgroundColor: '#35373b', colorScheme: 'dark' }} />
+            <p className="mt-1 text-xs text-gray-500">Every registered user will receive this badge. The cron runs at 1am UTC the following day, so anyone who joins on this date is still included.</p>
+          </div>
+        )}
+
+        {/* Qualifier — period ID (optional: blank = fires for every period) */}
+        {isPeriodId && (
+          <Field
+            label={form.check_type === 'approved_count_in_month' ? 'Month ID' : form.check_type === 'approved_count_in_season' ? 'Season ID' : 'Year ID'}
+            name="check_qualifier" value={form.check_qualifier} onChange={handleField}
+            type="number" placeholder="(any)"
+            note="Leave blank to award when any period of this type ends" />
+        )}
+
+        {/* Qualifier — bingo types (checkboxes) */}
+        {isBingo && (
+          <div>
+            <label className="block text-sm font-medium text-gray-300 mb-2">
+              Count these bingo types <span className="text-gray-500 font-normal text-xs">— each includes its restricted variant</span>
+            </label>
+            <div className="grid grid-cols-2 gap-1">
+              {['row', 'column', 'x', 'blackout'].map(type => (
+                <label key={type} className="flex items-center gap-2 cursor-pointer py-1">
+                  <input type="checkbox" className="accent-purple-500"
+                    checked={getBingoTypes(form.check_qualifier).includes(type)}
+                    onChange={e => handleBingoTypeToggle(type, e.target.checked)} />
+                  <span className="text-sm text-gray-300 capitalize">{type}</span>
+                  <span className="text-xs text-gray-500">+ {type}_restricted</span>
+                </label>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Check value */}
+        {!isCollection && !isDateAward && (
+          <div>
+            <label className="block text-sm font-medium text-gray-300 mb-1">
+              {checkValueLabel} <span className="text-red-400">*</span>
             </label>
             <input type="number" name="check_value" value={form.check_value} onChange={handleField}
-              min={1} max={isPercentage ? 100 : undefined} placeholder={isPercentage ? '100' : '1'} required
+              min={1} max={isPercentage ? 100 : undefined} placeholder={checkValuePH} required
               className="w-full rounded-lg px-3 py-2 text-sm text-white border border-gray-500 focus:border-purple-400 focus:outline-none"
               style={{ backgroundColor: '#35373b' }} />
-            {isPercentage && <p className="mt-1 text-xs text-gray-500">Enter 50 for 50%, 100 for 100%.</p>}
+            {isPercentage  && <p className="mt-1 text-xs text-gray-500">Enter 50 for 50%, 100 for 100%.</p>}
+            {isPlacement   && <p className="mt-1 text-xs text-gray-500">e.g. 3 = top 3 finishers all earn this badge. Ties are included.</p>}
+            {isPeriodId    && <p className="mt-1 text-xs text-gray-500">Minimum number of approved submissions in the period.</p>}
           </div>
         )}
 
