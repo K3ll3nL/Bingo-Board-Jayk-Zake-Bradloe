@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { getAuthHeaders } from '../services/api';
+import PageBackground from './PageBackground';
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -87,42 +88,51 @@ export default function BadgeUpload() {
   }
 
   return (
-    <div className="min-h-screen py-8 px-4" style={{ backgroundColor: '#212326' }}>
-      <div className="max-w-xl mx-auto">
+    <div className="min-h-screen" style={{ isolation: 'isolate', position: 'relative' }}>
+      <PageBackground />
 
-        {/* Header */}
-        <div className="flex items-center gap-3 mb-6">
-          <button onClick={() => navigate('/')} className="text-gray-400 hover:text-white transition-colors">
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-            </svg>
-          </button>
-          <h1 className="text-xl font-bold text-white">Badge Admin</h1>
-          <span className="text-xs text-purple-400 bg-purple-400/10 px-2 py-0.5 rounded-full">Moderator</span>
-        </div>
-
-        {/* Tabs */}
-        <div className="flex gap-1 mb-5 rounded-lg p-1" style={{ backgroundColor: '#2a2d31' }}>
-          {[
-            { id: 'create',      label: 'Create Badge' },
-            { id: 'collections', label: 'Manage Collections' },
-          ].map(t => (
-            <button
-              key={t.id}
-              onClick={() => setTab(t.id)}
-              className={`flex-1 py-2 rounded-md text-sm font-medium transition-colors ${
-                tab === t.id
-                  ? 'bg-purple-600 text-white'
-                  : 'text-gray-400 hover:text-white'
-              }`}
-            >
-              {t.label}
+      {/* Header */}
+      <header className="sticky top-0 z-50 shadow-md" style={{ backgroundColor: '#35373b' }}>
+        <div className="max-w-4xl mx-auto px-4 py-6">
+          <div className="flex items-center gap-4">
+            <button onClick={() => navigate('/')} className="text-gray-400 hover:text-white transition-colors">
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+              </svg>
             </button>
-          ))}
+            <h1 className="text-2xl font-bold text-white">Badge Admin</h1>
+            <span className="text-xs text-purple-400 bg-purple-400/10 px-2 py-0.5 rounded-full font-medium">Moderator</span>
+          </div>
         </div>
+      </header>
 
-        {tab === 'create'      && <CreateBadgeTab />}
-        {tab === 'collections' && <ManageCollectionsTab />}
+      {/* Content */}
+      <div className="p-8">
+        <div className="max-w-4xl mx-auto">
+
+          {/* Tabs */}
+          <div className="flex gap-4 mb-6">
+            {[
+              { id: 'create',      label: 'Create Badge' },
+              { id: 'collections', label: 'Manage Collections' },
+            ].map(t => (
+              <button
+                key={t.id}
+                onClick={() => setTab(t.id)}
+                className={`px-6 py-2 rounded-lg font-medium transition-colors ${
+                  tab === t.id
+                    ? 'bg-purple-500 text-white'
+                    : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                }`}
+              >
+                {t.label}
+              </button>
+            ))}
+          </div>
+
+          {tab === 'create'      && <CreateBadgeTab />}
+          {tab === 'collections' && <ManageCollectionsTab />}
+        </div>
       </div>
     </div>
   );
