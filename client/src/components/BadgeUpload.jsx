@@ -50,7 +50,9 @@ const PLACEHOLDER = 'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/s
 
 const INITIAL_FORM = {
   key: '', name: '', description: '', hint: '',
-  is_secret: false, family: '', family_order: '0',
+  is_secret: false,
+  family: '', family_order: '0',
+  family_display_name: '', family_display_order: '0', family_is_sequential: true,
   trigger: 'approved', check_type: 'approved_count',
   check_value: '1', check_qualifier: '',
 };
@@ -130,12 +132,25 @@ export default function BadgeUpload() {
 
 function CreateBadgeTab() {
   const fileInputRef = useRef(null);
-  const [preview,    setPreview]    = useState(null);
-  const [imageFile,  setImageFile]  = useState(null);
-  const [submitting, setSubmitting] = useState(false);
-  const [success,    setSuccess]    = useState(null);
-  const [error,      setError]      = useState(null);
-  const [form,       setForm]       = useState(INITIAL_FORM);
+  const [preview,       setPreview]       = useState(null);
+  const [imageFile,     setImageFile]     = useState(null);
+  const [submitting,    setSubmitting]    = useState(false);
+  const [success,       setSuccess]       = useState(null);
+  const [error,         setError]         = useState(null);
+  const [form,          setForm]          = useState(INITIAL_FORM);
+  const [familyOptions, setFamilyOptions] = useState([]);
+  const [isNewFamily,   setIsNewFamily]   = useState(false);
+
+  // Load existing families on mount
+  useEffect(() => {
+    (async () => {
+      try {
+        const res  = await fetch('/api/admin/badge-families', { headers: await getAuthHeaders() });
+        const data = await res.json();
+        setFamilyOptions(data || []);
+      } catch { /* silent */ }
+    })();
+  }, []);
 
   // Derived
   const checkTypes    = CHECK_TYPES_BY_TRIGGER[form.trigger] ?? [];
@@ -161,6 +176,17 @@ function CreateBadgeTab() {
     setForm(f => ({ ...f, check_type: newType, check_qualifier: '', check_value: newType === 'collection_complete' ? '' : pct ? '100' : '1' }));
   };
 
+  const handleFamilySelect = (e) => {
+    const val = e.target.value;
+    if (val === '__new__') {
+      setIsNewFamily(true);
+      setForm(f => ({ ...f, family: '', family_display_name: '', family_display_order: '0', family_is_sequential: true }));
+    } else {
+      setIsNewFamily(false);
+      setForm(f => ({ ...f, family: val }));
+    }
+  };
+
   const handleImage = (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -182,6 +208,7 @@ function CreateBadgeTab() {
 
       const body = new FormData();
       body.append('image', imageFile);
+      body.append('family_is_new', isNewFamily ? 'true' : 'false');
       Object.entries(form).forEach(([k, v]) => body.append(k, v));
 
       const res  = await fetch('/api/badges', { method: 'POST', headers: { Authorization: headers.Authorization }, body });
@@ -248,9 +275,57 @@ function CreateBadgeTab() {
       </div>
 
       {/* Family */}
-      <div className="grid grid-cols-2 gap-4">
-        <Field label="Family"       note='e.g. "submission_veteran"' name="family"       value={form.family}       onChange={handleField} placeholder="submission_veteran" />
-        <Field label="Family Order" note="0 = next in family, 1 = first" name="family_order" value={form.family_order} onChange={handleField} type="number" min="0" placeholder="0" />
+      <div className="space-y-3">
+        <div className="grid grid-cols-2 gap-4">
+
+          {/* Family selector */}
+          <div>
+            <label className="block text-sm font-medium text-gray-300 mb-1">Family</label>
+            <select
+              value={isNewFamily ? '__new__' : (form.family || '')}
+              onChange={handleFamilySelect}
+              className="w-full rounded-lg px-3 py-2 text-sm text-white border border-gray-500 focus:border-purple-400 focus:outline-none"
+              style={{ backgroundColor: '#2a2d31' }}
+            >
+              <option value="">— no family —</option>
+              {familyOptions.map(f => (
+                <option key={f.id} value={f.id}>{f.display_name} ({f.id})</option>
+              ))}
+              <option value="__new__">＋ New family…</option>
+            </select>
+          </div>
+
+          <Field label="Family Order" note="0 = next in family, 1 = first" name="family_order" value={form.family_order} onChange={handleField} type="number" min="0" placeholder="0" />
+        </div>
+
+        {/* New family fields */}
+        {isNewFamily && (
+          <div className="rounded-lg border border-purple-500/30 p-4 space-y-3" style={{ backgroundColor: '#2a2d31' }}>
+            <p className="text-xs text-purple-400 font-medium uppercase tracking-wide">New Family</p>
+            <div className="grid grid-cols-2 gap-3">
+              <Field label="Slug"          name="family"               value={form.family}               onChange={handleField} placeholder="submission_veteran" required />
+              <Field label="Display Name"  name="family_display_name"  value={form.family_display_name}  onChange={handleField} placeholder="Submission Veteran"  required />
+              <Field label="Display Order" name="family_display_order"  value={form.family_display_order} onChange={handleField} type="number" min="0" placeholder="0" note="order on the badges page" />
+              <div className="flex flex-col justify-end">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    name="family_is_sequential"
+                    checked={form.family_is_sequential}
+                    onChange={handleField}
+                    className="w-4 h-4 rounded accent-purple-500"
+                  />
+                  <span className="text-sm text-gray-300">Sequential hints</span>
+                </label>
+                <p className="text-xs text-gray-500 mt-1">
+                  {form.family_is_sequential
+                    ? 'Hint hidden until previous badge earned'
+                    : 'All hints always visible'}
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Trigger */}

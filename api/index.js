@@ -3443,8 +3443,9 @@ app.post('/api/badges', upload.single('image'), async (req, res) => {
     const { data: mod } = await supabase.from('moderators').select('id').eq('id', userId).single();
     if (!mod) return res.status(403).json({ error: 'Forbidden: moderators only' });
 
-    const { key, name, description, hint, is_secret, family, family_order, trigger,
-            trigger_count, check_type, check_value, check_qualifier } = req.body;
+    const { key, name, description, hint, is_secret, family, family_order,
+            family_display_name, family_display_order, family_is_sequential, family_is_new,
+            trigger, trigger_count, check_type, check_value, check_qualifier } = req.body;
     const file = req.file;
 
     if (!file)        return res.status(400).json({ error: 'Image file is required' });
@@ -3485,6 +3486,19 @@ app.post('/api/badges', upload.single('image'), async (req, res) => {
     }));
 
     const image_url = `${R2_BUCKET_URL}/${r2Key}`;
+
+    // Upsert family record if this is a new family
+    if (family && family_is_new === 'true') {
+      const { error: famErr } = await supabase
+        .from('badge_families')
+        .upsert({
+          id:            family,
+          display_name:  family_display_name || family,
+          display_order: parseInt(family_display_order, 10) || 0,
+          is_sequential: family_is_sequential === 'true',
+        }, { onConflict: 'id', ignoreDuplicates: true });
+      if (famErr) throw famErr;
+    }
 
     // Insert badge record
     const { data: badge, error } = await supabase
@@ -3547,6 +3561,27 @@ app.get('/api/pokemon/search', async (req, res) => {
       .order('national_dex_id')
       .limit(20);
 
+    if (error) throw error;
+    res.json(data || []);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── Badge families (mod only) ─────────────────────────────────────────────────
+
+// GET /api/admin/badge-families — all families ordered by display_order
+app.get('/api/admin/badge-families', async (req, res) => {
+  try {
+    const userId = await getAuthenticatedUserId(req);
+    if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+    const { data: mod } = await supabase.from('moderators').select('id').eq('id', userId).single();
+    if (!mod) return res.status(403).json({ error: 'Moderators only' });
+
+    const { data, error } = await supabase
+      .from('badge_families')
+      .select('id, display_name, display_order, is_sequential')
+      .order('display_order');
     if (error) throw error;
     res.json(data || []);
   } catch (err) {
