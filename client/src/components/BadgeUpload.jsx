@@ -50,7 +50,7 @@ const PLACEHOLDER = 'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/s
 
 const INITIAL_FORM = {
   key: '', name: '', description: '', hint: '',
-  is_secret: false, family: '', family_order: '',
+  is_secret: false, family: '', family_order: '0',
   trigger: 'approved', check_type: 'approved_count',
   check_value: '1', check_qualifier: '',
 };
@@ -151,12 +151,14 @@ function CreateBadgeTab() {
   const handleTriggerChange = (e) => {
     const newTrigger = e.target.value;
     const firstType  = CHECK_TYPES_BY_TRIGGER[newTrigger][0].value;
-    setForm(f => ({ ...f, trigger: newTrigger, check_type: firstType, check_qualifier: '', check_value: '1' }));
+    const pct = firstType === 'type_percentage' || firstType === 'generation_percentage';
+    setForm(f => ({ ...f, trigger: newTrigger, check_type: firstType, check_qualifier: '', check_value: pct ? '100' : '1' }));
   };
 
   const handleCheckTypeChange = (e) => {
     const newType = e.target.value;
-    setForm(f => ({ ...f, check_type: newType, check_qualifier: '', check_value: newType === 'collection_complete' ? '' : '1' }));
+    const pct = newType === 'type_percentage' || newType === 'generation_percentage';
+    setForm(f => ({ ...f, check_type: newType, check_qualifier: '', check_value: newType === 'collection_complete' ? '' : pct ? '100' : '1' }));
   };
 
   const handleImage = (e) => {
@@ -204,7 +206,7 @@ function CreateBadgeTab() {
       {/* Image upload */}
       <div>
         <label className="block text-sm font-medium text-gray-300 mb-2">
-          Badge Image <span className="text-gray-500 font-normal">(PNG, 50 × 50 px)</span>
+          Badge Image <span className="text-gray-500 font-normal">(PNG, 500 × 500 px)</span>
         </label>
         <div className="flex items-center gap-4">
           <img src={preview || PLACEHOLDER} alt="Preview" className="w-[50px] h-[50px] rounded object-cover border border-gray-500" />
@@ -317,7 +319,7 @@ function CreateBadgeTab() {
               {isPercentage ? 'Percentage (1–100)' : 'Threshold'} <span className="text-red-400">*</span>
             </label>
             <input type="number" name="check_value" value={form.check_value} onChange={handleField}
-              min={1} max={isPercentage ? 100 : undefined} placeholder={isPercentage ? '50' : '1'} required
+              min={1} max={isPercentage ? 100 : undefined} placeholder={isPercentage ? '100' : '1'} required
               className="w-full rounded-lg px-3 py-2 text-sm text-white border border-gray-500 focus:border-purple-400 focus:outline-none"
               style={{ backgroundColor: '#35373b' }} />
             {isPercentage && <p className="mt-1 text-xs text-gray-500">Enter 50 for 50%, 100 for 100%.</p>}
