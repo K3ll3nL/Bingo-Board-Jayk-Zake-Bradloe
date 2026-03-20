@@ -17,6 +17,7 @@ import About from './components/About';
 import Pro from './components/Pro';
 import OverlayBoard from './components/OverlayBoard';
 import OverlayLeaderboard from './components/OverlayLeaderboard';
+import BadgeUpload from './components/BadgeUpload';
 import logoImage from './Icons/pokemon-bounty-board.png';
 
 const supabase = createClient(
@@ -213,6 +214,15 @@ const MainApp = () => {
                             Board Builder
                           </button>
                           <button
+                            onClick={() => navigate('/badge-upload')}
+                            className="w-full px-4 py-2 text-left text-sm text-purple-400 hover:bg-gray-700 flex items-center gap-2"
+                          >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z" />
+                            </svg>
+                            Upload Badge
+                          </button>
+                          <button
                             onClick={clearCache}
                             className="w-full px-4 py-2 text-left text-sm text-blue-400 hover:bg-gray-700 flex items-center gap-2"
                           >
@@ -324,6 +334,7 @@ function App() {
           <Route path="/pro" element={<Pro />} />
           <Route path="/overlay/board" element={<OverlayBoard />} />
           <Route path="/overlay/leaderboard" element={<OverlayLeaderboard />} />
+          <Route path="/badge-upload" element={<BadgeUpload />} />
           <Route path="*" element={<MainApp />} />
         </Routes>
       </AuthProvider>

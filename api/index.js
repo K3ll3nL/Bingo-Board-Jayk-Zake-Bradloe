@@ -3,6 +3,7 @@ require('dotenv').config({ path: require('path').join(__dirname, '.env') });
 const express = require('express');
 const crypto = require('crypto');
 const cors = require('cors');
+const { contextBuilders, buildCheckFromDB } = require('./badgeRegistry');
 const { createClient } = require('@supabase/supabase-js');
 const multer = require('multer');
 
@@ -128,6 +129,86 @@ const broadcastNotificationToasts = async (userId) => {
 
 // Cache removed — Vercel serverless instances don't share memory,
 // so per-instance caching caused stale data after broadcasts.
+
+// Award any badges the user is newly eligible for given a trigger event.
+// Fire-and-forget safe — never throws to the caller.
+//
+// How it works:
+//   1. Fetch ALL badges for this trigger from DB (registry-seeded + form-created).
+//   2. Filter out already-earned ones — buildCheckFromDB is never called for earned badges.
+//   3. Build context ONCE (1-2 DB queries regardless of badge count).
+//   4. Evaluate unearned badges via buildCheckFromDB(badge)(ctx).
+//   5. Insert + broadcast newly earned badges.
+const awardBadgesForTrigger = async (userId, trigger) => {
+  try {
+    const { data: triggerBadges } = await supabase
+      .from('badges')
+      .select('id, name, description, image_url, is_secret, check_type, check_value, check_qualifier')
+      .eq('trigger', trigger);
+
+    if (!triggerBadges?.length) return;
+
+    const badgeIds = triggerBadges.map(b => b.id);
+    const { data: earnedRows } = await supabase
+      .from('user_badges')
+      .select('badge_id')
+      .eq('user_id', userId)
+      .in('badge_id', badgeIds);
+
+    const earnedIdSet = new Set((earnedRows || []).map(e => e.badge_id));
+    const unearned = triggerBadges.filter(b => !earnedIdSet.has(b.id));
+    if (!unearned.length) return;
+
+    // Build context once — shared across all check evaluations
+    const ctx = await contextBuilders[trigger](userId, supabase);
+
+    // buildCheckFromDB is only called for unearned candidates
+    const newlyEarned = unearned.filter(b => buildCheckFromDB(b)(ctx));
+    if (!newlyEarned.length) return;
+
+    const { data: inserted, error: insertError } = await supabase
+      .from('user_badges')
+      .insert(newlyEarned.map(b => ({ user_id: userId, badge_id: b.id })))
+      .select('badge_id');
+
+    if (insertError) {
+      console.error('Failed to award badges (non-fatal):', insertError.message);
+      return;
+    }
+
+    if (inserted?.length) {
+      const insertedIds = new Set(inserted.map(i => i.badge_id));
+      for (const badge of newlyEarned.filter(b => insertedIds.has(b.id))) {
+        await broadcastUpdate(`badge-awards-${userId}`, 'badge-earned', {
+          id:          badge.id,
+          name:        badge.name,
+          description: badge.description,
+          image_url:   badge.image_url,
+          is_secret:   badge.is_secret,
+        });
+      }
+      console.log(`Awarded ${inserted.length} badge(s) to user ${userId} for trigger '${trigger}'`);
+    }
+  } catch (err) {
+    console.error('awardBadgesForTrigger failed (non-fatal):', err.message);
+  }
+};
+
+// ── Supabase webhook — fires on INSERT into user_monthly_points ───────────────
+// Configure in Supabase Dashboard → Database → Webhooks:
+//   Table: user_monthly_points | Event: INSERT
+//   HTTP POST → <your api url>/api/internal/monthly-active
+//   Add header:  x-webhook-secret: <value of WEBHOOK_SECRET in api/.env>
+app.post('/api/internal/monthly-active', async (req, res) => {
+  if (req.headers['x-webhook-secret'] !== process.env.WEBHOOK_SECRET) {
+    return res.status(401).end();
+  }
+  const userId = req.body?.record?.user_id;
+  if (!userId) return res.status(400).json({ error: 'Missing user_id in record' });
+
+  await awardBadgesForTrigger(userId, 'monthly_active');
+  res.status(200).end();
+});
 
 // SSE connections manager
 const sseClients = new Map(); // userId -> Set of response objects
@@ -1823,10 +1904,11 @@ app.post('/api/upload/submission', upload.fields([{ name: 'file', maxCount: 1 },
     // Respond immediately, then broadcast (same pattern as approve/reject)
     res.json({ success: true, approval });
 
-    // Notify board (user's pending tile) and mod queue
+    // Notify board (user's pending tile), mod queue, and check badge eligibility
     Promise.all([
       broadcastUpdate('board-updates', 'board-changed', { userId }),
       broadcastUpdate('approvals-updates', 'queue-changed', {}),
+      awardBadgesForTrigger(userId, 'submission'),
     ]).catch(err => console.error('Post-submission broadcast failed (non-fatal):', err.message));
   } catch (error) {
     console.error('Error submitting catch:', error);
@@ -2004,6 +2086,7 @@ app.post('/api/approvals/:id/approve', async (req, res) => {
       broadcastUpdate('leaderboard-updates', 'leaderboard-changed', {}),
       broadcastUpdate('approvals-updates', 'queue-changed', {}),
       broadcastNotificationToasts(approval.user_id),
+      awardBadgesForTrigger(approval.user_id, 'approved'),
     ]).catch(err => console.error('Post-approval broadcast failed (non-fatal):', err.message));
 
     // Delete images from R2 (fire-and-forget; same reasoning)
@@ -2144,6 +2227,7 @@ app.post('/api/approvals/:id/reject', async (req, res) => {
       broadcastUpdate('board-updates', 'board-changed', { userId: approval.user_id }),
       broadcastUpdate('approvals-updates', 'queue-changed', {}),
       broadcastNotificationToasts(approval.user_id),
+      awardBadgesForTrigger(approval.user_id, 'rejected'),
     ]).catch(err => console.error('Post-rejection broadcast failed (non-fatal):', err.message));
 
     // Delete images from R2 (fire-and-forget)
@@ -3239,6 +3323,343 @@ app.get('/api/overlay/leaderboard', async (req, res) => {
   } catch (err) {
     console.error('Overlay leaderboard error:', err);
     res.status(500).json({ error: 'Failed to fetch overlay leaderboard' });
+  }
+});
+
+// ── BADGE ENDPOINTS ──────────────────────────────────────────────────────────
+
+// Get all badges with hint/description visibility resolved for the current user.
+// Unauthenticated users see the same view as a user with no earned badges.
+app.get('/api/badges', async (req, res) => {
+  try {
+    const userId = await getAuthenticatedUserId(req);
+
+    const { data: badges, error } = await supabase
+      .from('badges')
+      .select('*')
+      .order('family', { ascending: true, nullsFirst: false })
+      .order('family_order', { ascending: true, nullsFirst: true })
+      .order('id', { ascending: true });
+
+    if (error) throw error;
+
+    // Fetch this user's earned badges
+    let earnedBadgeIds = new Set();
+    if (userId) {
+      const { data: earned } = await supabase
+        .from('user_badges')
+        .select('badge_id')
+        .eq('user_id', userId);
+      earnedBadgeIds = new Set((earned || []).map(e => e.badge_id));
+    }
+
+    // Build a set of earned family_orders per family so we can check hint unlock rules
+    const earnedByFamily = {}; // family -> Set<family_order>
+    for (const badge of (badges || [])) {
+      if (badge.family && earnedBadgeIds.has(badge.id)) {
+        if (!earnedByFamily[badge.family]) earnedByFamily[badge.family] = new Set();
+        earnedByFamily[badge.family].add(badge.family_order);
+      }
+    }
+
+    const result = (badges || []).map(badge => {
+      const isEarned = earnedBadgeIds.has(badge.id);
+
+      if (isEarned) {
+        return { ...badge, is_earned: true, hint_visible: true };
+      }
+
+      // Secret + not earned: reveal nothing
+      if (badge.is_secret) {
+        return {
+          id: badge.id,
+          name: '???',
+          description: null,
+          image_url: null,
+          is_secret: true,
+          hint: null,
+          hint_visible: false,
+          family: badge.family,
+          family_order: badge.family_order,
+          trigger: badge.trigger,
+          trigger_count: badge.trigger_count,
+          is_earned: false,
+        };
+      }
+
+      // Non-secret: hint is visible if:
+      //   - badge has no family, OR
+      //   - badge is first in its family (family_order = 1 or null), OR
+      //   - user has earned the previous badge in the family
+      let hintVisible = true;
+      if (badge.family && badge.family_order > 1) {
+        const familyEarned = earnedByFamily[badge.family] || new Set();
+        hintVisible = familyEarned.has(badge.family_order - 1);
+      }
+
+      return {
+        ...badge,
+        is_earned: false,
+        hint_visible: hintVisible,
+        hint: hintVisible ? badge.hint : null,
+      };
+    });
+
+    res.set('Cache-Control', 'no-store');
+    res.json(result);
+  } catch (error) {
+    console.error('Error fetching badges:', error);
+    res.status(500).json({ error: 'Failed to fetch badges', details: error.message });
+  }
+});
+
+// Get all badges earned by a specific user (public — for profile pages)
+app.get('/api/users/:userId/badges', async (req, res) => {
+  try {
+    const { userId } = req.params;
+
+    const { data, error } = await supabase
+      .from('user_badges')
+      .select('badge_id, earned_at, badges(*)')
+      .eq('user_id', userId)
+      .order('earned_at', { ascending: false });
+
+    if (error) throw error;
+
+    res.set('Cache-Control', 'no-store');
+    res.json(data || []);
+  } catch (error) {
+    console.error('Error fetching user badges:', error);
+    res.status(500).json({ error: 'Failed to fetch user badges', details: error.message });
+  }
+});
+
+// Create a new badge (moderator only) — uploads image to R2 and inserts DB record
+app.post('/api/badges', upload.single('image'), async (req, res) => {
+  try {
+    const userId = await getAuthenticatedUserId(req);
+    if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+
+    const { data: mod } = await supabase.from('moderators').select('id').eq('id', userId).single();
+    if (!mod) return res.status(403).json({ error: 'Forbidden: moderators only' });
+
+    const { key, name, description, hint, is_secret, family, family_order, trigger,
+            trigger_count, check_type, check_value, check_qualifier } = req.body;
+    const file = req.file;
+
+    if (!file)        return res.status(400).json({ error: 'Image file is required' });
+    if (!key)         return res.status(400).json({ error: 'Image key is required' });
+    if (!name)        return res.status(400).json({ error: 'Name is required' });
+    if (!description) return res.status(400).json({ error: 'Description is required' });
+    if (!trigger)     return res.status(400).json({ error: 'Trigger is required' });
+
+    const VALID_TRIGGERS = ['submission', 'approved', 'rejected', 'monthly_active'];
+    if (!VALID_TRIGGERS.includes(trigger)) {
+      return res.status(400).json({ error: `Invalid trigger. Must be one of: ${VALID_TRIGGERS.join(', ')}` });
+    }
+
+    // Upload to R2 under assets/badges/
+    const R2_ACCESS_KEY_ID     = process.env.R2_ACCESS_KEY_ID;
+    const R2_SECRET_ACCESS_KEY = process.env.R2_SECRET_ACCESS_KEY;
+    const R2_ACCOUNT_ID        = process.env.R2_ACCOUNT_ID;
+    const R2_BUCKET_NAME       = process.env.R2_BUCKET_NAME || 'shiny-sprites';
+    const R2_BUCKET_URL        = process.env.R2_BUCKET_URL;
+
+    if (!R2_ACCESS_KEY_ID || !R2_SECRET_ACCESS_KEY || !R2_ACCOUNT_ID || !R2_BUCKET_URL) {
+      return res.status(500).json({ error: 'R2 credentials not configured' });
+    }
+
+    const { S3Client, PutObjectCommand } = require('@aws-sdk/client-s3');
+    const s3Client = new S3Client({
+      region: 'auto',
+      endpoint: `https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com`,
+      credentials: { accessKeyId: R2_ACCESS_KEY_ID, secretAccessKey: R2_SECRET_ACCESS_KEY },
+    });
+
+    const r2Key = `assets/badges/${key}.png`;
+    await s3Client.send(new PutObjectCommand({
+      Bucket: R2_BUCKET_NAME,
+      Key:    r2Key,
+      Body:   file.buffer,
+      ContentType: 'image/png',
+    }));
+
+    const image_url = `${R2_BUCKET_URL}/${r2Key}`;
+
+    // Insert badge record
+    const { data: badge, error } = await supabase
+      .from('badges')
+      .insert({
+        key,
+        name,
+        description,
+        hint:          hint         || null,
+        image_url,
+        is_secret:     is_secret === 'true' || is_secret === true,
+        family:        family       || null,
+        family_order:  await (async () => {
+          const parsed = family_order !== '' && family_order != null ? parseInt(family_order, 10) : null;
+          if (parsed === 0 && family) {
+            const { data: last } = await supabase
+              .from('badges').select('family_order').eq('family', family)
+              .order('family_order', { ascending: false }).limit(1);
+            return last?.[0]?.family_order != null ? last[0].family_order + 1 : 1;
+          }
+          return parsed;
+        })(),
+        trigger,
+        trigger_count:   parseInt(trigger_count, 10) || 1,
+        check_type:      check_type      || 'approved_count',
+        check_value:     check_value != null ? parseFloat(check_value) : 1,
+        check_qualifier: check_qualifier || null,
+      })
+      .select()
+      .single();
+
+    if (error) {
+      console.error('Badge insert error:', error);
+      return res.status(500).json({ error: error.message });
+    }
+
+    res.status(201).json(badge);
+  } catch (error) {
+    console.error('Error creating badge:', error);
+    res.status(500).json({ error: 'Failed to create badge', details: error.message });
+  }
+});
+
+// ── Pokémon search (mod use — collection tagger) ──────────────────────────────
+// GET /api/pokemon/search?q=rayquaza
+app.get('/api/pokemon/search', async (req, res) => {
+  try {
+    const userId = await getAuthenticatedUserId(req);
+    if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+    const { data: mod } = await supabase.from('moderators').select('id').eq('id', userId).single();
+    if (!mod) return res.status(403).json({ error: 'Moderators only' });
+
+    const q = (req.query.q || '').trim();
+    if (!q) return res.json([]);
+
+    const { data, error } = await supabase
+      .from('pokemon_master')
+      .select('id, name, national_dex_id, img_url, collection_ids')
+      .ilike('name', `%${q}%`)
+      .order('national_dex_id')
+      .limit(20);
+
+    if (error) throw error;
+    res.json(data || []);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── Collection management (mod only) ─────────────────────────────────────────
+
+// GET /api/admin/collections — all distinct collection slugs
+app.get('/api/admin/collections', async (req, res) => {
+  try {
+    const userId = await getAuthenticatedUserId(req);
+    if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+    const { data: mod } = await supabase.from('moderators').select('id').eq('id', userId).single();
+    if (!mod) return res.status(403).json({ error: 'Moderators only' });
+
+    const { data, error } = await supabase
+      .from('pokemon_master')
+      .select('collection_ids')
+      .not('collection_ids', 'eq', '{}');
+    if (error) throw error;
+
+    const slugs = [...new Set((data || []).flatMap(p => p.collection_ids || []))].sort();
+    res.json(slugs);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/admin/collections/:slug — all Pokémon tagged with this slug
+app.get('/api/admin/collections/:slug', async (req, res) => {
+  try {
+    const userId = await getAuthenticatedUserId(req);
+    if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+    const { data: mod } = await supabase.from('moderators').select('id').eq('id', userId).single();
+    if (!mod) return res.status(403).json({ error: 'Moderators only' });
+
+    const { slug } = req.params;
+    const { data, error } = await supabase
+      .from('pokemon_master')
+      .select('id, name, national_dex_id, img_url, collection_ids')
+      .contains('collection_ids', [slug])
+      .order('national_dex_id');
+
+    if (error) throw error;
+    res.json(data || []);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/admin/collections/:slug/pokemon/:pokemonId — add Pokémon to collection
+app.post('/api/admin/collections/:slug/pokemon/:pokemonId', async (req, res) => {
+  try {
+    const userId = await getAuthenticatedUserId(req);
+    if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+    const { data: mod } = await supabase.from('moderators').select('id').eq('id', userId).single();
+    if (!mod) return res.status(403).json({ error: 'Moderators only' });
+
+    const { slug, pokemonId } = req.params;
+
+    // Fetch current collection_ids to avoid duplicates
+    const { data: pokemon, error: fetchErr } = await supabase
+      .from('pokemon_master')
+      .select('id, name, collection_ids')
+      .eq('id', pokemonId)
+      .single();
+
+    if (fetchErr || !pokemon) return res.status(404).json({ error: 'Pokémon not found' });
+    if ((pokemon.collection_ids || []).includes(slug)) {
+      return res.status(409).json({ error: `${pokemon.name} is already in '${slug}'` });
+    }
+
+    const { error: updateErr } = await supabase
+      .from('pokemon_master')
+      .update({ collection_ids: [...(pokemon.collection_ids || []), slug] })
+      .eq('id', pokemonId);
+
+    if (updateErr) throw updateErr;
+    res.status(200).json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// DELETE /api/admin/collections/:slug/pokemon/:pokemonId — remove Pokémon from collection
+app.delete('/api/admin/collections/:slug/pokemon/:pokemonId', async (req, res) => {
+  try {
+    const userId = await getAuthenticatedUserId(req);
+    if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+    const { data: mod } = await supabase.from('moderators').select('id').eq('id', userId).single();
+    if (!mod) return res.status(403).json({ error: 'Moderators only' });
+
+    const { slug, pokemonId } = req.params;
+
+    const { data: pokemon, error: fetchErr } = await supabase
+      .from('pokemon_master')
+      .select('id, collection_ids')
+      .eq('id', pokemonId)
+      .single();
+
+    if (fetchErr || !pokemon) return res.status(404).json({ error: 'Pokémon not found' });
+
+    const { error: updateErr } = await supabase
+      .from('pokemon_master')
+      .update({ collection_ids: (pokemon.collection_ids || []).filter(c => c !== slug) })
+      .eq('id', pokemonId);
+
+    if (updateErr) throw updateErr;
+    res.status(200).json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
   }
 });
 
