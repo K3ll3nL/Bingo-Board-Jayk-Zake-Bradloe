@@ -3,6 +3,7 @@ require('dotenv').config({ path: require('path').join(__dirname, '.env') });
 const express = require('express');
 const crypto = require('crypto');
 const cors = require('cors');
+const rateLimit = require('express-rate-limit');
 const { contextBuilders, buildCheckFromDB } = require('./badgeRegistry');
 const { createClient } = require('@supabase/supabase-js');
 const multer = require('multer');
@@ -341,6 +342,38 @@ async function bulkAwardBadge(badgeId, userIds) {
     }
   }
   return inserted?.length ?? 0;
+}
+
+// ── R2 image deletion helper (fire-and-forget safe) ──────────────────────────
+// Deletes one or more R2-hosted proof images. Never throws to the caller.
+async function deleteR2Images(imageUrls) {
+  if (!imageUrls?.length) return;
+  try {
+    const R2_ACCESS_KEY_ID     = process.env.R2_ACCESS_KEY_ID;
+    const R2_SECRET_ACCESS_KEY = process.env.R2_SECRET_ACCESS_KEY;
+    const R2_ACCOUNT_ID        = process.env.R2_ACCOUNT_ID;
+    const R2_BUCKET_NAME       = process.env.R2_BUCKET_NAME || 'shiny-sprites';
+    const R2_BUCKET_URL        = process.env.R2_BUCKET_URL;
+
+    if (!R2_ACCESS_KEY_ID || !R2_SECRET_ACCESS_KEY || !R2_ACCOUNT_ID) {
+      console.warn('R2 credentials not configured, skipping image deletion');
+      return;
+    }
+    const { S3Client, DeleteObjectCommand } = require('@aws-sdk/client-s3');
+    const s3Client = new S3Client({
+      region: 'auto',
+      endpoint: `https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com`,
+      credentials: { accessKeyId: R2_ACCESS_KEY_ID, secretAccessKey: R2_SECRET_ACCESS_KEY },
+    });
+    for (const imageUrl of imageUrls) {
+      const key = imageUrl.replace(`${R2_BUCKET_URL}/`, '');
+      console.log('Deleting R2 object:', key);
+      await s3Client.send(new DeleteObjectCommand({ Bucket: R2_BUCKET_NAME, Key: key }));
+      console.log('Successfully deleted:', key);
+    }
+  } catch (r2Error) {
+    console.error('Error deleting images from R2 (non-fatal):', r2Error);
+  }
 }
 
 // ── Period-end processors ─────────────────────────────────────────────────────
@@ -1381,79 +1414,53 @@ app.get('/api/profile/:userId/board', async (req, res) => {
   try {
     const { userId } = req.params;
     const viewerId = await getAuthenticatedUserId(req);
-    
-    const ACTIVE_MONTH_ID = await getActiveMonthId(viewerId);
-    if (!ACTIVE_MONTH_ID) {
+
+    // getActiveMonth returns the full record — no second bingo_months query needed
+    const monthData = await getActiveMonth(viewerId);
+    if (!monthData) {
       return res.status(404).json({ error: 'No active month found' });
     }
-    
-    // Get month information
-    const { data: monthData, error: monthError } = await supabase
-      .from('bingo_months')
-      .select('month_year, month_year_display')
-      .eq('id', ACTIVE_MONTH_ID)
-      .single();
-    
-    if (monthError) throw monthError;
-    
-    // Get user's entries for this month
-    const { data: entries, error: entriesError } = await supabase
-      .from('entries')
-      .select('pokemon_id')
-      .eq('user_id', userId)
-      .eq('month_id', ACTIVE_MONTH_ID);
+    const ACTIVE_MONTH_ID = monthData.id;
+
+    // Fetch entries, approvals, and pool in parallel
+    const [
+      { data: entries, error: entriesError },
+      { data: approvals, error: approvalsError },
+      { data: poolData, error: poolError },
+    ] = await Promise.all([
+      supabase.from('entries').select('pokemon_id').eq('user_id', userId).eq('month_id', ACTIVE_MONTH_ID),
+      supabase.from('approvals').select('pokemon_id').eq('user_id', userId),
+      supabase.from('monthly_pokemon_pool').select('position, pokemon_id').eq('month_id', ACTIVE_MONTH_ID).order('position', { ascending: true }),
+    ]);
 
     if (entriesError) throw entriesError;
+    if (poolError) throw poolError;
 
-    const completedPokemonIds = new Set(entries.map(entry => entry.pokemon_id));
-
-    // Get user's pending approvals
-    const { data: approvals, error: approvalsError } = await supabase
-      .from('approvals')
-      .select('pokemon_id')
-      .eq('user_id', userId);
-
+    const completedPokemonIds = new Set((entries || []).map(e => e.pokemon_id));
     const pendingPokemonIds = new Set(
       (!approvalsError && approvals) ? approvals.map(a => a.pokemon_id) : []
     );
-    
-    // Get the month's Pokemon pool
-    // Using manual join due to Supabase schema cache delay
-    const { data: poolData, error: poolError } = await supabase
-      .from('monthly_pokemon_pool')
-      .select('position, pokemon_id')
-      .eq('month_id', ACTIVE_MONTH_ID)
-      .order('position', { ascending: true });
-    
-    if (poolError) throw poolError;
-    
+
     // Get all pokemon details
     const pokemonIds = poolData.map(p => p.pokemon_id).filter(Boolean);
-    
+
     const { data: pokemonData, error: pokemonError } = await supabase
       .from('pokemon_master')
       .select('id, national_dex_id, name, img_url')
       .in('id', pokemonIds)
       .eq('shiny_available', true);
-    
+
     if (pokemonError) throw pokemonError;
-    
-    // Create lookup map
+
+    // Build lookup maps
     const pokemonMap = {};
-    pokemonData.forEach(p => {
-      pokemonMap[p.id] = p;
-    });
-    
-    // Combine data
-    const data = poolData.map(pool => ({
-      position: pool.position,
-      pokemon_id: pool.pokemon_id,
-      pokemon_master: pokemonMap[pool.pokemon_id]
-    }));
-    
+    (pokemonData || []).forEach(p => { pokemonMap[p.id] = p; });
+
+    const poolByPosition = {};
+    (poolData || []).forEach(pool => { poolByPosition[pool.position] = pool; });
+
     // Build the 25-square board
     const board = [];
-
     for (let position = 1; position <= 25; position++) {
       if (position === 13) {
         board.push({
@@ -1466,25 +1473,24 @@ app.get('/api/profile/:userId/board', async (req, res) => {
           pokemon_gif: null,
         });
       } else {
-        // Find Pokemon for this position
-        const pokemon = data.find(p => p.position === position);
-        if (pokemon && pokemon.pokemon_master) {
+        const pool = poolByPosition[position];
+        const poke = pool ? pokemonMap[pool.pokemon_id] : null;
+        if (poke) {
           board.push({
             id: `${ACTIVE_MONTH_ID}-${position}`,
-            position: position,
-            pokemon_id: pokemon.pokemon_id,
-            national_dex_id: pokemon.pokemon_master.national_dex_id,
-            is_checked: completedPokemonIds.has(pokemon.pokemon_id),
-            is_pending: !completedPokemonIds.has(pokemon.pokemon_id) && pendingPokemonIds.has(pokemon.pokemon_id),
-            pokemon_name: pokemon.pokemon_master.name || 'Unknown',
-            pokemon_gif: pokemon.pokemon_master.img_url,
+            position,
+            pokemon_id: pool.pokemon_id,
+            national_dex_id: poke.national_dex_id,
+            is_checked: completedPokemonIds.has(pool.pokemon_id),
+            is_pending: !completedPokemonIds.has(pool.pokemon_id) && pendingPokemonIds.has(pool.pokemon_id),
+            pokemon_name: poke.name || 'Unknown',
+            pokemon_gif: poke.img_url,
           });
         } else {
-          // Empty slot - no Pokemon assigned to this position
           board.push({
             id: `empty-${ACTIVE_MONTH_ID}-${position}`,
-            position: position,
-            pokemon_id: pokemon?.pokemon_id ?? null,
+            position,
+            pokemon_id: pool?.pokemon_id ?? null,
             national_dex_id: null,
             is_checked: false,
             is_pending: false,
@@ -1497,7 +1503,7 @@ app.get('/api/profile/:userId/board', async (req, res) => {
 
     res.json({
       month: monthData.month_year_display,
-      board: board
+      board,
     });
   } catch (error) {
     console.error('Error fetching profile board:', error);
@@ -1966,7 +1972,16 @@ app.get('/api/upload/available-pokemon-historical', async (req, res) => {
 });
 
 // Submit catch
-app.post('/api/upload/submission', upload.fields([{ name: 'file', maxCount: 1 }, { name: 'file2', maxCount: 1 }]), async (req, res) => {
+const uploadRateLimit = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  skip: (req) => process.env.NODE_ENV !== 'production',
+  message: { error: 'Too many submissions. Please wait a few minutes before trying again.' },
+});
+
+app.post('/api/upload/submission', uploadRateLimit, upload.fields([{ name: 'file', maxCount: 1 }, { name: 'file2', maxCount: 1 }]), async (req, res) => {
   try {
     console.log('Request body:', req.body);
     console.log('Request files:', req.files);
@@ -2318,45 +2333,9 @@ app.post('/api/approvals/:id/approve', async (req, res) => {
 
     // Delete images from R2 (fire-and-forget; same reasoning)
     const R2_BUCKET_URL = process.env.R2_BUCKET_URL;
-    const imagesToDelete = [];
-
-    if (approval.proof_url && approval.proof_url.startsWith(R2_BUCKET_URL)) {
-      imagesToDelete.push(approval.proof_url);
-    }
-    if (approval.proof_url2 && approval.proof_url2.startsWith(R2_BUCKET_URL)) {
-      imagesToDelete.push(approval.proof_url2);
-    }
-
-    if (imagesToDelete.length > 0) {
-      (async () => {
-        try {
-          const R2_ACCESS_KEY_ID = process.env.R2_ACCESS_KEY_ID;
-          const R2_SECRET_ACCESS_KEY = process.env.R2_SECRET_ACCESS_KEY;
-          const R2_ACCOUNT_ID = process.env.R2_ACCOUNT_ID;
-          const R2_BUCKET_NAME = process.env.R2_BUCKET_NAME || 'shiny-sprites';
-
-          if (R2_ACCESS_KEY_ID && R2_SECRET_ACCESS_KEY && R2_ACCOUNT_ID) {
-            const { S3Client, DeleteObjectCommand } = require('@aws-sdk/client-s3');
-            const s3Client = new S3Client({
-              region: 'auto',
-              endpoint: `https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com`,
-              credentials: { accessKeyId: R2_ACCESS_KEY_ID, secretAccessKey: R2_SECRET_ACCESS_KEY },
-            });
-
-            for (const imageUrl of imagesToDelete) {
-              const key = imageUrl.replace(`${R2_BUCKET_URL}/`, '');
-              console.log('Deleting R2 object:', key);
-              await s3Client.send(new DeleteObjectCommand({ Bucket: R2_BUCKET_NAME, Key: key }));
-              console.log('Successfully deleted:', key);
-            }
-          } else {
-            console.warn('R2 credentials not configured, skipping image deletion');
-          }
-        } catch (r2Error) {
-          console.error('Error deleting images from R2 (non-fatal):', r2Error);
-        }
-      })();
-    }
+    const imagesToDelete = [approval.proof_url, approval.proof_url2]
+      .filter(url => url?.startsWith(R2_BUCKET_URL));
+    deleteR2Images(imagesToDelete).catch(() => {});
   } catch (error) {
     console.error('Error approving submission:', error);
     res.status(500).json({ 
@@ -2459,45 +2438,9 @@ app.post('/api/approvals/:id/reject', async (req, res) => {
 
     // Delete images from R2 (fire-and-forget)
     const R2_BUCKET_URL = process.env.R2_BUCKET_URL;
-    const imagesToDelete = [];
-
-    if (approval.proof_url && approval.proof_url.startsWith(R2_BUCKET_URL)) {
-      imagesToDelete.push(approval.proof_url);
-    }
-    if (approval.proof_url2 && approval.proof_url2.startsWith(R2_BUCKET_URL)) {
-      imagesToDelete.push(approval.proof_url2);
-    }
-
-    if (imagesToDelete.length > 0) {
-      (async () => {
-        try {
-          const R2_ACCESS_KEY_ID = process.env.R2_ACCESS_KEY_ID;
-          const R2_SECRET_ACCESS_KEY = process.env.R2_SECRET_ACCESS_KEY;
-          const R2_ACCOUNT_ID = process.env.R2_ACCOUNT_ID;
-          const R2_BUCKET_NAME = process.env.R2_BUCKET_NAME || 'shiny-sprites';
-
-          if (R2_ACCESS_KEY_ID && R2_SECRET_ACCESS_KEY && R2_ACCOUNT_ID) {
-            const { S3Client, DeleteObjectCommand } = require('@aws-sdk/client-s3');
-            const s3Client = new S3Client({
-              region: 'auto',
-              endpoint: `https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com`,
-              credentials: { accessKeyId: R2_ACCESS_KEY_ID, secretAccessKey: R2_SECRET_ACCESS_KEY },
-            });
-
-            for (const imageUrl of imagesToDelete) {
-              const key = imageUrl.replace(`${R2_BUCKET_URL}/`, '');
-              console.log('Deleting R2 object:', key);
-              await s3Client.send(new DeleteObjectCommand({ Bucket: R2_BUCKET_NAME, Key: key }));
-              console.log('Successfully deleted:', key);
-            }
-          } else {
-            console.warn('R2 credentials not configured, skipping image deletion');
-          }
-        } catch (r2Error) {
-          console.error('Error deleting images from R2 (non-fatal):', r2Error);
-        }
-      })();
-    }
+    const imagesToDelete = [approval.proof_url, approval.proof_url2]
+      .filter(url => url?.startsWith(R2_BUCKET_URL));
+    deleteR2Images(imagesToDelete).catch(() => {});
   } catch (error) {
     console.error('Error rejecting submission:', error);
     res.status(500).json({ 
