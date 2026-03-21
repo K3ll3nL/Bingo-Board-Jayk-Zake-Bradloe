@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate, useParams } from 'react-router-dom';
 import PokemonModal from './PokemonModal';
@@ -6,13 +6,17 @@ import { RESTRICTED_LAUNCH_DATE } from '../featureFlags';
 import PageBackground from './PageBackground';
 
 const Profile = () => {
-  const { user, isPro } = useAuth();
+  const { user } = useAuth();
   const navigate = useNavigate();
   const { userId: paramUserId } = useParams();
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [selectedPokemon, setSelectedPokemon] = useState(null);
+  const [showDexTooltip, setShowDexTooltip] = useState(false);
+  const [dexView, setDexView] = useState('type');
+  const dexHideTimer = useRef(null);
+  const dexShowTimer = useRef(null);
 
   const profileUserId = paramUserId || user?.id;
   const [board, setBoard] = useState([]);
@@ -99,8 +103,7 @@ const Profile = () => {
       {/* Back Button Bar */}
       <header className="sticky top-0 z-50 shadow-md" style={{ backgroundColor: '#35373b' }}>
         <div className="max-w-7xl mx-auto px-4 py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
+          <div className="flex items-center gap-4">
               <button
                 onClick={() => window.history.state?.idx > 0 ? navigate(-1) : navigate('/')}
                 className="text-gray-400 hover:text-white transition-colors"
@@ -111,19 +114,6 @@ const Profile = () => {
               </button>
               <h1 className="text-xl font-bold text-white">Profile</h1>
             </div>
-            {isPro && (!paramUserId || paramUserId === user?.id) && (
-              <button
-                onClick={() => navigate('/pro')}
-                className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-colors"
-                style={{ backgroundColor: 'rgba(124,58,237,0.2)', border: '1px solid rgba(124,58,237,0.5)', color: '#a78bfa' }}
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.069A1 1 0 0121 8.882v6.236a1 1 0 01-1.447.894L15 14M3 8a2 2 0 012-2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V8z" />
-                </svg>
-                Stream Overlays
-              </button>
-            )}
-          </div>
         </div>
       </header>
 
@@ -192,7 +182,18 @@ const Profile = () => {
 
         {/* Row 2 - 5 Stat Cards */}
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 border-gray-600">
-          <div className="rounded-xl shadow-xl p-5 border border-gray-600" style={{ backgroundColor: '#35373b' }}>
+          <div
+            className="relative rounded-xl shadow-xl p-5 border border-gray-600 cursor-default"
+            style={{ backgroundColor: '#35373b' }}
+            onMouseEnter={() => {
+              clearTimeout(dexHideTimer.current);
+              dexShowTimer.current = setTimeout(() => setShowDexTooltip(true), 600);
+            }}
+            onMouseLeave={() => {
+              clearTimeout(dexShowTimer.current);
+              dexHideTimer.current = setTimeout(() => setShowDexTooltip(false), 150);
+            }}
+          >
             <div className="text-gray-400 text-xs uppercase tracking-wider mb-2">Pokémon Caught</div>
             <div className="text-3xl font-bold text-purple-400 leading-tight">
               {stats.totalCaught || 0}
@@ -207,6 +208,60 @@ const Profile = () => {
               </div>
               <span className="text-xs text-gray-500 flex-shrink-0">{caughtPct}%</span>
             </div>
+
+            {/* Dex breakdown tooltip */}
+            {showDexTooltip && (
+              <div
+                className="absolute top-full left-0 mt-2 w-80 bg-gray-900 border border-gray-700 rounded-lg p-3 text-xs z-50 shadow-lg"
+                onMouseEnter={() => {
+                  clearTimeout(dexHideTimer.current);
+                  clearTimeout(dexShowTimer.current);
+                }}
+                onMouseLeave={() => {
+                  dexHideTimer.current = setTimeout(() => setShowDexTooltip(false), 150);
+                }}
+              >
+                {/* View toggle */}
+                <div className="flex items-center justify-between mb-3 px-2 py-1 bg-gray-800 rounded">
+                  <button
+                    onClick={() => setDexView(v => v === 'type' ? 'gen' : 'type')}
+                    className="text-gray-400 hover:text-white transition-colors px-1 text-sm"
+                  >
+                    ‹
+                  </button>
+                  <span className="text-gray-300 font-medium select-none">
+                    {dexView === 'type' ? 'By Type' : 'By Generation'}
+                  </span>
+                  <button
+                    onClick={() => setDexView(v => v === 'type' ? 'gen' : 'type')}
+                    className="text-gray-400 hover:text-white transition-colors px-1 text-sm"
+                  >
+                    ›
+                  </button>
+                </div>
+
+                {/* Breakdown grid - 2 columns */}
+                <div className="grid grid-cols-2 gap-x-4 gap-y-2.5">
+                  {(dexView === 'type' ? (stats.dexByType || []) : (stats.dexByGen || []).map(g => ({ ...g, type: `Gen ${g.gen}` }))).map(({ type, total, caught }) => {
+                    const pct = total > 0 ? Math.round((caught / total) * 100) : 0;
+                    return (
+                      <div key={type} className="space-y-0.5">
+                        <div className="flex items-baseline justify-between">
+                          <span className="text-gray-400 text-[11px] truncate">{type}</span>
+                          <span className="text-purple-300 font-bold text-sm ml-1 flex-shrink-0">{pct}%</span>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <div className="flex-1 bg-gray-700 rounded-full h-1">
+                            <div className="bg-purple-500 h-1 rounded-full" style={{ width: `${pct}%` }} />
+                          </div>
+                          <span className="text-gray-600 text-[10px] flex-shrink-0">({caught}/{total})</span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
           </div>
 
           <div className="rounded-xl shadow-xl p-5 border border-gray-600" style={{ backgroundColor: '#35373b' }}>

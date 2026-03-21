@@ -1244,7 +1244,7 @@ app.get('/api/profile/:userId', async (req, res) => {
       { data: allMonthlyPoints, error: rankError },
       { data: allBingos },
       { data: allEntries },
-      { count: totalPokemon },
+      { data: allPokemonData },
     ] = await Promise.all([
       supabase.from('users').select('username, display_name, avatar_url, created_at').eq('id', userId).single(),
       supabase.from('entries').select('*', { count: 'exact', head: true }).eq('user_id', userId),
@@ -1252,7 +1252,7 @@ app.get('/api/profile/:userId', async (req, res) => {
       supabase.from('user_monthly_points').select('user_id, month_id, points, bingo_months!inner(month_year_display)'),
       supabase.from('bingo_achievements').select('bingo_type').eq('user_id', userId),
       supabase.from('entries').select('pokemon_id').eq('user_id', userId),
-      supabase.from('pokemon_master').select('*', { count: 'exact', head: true }).eq('shiny_available', true),
+      supabase.from('pokemon_master').select('id, type1, type2, generation').eq('shiny_available', true),
     ]);
 
     if (userError) throw userError;
@@ -1303,8 +1303,32 @@ app.get('/api/profile/:userId', async (req, res) => {
     const restrictedXs = bingos.filter(b => b.bingo_type === 'x_restricted').length;
     const restrictedBlackouts = bingos.filter(b => b.bingo_type === 'blackout_restricted').length;
 
+    const totalPokemon = allPokemonData ? allPokemonData.length : 0;
     const totalCaught = allEntries ? new Set(allEntries.map(e => e.pokemon_id)).size : 0;
-    
+
+    // Dex breakdown by type and generation
+    const caughtIdSet = new Set(allEntries ? allEntries.map(e => e.pokemon_id) : []);
+    const typeTotal = {}, typeCaughtMap = {};
+    const genTotal = {}, genCaughtMap = {};
+    (allPokemonData || []).forEach(p => {
+      const isCaught = caughtIdSet.has(p.id);
+      [p.type1, p.type2].filter(Boolean).forEach(t => {
+        const type = t.charAt(0).toUpperCase() + t.slice(1);
+        typeTotal[type] = (typeTotal[type] || 0) + 1;
+        if (isCaught) typeCaughtMap[type] = (typeCaughtMap[type] || 0) + 1;
+      });
+      if (p.generation != null) {
+        genTotal[p.generation] = (genTotal[p.generation] || 0) + 1;
+        if (isCaught) genCaughtMap[p.generation] = (genCaughtMap[p.generation] || 0) + 1;
+      }
+    });
+    const dexByType = Object.keys(typeTotal).sort().map(type => ({
+      type, total: typeTotal[type], caught: typeCaughtMap[type] || 0
+    }));
+    const dexByGen = Object.keys(genTotal).map(Number).sort((a, b) => a - b).map(gen => ({
+      gen, total: genTotal[gen], caught: genCaughtMap[gen] || 0
+    }));
+
     // Format monthly data for graphs
     const monthlyData = monthlyPoints.map(month => ({
       month: month.bingo_months.month_year_display,
@@ -1337,7 +1361,9 @@ app.get('/api/profile/:userId', async (req, res) => {
         restrictedXs,
         restrictedBlackouts,
         monthsParticipated,
-        avgPointsPerMonth
+        avgPointsPerMonth,
+        dexByType,
+        dexByGen,
       },
       monthlyData
     };

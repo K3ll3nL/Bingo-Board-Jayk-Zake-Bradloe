@@ -195,6 +195,7 @@ const Approvals = () => {
               </svg>
             </button>
             <h1 className="text-2xl font-bold text-white">Moderator Approvals</h1>
+            <span className="text-xs text-purple-400 bg-purple-400/10 px-2 py-0.5 rounded-full font-medium">Moderator</span>
           </div>
         </div>
       </header>
