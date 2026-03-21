@@ -937,14 +937,13 @@ app.get('/api/leaderboard', async (req, res) => {
       const transformedAllTime = top10.map((entry, index) => {
         const u = usersMap[entry.user_id] || {};
         const username = u.twitch_url ? u.twitch_url.split('/').pop().toLowerCase() : null;
-        const rank = top10.filter(e => e.points > entry.points).length + 1;
         return {
           id: entry.user_id,
           user_id: entry.user_id,
           username: u.username,
           display_name: u.display_name,
           points: entry.points,
-          rank,
+          rank: index + 1,
           created_at: u.created_at,
           twitch_url: index < 10 ? u.twitch_url : null,
           is_live: index < 10 && username ? (liveStatusMap[username] || false) : false,
@@ -1092,14 +1091,13 @@ app.get('/api/leaderboard', async (req, res) => {
       const result = sorted.map((entry, index) => {
         const u = usersMap[entry.user_id] || {};
         const username = u.twitch_url ? u.twitch_url.split('/').pop().toLowerCase() : null;
-        const rank = sorted.filter(e => e.points > entry.points).length + 1;
         return {
           id: entry.user_id,
           user_id: entry.user_id,
           username: u.username,
           display_name: u.display_name,
           points: entry.points,
-          rank,
+          rank: index + 1,
           created_at: u.created_at,
           twitch_url: index < 10 ? u.twitch_url : null,
           is_live: index < 10 && username ? (liveStatusMap[username] || false) : false,
@@ -1245,14 +1243,13 @@ app.get('/api/leaderboard', async (req, res) => {
     
     const transformedData = dataWithAchievements.map((entry, index) => {
       const username = entry.users.twitch_url ? entry.users.twitch_url.split('/').pop().toLowerCase() : null;
-      const rank = dataWithAchievements.filter(e => e.points > entry.points).length + 1;
       return {
         id: entry.id,
         user_id: entry.user_id,
         username: entry.users.username,
         display_name: entry.users.display_name,
         points: entry.points,
-        rank,
+        rank: index + 1,
         created_at: entry.users.created_at,
         twitch_url: index < 10 ? entry.users.twitch_url : null,
         is_live: index < 10 && username ? (liveStatusMap[username] || false) : false,
@@ -1288,7 +1285,7 @@ app.get('/api/profile/:userId', async (req, res) => {
       supabase.from('users').select('username, display_name, avatar_url, created_at').eq('id', userId).single(),
       supabase.from('entries').select('*', { count: 'exact', head: true }).eq('user_id', userId),
       supabase.from('user_monthly_points').select('points, month_id, bingo_months!inner(month_year_display)').eq('user_id', userId).order('month_id', { ascending: true }),
-      supabase.from('user_monthly_points').select('user_id, month_id, points, bingo_months!inner(month_year_display)'),
+      supabase.from('user_monthly_points').select('user_id, month_id, points, last_updated, bingo_months!inner(month_year_display)'),
       supabase.from('bingo_achievements').select('bingo_type').eq('user_id', userId),
       supabase.from('entries').select('pokemon_id').eq('user_id', userId),
       supabase.from('pokemon_master').select('id, type1, type2, generation').eq('shiny_available', true),
@@ -1312,27 +1309,29 @@ app.get('/api/profile/:userId', async (req, res) => {
 
     // Compute overall rank and best monthly rank from the single allMonthlyPoints query
     const userTotals = {};
+    const firstUpdatedByUser = {};
     const monthlyRankings = {};
     (allMonthlyPoints || []).forEach(entry => {
       userTotals[entry.user_id] = (userTotals[entry.user_id] || 0) + entry.points;
+      if (!firstUpdatedByUser[entry.user_id] || entry.last_updated < firstUpdatedByUser[entry.user_id]) {
+        firstUpdatedByUser[entry.user_id] = entry.last_updated;
+      }
       if (!monthlyRankings[entry.month_id]) monthlyRankings[entry.month_id] = [];
       monthlyRankings[entry.month_id].push(entry);
     });
 
-    const sortedUsers = Object.entries(userTotals).sort(([, a], [, b]) => b - a);
-    const userPoints = userTotals[userId] || 0;
-    const overallRank = sortedUsers.filter(([, pts]) => pts > userPoints).length + 1;
+    const sortedUsers = Object.entries(userTotals)
+      .sort(([uidA, a], [uidB, b]) => b - a || (firstUpdatedByUser[uidA] < firstUpdatedByUser[uidB] ? -1 : 1));
+    const overallRank = sortedUsers.findIndex(([id]) => id === userId) + 1;
 
     let bestRank = null;
     let bestRankMonth = null;
     Object.values(monthlyRankings).forEach(entries => {
-      const sorted = entries.slice().sort((a, b) => b.points - a.points);
-      const userEntry = sorted.find(u => u.user_id === userId);
-      if (!userEntry) return;
-      const userRank = sorted.filter(u => u.points > userEntry.points).length + 1;
-      if (!bestRank || userRank < bestRank) {
+      const sorted = entries.slice().sort((a, b) => b.points - a.points || (a.last_updated < b.last_updated ? -1 : 1));
+      const userRank = sorted.findIndex(u => u.user_id === userId) + 1;
+      if (userRank > 0 && (!bestRank || userRank < bestRank)) {
         bestRank = userRank;
-        bestRankMonth = userEntry.bingo_months?.month_year_display;
+        bestRankMonth = sorted.find(u => u.user_id === userId)?.bingo_months?.month_year_display;
       }
     });
 
@@ -3475,8 +3474,8 @@ app.get('/api/overlay/leaderboard', async (req, res) => {
     const usersMap = {};
     (usersData || []).forEach(u => { usersMap[u.id] = u; });
 
-    const rows = topN.map((u) => ({
-      rank: topN.filter(other => other.points > u.points).length + 1,
+    const rows = topN.map((u, i) => ({
+      rank: i + 1,
       user_id: u.user_id,
       display_name: usersMap[u.user_id]?.display_name || 'Unknown',
       username: usersMap[u.user_id]?.username || '',
@@ -3487,9 +3486,8 @@ app.get('/api/overlay/leaderboard', async (req, res) => {
     // Append streamer row if they're outside the top N
     if (streamerOutside) {
       const su = fullRanked[streamerIndex];
-      const streamerRank = fullRanked.filter(u => u.points > su.points).length + 1;
       rows.push({
-        rank: streamerRank,
+        rank: streamerIndex + 1,
         user_id: su.user_id,
         display_name: usersMap[su.user_id]?.display_name || 'Unknown',
         username: usersMap[su.user_id]?.username || '',
