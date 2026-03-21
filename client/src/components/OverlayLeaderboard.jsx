@@ -66,8 +66,10 @@ const OverlayLeaderboard = () => {
     return () => { supabase.removeChannel(channel); clearInterval(poll); };
   }, []);
 
-  const regularRows = rows.filter(r => !r.pinned);
-  const pinnedRow   = rows.find(r => r.pinned) ?? null;
+  const allRegularRows = rows.filter(r => !r.pinned);
+  const pinnedRow      = rows.find(r => r.pinned) ?? null;
+  // When pinned, replace the last regular row so total count stays at `limit`
+  const regularRows    = pinnedRow ? allRegularRows.slice(0, limit - 1) : allRegularRows;
 
   return (
     <div style={{
@@ -134,10 +136,11 @@ const OverlayLeaderboard = () => {
           </div>
         ) : (
           <>
-            {/* Regular rows — split remaining height equally */}
+            {/* All rows in one flex column — regular rows + optional pinned row replacing the last slot */}
             <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', minHeight: 0 }}>
               {regularRows.map((row, i) => {
-                const isTop3 = i < 3;
+                const isTop3 = row.rank <= 3;
+                const medalIndex = row.rank - 1;
                 return (
                   <div
                     key={row.user_id}
@@ -148,24 +151,21 @@ const OverlayLeaderboard = () => {
                       alignItems: 'center',
                       gap: '3vw',
                       padding: '0 4vw',
-                      background: isTop3 ? TOP3_BG[i] : 'transparent',
-                      borderBottom: i < regularRows.length - 1 ? '1px solid rgba(255,255,255,0.05)' : 'none',
+                      background: isTop3 ? TOP3_BG[medalIndex] : 'transparent',
+                      borderBottom: '1px solid rgba(255,255,255,0.05)',
                     }}
                   >
-                    {/* Rank / medal */}
                     <div style={{
                       width: 'clamp(32px, 8vw, 56px)',
                       flexShrink: 0,
                       textAlign: 'center',
                       fontWeight: 800,
                       fontSize: isTop3 ? 'clamp(22px, 5.5vw, 38px)' : 'clamp(18px, 4.5vw, 30px)',
-                      color: isTop3 ? TOP3_COLOR[i] : '#6b7280',
+                      color: isTop3 ? TOP3_COLOR[medalIndex] : '#6b7280',
                       lineHeight: 1,
                     }}>
-                      {isTop3 ? MEDAL[i] : `#${row.rank}`}
+                      {isTop3 ? MEDAL[medalIndex] : `#${row.rank}`}
                     </div>
-
-                    {/* Name */}
                     <div style={{
                       flex: 1,
                       fontWeight: isTop3 ? 700 : 500,
@@ -178,8 +178,6 @@ const OverlayLeaderboard = () => {
                     }}>
                       {row.display_name}
                     </div>
-
-                    {/* Points */}
                     <div style={{
                       flexShrink: 0,
                       fontWeight: 700,
@@ -193,29 +191,27 @@ const OverlayLeaderboard = () => {
                   </div>
                 );
               })}
-            </div>
 
-            {/* Pinned row — fixed at the bottom */}
-            {pinnedRow && (
-              <div style={{ flexShrink: 0 }}>
-                {/* Separator */}
-                <div style={{ borderTop: '1px dashed rgba(124,58,237,0.4)', margin: '0 4vw' }} />
-
-                {/* Pinned row itself */}
+              {/* Pinned row — same flex:1 height as regular rows, dashed top border as separator */}
+              {pinnedRow && (
                 <div style={{
+                  flex: 1,
+                  minHeight: 0,
                   display: 'flex',
                   alignItems: 'center',
                   gap: '3vw',
-                  padding: '0.8vh 4vw',
+                  padding: '0 4vw',
                   background: 'linear-gradient(90deg, rgba(109,40,217,0.22) 0%, rgba(109,40,217,0.06) 60%, transparent 100%)',
+                  borderTop: '1px dashed rgba(124,58,237,0.5)',
                 }}>
                   <div style={{
                     width: 'clamp(32px, 8vw, 56px)',
                     flexShrink: 0,
                     textAlign: 'center',
                     fontWeight: 800,
-                    fontSize: 'clamp(22px, 5.5vw, 38px)',
+                    fontSize: 'clamp(18px, 4.5vw, 30px)',
                     color: '#a78bfa',
+                    lineHeight: 1,
                   }}>
                     #{pinnedRow.rank}
                   </div>
@@ -237,14 +233,12 @@ const OverlayLeaderboard = () => {
                     color: '#a78bfa',
                     whiteSpace: 'nowrap',
                   }}>
-
-                    
                     {pinnedRow.points}
                     <span style={{ fontWeight: 500, fontSize: 'clamp(22px, 5.5vw, 38px)', color: '#6b7280', marginLeft: '0.6vw' }}>pts</span>
                   </div>
                 </div>
-              </div>
-            )}
+              )}
+            </div>
           </>
         )}
       </div>

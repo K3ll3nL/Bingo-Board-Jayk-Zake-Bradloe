@@ -188,7 +188,7 @@ const Leaderboard = () => {
         ) : (
           <div className={`divide-y overflow-y-auto transition-opacity duration-150 ${refreshing ? 'opacity-50' : 'opacity-100'}`} style={{ borderColor: '#404040', maxHeight: '610px' }}>
             {leaderboard.map((user, index) => {
-              const position = index + 1;
+              const position = user.rank ?? (index + 1);
               const medal = getMedalEmoji(position);
               const showBadge = index < 10;
               
