@@ -46,6 +46,32 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY
 );
 
+// ── Module-level caches ───────────────────────────────────────────────────────
+// Active month: only changes once a month. Cache the result and use end_date to
+// know exactly when it's stale — no arbitrary TTL needed. Mod users with a
+// time_offset_days bypass the cache since their effective date differs.
+let activeMonthCache = null; // { id, month_year_display, start_date, end_date }
+
+// Pokemon pool: the 24 pokemon assigned to a month never change mid-month.
+// Keyed on month ID — auto-invalidates when a new month becomes active.
+let pokemonPoolCache = { monthId: null, poolByPosition: null, pokemonMap: null };
+
+// Twitch OAuth token: client-credentials token valid for ~60 days.
+// Cache it with its own expiry so we never fetch a new one unnecessarily.
+let twitchTokenCache = { token: null, expiresAt: 0 };
+
+// API key → user_id: keys change only on explicit regeneration/deletion.
+// Short TTL (60s) keeps the window small if a key is revoked.
+const apiKeyCache = new Map(); // hash → { userId, expiresAt }
+const API_KEY_CACHE_TTL = 60_000;
+
+// Leaderboard results per mode — expensive aggregation queries that only change
+// on approval. Manually cleared when leaderboard-changed is broadcast.
+// Also has a 60s TTL as a safety net (e.g. for Twitch live status freshness).
+const leaderboardCache = new Map(); // mode → { data, expiresAt }
+const LEADERBOARD_CACHE_TTL = 60_000;
+// ─────────────────────────────────────────────────────────────────────────────
+
 // Supabase Realtime Broadcast helper — fire-and-forget, no WebSocket needed
 const broadcastUpdate = async (channel, event, payload = {}) => {
   try {
@@ -551,8 +577,9 @@ async function getAuthenticatedUserId(req) {
 // Helper function to get active month ID based on current date (with optional time offset for moderators)
 // Returns the full active month record { id, month_year_display, start_date, end_date }, or null
 async function getActiveMonth(userId = null) {
-  let timeOffsetDays = 0;
+  const now = new Date();
 
+  // Mod users with a time offset always bypass the cache (their effective date differs)
   if (userId) {
     const { data: userData } = await supabase
       .from('users')
@@ -560,30 +587,44 @@ async function getActiveMonth(userId = null) {
       .eq('id', userId)
       .single();
 
-    if (userData?.time_offset_days) {
-      timeOffsetDays = userData.time_offset_days;
+    const timeOffsetDays = userData?.time_offset_days || 0;
+    if (timeOffsetDays !== 0) {
+      const effectiveDate = new Date(now.getTime() + timeOffsetDays * 86400000);
+      const effectiveDateISO = effectiveDate.toISOString();
+      console.log('Getting active month (mod offset) - User:', userId, 'Offset days:', timeOffsetDays, 'Effective date:', effectiveDateISO);
+      const { data, error } = await supabase
+        .from('bingo_months')
+        .select('id, month_year_display, start_date, end_date')
+        .lte('start_date', effectiveDateISO)
+        .gte('end_date', effectiveDateISO)
+        .single();
+      if (error || !data) { console.error('No active month found (mod):', error); return null; }
+      return data;
     }
   }
 
-  const now = new Date();
-  const effectiveDate = new Date(now.getTime() + (timeOffsetDays * 24 * 60 * 60 * 1000));
-  const effectiveDateISO = effectiveDate.toISOString();
+  // Cache hit: valid as long as we haven't passed the month's end_date
+  if (activeMonthCache && now < new Date(activeMonthCache.end_date)) {
+    return activeMonthCache;
+  }
 
-  console.log('Getting active month - User:', userId, 'Offset days:', timeOffsetDays, 'Effective date:', effectiveDateISO);
-
+  // Cache miss or expired — fetch from DB and cache the result
+  const nowISO = now.toISOString();
+  console.log('Fetching active month from DB - date:', nowISO);
   const { data: activeMonthData, error: monthError } = await supabase
     .from('bingo_months')
     .select('id, month_year_display, start_date, end_date')
-    .lte('start_date', effectiveDateISO)
-    .gte('end_date', effectiveDateISO)
+    .lte('start_date', nowISO)
+    .gte('end_date', nowISO)
     .single();
 
   if (monthError || !activeMonthData) {
-    console.error('No active month found for date:', effectiveDateISO, monthError);
+    console.error('No active month found for date:', nowISO, monthError);
     return null;
   }
 
-  console.log('Active month ID:', activeMonthData.id);
+  activeMonthCache = activeMonthData;
+  console.log('Active month cached:', activeMonthData.id);
   return activeMonthData;
 }
 
@@ -593,17 +634,41 @@ async function getActiveMonthId(userId = null) {
   return month?.id ?? null;
 }
 
+// Fetch (or return cached) Twitch client-credentials access token.
+// The token is valid ~60 days; we cache it until 1 hour before expiry.
+async function getTwitchToken() {
+  if (twitchTokenCache.token && Date.now() < twitchTokenCache.expiresAt) {
+    return twitchTokenCache.token;
+  }
+  const clientId     = process.env.TWITCH_CLIENT_ID;
+  const clientSecret = process.env.TWITCH_CLIENT_SECRET;
+  if (!clientId || !clientSecret) return null;
+  const res  = await fetch('https://id.twitch.tv/oauth2/token', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: `client_id=${clientId}&client_secret=${clientSecret}&grant_type=client_credentials`,
+  });
+  const data = await res.json();
+  if (!data.access_token) return null;
+  // Cache until 1 hour before the token actually expires
+  twitchTokenCache = { token: data.access_token, expiresAt: Date.now() + (data.expires_in - 3600) * 1000 };
+  return data.access_token;
+}
+
 // Validate an API key (pb_xxx) and return its owner's user_id, or null if invalid.
-// Updates last_used_at fire-and-forget.
+// Updates last_used_at fire-and-forget. Result cached for 60s.
 async function validateApiKey(key) {
   if (!key || typeof key !== 'string' || !key.startsWith('pb_')) return null;
   const hash = crypto.createHash('sha256').update(key).digest('hex');
+  const cached = apiKeyCache.get(hash);
+  if (cached && Date.now() < cached.expiresAt) return cached.userId;
   const { data } = await supabase
     .from('api_keys')
     .select('id, user_id')
     .eq('key_hash', hash)
     .maybeSingle();
   if (!data) return null;
+  apiKeyCache.set(hash, { userId: data.user_id, expiresAt: Date.now() + API_KEY_CACHE_TTL });
   supabase.from('api_keys').update({ last_used_at: new Date().toISOString() }).eq('id', data.id).then(() => {});
   return data.user_id;
 }
@@ -715,11 +780,10 @@ app.get('/api/bingo/board', async (req, res) => {
     }
     const ACTIVE_MONTH_ID = monthData.id;
 
-    // Fetch all independent queries in parallel
+    // Fetch user-specific and achievement data in parallel (changes every request)
     const [
       { data: entries },
       { data: approvals },
-      { data: poolData, error: poolError },
       { data: bingoAchievements }
     ] = await Promise.all([
       userId
@@ -728,31 +792,40 @@ app.get('/api/bingo/board', async (req, res) => {
       userId
         ? supabase.from('approvals').select('pokemon_id').eq('user_id', userId)
         : Promise.resolve({ data: [] }),
-      supabase.from('monthly_pokemon_pool').select('position, pokemon_id').eq('month_id', ACTIVE_MONTH_ID).order('position', { ascending: true }),
       supabase.from('bingo_achievements').select('bingo_type, users!bingo_achievements_user_id_fkey(display_name)').eq('month_id', ACTIVE_MONTH_ID),
     ]);
-
-    if (poolError) throw poolError;
 
     const completedPokemonIds = new Set((entries || []).map(e => e.pokemon_id));
     const pendingPokemonIds = new Set((approvals || []).map(a => a.pokemon_id));
 
-    // Get all pokemon details (needs pool IDs first)
-    const pokemonIds = (poolData || []).map(p => p.pokemon_id).filter(Boolean);
+    // Use cached pool + pokemon data if still on the same month; otherwise re-fetch
+    if (pokemonPoolCache.monthId !== ACTIVE_MONTH_ID) {
+      const { data: poolData, error: poolError } = await supabase
+        .from('monthly_pokemon_pool')
+        .select('position, pokemon_id')
+        .eq('month_id', ACTIVE_MONTH_ID)
+        .order('position', { ascending: true });
 
-    const { data: pokemonData, error: pokemonError } = await supabase
-      .from('pokemon_master')
-      .select('id, national_dex_id, name, img_url')
-      .in('id', pokemonIds)
-      .eq('shiny_available', true);
+      if (poolError) throw poolError;
 
-    if (pokemonError) throw pokemonError;
+      const pokemonIds = (poolData || []).map(p => p.pokemon_id).filter(Boolean);
+      const { data: pokemonData, error: pokemonError } = await supabase
+        .from('pokemon_master')
+        .select('id, national_dex_id, name, img_url')
+        .in('id', pokemonIds)
+        .eq('shiny_available', true);
 
-    const pokemonMap = {};
-    (pokemonData || []).forEach(p => { pokemonMap[p.id] = p; });
+      if (pokemonError) throw pokemonError;
 
-    const poolByPosition = {};
-    (poolData || []).forEach(pool => { poolByPosition[pool.position] = pool; });
+      const newPokemonMap = {};
+      (pokemonData || []).forEach(p => { newPokemonMap[p.id] = p; });
+      const newPoolByPosition = {};
+      (poolData || []).forEach(pool => { newPoolByPosition[pool.position] = pool; });
+
+      pokemonPoolCache = { monthId: ACTIVE_MONTH_ID, poolByPosition: newPoolByPosition, pokemonMap: newPokemonMap };
+    }
+
+    const { poolByPosition, pokemonMap } = pokemonPoolCache;
 
     // Build the 25-square board (24 Pokemon + 1 free space at position 13)
     const board = [];
@@ -839,6 +912,20 @@ app.get('/api/leaderboard', async (req, res) => {
     const VALID_MODES = ['monthly', 'alltime', 'season', 'year'];
     const mode = VALID_MODES.includes(req.query.mode) ? req.query.mode : 'monthly';
 
+    // Pre-fetch the active month for non-alltime modes — getActiveMonth is module-level
+    // cached so this is cheap, and we need it for both the cache key and branch logic.
+    const preloadedMonth = (mode !== 'alltime') ? await getActiveMonth(userId) : null;
+    if (mode !== 'alltime' && !preloadedMonth) {
+      return res.status(404).json({ error: 'No active month found' });
+    }
+    const cacheKey = preloadedMonth ? `${mode}:${preloadedMonth.id}` : 'alltime';
+
+    // Return cached leaderboard if still fresh
+    const cached = leaderboardCache.get(cacheKey);
+    if (cached && Date.now() < cached.expiresAt) {
+      return res.json(cached.data);
+    }
+
     // ── ALL-TIME BRANCH ──────────────────────────────────────────────────────
     if (mode === 'alltime') {
 
@@ -899,31 +986,22 @@ app.get('/api/leaderboard', async (req, res) => {
       const hexCodeMap = {};
       if (ambassadors) ambassadors.forEach(a => { hexCodeMap[a.id] = a.hex_code || '#9147ff'; });
 
-      // Twitch live status (reuse same logic as monthly)
+      // Twitch live status
       const liveStatusMap = {};
       try {
-        const TWITCH_CLIENT_ID = process.env.TWITCH_CLIENT_ID;
-        const TWITCH_CLIENT_SECRET = process.env.TWITCH_CLIENT_SECRET;
         const twitchUsers = top10.filter(u => usersMap[u.user_id]?.twitch_url);
-
-        if (TWITCH_CLIENT_ID && TWITCH_CLIENT_SECRET && twitchUsers.length > 0) {
-          const tokenResponse = await fetch('https://id.twitch.tv/oauth2/token', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-            body: `client_id=${TWITCH_CLIENT_ID}&client_secret=${TWITCH_CLIENT_SECRET}&grant_type=client_credentials`
-          });
-          const { access_token } = await tokenResponse.json();
+        const access_token = twitchUsers.length > 0 ? await getTwitchToken() : null;
+        if (access_token) {
+          const TWITCH_CLIENT_ID = process.env.TWITCH_CLIENT_ID;
           const usernames = twitchUsers.map(u => usersMap[u.user_id].twitch_url.split('/').pop().toLowerCase());
-          const usersResponse = await fetch(`https://api.twitch.tv/helix/users?${usernames.map(u => `login=${u}`).join('&')}`, {
+          const { data: twitchApiUsers } = await fetch(`https://api.twitch.tv/helix/users?${usernames.map(u => `login=${u}`).join('&')}`, {
             headers: { 'Authorization': `Bearer ${access_token}`, 'Client-Id': TWITCH_CLIENT_ID }
-          });
-          const { data: twitchApiUsers } = await usersResponse.json();
+          }).then(r => r.json());
           const twitchIds = twitchApiUsers?.map(u => u.id) || [];
           if (twitchIds.length > 0) {
-            const streamsResponse = await fetch(`https://api.twitch.tv/helix/streams?${twitchIds.map(id => `user_id=${id}`).join('&')}`, {
+            const { data: streams } = await fetch(`https://api.twitch.tv/helix/streams?${twitchIds.map(id => `user_id=${id}`).join('&')}`, {
               headers: { 'Authorization': `Bearer ${access_token}`, 'Client-Id': TWITCH_CLIENT_ID }
-            });
-            const { data: streams } = await streamsResponse.json();
+            }).then(r => r.json());
             streams?.forEach(stream => {
               const u = twitchApiUsers.find(u => u.id === stream.user_id);
               if (u) liveStatusMap[u.login.toLowerCase()] = true;
@@ -952,6 +1030,7 @@ app.get('/api/leaderboard', async (req, res) => {
         };
       });
 
+      leaderboardCache.set(cacheKey, { data: transformedAllTime, expiresAt: Date.now() + LEADERBOARD_CACHE_TTL });
       res.set('Cache-Control', 'no-store');
       return res.json(transformedAllTime);
     }
@@ -959,10 +1038,8 @@ app.get('/api/leaderboard', async (req, res) => {
     // ── SEASON / YEAR BRANCH ─────────────────────────────────────────────────
     if (mode === 'season' || mode === 'year') {
 
-      // Get the active month's start_date and derive grouping from it via date
-      // arithmetic — so this works even if season_id/year_id are not yet set.
-      const activeMonth = await getActiveMonth(userId);
-      if (!activeMonth) return res.status(404).json({ error: 'No active month found' });
+      // preloadedMonth was fetched before the cache check — reuse it here
+      const activeMonth = preloadedMonth;
       const ACTIVE_MONTH_ID = activeMonth.id;
 
       // Compute game year (March → February) and seasonal quarter from start_date
@@ -1056,28 +1133,19 @@ app.get('/api/leaderboard', async (req, res) => {
       // Twitch live status
       const liveStatusMap = {};
       try {
-        const TWITCH_CLIENT_ID = process.env.TWITCH_CLIENT_ID;
-        const TWITCH_CLIENT_SECRET = process.env.TWITCH_CLIENT_SECRET;
         const twitchUsers = sorted.filter(u => usersMap[u.user_id]?.twitch_url);
-
-        if (TWITCH_CLIENT_ID && TWITCH_CLIENT_SECRET && twitchUsers.length > 0) {
-          const tokenResponse = await fetch('https://id.twitch.tv/oauth2/token', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-            body: `client_id=${TWITCH_CLIENT_ID}&client_secret=${TWITCH_CLIENT_SECRET}&grant_type=client_credentials`
-          });
-          const { access_token } = await tokenResponse.json();
+        const access_token = twitchUsers.length > 0 ? await getTwitchToken() : null;
+        if (access_token) {
+          const TWITCH_CLIENT_ID = process.env.TWITCH_CLIENT_ID;
           const usernames = twitchUsers.map(u => usersMap[u.user_id].twitch_url.split('/').pop().toLowerCase());
-          const usersResponse = await fetch(`https://api.twitch.tv/helix/users?${usernames.map(u => `login=${u}`).join('&')}`, {
+          const { data: twitchApiUsers } = await fetch(`https://api.twitch.tv/helix/users?${usernames.map(u => `login=${u}`).join('&')}`, {
             headers: { 'Authorization': `Bearer ${access_token}`, 'Client-Id': TWITCH_CLIENT_ID }
-          });
-          const { data: twitchApiUsers } = await usersResponse.json();
+          }).then(r => r.json());
           const twitchIds = twitchApiUsers?.map(u => u.id) || [];
           if (twitchIds.length > 0) {
-            const streamsResponse = await fetch(`https://api.twitch.tv/helix/streams?${twitchIds.map(id => `user_id=${id}`).join('&')}`, {
+            const { data: streams } = await fetch(`https://api.twitch.tv/helix/streams?${twitchIds.map(id => `user_id=${id}`).join('&')}`, {
               headers: { 'Authorization': `Bearer ${access_token}`, 'Client-Id': TWITCH_CLIENT_ID }
-            });
-            const { data: streams } = await streamsResponse.json();
+            }).then(r => r.json());
             streams?.forEach(stream => {
               const u = twitchApiUsers.find(u => u.id === stream.user_id);
               if (u) liveStatusMap[u.login.toLowerCase()] = true;
@@ -1106,15 +1174,14 @@ app.get('/api/leaderboard', async (req, res) => {
         };
       });
 
+      leaderboardCache.set(cacheKey, { data: result, expiresAt: Date.now() + LEADERBOARD_CACHE_TTL });
       res.set('Cache-Control', 'no-store');
       return res.json(result);
     }
 
     // ── MONTHLY BRANCH ───────────────────────────────────────────────────────
-    const ACTIVE_MONTH_ID = await getActiveMonthId(userId);
-    if (!ACTIVE_MONTH_ID) {
-      return res.status(404).json({ error: 'No active month found' });
-    }
+    // preloadedMonth was fetched before the cache check — reuse it here
+    const ACTIVE_MONTH_ID = preloadedMonth.id;
 
 
     // Get monthly leaderboard
@@ -1176,69 +1243,27 @@ app.get('/api/leaderboard', async (req, res) => {
     // Check Twitch live status
     const twitchUsers = dataWithAchievements.filter(entry => entry.users.twitch_url);
     const liveStatusMap = {};
-    
-    if (twitchUsers.length > 0) {
-      try {
+    try {
+      const access_token = twitchUsers.length > 0 ? await getTwitchToken() : null;
+      if (access_token) {
         const TWITCH_CLIENT_ID = process.env.TWITCH_CLIENT_ID;
-        const TWITCH_CLIENT_SECRET = process.env.TWITCH_CLIENT_SECRET;
-        
-        if (TWITCH_CLIENT_ID && TWITCH_CLIENT_SECRET) {
-          // Get Twitch access token
-          const tokenResponse = await fetch('https://id.twitch.tv/oauth2/token', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-            body: `client_id=${TWITCH_CLIENT_ID}&client_secret=${TWITCH_CLIENT_SECRET}&grant_type=client_credentials`
+        const usernames = twitchUsers.map(u => u.users.twitch_url.split('/').pop().toLowerCase());
+        const { data: twitchApiUsers } = await fetch(`https://api.twitch.tv/helix/users?${usernames.map(u => `login=${u}`).join('&')}`, {
+          headers: { 'Authorization': `Bearer ${access_token}`, 'Client-Id': TWITCH_CLIENT_ID }
+        }).then(r => r.json());
+        const twitchIds = twitchApiUsers?.map(u => u.id) || [];
+        if (twitchIds.length > 0) {
+          const { data: streams } = await fetch(`https://api.twitch.tv/helix/streams?${twitchIds.map(id => `user_id=${id}`).join('&')}`, {
+            headers: { 'Authorization': `Bearer ${access_token}`, 'Client-Id': TWITCH_CLIENT_ID }
+          }).then(r => r.json());
+          streams?.forEach(stream => {
+            const user = twitchApiUsers.find(u => u.id === stream.user_id);
+            if (user) liveStatusMap[user.login.toLowerCase()] = true;
           });
-          
-          const tokenData = await tokenResponse.json();
-          const { access_token } = tokenData;
-          console.log('Got Twitch token:', !!access_token);
-          
-          // Extract usernames from URLs
-          const usernames = twitchUsers.map(u => u.users.twitch_url.split('/').pop().toLowerCase());
-          console.log('Checking usernames:', usernames);
-          
-          // Get user IDs
-          const usersResponse = await fetch(`https://api.twitch.tv/helix/users?${usernames.map(u => `login=${u}`).join('&')}`, {
-            headers: {
-              'Authorization': `Bearer ${access_token}`,
-              'Client-Id': TWITCH_CLIENT_ID
-            }
-          });
-          
-          const usersData = await usersResponse.json();
-          console.log('Twitch users response:', usersData);
-          
-          // Check streams
-          const twitchIds = usersData.data?.map(u => u.id) || [];
-          console.log('Twitch IDs to check:', twitchIds);
-          
-          if (twitchIds.length > 0) {
-            const streamsResponse = await fetch(`https://api.twitch.tv/helix/streams?${twitchIds.map(id => `user_id=${id}`).join('&')}`, {
-              headers: {
-                'Authorization': `Bearer ${access_token}`,
-                'Client-Id': TWITCH_CLIENT_ID
-              }
-            });
-            
-            const streamsData = await streamsResponse.json();
-            console.log('Streams data:', streamsData);
-            
-            // Map live status by username
-            streamsData.data?.forEach(stream => {
-              const user = usersData.data.find(u => u.id === stream.user_id);
-              if (user) {
-                console.log('User is live:', user.login);
-                liveStatusMap[user.login.toLowerCase()] = true;
-              }
-            });
-          }
-          
-          console.log('Final live status map:', liveStatusMap);
         }
-      } catch (err) {
-        console.error('Twitch live check error:', err);
       }
+    } catch (err) {
+      console.error('Twitch live check error (monthly):', err);
     }
     
     const transformedData = dataWithAchievements.map((entry, index) => {
@@ -1258,6 +1283,7 @@ app.get('/api/leaderboard', async (req, res) => {
       };
     });
 
+    leaderboardCache.set(cacheKey, { data: transformedData, expiresAt: Date.now() + LEADERBOARD_CACHE_TTL });
     res.set('Cache-Control', 'no-store');
     res.json(transformedData);
   } catch (error) {
@@ -1630,33 +1656,20 @@ app.get('/api/ambassadors', async (req, res) => {
       };
     });
     
-    // Get Twitch OAuth token (you'll need to set these env vars)
-    const twitchClientId = process.env.TWITCH_CLIENT_ID;
-    const twitchClientSecret = process.env.TWITCH_CLIENT_SECRET;
-    
-    if (!twitchClientId || !twitchClientSecret) {
-      console.warn('Twitch API credentials not configured');
-      // Return basic data without live status
-      return res.json(twitchData.map(amb => ({
-        ...amb,
-        profile_image_url: `https://static-cdn.jtvnw.net/user-default-pictures-uv/de130ab0-def7-11e9-b668-784f43822e80-profile_image-300x300.png`,
-        is_live: false,
-        brand_color: amb.hex_code
-      })));
-    }
-    
     try {
-      // Get Twitch OAuth token
-      const tokenResponse = await fetch('https://id.twitch.tv/oauth2/token', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: `client_id=${twitchClientId}&client_secret=${twitchClientSecret}&grant_type=client_credentials`
-      });
-      
-      const { access_token } = await tokenResponse.json();
-      
+      const access_token = await getTwitchToken();
+      if (!access_token) {
+        console.warn('Twitch API credentials not configured');
+        return res.json(twitchData.map(amb => ({
+          ...amb,
+          profile_image_url: `https://static-cdn.jtvnw.net/user-default-pictures-uv/de130ab0-def7-11e9-b668-784f43822e80-profile_image-300x300.png`,
+          is_live: false,
+          brand_color: amb.hex_code
+        })));
+      }
+
       const headers = {
-        'Client-ID': twitchClientId,
+        'Client-ID': process.env.TWITCH_CLIENT_ID,
         'Authorization': `Bearer ${access_token}`
       };
       
@@ -2328,6 +2341,9 @@ app.post('/api/approvals/:id/approve', async (req, res) => {
 
     // Respond immediately — broadcasts and cleanup are non-critical side effects
     res.json(data);
+
+    // Invalidate leaderboard cache immediately so the next request gets fresh data
+    leaderboardCache.clear();
 
     // Notify connected clients (fire-and-forget; a broadcast failure must never
     // make the client think the approval failed when the DB already committed it)
@@ -3276,8 +3292,9 @@ app.post('/api/keys', async (req, res) => {
     const { data: pro } = await supabase.from('site_pro').select('user_id').eq('user_id', userId).maybeSingle();
     if (!pro) return res.status(403).json({ error: 'Pro access required' });
 
-    // Remove any existing key first (one key per user)
+    // Remove any existing key first (one key per user) and clear cache
     await supabase.from('api_keys').delete().eq('user_id', userId);
+    apiKeyCache.clear();
 
     // Generate: pb_ + 24 random bytes → 51-char key
     const rawKey = 'pb_' + crypto.randomBytes(24).toString('hex');
@@ -3305,6 +3322,7 @@ app.delete('/api/keys', async (req, res) => {
     const userId = await getAuthenticatedUserId(req);
     if (!userId) return res.status(401).json({ error: 'Unauthorized' });
     await supabase.from('api_keys').delete().eq('user_id', userId);
+    apiKeyCache.clear();
     res.json({ success: true });
   } catch (err) {
     console.error('Delete key error:', err);
