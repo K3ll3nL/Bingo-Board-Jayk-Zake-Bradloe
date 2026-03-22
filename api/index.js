@@ -3321,9 +3321,37 @@ app.get('/api/overlay/board', async (req, res) => {
     if (!userId) return res.status(401).json({ error: 'Invalid or missing API key' });
 
     const mode = req.query.mode === 'template' ? 'template' : 'live';
+    const slim = req.query.slim === '1'; // slim=1: only return per-cell state, no pokemon data
     const monthData = await getActiveMonth();
     if (!monthData) return res.status(404).json({ error: 'No active bingo month' });
     const ACTIVE_MONTH_ID = monthData.id;
+
+    // In slim mode we only need entries + approvals — skip pool and pokemon_master entirely
+    if (slim && mode === 'live') {
+      const [{ data: entries }, { data: approvals }] = await Promise.all([
+        supabase.from('entries').select('pokemon_id').eq('user_id', userId).eq('month_id', ACTIVE_MONTH_ID),
+        supabase.from('approvals').select('pokemon_id').eq('user_id', userId),
+      ]);
+
+      const completedSet = new Set((entries || []).map(e => e.pokemon_id));
+      const pendingSet   = new Set((approvals || []).map(a => a.pokemon_id));
+
+      const { data: poolData, error: poolError } = await supabase
+        .from('monthly_pokemon_pool')
+        .select('position, pokemon_id')
+        .eq('month_id', ACTIVE_MONTH_ID);
+
+      if (poolError) throw poolError;
+
+      const states = (poolData || []).map(({ position, pokemon_id }) => ({
+        position,
+        is_checked: completedSet.has(pokemon_id),
+        is_pending: !completedSet.has(pokemon_id) && pendingSet.has(pokemon_id),
+      }));
+
+      res.set('Cache-Control', 'no-store');
+      return res.json({ states });
+    }
 
     const [
       { data: entries },
@@ -3366,7 +3394,6 @@ app.get('/api/overlay/board', async (req, res) => {
       const poke = pool ? pokemonMap[pool.pokemon_id] : null;
       board.push(poke ? {
         position: pos,
-        pokemon_id: pool.pokemon_id,
         is_checked: mode === 'live' && completedSet.has(pool.pokemon_id),
         is_pending: mode === 'live' && !completedSet.has(pool.pokemon_id) && pendingSet.has(pool.pokemon_id),
         pokemon_name: poke.name || 'Unknown',
@@ -3381,7 +3408,7 @@ app.get('/api/overlay/board', async (req, res) => {
     }
 
     res.set('Cache-Control', 'no-store');
-    res.json({ month: monthData.month_year_display, board, mode });
+    res.json({ month: monthData.month_year_display, board });
   } catch (err) {
     console.error('Overlay board error:', err);
     res.status(500).json({ error: 'Failed to fetch overlay board' });

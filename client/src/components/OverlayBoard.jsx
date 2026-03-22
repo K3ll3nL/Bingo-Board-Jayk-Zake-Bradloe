@@ -17,6 +17,7 @@ const OverlayBoard = () => {
   const [month, setMonth] = useState('');
   const [error, setError] = useState(null);
   const versionRef = useRef(0);
+  const boardRef = useRef([]); // stable reference to current board for slim-mode merging
 
   // Force transparent background for OBS
   useEffect(() => {
@@ -28,18 +29,33 @@ const OverlayBoard = () => {
     };
   }, []);
 
-  const fetchBoard = async () => {
+  const fetchBoard = async ({ slim = false } = {}) => {
     if (!apiKey) { setError('No API key provided.'); return; }
     try {
-      const res = await fetch(`${API_BASE_URL}/overlay/board?key=${encodeURIComponent(apiKey)}&mode=${mode}`, { cache: 'no-store' });
+      const slimParam = slim && mode === 'live' ? '&slim=1' : '';
+      const res = await fetch(`${API_BASE_URL}/overlay/board?key=${encodeURIComponent(apiKey)}&mode=${mode}${slimParam}`, { cache: 'no-store' });
       if (!res.ok) {
         const d = await res.json().catch(() => ({}));
         setError(d.error || 'Failed to load board.');
         return;
       }
       const data = await res.json();
-      setBoard(data.board || []);
-      setMonth(data.month || '');
+
+      if (slim && data.states) {
+        // Merge state-only update into the existing board — avoids re-sending all pokemon/gif data
+        const stateMap = {};
+        data.states.forEach(s => { stateMap[s.position] = s; });
+        const updated = boardRef.current.map(cell => {
+          const s = stateMap[cell.position];
+          return s ? { ...cell, is_checked: s.is_checked, is_pending: s.is_pending } : cell;
+        });
+        boardRef.current = updated;
+        setBoard(updated);
+      } else {
+        boardRef.current = data.board || [];
+        setBoard(data.board || []);
+        setMonth(data.month || '');
+      }
       setError(null);
     } catch {
       setError('Failed to load board.');
@@ -58,12 +74,12 @@ const OverlayBoard = () => {
       .channel('board-updates')
       .on('broadcast', { event: 'board-changed' }, () => {
         versionRef.current += 1;
-        fetchBoard();
+        fetchBoard({ slim: true });
       })
       .subscribe();
 
     // Polling fallback: catches any broadcast missed during a WS reconnect
-    const poll = setInterval(() => fetchBoard(), 30_000);
+    const poll = setInterval(() => fetchBoard({ slim: true }), 30_000);
 
     return () => {
       supabase.removeChannel(channel);
