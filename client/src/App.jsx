@@ -19,7 +19,6 @@ import OverlayBoard from './components/OverlayBoard';
 import OverlayLeaderboard from './components/OverlayLeaderboard';
 import BadgeUpload from './components/BadgeUpload';
 import logoImage from './Icons/pokemon-bounty-board.png';
-import logoMobile from './Icons/logo-mobile.png';
 
 const supabase = createClient(
   import.meta.env.VITE_SUPABASE_URL,
@@ -129,15 +128,9 @@ const MainApp = () => {
           <div className="flex items-center justify-between md:justify-center md:relative gap-3">
             {/* Logo — left on mobile, centered on desktop */}
             <img
-              src={logoMobile}
-              alt="Pokemon Bounty Board"
-              className="h-10 object-contain cursor-pointer max-w-[55%] sm:hidden"
-              onClick={() => navigate('/')}
-            />
-            <img
               src={logoImage}
               alt="Pokemon Bounty Board"
-              className="hidden sm:block sm:h-16 md:h-20 object-contain cursor-pointer"
+              className="h-10 sm:h-16 md:h-20 object-contain cursor-pointer max-w-[55%] sm:max-w-none"
               onClick={() => navigate('/')}
             />
 
@@ -169,7 +162,7 @@ const MainApp = () => {
                   </div>
 
                   {/* Dropdown Menu */}
-                  <div className={`absolute right-0 mt-2 w-48 rounded-lg shadow-lg transition-all duration-200 z-50 group-hover:opacity-100 group-hover:visible ${menuOpen ? 'opacity-100 visible' : 'opacity-0 invisible'}`} style={{ backgroundColor: '#35373b' }}>
+                  <div className={`absolute right-0 mt-2 w-48 rounded-lg shadow-lg transition-all duration-200 z-50 ${menuOpen ? 'opacity-100 visible' : 'opacity-0 invisible'}`} style={{ backgroundColor: '#35373b' }}>
                     <div className="py-2">
                       <button
                         onClick={() => { navigate('/profile'); setMenuOpen(false); }}
