@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { getAuthHeaders } from '../services/api';
 import PageBackground from './PageBackground';
+import PageHeader from './PageHeader';
 
 const API_BASE_URL = import.meta.env.DEV ? 'http://localhost:3000/api' : '/api';
 
@@ -154,19 +155,13 @@ const Pro = () => {
       <PageBackground />
 
       {/* Header */}
-      <header className="sticky top-0 z-50 shadow-md" style={{ backgroundColor: '#35373b' }}>
-        <div className="max-w-3xl mx-auto px-4 py-4 flex items-center gap-4">
-          <button onClick={() => navigate(-1)} className="text-gray-400 hover:text-white transition-colors">
-            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-            </svg>
-          </button>
-          <div>
-            <h1 className="text-xl font-bold text-white">Stream Overlays</h1>
-            <p className="text-xs text-gray-400">Browser source URLs for OBS and other streaming software</p>
-          </div>
-        </div>
-      </header>
+      <PageHeader
+        title="Stream Overlays"
+        subtitle="Browser source URLs for OBS and other streaming software"
+        badge="pro"
+        onBack={() => navigate(-1)}
+        maxWidth="3xl"
+      />
 
       <div className="max-w-3xl mx-auto px-4 py-8 space-y-6">
 

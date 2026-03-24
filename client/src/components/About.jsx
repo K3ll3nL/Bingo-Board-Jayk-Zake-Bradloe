@@ -2,6 +2,7 @@ import React from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { restrictedEnabled } from '../featureFlags';
 import PageBackground from './PageBackground';
+import PageHeader from './PageHeader';
 
 /* ── Reusable section card ────────────────────────────────────────────── */
 const Section = ({ id, title, icon, accentColor = '#9147ff', headerBg = 'rgba(145,71,255,0.08)', children }) => (
@@ -78,22 +79,11 @@ const About = () => {
     <div className="min-h-screen" style={{ isolation: 'isolate', position: 'relative' }}>
       <PageBackground />
 
-      {/* ── Header - matches all other pages ─────────────────────────────── */}
-      <header className="sticky top-0 z-50 shadow-md" style={{ backgroundColor: '#35373b' }}>
-        <div className="max-w-7xl mx-auto px-4 py-4">
-          <div className="flex items-center gap-4">
-            <button
-              onClick={() => window.history.state?.idx > 0 ? navigate(-1) : navigate('/')}
-              className="text-gray-400 hover:text-white transition-colors"
-            >
-              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-              </svg>
-            </button>
-            <h1 className="text-xl font-bold text-white">How to Play</h1>
-          </div>
-        </div>
-      </header>
+      {/* ── Header ─────────────────────────────── */}
+      <PageHeader
+        title="How to Play"
+        onBack={() => window.history.state?.idx > 0 ? navigate(-1) : navigate('/')}
+      />
 
       {/* ── Body ─────────────────────────────────────────────────────────── */}
       <div className="max-w-3xl mx-auto px-4 pt-8 pb-40 space-y-6" style={{ minHeight: 'calc(100vh - 56px)' }}>

@@ -3,6 +3,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { createClient } from '@supabase/supabase-js';
 import PageBackground from './PageBackground';
+import PageHeader from './PageHeader';
 
 const supabase = createClient(
   import.meta.env.VITE_SUPABASE_URL,
@@ -183,22 +184,7 @@ const Approvals = () => {
     <div className="min-h-screen" style={{ isolation: 'isolate', position: 'relative' }}>
       <PageBackground />
       {/* Header */}
-      <header className="sticky top-0 z-50 shadow-md" style={{ backgroundColor: '#35373b' }}>
-        <div className="max-w-7xl mx-auto px-4 py-6">
-          <div className="flex items-center gap-4">
-            <button
-              onClick={() => navigate('/')}
-              className="text-gray-400 hover:text-white transition-colors"
-            >
-              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-              </svg>
-            </button>
-            <h1 className="text-2xl font-bold text-white">Moderator Approvals</h1>
-            <span className="text-xs text-purple-400 bg-purple-400/10 px-2 py-0.5 rounded-full font-medium">Moderator</span>
-          </div>
-        </div>
-      </header>
+      <PageHeader title="Moderator Approvals" badge="mod" />
 
       {/* Content */}
       <div className="p-8">

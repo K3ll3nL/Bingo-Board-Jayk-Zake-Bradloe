@@ -38,6 +38,22 @@ const MainApp = () => {
   const { user, signInWithDiscord, signOut, loading, isPro } = useAuth();
   const navigate = useNavigate();
   const [isModerator, setIsModerator] = React.useState(false);
+  const [menuOpen, setMenuOpen] = React.useState(false);
+  const menuRef = React.useRef(null);
+
+  React.useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (menuRef.current && !menuRef.current.contains(e.target)) {
+        setMenuOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    document.addEventListener('touchstart', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('touchstart', handleClickOutside);
+    };
+  }, []);
 
   // Debug logging
   React.useEffect(() => {
@@ -108,24 +124,24 @@ const MainApp = () => {
     <div className="min-h-screen" style={{ backgroundColor: '#212326' }}>
       {/* Header */}
       <header className="sticky top-0 z-50 shadow-md" style={{ backgroundColor: '#35373b' }}>
-        <div className="max-w-7xl mx-auto px-4 py-4">
-          <div className="relative flex items-center justify-center">
-            {/* Logo — absolutely centered across the full header width */}
+        <div className="max-w-7xl mx-auto px-4 py-2 md:py-4">
+          <div className="flex items-center justify-between md:justify-center md:relative gap-3">
+            {/* Logo — left on mobile, centered on desktop */}
             <img
               src={logoImage}
               alt="Pokemon Bounty Board"
-              className="h-16 md:h-20 object-contain cursor-pointer"
+              className="h-10 sm:h-16 md:h-20 object-contain cursor-pointer max-w-[55%] sm:max-w-none"
               onClick={() => navigate('/')}
             />
 
-            {/* Login/Profile Button — sits in the right corner without displacing the logo */}
-            <div className="absolute right-0 flex items-center gap-3">
+            {/* Login/Profile Button — right on mobile, absolute right on desktop */}
+            <div className="flex items-center gap-3 shrink-0 md:absolute md:right-0">
               {loading ? (
                 <div className="w-10 h-10 rounded-full bg-gray-600 animate-pulse"></div>
               ) : user ? (
-                <div className="relative group">
-                  <div className="flex items-center gap-3 cursor-pointer">
-                    <div className="text-right">
+                <div className="relative group" ref={menuRef}>
+                  <div className="flex items-center gap-3 cursor-pointer" onClick={() => setMenuOpen(o => !o)}>
+                    <div className="text-right hidden sm:block">
                       <p className="text-sm font-medium text-white">
                         {user.user_metadata?.custom_claims?.global_name || user.user_metadata?.full_name || user.user_metadata?.username || 'User'}
                       </p>
@@ -134,16 +150,22 @@ const MainApp = () => {
                       <img
                         src={user.user_metadata.avatar_url}
                         alt="Profile"
-                        className="w-10 h-10 rounded-full ring-2 ring-transparent group-hover:ring-purple-400 transition-all"
+                        className={`w-10 h-10 rounded-full ring-2 transition-all ${menuOpen ? 'ring-purple-400' : 'ring-transparent'}`}
                       />
                     )}
+                    {/* Hamburger icon — mobile only */}
+                    <div className="sm:hidden flex flex-col justify-center gap-1.5 w-10 h-10 items-center">
+                      <span className={`block h-0.5 w-6 bg-white transition-all duration-200 ${menuOpen ? 'rotate-45 translate-y-2' : ''}`} />
+                      <span className={`block h-0.5 w-6 bg-white transition-all duration-200 ${menuOpen ? 'opacity-0' : ''}`} />
+                      <span className={`block h-0.5 w-6 bg-white transition-all duration-200 ${menuOpen ? '-rotate-45 -translate-y-2' : ''}`} />
+                    </div>
                   </div>
-                  
+
                   {/* Dropdown Menu */}
-                  <div className="absolute right-0 mt-2 w-48 rounded-lg shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50" style={{ backgroundColor: '#35373b' }}>
+                  <div className={`absolute right-0 mt-2 w-48 rounded-lg shadow-lg transition-all duration-200 z-50 group-hover:opacity-100 group-hover:visible ${menuOpen ? 'opacity-100 visible' : 'opacity-0 invisible'}`} style={{ backgroundColor: '#35373b' }}>
                     <div className="py-2">
                       <button
-                        onClick={() => navigate('/profile')}
+                        onClick={() => { navigate('/profile'); setMenuOpen(false); }}
                         className="w-full px-4 py-2 text-left text-sm text-gray-200 hover:bg-gray-700 flex items-center gap-2"
                       >
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -152,7 +174,7 @@ const MainApp = () => {
                         Profile
                       </button>
                       <button
-                        onClick={() => navigate('/pokedex')}
+                        onClick={() => { navigate('/pokedex'); setMenuOpen(false); }}
                         className="w-full px-4 py-2 text-left text-sm text-gray-200 hover:bg-gray-700 flex items-center gap-2"
                       >
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -161,7 +183,7 @@ const MainApp = () => {
                         Pokedex
                       </button>
                       <button
-                        onClick={() => navigate('/upload')}
+                        onClick={() => { navigate('/upload'); setMenuOpen(false); }}
                         className="w-full px-4 py-2 text-left text-sm text-gray-200 hover:bg-gray-700 flex items-center gap-2"
                       >
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -170,7 +192,7 @@ const MainApp = () => {
                         Upload
                       </button>
                       <button
-                        onClick={() => navigate('/history')}
+                        onClick={() => { navigate('/history'); setMenuOpen(false); }}
                         className="w-full px-4 py-2 text-left text-sm text-gray-200 hover:bg-gray-700 flex items-center gap-2"
                       >
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -182,7 +204,7 @@ const MainApp = () => {
                         <>
                           <div className="border-t border-gray-600 my-1"></div>
                           <button
-                            onClick={() => navigate('/pro')}
+                            onClick={() => { navigate('/pro'); setMenuOpen(false); }}
                             className="w-full px-4 py-2 text-left text-sm text-purple-300 hover:bg-gray-700 flex items-center gap-2"
                           >
                             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -196,7 +218,7 @@ const MainApp = () => {
                         <>
                           <div className="border-t border-gray-600 my-1"></div>
                           <button
-                            onClick={() => navigate('/approvals')}
+                            onClick={() => { navigate('/approvals'); setMenuOpen(false); }}
                             className="w-full px-4 py-2 text-left text-sm text-purple-400 hover:bg-gray-700 flex items-center gap-2"
                           >
                             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -205,7 +227,7 @@ const MainApp = () => {
                             Approvals
                           </button>
                           <button
-                            onClick={() => navigate('/board-builder')}
+                            onClick={() => { navigate('/board-builder'); setMenuOpen(false); }}
                             className="w-full px-4 py-2 text-left text-sm text-purple-400 hover:bg-gray-700 flex items-center gap-2"
                           >
                             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -214,7 +236,7 @@ const MainApp = () => {
                             Board Builder
                           </button>
                           <button
-                            onClick={() => navigate('/badge-upload')}
+                            onClick={() => { navigate('/badge-upload'); setMenuOpen(false); }}
                             className="w-full px-4 py-2 text-left text-sm text-purple-400 hover:bg-gray-700 flex items-center gap-2"
                           >
                             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -223,7 +245,7 @@ const MainApp = () => {
                             Upload Badge
                           </button>
                           <button
-                            onClick={clearCache}
+                            onClick={() => { clearCache(); setMenuOpen(false); }}
                             className="w-full px-4 py-2 text-left text-sm text-blue-400 hover:bg-gray-700 flex items-center gap-2"
                           >
                             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -235,7 +257,7 @@ const MainApp = () => {
                       )}
                       <div className="border-t border-gray-600 my-1"></div>
                       <button
-                        onClick={() => navigate('/about')}
+                        onClick={() => { navigate('/about'); setMenuOpen(false); }}
                         className="w-full px-4 py-2 text-left text-sm text-gray-200 hover:bg-gray-700 flex items-center gap-2"
                       >
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -244,7 +266,7 @@ const MainApp = () => {
                         How to Play
                       </button>
                       <button
-                        onClick={signOut}
+                        onClick={() => { signOut(); setMenuOpen(false); }}
                         className="w-full px-4 py-2 text-left text-sm text-red-400 hover:bg-gray-700 flex items-center gap-2"
                       >
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -259,7 +281,7 @@ const MainApp = () => {
                 <div className="flex items-center gap-3">
                   <button
                     onClick={() => navigate('/about')}
-                    className="flex items-center gap-1.5 text-gray-400 hover:text-white text-sm transition-colors"
+                    className="hidden sm:flex items-center gap-1.5 text-gray-400 hover:text-white text-sm transition-colors"
                   >
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />

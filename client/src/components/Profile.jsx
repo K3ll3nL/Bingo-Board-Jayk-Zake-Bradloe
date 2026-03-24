@@ -4,6 +4,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import PokemonModal from './PokemonModal';
 import { RESTRICTED_LAUNCH_DATE } from '../featureFlags';
 import PageBackground from './PageBackground';
+import PageHeader from './PageHeader';
 
 const Profile = () => {
   const { user } = useAuth();
@@ -101,21 +102,10 @@ const Profile = () => {
     <div className="min-h-screen" style={{ isolation: 'isolate', position: 'relative' }}>
       <PageBackground />
       {/* Back Button Bar */}
-      <header className="sticky top-0 z-50 shadow-md" style={{ backgroundColor: '#35373b' }}>
-        <div className="max-w-7xl mx-auto px-4 py-4">
-          <div className="flex items-center gap-4">
-              <button
-                onClick={() => window.history.state?.idx > 0 ? navigate(-1) : navigate('/')}
-                className="text-gray-400 hover:text-white transition-colors"
-              >
-                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-                </svg>
-              </button>
-              <h1 className="text-xl font-bold text-white">Profile</h1>
-            </div>
-        </div>
-      </header>
+      <PageHeader
+        title="Profile"
+        onBack={() => window.history.state?.idx > 0 ? navigate(-1) : navigate('/')}
+      />
 
       <div className="max-w-6xl mx-auto px-4 py-8 space-y-6">
 

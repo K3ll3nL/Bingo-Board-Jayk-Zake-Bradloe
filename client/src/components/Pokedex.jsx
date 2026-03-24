@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { createClient } from '@supabase/supabase-js';
 import PageBackground from './PageBackground';
+import PageHeader from './PageHeader';
 
 const supabase = createClient(
   import.meta.env.VITE_SUPABASE_URL,
@@ -55,21 +56,7 @@ const Pokedex = () => {
   if (!user) {
     return (
       <div className="min-h-screen" style={{ isolation: 'isolate', position: 'relative' }}>
-        <header className="sticky top-0 z-50 shadow-md" style={{ backgroundColor: '#35373b' }}>
-          <div className="max-w-7xl mx-auto px-4 py-4">
-            <div className="flex items-center gap-4">
-              <button
-                onClick={() => navigate('/')}
-                className="text-gray-400 hover:text-white transition-colors"
-              >
-                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-                </svg>
-              </button>
-              <h1 className="text-xl font-bold text-white">Pokédex</h1>
-            </div>
-          </div>
-        </header>
+        <PageHeader title="Pokédex" />
         <div className="flex items-center justify-center p-8">
           <div className="text-center">
             <p className="text-gray-400 mb-4">Please log in to view your Pokédex</p>
@@ -88,21 +75,7 @@ const Pokedex = () => {
   if (loading) {
     return (
       <div className="min-h-screen" style={{ isolation: 'isolate', position: 'relative' }}>
-        <header className="sticky top-0 z-50 shadow-md" style={{ backgroundColor: '#35373b' }}>
-          <div className="max-w-7xl mx-auto px-4 py-4">
-            <div className="flex items-center gap-4">
-              <button
-                onClick={() => navigate('/')}
-                className="text-gray-400 hover:text-white transition-colors"
-              >
-                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-                </svg>
-              </button>
-              <h1 className="text-xl font-bold text-white">Pokédex</h1>
-            </div>
-          </div>
-        </header>
+        <PageHeader title="Pokédex" />
         <div className="flex items-center justify-center p-8">
           <div className="text-lg text-gray-400">Loading Pokédex...</div>
         </div>
@@ -113,21 +86,7 @@ const Pokedex = () => {
   if (error) {
     return (
       <div className="min-h-screen" style={{ isolation: 'isolate', position: 'relative' }}>
-        <header className="sticky top-0 z-50 shadow-md" style={{ backgroundColor: '#35373b' }}>
-          <div className="max-w-7xl mx-auto px-4 py-4">
-            <div className="flex items-center gap-4">
-              <button
-                onClick={() => navigate('/')}
-                className="text-gray-400 hover:text-white transition-colors"
-              >
-                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-                </svg>
-              </button>
-              <h1 className="text-xl font-bold text-white">Pokédex</h1>
-            </div>
-          </div>
-        </header>
+        <PageHeader title="Pokédex" />
         <div className="flex items-center justify-center p-8">
           <div className="text-lg text-red-400">{error}</div>
         </div>
@@ -139,29 +98,7 @@ const Pokedex = () => {
     <div className="min-h-screen" style={{ isolation: 'isolate', position: 'relative' }}>
       <PageBackground />
       {/* Header */}
-      <header className="sticky top-0 z-50 shadow-md" style={{ backgroundColor: '#35373b' }}>
-        <div className="max-w-7xl mx-auto px-4 py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <button
-                onClick={() => navigate('/')}
-                className="text-gray-400 hover:text-white transition-colors"
-              >
-                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-                </svg>
-              </button>
-              <h1 className="text-xl font-bold text-white">Pokédex</h1>
-            </div>
-            <div className="text-right">
-              <div className="text-sm text-gray-400">Caught</div>
-              <div className="text-xl font-bold text-purple-400">
-                {caughtCount} / {pokemon.length}
-              </div>
-            </div>
-          </div>
-        </div>
-      </header>
+      <PageHeader title="Pokédex" completion={{ caught: caughtCount, total: pokemon.length }} />
 
       {/* Pokedex Grid */}
       <div className="p-8">
