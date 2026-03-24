@@ -19,6 +19,7 @@ import OverlayBoard from './components/OverlayBoard';
 import OverlayLeaderboard from './components/OverlayLeaderboard';
 import BadgeUpload from './components/BadgeUpload';
 import logoImage from './Icons/pokemon-bounty-board.png';
+import logoMobile from './Icons/logo-mobile.png';
 
 const supabase = createClient(
   import.meta.env.VITE_SUPABASE_URL,
@@ -128,9 +129,15 @@ const MainApp = () => {
           <div className="flex items-center justify-between md:justify-center md:relative gap-3">
             {/* Logo — left on mobile, centered on desktop */}
             <img
+              src={logoMobile}
+              alt="Pokemon Bounty Board"
+              className="h-10 object-contain cursor-pointer max-w-[55%] sm:hidden"
+              onClick={() => navigate('/')}
+            />
+            <img
               src={logoImage}
               alt="Pokemon Bounty Board"
-              className="h-10 sm:h-16 md:h-20 object-contain cursor-pointer max-w-[55%] sm:max-w-none"
+              className="hidden sm:block sm:h-16 md:h-20 object-contain cursor-pointer"
               onClick={() => navigate('/')}
             />
 
