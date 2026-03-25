@@ -171,13 +171,16 @@ function CreateBadgeTab() {
   const checkTypes      = CHECK_TYPES_BY_TRIGGER[form.trigger] ?? [];
   const isPercentage    = form.check_type === 'type_percentage' || form.check_type === 'generation_percentage';
   const isCollection    = form.check_type === 'collection_complete';
-  const isPeriodId      = ['approved_count_in_month', 'approved_count_in_season', 'approved_count_in_year'].includes(form.check_type);
   const isPlacement     = ['top_placement_month', 'top_placement_season', 'top_placement_year'].includes(form.check_type);
+  const isPeriodId      = ['approved_count_in_month', 'approved_count_in_season', 'approved_count_in_year', 'top_placement_month', 'top_placement_season', 'top_placement_year'].includes(form.check_type);
   const isBingo         = form.check_type === 'bingo_achievement_count';
   const isDateAward     = form.check_type === 'date_award';
   const showQualifier   = isPercentage || isCollection || isPeriodId || isBingo || isDateAward;
   const checkValueLabel = isPlacement ? 'Top X (max rank)' : isPercentage ? 'Percentage (0–100)' : 'Threshold';
   const checkValuePH    = isPlacement ? '3' : isPercentage ? '100' : '1';
+  const periodIdLabel   = ['approved_count_in_month', 'top_placement_month'].includes(form.check_type) ? 'Month ID'
+    : ['approved_count_in_season', 'top_placement_season'].includes(form.check_type) ? 'Season ID'
+    : 'Year ID';
 
   const defaultCheckValue = (type) => {
     if (type === 'type_percentage' || type === 'generation_percentage') return '100';
@@ -435,13 +438,13 @@ function CreateBadgeTab() {
           </div>
         )}
 
-        {/* Qualifier — period ID (optional: blank = fires for every period) */}
+        {/* Qualifier — period ID (required: each badge targets one specific period) */}
         {isPeriodId && (
           <Field
-            label={form.check_type === 'approved_count_in_month' ? 'Month ID' : form.check_type === 'approved_count_in_season' ? 'Season ID' : 'Year ID'}
+            label={periodIdLabel}
             name="check_qualifier" value={form.check_qualifier} onChange={handleField}
-            type="number" placeholder="(any)"
-            note="Leave blank to award when any period of this type ends" />
+            type="number" placeholder="e.g. 12" required
+            note={`Required — find this ID in the Board Builder. Each badge targets one specific ${periodIdLabel.replace(' ID', '').toLowerCase()}.`} />
         )}
 
         {/* Qualifier — bingo types (checkboxes) */}

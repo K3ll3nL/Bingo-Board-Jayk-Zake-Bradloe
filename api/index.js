@@ -410,8 +410,8 @@ async function processMonthEnd(monthId) {
   if (!badges?.length) return awarded;
 
   for (const { id, name, check_type, check_value, check_qualifier } of badges) {
-    // qualifier = specific month_id to match; blank/null = fires every month
-    if (check_qualifier && Number(check_qualifier) !== monthId) continue;
+    // qualifier must match the specific month_id — blank/null badges are skipped
+    if (Number(check_qualifier) !== monthId) continue;
     let userIds = [];
     if (check_type === 'approved_count_in_month') {
       const { data } = await supabase.rpc('users_with_min_entries_in_month', { p_month_id: monthId, p_min_count: check_value });
@@ -433,7 +433,8 @@ async function processSeasonEnd(seasonId) {
   if (!badges?.length) return awarded;
 
   for (const { id, name, check_type, check_value, check_qualifier } of badges) {
-    if (check_qualifier && Number(check_qualifier) !== seasonId) continue;
+    // qualifier must match the specific season_id — blank/null badges are skipped
+    if (Number(check_qualifier) !== seasonId) continue;
     let userIds = [];
     if (check_type === 'approved_count_in_season') {
       const { data } = await supabase.rpc('users_with_min_entries_in_season', { p_season_id: seasonId, p_min_count: check_value });
@@ -455,7 +456,8 @@ async function processYearEnd(yearId) {
   if (!badges?.length) return awarded;
 
   for (const { id, name, check_type, check_value, check_qualifier } of badges) {
-    if (check_qualifier && Number(check_qualifier) !== yearId) continue;
+    // qualifier must match the specific year_id — blank/null badges are skipped
+    if (Number(check_qualifier) !== yearId) continue;
     let userIds = [];
     if (check_type === 'approved_count_in_year') {
       const { data } = await supabase.rpc('users_with_min_entries_in_year', { p_year_id: yearId, p_min_count: check_value });
