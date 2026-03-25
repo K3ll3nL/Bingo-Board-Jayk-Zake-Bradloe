@@ -221,6 +221,12 @@ const PokemonGameManager = () => {
 
   // ── Save (debounced per pokemon) ──────────────────────────────────────────
 
+  // Keep a ref that always points to the latest localData so the debounced save
+  // closure never reads stale state (e.g. when paste calls handleSlugChange twice
+  // in rapid succession before React re-renders).
+  const localDataRef = useRef(localData);
+  useEffect(() => { localDataRef.current = localData; }, [localData]);
+
   const save = useCallback(async (pokemonId) => {
     setSaveState(prev => ({ ...prev, [pokemonId]: 'saving' }));
     try {
@@ -230,7 +236,7 @@ const PokemonGameManager = () => {
           'Authorization': await getAuthHeader(),
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(localData[pokemonId]),
+        body: JSON.stringify(localDataRef.current[pokemonId]),
       });
       if (!res.ok) throw new Error('Save failed');
       setSaveState(prev => ({ ...prev, [pokemonId]: 'saved' }));
@@ -238,7 +244,7 @@ const PokemonGameManager = () => {
     } catch {
       setSaveState(prev => ({ ...prev, [pokemonId]: 'error' }));
     }
-  }, [localData]);
+  }, []); // no localData dep needed — reads via ref
 
   const scheduleSave = (pokemonId) => {
     setSaveState(prev => ({ ...prev, [pokemonId]: 'saving' }));
