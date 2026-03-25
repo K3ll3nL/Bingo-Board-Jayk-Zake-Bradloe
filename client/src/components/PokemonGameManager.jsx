@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { createClient } from '@supabase/supabase-js';
 import { ALLOWED_GAMES } from '../constants/games';
 import PageBackground from './PageBackground';
@@ -23,24 +24,48 @@ const getAuthHeader = async () => {
 // `field` is either 'game_slugs' or 'restricted_game_slugs'.
 // Opens upward automatically when the button is in the lower 55% of the viewport.
 
+const PANEL_WIDTH = 1020;
+
 const SlugDropdown = ({ pokemonId, field, value, onChange, matchValue, reversed }) => {
   const [open, setOpen] = useState(false);
-  const [openUp, setOpenUp] = useState(false);
-  const ref = useRef(null);
+  const [panelStyle, setPanelStyle] = useState({});
   const btnRef = useRef(null);
+  const panelRef = useRef(null);
 
+  // Close on outside click — must check both trigger and portal panel
   useEffect(() => {
+    if (!open) return;
     const handler = (e) => {
-      if (open && ref.current && !ref.current.contains(e.target)) setOpen(false);
+      if (
+        btnRef.current && !btnRef.current.contains(e.target) &&
+        panelRef.current && !panelRef.current.contains(e.target)
+      ) setOpen(false);
     };
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
   }, [open]);
 
+  // Close if the scroll container scrolls while open
+  useEffect(() => {
+    if (!open) return;
+    const handler = () => setOpen(false);
+    document.addEventListener('scroll', handler, true);
+    return () => document.removeEventListener('scroll', handler, true);
+  }, [open]);
+
   const handleToggleOpen = () => {
     if (!open && btnRef.current) {
       const rect = btnRef.current.getBoundingClientRect();
-      setOpenUp(rect.bottom > window.innerHeight * 0.55);
+      const openUp = rect.bottom > window.innerHeight * 0.55;
+
+      // Clamp left so panel never bleeds off-screen
+      const idealLeft = rect.left + rect.width / 2 - PANEL_WIDTH / 2;
+      const clampedLeft = Math.max(8, Math.min(idealLeft, window.innerWidth - PANEL_WIDTH - 8));
+
+      setPanelStyle(openUp
+        ? { position: 'fixed', width: PANEL_WIDTH, left: clampedLeft, bottom: window.innerHeight - rect.top + 4, zIndex: 9999 }
+        : { position: 'fixed', width: PANEL_WIDTH, left: clampedLeft, top: rect.bottom + 4, zIndex: 9999 }
+      );
     }
     setOpen(o => !o);
   };
@@ -58,8 +83,71 @@ const SlugDropdown = ({ pokemonId, field, value, onChange, matchValue, reversed 
 
   const isRestricted = field === 'restricted_game_slugs';
 
+  const panel = (
+    <div
+      ref={panelRef}
+      style={panelStyle}
+      className="bg-gray-900 border border-gray-600 rounded-lg shadow-2xl overflow-y-auto"
+    >
+      {/* Select all / Clear / Match games */}
+      <div className="flex gap-2 px-3 py-2.5 border-b border-gray-700 flex-wrap">
+        <button
+          type="button"
+          onClick={() => onChange(pokemonId, field, ALLOWED_GAMES.map(g => g.key))}
+          className="text-xs text-purple-400 hover:text-purple-300 transition-colors"
+        >Select all</button>
+        <span className="text-gray-600">·</span>
+        <button
+          type="button"
+          onClick={() => onChange(pokemonId, field, [])}
+          className="text-xs text-gray-400 hover:text-gray-300 transition-colors"
+        >Clear</button>
+        {isRestricted && matchValue && (
+          <>
+            <span className="text-gray-600">·</span>
+            <button
+              type="button"
+              onClick={() => onChange(pokemonId, field, [...matchValue])}
+              className="text-xs text-yellow-400 hover:text-yellow-300 transition-colors"
+            >Match games</button>
+          </>
+        )}
+      </div>
+
+      <div className="grid grid-cols-3 gap-2 p-2">
+        {(reversed ? [...ALLOWED_GAMES].reverse() : ALLOWED_GAMES).map((g) => {
+          const checked = value.includes(g.key);
+          return (
+            <label
+              key={g.key}
+              className={`flex items-center gap-3 px-3 py-2 rounded-lg cursor-pointer border transition-colors ${
+                checked
+                  ? 'bg-gray-800 border-purple-600'
+                  : 'border-transparent hover:bg-gray-800 hover:border-gray-600'
+              }`}
+            >
+              <input
+                type="checkbox"
+                checked={checked}
+                onChange={() => toggle(g.key)}
+                className="w-3.5 h-3.5 rounded accent-purple-500 flex-shrink-0"
+              />
+              <div className="flex items-center justify-center gap-1" style={{ width: '90px', flexShrink: 0 }}>
+                {(g.img_urls ?? []).slice(0, 3).map((url, i) => (
+                  <img key={i} src={url} alt="" className="object-contain"
+                    style={{ height: '27px', maxWidth: '40px' }} />
+                ))}
+              </div>
+              <span className="text-xs text-gray-200 leading-tight">{g.label}</span>
+            </label>
+          );
+        })}
+      </div>
+    </div>
+  );
+
   return (
-    <div className="relative" ref={ref}>
+    <div className="relative">
       <button
         ref={btnRef}
         type="button"
@@ -77,72 +165,7 @@ const SlugDropdown = ({ pokemonId, field, value, onChange, matchValue, reversed 
         </svg>
       </button>
 
-      {open && (
-        <div className={`absolute z-50 bg-gray-900 border border-gray-600 rounded-lg shadow-xl overflow-y-auto ${
-          openUp ? 'bottom-full mb-1' : 'top-full mt-1'
-        }`} style={{ width: '1020px', left: '50%', transform: 'translateX(-50%)' }}>
-          {/* Select all / Clear all / Match games */}
-          <div className="flex gap-2 px-3 py-2.5 border-b border-gray-700 flex-wrap">
-            <button
-              type="button"
-              onClick={() => onChange(pokemonId, field, ALLOWED_GAMES.map(g => g.key))}
-              className="text-xs text-purple-400 hover:text-purple-300 transition-colors"
-            >
-              Select all
-            </button>
-            <span className="text-gray-600">·</span>
-            <button
-              type="button"
-              onClick={() => onChange(pokemonId, field, [])}
-              className="text-xs text-gray-400 hover:text-gray-300 transition-colors"
-            >
-              Clear
-            </button>
-            {isRestricted && matchValue && (
-              <>
-                <span className="text-gray-600">·</span>
-                <button
-                  type="button"
-                  onClick={() => onChange(pokemonId, field, [...matchValue])}
-                  className="text-xs text-yellow-400 hover:text-yellow-300 transition-colors"
-                >
-                  Match games
-                </button>
-              </>
-            )}
-          </div>
-
-          <div className="grid grid-cols-3 gap-2 p-2">
-            {(reversed ? [...ALLOWED_GAMES].reverse() : ALLOWED_GAMES).map((g) => {
-              const checked = value.includes(g.key);
-              return (
-                <label
-                  key={g.key}
-                  className={`flex items-center gap-3 px-3 py-2 rounded-lg cursor-pointer border transition-colors ${
-                    checked
-                      ? 'bg-gray-800 border-purple-600'
-                      : 'border-transparent hover:bg-gray-800 hover:border-gray-600'
-                  }`}
-                >
-                  <input
-                    type="checkbox"
-                    checked={checked}
-                    onChange={() => toggle(g.key)}
-                    className="w-3.5 h-3.5 rounded accent-purple-500 flex-shrink-0"
-                  />
-                  <div className="flex items-center justify-center gap-1" style={{ width: '90px', flexShrink: 0 }}>
-                    {(g.img_urls ?? []).slice(0, 3).map((url, i) => (
-                      <img key={i} src={url} alt="" className="object-contain"
-                        style={{ height: '27px', maxWidth: '40px' }} />
-                    ))}
-                  </div>
-                  <span className="text-xs text-gray-200 leading-tight">{g.label}</span>
-                </label>
-              );
-            })}
-          </div>
-        </div>
-      )}
+      {open && createPortal(panel, document.body)}
     </div>
   );
 };
@@ -278,12 +301,12 @@ const PokemonGameManager = () => {
   // ── Render ────────────────────────────────────────────────────────────────
 
   return (
-    <div className="min-h-screen" style={{ isolation: 'isolate', position: 'relative' }}>
+    <div className="h-screen flex flex-col overflow-hidden" style={{ isolation: 'isolate', position: 'relative' }}>
       <PageBackground />
       <PageHeader title="Pokémon Game Manager" />
 
-      <div className="p-6">
-        <div className="max-w-5xl mx-auto">
+      <div className="flex-1 overflow-hidden p-6">
+        <div className="max-w-5xl mx-auto h-full flex flex-col">
 
           {/* Search */}
           <div className="mb-4 flex items-center gap-3">
@@ -327,10 +350,10 @@ const PokemonGameManager = () => {
           </div>
 
           {/* Section */}
-          <div className="rounded-xl border border-gray-700" style={{ backgroundColor: '#1a1a2e' }}>
+          <div className="flex-1 overflow-y-auto rounded-xl border border-gray-700" style={{ backgroundColor: '#1a1a2e' }}>
 
             {/* Column headers */}
-            <div className="grid gap-3 px-4 py-3 text-xs font-semibold text-gray-400 uppercase tracking-widest border-b border-gray-700 rounded-t-xl"
+            <div className="grid gap-3 px-4 py-3 text-xs font-semibold text-gray-400 uppercase tracking-widest border-b border-gray-700 rounded-t-xl sticky top-0 z-10"
               style={{ gridTemplateColumns: GRID, backgroundColor: '#12122a' }}>
               <div />
               <div>Pokémon</div>
