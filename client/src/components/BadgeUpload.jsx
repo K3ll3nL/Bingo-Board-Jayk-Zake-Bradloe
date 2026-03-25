@@ -478,7 +478,7 @@ function CreateBadgeTab() {
               className="w-full rounded-lg px-3 py-2 text-sm text-white border border-gray-500 focus:border-purple-400 focus:outline-none"
               style={{ backgroundColor: '#35373b' }} />
             {isPercentage  && <p className="mt-1 text-xs text-gray-500">Enter 50 for 50%, 100 for 100%.</p>}
-            {isPlacement   && <p className="mt-1 text-xs text-gray-500">e.g. 3 = top 3 finishers all earn this badge. Ties are included.</p>}
+            {isPlacement   && <p className="mt-1 text-xs text-gray-500">e.g. 3 = exactly the top 3 finishers earn this badge. Ties are broken by who reached their score first.</p>}
             {isPeriodId    && <p className="mt-1 text-xs text-gray-500">Minimum number of approved submissions in the period.</p>}
           </div>
         )}
