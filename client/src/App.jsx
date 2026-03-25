@@ -18,6 +18,7 @@ import Pro from './components/Pro';
 import OverlayBoard from './components/OverlayBoard';
 import OverlayLeaderboard from './components/OverlayLeaderboard';
 import BadgeUpload from './components/BadgeUpload';
+import PokemonGameManager from './components/PokemonGameManager';
 import logoImage from './Icons/pokemon-bounty-board.png';
 
 const supabase = createClient(
@@ -79,36 +80,6 @@ const MainApp = () => {
       setIsModerator(data.isModerator);
     } catch (err) {
       console.error('Error checking moderator status:', err);
-    }
-  };
-
-  const clearCache = async () => {
-    if (!confirm('Clear cache and reload the page? This will refresh all data.')) {
-      return;
-    }
-    
-    try {
-      const response = await fetch('/api/admin/clear-cache', {
-        method: 'POST',
-        headers: {
-          'Authorization': await getAuthHeader(),
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ type: 'all' })
-      });
-      
-      if (!response.ok) {
-        throw new Error('Failed to clear cache');
-      }
-      
-      const result = await response.json();
-      console.log(`Cache cleared: ${result.itemsCleared} items`);
-      
-      // Force hard reload to bypass browser cache
-      window.location.reload(true);
-    } catch (err) {
-      console.error('Error clearing cache:', err);
-      alert('Failed to clear cache');
     }
   };
 
@@ -245,13 +216,13 @@ const MainApp = () => {
                             Upload Badge
                           </button>
                           <button
-                            onClick={() => { clearCache(); setMenuOpen(false); }}
-                            className="w-full px-4 py-2 text-left text-sm text-blue-400 hover:bg-gray-700 flex items-center gap-2"
+                            onClick={() => { navigate('/pokemon-game-manager'); setMenuOpen(false); }}
+                            className="w-full px-4 py-2 text-left text-sm text-purple-400 hover:bg-gray-700 flex items-center gap-2"
                           >
                             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A2 2 0 013 12V7a2 2 0 012-2z" />
                             </svg>
-                            Clear Cache
+                            Game Manager
                           </button>
                         </>
                       )}
@@ -357,6 +328,7 @@ function App() {
           <Route path="/overlay/board" element={<OverlayBoard />} />
           <Route path="/overlay/leaderboard" element={<OverlayLeaderboard />} />
           <Route path="/badge-upload" element={<BadgeUpload />} />
+          <Route path="/pokemon-game-manager" element={<PokemonGameManager />} />
           <Route path="*" element={<MainApp />} />
         </Routes>
       </AuthProvider>

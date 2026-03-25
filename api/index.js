@@ -1782,7 +1782,7 @@ app.get('/api/upload/available-pokemon', async (req, res) => {
     // Get Pokemon details
     const { data: pokemon, error: pokemonError } = await supabase
       .from('pokemon_master')
-      .select('id, national_dex_id, name, img_url')
+      .select('id, national_dex_id, name, img_url, game_slugs, restricted_game_slugs')
       .in('id', availablePokemonIds)
       .eq('shiny_available', true);
     
@@ -1835,7 +1835,7 @@ app.get('/api/upload/available-pokemon-restricted', async (req, res) => {
 
     const { data: pokemon, error: pokemonError } = await supabase
       .from('pokemon_master')
-      .select('id, national_dex_id, name, img_url')
+      .select('id, national_dex_id, name, img_url, game_slugs, restricted_game_slugs')
       .in('id', availableIds)
       .eq('shiny_available', true);
 
@@ -2016,20 +2016,30 @@ app.post('/api/upload/submission', uploadRateLimit, upload.fields([{ name: 'file
     }
     
     const pokemon_id = req.body.pokemon_id;
-    const url = req.body.url;
+    const game = req.body.game?.trim();
+    const url = req.body.url;   // required for restricted (video link)
+    const link = req.body.link; // optional supplemental link for normal submissions
     const restricted_submission = req.body.restricted_submission === 'true';
     const file = req.files?.file?.[0];
     const file2 = req.files?.file2?.[0];
-    
-    console.log('Parsed values:', { pokemon_id, url, file: !!file, file2: !!file2 });
-    
+
+    console.log('Parsed values:', { pokemon_id, game, url, link, file: !!file, file2: !!file2 });
+
     if (!pokemon_id) {
       return res.status(400).json({ error: 'Pokemon ID required' });
     }
-    
-    // Validation: Either URL OR both files
-    if (!url && (!file || !file2)) {
-      return res.status(400).json({ error: 'Either Twitch link OR both proof images required' });
+
+    if (!game) {
+      return res.status(400).json({ error: 'Game is required' });
+    }
+
+    // Restricted: requires video link, no images
+    // Normal: requires both image files; link is supplemental (optional)
+    if (restricted_submission && !url) {
+      return res.status(400).json({ error: 'Restricted submissions require a video link' });
+    }
+    if (!restricted_submission && (!file || !file2)) {
+      return res.status(400).json({ error: 'Both proof images are required' });
     }
     
     // Check file sizes (Vercel has a 4.5MB request body limit)
@@ -2072,10 +2082,12 @@ app.post('/api/upload/submission', uploadRateLimit, upload.fields([{ name: 'file
       return res.status(400).json({ error: 'No active bingo month' });
     }
     
-    let proofUrl = url;
+    let proofUrl = null;
     let proofUrl2 = null;
-    
-    // If files uploaded, upload both to R2
+    // proof_link: the video link for restricted, or the optional supplemental link for normal
+    const proofLink = restricted_submission ? url : (link || null);
+
+    // Upload both image files to R2 (normal submissions only)
     if (file && file2) {
       try {
         const R2_BUCKET_URL = process.env.R2_BUCKET_URL;
@@ -2157,6 +2169,8 @@ app.post('/api/upload/submission', uploadRateLimit, upload.fields([{ name: 'file
         month_id: activeMonth.id,
         proof_url: proofUrl,
         proof_url2: proofUrl2,
+        proof_link: proofLink,
+        game,
         restricted_submission,
       })
       .select()
@@ -2314,15 +2328,15 @@ app.post('/api/approvals/:id/approve', async (req, res) => {
     // Get approval details including image URLs BEFORE deleting the record
     const { data: approval, error: approvalFetchError } = await supabase
       .from('approvals')
-      .select('user_id, pokemon_id, proof_url, proof_url2')
+      .select('user_id, pokemon_id, proof_url, proof_url2, proof_link, game')
       .eq('id', id)
       .single();
-    
+
     if (approvalFetchError) {
       console.error('Error fetching approval:', approvalFetchError);
       throw approvalFetchError;
     }
-    
+
     console.log('Calling approve_submission RPC...');
 
     const { status: approvalStatus } = req.body;
@@ -2403,7 +2417,7 @@ app.post('/api/approvals/:id/reject', async (req, res) => {
     // Get approval details including image URLs BEFORE deleting the record
     const { data: approval, error: approvalFetchError } = await supabase
       .from('approvals')
-      .select('user_id, pokemon_id, proof_url, proof_url2')
+      .select('user_id, pokemon_id, proof_url, proof_url2, proof_link, game')
       .eq('id', id)
       .single();
     
@@ -2721,6 +2735,8 @@ app.get('/api/approvals/pending', async (req, res) => {
         created_at,
         proof_url,
         proof_url2,
+        proof_link,
+        game,
         user_id,
         pokemon_id,
         restricted_submission,
@@ -2752,6 +2768,8 @@ app.get('/api/approvals/pending', async (req, res) => {
       created_at: approval.created_at,
       proof_url: approval.proof_url,
       proof_url2: approval.proof_url2,
+      proof_link: approval.proof_link || null,
+      game: approval.game || null,
       user_id: approval.user_id,
       display_name: approval.users?.display_name || 'Unknown',
       pokemon_name: approval.pokemon_master?.name || 'Unknown',
@@ -3981,6 +3999,60 @@ app.delete('/api/admin/collections/:slug/pokemon/:pokemonId', async (req, res) =
     res.status(200).json({ success: true });
   } catch (err) {
     res.status(500).json({ error: err.message });
+  }
+});
+
+// ── Pokemon Game Slug Management ──────────────────────────────────────────────
+
+app.get('/api/admin/pokemon-game-slugs', async (req, res) => {
+  try {
+    const userId = await getAuthenticatedUserId(req);
+    if (!userId) return res.status(401).json({ error: 'Authentication required' });
+
+    const { data: isMod, error: modError } = await supabase
+      .from('moderators').select('id').eq('id', userId).single();
+    if (modError || !isMod) return res.status(403).json({ error: 'Moderator access required' });
+
+    const { data, error } = await supabase
+      .from('pokemon_master')
+      .select('id, national_dex_id, name, img_url, game_slugs, restricted_game_slugs, shiny_available')
+      .order('national_dex_id', { ascending: true });
+
+    if (error) throw error;
+    res.json(data || []);
+  } catch (err) {
+    console.error('Error fetching pokemon game slugs:', err);
+    res.status(500).json({ error: 'Failed to fetch pokemon' });
+  }
+});
+
+app.patch('/api/admin/pokemon/:id/game-slugs', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { game_slugs, restricted_game_slugs, shiny_available } = req.body;
+
+    const userId = await getAuthenticatedUserId(req);
+    if (!userId) return res.status(401).json({ error: 'Authentication required' });
+
+    const { data: isMod, error: modError } = await supabase
+      .from('moderators').select('id').eq('id', userId).single();
+    if (modError || !isMod) return res.status(403).json({ error: 'Moderator access required' });
+
+    const updates = {};
+    if (Array.isArray(game_slugs)) updates.game_slugs = game_slugs;
+    if (Array.isArray(restricted_game_slugs)) updates.restricted_game_slugs = restricted_game_slugs;
+    if (typeof shiny_available === 'boolean') updates.shiny_available = shiny_available;
+
+    const { error } = await supabase
+      .from('pokemon_master')
+      .update(updates)
+      .eq('id', id);
+
+    if (error) throw error;
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Error updating pokemon game slugs:', err);
+    res.status(500).json({ error: 'Failed to update pokemon' });
   }
 });
 

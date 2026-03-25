@@ -42,6 +42,14 @@ const RulesIcon = () => (
   </svg>
 );
 
+/* ── Warning triangle icon ── */
+const WarningIcon = () => (
+  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+      d="M12 9v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+  </svg>
+);
+
 /* ── Trophy icon ── */
 const TrophyIcon = () => (
   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -57,6 +65,87 @@ const LockIcon = () => (
       d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
   </svg>
 );
+
+/* ── Collapsible exception card (stateless — parent controls open) ─────── */
+const ExceptionCard = ({ game, open, onToggle, divider, children }) => (
+  <div>
+    {divider && <div className="border-t border-gray-600" />}
+    <button
+      onClick={onToggle}
+      className="w-full flex items-center justify-between px-4 py-3 text-left transition-colors hover:bg-gray-700/40"
+      style={{ backgroundColor: open ? 'rgba(96,165,250,0.08)' : 'transparent' }}
+    >
+      <span className="text-white font-medium text-sm">{game}</span>
+      <svg
+        className="w-4 h-4 text-gray-400 flex-shrink-0 transition-transform duration-200"
+        style={{ transform: open ? 'rotate(180deg)' : 'rotate(0deg)' }}
+        fill="none" stroke="currentColor" viewBox="0 0 24 24"
+      >
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+      </svg>
+    </button>
+    {open && (
+      <div
+        className="px-4 py-3 border-t border-gray-600 text-gray-300 text-sm leading-relaxed"
+        style={{ backgroundColor: 'rgba(42,44,48,0.4)' }}
+      >
+        {children}
+      </div>
+    )}
+  </div>
+);
+
+/* ── Exceptions subsection for "Rules for Submission" ─────────────────── */
+const EXCEPTIONS = [
+  {
+    key: 'sv',
+    game: 'Pokémon Scarlet / Violet',
+    content: (
+      <>
+        We require a different first image. Instead of the usual image of the encounter, we need
+        the <span className="text-white font-medium">first page of the summary</span> that contains
+        the TID/username as well as the shiny indicator and model.
+      </>
+    ),
+  },
+  {
+    key: 'gen1-3',
+    game: 'Generations I–III',
+    content: (
+      <>
+        Because these games do not store a date of capture, a video submission is required instead
+        of screenshots.
+      </>
+    ),
+  },
+];
+
+const ExceptionsBlock = () => {
+  const [openKey, setOpenKey] = React.useState(null);
+  return (
+    <div className="mb-5">
+      <h3 className="text-white font-semibold text-sm mb-3 flex items-center gap-2">
+        Exceptions
+      </h3>
+      <div
+        className="rounded-lg overflow-hidden border border-gray-600"
+        style={{ backgroundColor: 'rgba(42,44,48,0.6)' }}
+      >
+        {EXCEPTIONS.map((ex, i) => (
+          <ExceptionCard
+            key={ex.key}
+            game={ex.game}
+            open={openKey === ex.key}
+            onToggle={() => setOpenKey(openKey === ex.key ? null : ex.key)}
+            divider={i > 0}
+          >
+            {ex.content}
+          </ExceptionCard>
+        ))}
+      </div>
+    </div>
+  );
+};
 
 /* ════════════════════════════════════════════════════════════════════════ */
 const About = () => {
@@ -132,52 +221,79 @@ const About = () => {
         {/* ── Rules for Submission ──────────────────────────────────────── */}
         <Section
           title="Rules for Submission"
+          icon={<WarningIcon />}
+          accentColor="#d30808d9"
+          headerBg="rgba(211, 8, 8, 0.2)"
+        >
+          <p className="text-gray-300 leading-relaxed mb-5">
+            Breaking these rules may result in your submission being rejected and your account being flagged for review. Repeat or severe offenses can lead to a ban.
+          </p>
+
+          <div className="rounded-lg overflow-hidden border mb-5" style={{ borderColor: 'rgba(211,8,8,0.35)' }}>
+            {[
+              {
+                label: 'No RNG Manipulation',
+                body: 'No editing the shiny odds of any kind, whether via third-party applications or in-game non-intentional methods.',
+              },
+              {
+                label: 'Some Emulation',
+                body: 'We allow virtual consoles, downloads from HShop, and Operator (as long as each instance is represented by a real cartridge owned by the player). All other forms of emulation are not allowed.',
+              },
+            ].map(({ label, body }, i) => (
+              <div
+                key={label}
+                className="flex gap-3 px-4 py-3.5"
+                style={{
+                  backgroundColor: 'rgba(211,8,8,0.06)',
+                  borderTop: i > 0 ? '1px solid rgba(211,8,8,0.2)' : undefined,
+                  borderLeft: '3px solid rgba(211,8,8,0.7)',
+                }}
+              >
+                <div>
+                  <p className="text-white font-medium text-sm mb-1">{label}</p>
+                  <p className="text-gray-400 text-sm leading-relaxed">{body}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </Section>
+
+        {/* ── Submission Guide ──────────────────────────────────────── */}
+        <Section
+          title="Submission Guide"
           icon={<RulesIcon />}
           accentColor="#60a5fa"
           headerBg="rgba(96,165,250,0.08)"
         >
-          <p className="text-gray-300 leading-relaxed mb-5">
+          <p className="text-gray-400 text-sm leading-relaxed mb-4">
             Each submission requires a minimum of two screenshots as proof of capture:
           </p>
 
-          <ol className="space-y-4 mb-5">
-            <li className="flex gap-3">
-              <span
-                className="flex-shrink-0 w-6 h-6 rounded-full text-white text-xs font-bold flex items-center justify-center mt-0.5"
-                style={{ backgroundColor: '#3b82f6' }}
-              >1</span>
-              <p className="text-gray-300 leading-relaxed">
-                <span className="text-white font-medium">Encounter screenshot -</span> A clear image
-                of the Pokémon either in battle, in the overworld, or on the summary screen. If using
-                the summary screen, your Trainer ID must be visible.
-              </p>
-            </li>
-            <li className="flex gap-3">
-              <span
-                className="flex-shrink-0 w-6 h-6 rounded-full text-white text-xs font-bold flex items-center justify-center mt-0.5"
-                style={{ backgroundColor: '#3b82f6' }}
-              >2</span>
-              <p className="text-gray-300 leading-relaxed">
-                <span className="text-white font-medium">Date screenshot -</span> A screenshot
-                showing the in-game or system date on which the Pokémon was caught.
-              </p>
-            </li>
-          </ol>
-
-          {/* Gen I–III callout */}
-          <div className="rounded-lg border px-4 py-3 mb-5" style={{ borderColor: '#92400e', backgroundColor: 'rgba(120,53,15,0.20)' }}>
-            <p className="text-yellow-300 text-sm leading-relaxed">
-              <span className="font-semibold">Generations I-III:</span> Because those games do not
-              store a date of capture, a video submission is required instead of screenshots.
-            </p>
+          {/* Required screenshots */}
+          <div className="rounded-lg overflow-hidden border border-gray-600 mb-5">
+            <div className="flex gap-4 px-4 py-3.5" style={{ backgroundColor: 'rgba(42,44,48,0.6)' }}>
+              <span className="flex-shrink-0 w-6 h-6 rounded-full text-white text-xs font-bold flex items-center justify-center mt-0.5" style={{ backgroundColor: '#3b82f6' }}>1</span>
+              <div>
+                <p className="text-white font-medium text-sm mb-1">Encounter screenshot</p>
+                <p className="text-gray-400 text-sm leading-relaxed">
+                  The first image must be of the initial encounter — the egg hatch screen, in-battle
+                  view, Dynamax Adventure results page, etc.
+                </p>
+              </div>
+            </div>
+            <div className="border-t border-gray-600 flex gap-4 px-4 py-3.5" style={{ backgroundColor: 'rgba(42,44,48,0.6)' }}>
+              <span className="flex-shrink-0 w-6 h-6 rounded-full text-white text-xs font-bold flex items-center justify-center mt-0.5" style={{ backgroundColor: '#3b82f6' }}>2</span>
+              <div>
+                <p className="text-white font-medium text-sm mb-1">Date screenshot</p>
+                <p className="text-gray-400 text-sm leading-relaxed">
+                  A screenshot showing the in-game or system date on which the Pokémon was caught.
+                </p>
+              </div>
+            </div>
           </div>
 
-          <p className="text-gray-300 leading-relaxed">
-            As an alternative to screenshots, a short video clip such as a Twitch clip or an
-            unlisted YouTube video may be submitted in their place, provided it clearly captures
-            both the actual encounter and the date caught in a single continuous recording. Additional
-            game-specific requirements may apply; these are listed in the sections below.
-          </p>
+          {/* Game-specific exceptions */}
+          <ExceptionsBlock />
         </Section>
 
         {/* ── Bonus Bounties ────────────────────────────────────────────── */}
@@ -220,7 +336,7 @@ const About = () => {
                     </td>
                     {restrictedEnabled && (
                       <td className="px-4 py-2.5 text-center">
-                        <span className="text-red-400 font-bold">{res}</span>
+                        <span className="text-red-400 font-bold">+{res}</span>
                         <span className="text-gray-500 text-xs ml-1">pts</span>
                       </td>
                     )}
