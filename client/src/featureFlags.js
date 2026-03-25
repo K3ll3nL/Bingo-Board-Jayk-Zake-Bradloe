@@ -4,5 +4,5 @@
 
 // Restricted challenge (VOD upload, new awards, #78150a icons with lock badge)
 // Shows the restricted achievement section on BingoBoard and Leaderboard.
-export const RESTRICTED_LAUNCH_DATE = new Date('2026-03-28T00:00:00');
+export const RESTRICTED_LAUNCH_DATE = new Date('2026-04-01T00:00:00');
 export const restrictedEnabled = new Date() >= RESTRICTED_LAUNCH_DATE;
