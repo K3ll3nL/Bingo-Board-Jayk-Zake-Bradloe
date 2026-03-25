@@ -78,7 +78,8 @@ export default function BadgeUpload() {
   const { user, loading: authLoading } = useAuth();
   const navigate  = useNavigate();
   const [isModerator, setIsModerator] = useState(null);
-  const [tab, setTab] = useState('create'); // 'create' | 'collections'
+  const [tab,        setTab]        = useState('create'); // 'create' | 'collections'
+  const [refreshKey, setRefreshKey] = useState(0);
 
   // ── Mod guard ──────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -134,9 +135,9 @@ export default function BadgeUpload() {
             ))}
           </div>
 
-          {tab === 'create'      && <CreateBadgeTab />}
+          {tab === 'create'      && <CreateBadgeTab onCreated={() => { setRefreshKey(k => k + 1); setTab('visualizer'); }} />}
           {tab === 'collections' && <ManageCollectionsTab />}
-          {tab === 'visualizer'  && <BadgeVisualizerTab />}
+          {tab === 'visualizer'  && <BadgeVisualizerTab refreshKey={refreshKey} />}
         </div>
       </div>
     </div>
@@ -145,7 +146,7 @@ export default function BadgeUpload() {
 
 // ── Create Badge tab ──────────────────────────────────────────────────────────
 
-function CreateBadgeTab() {
+function CreateBadgeTab({ onCreated }) {
   const fileInputRef = useRef(null);
   const [preview,       setPreview]       = useState(null);
   const [imageFile,     setImageFile]     = useState(null);
@@ -253,11 +254,11 @@ function CreateBadgeTab() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Upload failed');
 
-      setSuccess(`Badge "${data.name}" created! Key: ${data.key}`);
       setForm(INITIAL_FORM);
       setImageFile(null);
       setPreview(null);
       if (fileInputRef.current) fileInputRef.current.value = '';
+      onCreated?.();
     } catch (err) {
       setError(err.message);
     } finally {
@@ -490,8 +491,31 @@ function CreateBadgeTab() {
         )}
       </div>
 
-      {error   && <div className="rounded-lg px-4 py-3 text-sm text-red-300 bg-red-900/30 border border-red-700">{error}</div>}
-      {success && <div className="rounded-lg px-4 py-3 text-sm text-green-300 bg-green-900/30 border border-green-700">{success}</div>}
+      {/* Live preview */}
+      {(form.name || preview) && (
+        <div className="rounded-lg border border-gray-600 p-4" style={{ backgroundColor: '#2a2d31' }}>
+          <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">Preview</p>
+          <BadgeCard
+            badge={{
+              id: 'preview',
+              name:        form.name        || 'Badge Name',
+              description: form.description || 'Description',
+              hint:        form.hint,
+              image_url:   preview          || PLACEHOLDER,
+              is_secret:   form.is_secret,
+              check_type:  form.check_type,
+              check_value: form.check_value,
+              check_qualifier: form.check_qualifier,
+              family_order: Number(form.family_order) || 0,
+            }}
+            silhouette={false}
+            publicView={false}
+            isSequential={false}
+          />
+        </div>
+      )}
+
+      {error && <div className="rounded-lg px-4 py-3 text-sm text-red-300 bg-red-900/30 border border-red-700">{error}</div>}
 
       <button type="submit" disabled={submitting}
         className="w-full py-2.5 rounded-lg font-medium text-sm text-white bg-purple-600 hover:bg-purple-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors">
@@ -925,7 +949,7 @@ function FamilyCard({
   );
 }
 
-function BadgeVisualizerTab() {
+function BadgeVisualizerTab({ refreshKey }) {
   const [families,       setFamilies]       = useState([]);
   const [badgesByFamily, setBadgesByFamily] = useState({});
   const [orphaned,       setOrphaned]       = useState([]);
@@ -938,7 +962,7 @@ function BadgeVisualizerTab() {
   const [draggedId,      setDraggedId]      = useState(null);
   const [dragOverId,     setDragOverId]     = useState(null);
 
-  useEffect(() => { loadAll(); }, []);
+  useEffect(() => { loadAll(); }, [refreshKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const loadAll = async () => {
     setLoading(true);
