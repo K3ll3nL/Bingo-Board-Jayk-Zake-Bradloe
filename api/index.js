@@ -410,8 +410,10 @@ async function processMonthEnd(monthId) {
   if (!badges?.length) return awarded;
 
   for (const { id, name, check_type, check_value, check_qualifier } of badges) {
-    // qualifier must match the specific month_id — blank/null badges are skipped
-    if (Number(check_qualifier) !== monthId) continue;
+    // For top_placement types a blank qualifier means "any period" — skip period filter.
+    // For approved_count types the qualifier is always required.
+    const anyPeriod = check_type === 'approved_count_in_month' && !check_qualifier;
+    if (!anyPeriod && Number(check_qualifier) !== monthId) continue;
     let userIds = [];
     if (check_type === 'approved_count_in_month') {
       const { data } = await supabase.rpc('users_with_min_entries_in_month', { p_month_id: monthId, p_min_count: check_value });
@@ -433,8 +435,8 @@ async function processSeasonEnd(seasonId) {
   if (!badges?.length) return awarded;
 
   for (const { id, name, check_type, check_value, check_qualifier } of badges) {
-    // qualifier must match the specific season_id — blank/null badges are skipped
-    if (Number(check_qualifier) !== seasonId) continue;
+    const anyPeriod = check_type === 'approved_count_in_season' && !check_qualifier;
+    if (!anyPeriod && Number(check_qualifier) !== seasonId) continue;
     let userIds = [];
     if (check_type === 'approved_count_in_season') {
       const { data } = await supabase.rpc('users_with_min_entries_in_season', { p_season_id: seasonId, p_min_count: check_value });
@@ -456,8 +458,8 @@ async function processYearEnd(yearId) {
   if (!badges?.length) return awarded;
 
   for (const { id, name, check_type, check_value, check_qualifier } of badges) {
-    // qualifier must match the specific year_id — blank/null badges are skipped
-    if (Number(check_qualifier) !== yearId) continue;
+    const anyPeriod = check_type === 'approved_count_in_year' && !check_qualifier;
+    if (!anyPeriod && Number(check_qualifier) !== yearId) continue;
     let userIds = [];
     if (check_type === 'approved_count_in_year') {
       const { data } = await supabase.rpc('users_with_min_entries_in_year', { p_year_id: yearId, p_min_count: check_value });

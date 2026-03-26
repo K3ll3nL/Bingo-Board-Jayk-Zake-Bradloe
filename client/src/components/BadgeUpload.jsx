@@ -164,7 +164,8 @@ function CreateBadgeTab({ onCreated }) {
   const isPercentage    = form.check_type === 'type_percentage' || form.check_type === 'generation_percentage';
   const isCollection    = form.check_type === 'collection_complete';
   const isPlacement     = ['top_placement_month', 'top_placement_season', 'top_placement_year'].includes(form.check_type);
-  const isPeriodId      = ['approved_count_in_month', 'approved_count_in_season', 'approved_count_in_year', 'top_placement_month', 'top_placement_season', 'top_placement_year'].includes(form.check_type);
+  const isApprovedPeriod = ['approved_count_in_month', 'approved_count_in_season', 'approved_count_in_year'].includes(form.check_type);
+  const isPeriodId      = isApprovedPeriod || isPlacement;
   const isBingo         = form.check_type === 'bingo_achievement_count';
   const isDateAward     = form.check_type === 'date_award';
   const showQualifier   = isPercentage || isCollection || isPeriodId || isBingo || isDateAward;
@@ -231,7 +232,7 @@ function CreateBadgeTab({ onCreated }) {
     setError(null); setSuccess(null);
     if (!imageFile)                        { setError('Please select a badge image.'); return; }
     if (!form.key)                         { setError('Image key is required.'); return; }
-    if (showQualifier && !form.check_qualifier) { setError('Please fill in the qualifier.'); return; }
+    if (showQualifier && !form.check_qualifier && !isApprovedPeriod) { setError('Please fill in the qualifier.'); return; }
 
     setSubmitting(true);
     try {
@@ -432,13 +433,15 @@ function CreateBadgeTab({ onCreated }) {
           </div>
         )}
 
-        {/* Qualifier — period ID (required: each badge targets one specific period) */}
+        {/* Qualifier — period ID (optional for approved_count_in_*, required for top_placement_*) */}
         {isPeriodId && (
           <Field
             label={periodIdLabel}
             name="check_qualifier" value={form.check_qualifier} onChange={handleField}
-            type="number" placeholder="e.g. 12" required
-            note={`Required — find this ID in the Board Builder. Each badge targets one specific ${periodIdLabel.replace(' ID', '').toLowerCase()}.`} />
+            type="number" placeholder={isApprovedPeriod ? 'blank = any period' : 'e.g. 12'} required={!isApprovedPeriod}
+            note={isApprovedPeriod
+              ? `Leave blank to fire on any closing ${periodIdLabel.replace(' ID', '').toLowerCase()}, or enter a specific ID to target one.`
+              : `Required — find this ID in the Board Builder. Each badge targets one specific ${periodIdLabel.replace(' ID', '').toLowerCase()}.`} />
         )}
 
         {/* Qualifier — bingo types (checkboxes) */}
