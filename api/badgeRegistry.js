@@ -130,6 +130,21 @@ const contextBuilders = {
     return { totalRejected: count ?? 0 };
   },
 
+  // Fired alongside monthly_active. Reads users.created_at and returns
+  // accountAgeMonths — full calendar months elapsed since account creation.
+  async account_age(userId, supabase) {
+    const { data } = await supabase
+      .from('users')
+      .select('created_at')
+      .eq('id', userId)
+      .single();
+    if (!data?.created_at) return { accountAgeMonths: 0 };
+    const created = new Date(data.created_at);
+    const now = new Date();
+    const months = (now.getFullYear() - created.getFullYear()) * 12 + (now.getMonth() - created.getMonth());
+    return { accountAgeMonths: Math.max(0, months) };
+  },
+
   // Fired via Supabase webhook on INSERT into bingo_achievements.
   // Restricted variants (row_restricted, etc.) are folded into their base type
   // so check_qualifier uses plain names: 'row', 'column', 'x', 'blackout'.
@@ -541,6 +556,7 @@ function buildCheckFromDB({ check_type, check_value, check_qualifier }) {
     // ── Bingo achievement count ───────────────────────────────────────────────
     // check_qualifier: 'any' | comma-separated base types e.g. 'row,blackout'
     // Each base type includes its _restricted variant (folded in contextBuilder).
+    case 'account_age_months':   return (ctx) => ctx.accountAgeMonths >= check_value;
     case 'bingo_achievement_count': {
       const types = (!check_qualifier || check_qualifier === 'any')
         ? ['row', 'column', 'x', 'blackout']

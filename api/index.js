@@ -234,6 +234,7 @@ app.post('/api/internal/monthly-active', async (req, res) => {
   if (!userId) return res.status(400).json({ error: 'Missing user_id in record' });
 
   await awardBadgesForTrigger(userId, 'monthly_active');
+  await awardBadgesForTrigger(userId, 'account_age');
   res.status(200).end();
 });
 
@@ -3699,7 +3700,7 @@ app.post('/api/badges', upload.single('image'), async (req, res) => {
     if (!description) return res.status(400).json({ error: 'Description is required' });
     if (!trigger)     return res.status(400).json({ error: 'Trigger is required' });
 
-    const VALID_TRIGGERS = ['submission', 'approved', 'rejected', 'monthly_active', 'period_end', 'bingo_achievement', 'date_award'];
+    const VALID_TRIGGERS = ['submission', 'approved', 'rejected', 'monthly_active', 'period_end', 'bingo_achievement', 'date_award', 'account_age'];
     if (!VALID_TRIGGERS.includes(trigger)) {
       return res.status(400).json({ error: `Invalid trigger. Must be one of: ${VALID_TRIGGERS.join(', ')}` });
     }

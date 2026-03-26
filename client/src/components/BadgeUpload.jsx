@@ -17,6 +17,7 @@ const TRIGGERS = [
   { value: 'period_end',        label: 'Period End — fires when a month / season / year closes' },
   { value: 'bingo_achievement', label: 'Bingo Achievement — fires when a bingo is recorded' },
   { value: 'date_award',        label: 'Date Award — award all users on a specific date' },
+  { value: 'account_age',       label: 'Account Age — fires when a user gains a new active month' },
 ];
 
 const CHECK_TYPES_BY_TRIGGER = {
@@ -40,6 +41,7 @@ const CHECK_TYPES_BY_TRIGGER = {
   ],
   bingo_achievement: [{ value: 'bingo_achievement_count', label: 'Bingo achievement count' }],
   date_award:        [{ value: 'date_award',              label: 'Award all users on a date' }],
+  account_age:       [{ value: 'account_age_months',      label: 'Account age in months' }],
 };
 
 const POKEMON_TYPES = [
@@ -772,6 +774,7 @@ function checkDescription(badge) {
     case 'top_placement_season':       return `Finish top ${v} in a seasonal leaderboard${q ? ` (season ${q})` : ''}`;
     case 'top_placement_year':         return `Finish top ${v} in a yearly leaderboard${q ? ` (year ${q})` : ''}`;
     case 'date_award':                 return `Awarded on ${q || 'a specific date'}`;
+    case 'account_age_months':         return `Account at least ${v} month${v != 1 ? 's' : ''} old`;
     default:                           return 'Unknown criteria';
   }
 }
