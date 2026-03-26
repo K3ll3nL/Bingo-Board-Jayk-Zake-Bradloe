@@ -207,12 +207,14 @@ function CreateBadgeTab({ onCreated }) {
 
   // Bingo type checkbox helpers
   const getBingoTypes = (qualifier) =>
-    (!qualifier || qualifier === 'any') ? ['row', 'column', 'x', 'blackout'] : qualifier.split(',').filter(Boolean);
+    qualifier === 'any' ? ['row', 'column', 'x', 'blackout'] : (qualifier || '').split(',').filter(Boolean);
 
   const handleBingoTypeToggle = (type, checked) => {
-    const current = getBingoTypes(form.check_qualifier);
-    const updated  = checked ? [...new Set([...current, type])] : current.filter(t => t !== type);
-    setForm(f => ({ ...f, check_qualifier: updated.length === 4 ? 'any' : updated.join(',') }));
+    setForm(f => {
+      const current = getBingoTypes(f.check_qualifier);
+      const updated  = checked ? [...new Set([...current, type])] : current.filter(t => t !== type);
+      return { ...f, check_qualifier: updated.length === 4 ? 'any' : updated.join(',') };
+    });
   };
 
   const handleFamilySelect = (e) => {
@@ -760,15 +762,23 @@ function checkDescription(badge) {
   const v = badge.check_value;
   const q = badge.check_qualifier;
   switch (badge.check_type) {
-    case 'submission_count':      return `Submit ${v} time${v != 1 ? 's' : ''}`;
-    case 'approved_count':        return `Get ${v} approval${v != 1 ? 's' : ''}`;
-    case 'rejected_count':        return `Get ${v} rejection${v != 1 ? 's' : ''}`;
-    case 'restricted_count':      return `Get ${v} restricted approval${v != 1 ? 's' : ''}`;
-    case 'monthly_active_count':  return `Active for ${v} month${v != 1 ? 's' : ''}`;
-    case 'type_percentage':       return `Catch ${v}% of ${q} type`;
-    case 'generation_percentage': return `Catch ${v}% of Gen ${q}`;
-    case 'collection_complete':   return `Complete '${q}' collection`;
-    default:                      return 'Unknown criteria';
+    case 'submission_count':           return `Submit ${v} time${v != 1 ? 's' : ''}`;
+    case 'approved_count':             return `Get ${v} approval${v != 1 ? 's' : ''}`;
+    case 'rejected_count':             return `Get ${v} rejection${v != 1 ? 's' : ''}`;
+    case 'restricted_count':           return `Get ${v} restricted approval${v != 1 ? 's' : ''}`;
+    case 'monthly_active_count':       return `Active for ${v} month${v != 1 ? 's' : ''}`;
+    case 'type_percentage':            return `Catch ${v}% of ${q} type`;
+    case 'generation_percentage':      return `Catch ${v}% of Gen ${q}`;
+    case 'collection_complete':        return `Complete '${q}' collection`;
+    case 'bingo_achievement_count':    return `Earn ${v} bingo achievement${v != 1 ? 's' : ''}${q && q !== 'any' ? ` (${q})` : ''}`;
+    case 'approved_count_in_month':    return `Get ${v} approval${v != 1 ? 's' : ''} in month ${q}`;
+    case 'approved_count_in_season':   return `Get ${v} approval${v != 1 ? 's' : ''} in season ${q}`;
+    case 'approved_count_in_year':     return `Get ${v} approval${v != 1 ? 's' : ''} in year ${q}`;
+    case 'top_placement_month':        return `Finish top ${v} in a monthly leaderboard${q ? ` (month ${q})` : ''}`;
+    case 'top_placement_season':       return `Finish top ${v} in a seasonal leaderboard${q ? ` (season ${q})` : ''}`;
+    case 'top_placement_year':         return `Finish top ${v} in a yearly leaderboard${q ? ` (year ${q})` : ''}`;
+    case 'date_award':                 return `Awarded on ${q || 'a specific date'}`;
+    default:                           return 'Unknown criteria';
   }
 }
 

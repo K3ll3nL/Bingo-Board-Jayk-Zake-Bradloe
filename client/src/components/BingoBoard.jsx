@@ -4,10 +4,10 @@ import { useAuth } from '../contexts/AuthContext';
 import backgroundImage from '../Icons/2026Jan.png';
 import PokemonModal from './PokemonModal';
 import AchievementIcon from './AchievementIcon';
-import { restrictedEnabled } from '../featureFlags';
+import { isRestrictedEnabled } from '../featureFlags';
 
 const BingoBoard = () => {
-  const { user, boardVersion } = useAuth();
+  const { user, boardVersion, isModerator } = useAuth();
   const [board, setBoard] = useState([]);
   const [month, setMonth] = useState('');
   const [loading, setLoading] = useState(true);
@@ -225,7 +225,7 @@ const BingoBoard = () => {
         </div>
 
         {/* Restricted Challenge Achievements — gated until RESTRICTED_LAUNCH_DATE */}
-        {restrictedEnabled && (
+        {isRestrictedEnabled(isModerator) && (
           <div className="mt-3">
             <p className="text-center text-[10px] md:text-xs text-gray-500 uppercase tracking-wider mb-2">
               Restricted Challenge

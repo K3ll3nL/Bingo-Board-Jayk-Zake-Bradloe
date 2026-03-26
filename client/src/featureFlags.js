@@ -6,3 +6,6 @@
 // Shows the restricted achievement section on BingoBoard and Leaderboard.
 export const RESTRICTED_LAUNCH_DATE = new Date('2026-04-01T00:00:00');
 export const restrictedEnabled = new Date() >= RESTRICTED_LAUNCH_DATE;
+
+// Moderators bypass the date gate so they can preview restricted content early.
+export const isRestrictedEnabled = (isModerator = false) => isModerator || restrictedEnabled;

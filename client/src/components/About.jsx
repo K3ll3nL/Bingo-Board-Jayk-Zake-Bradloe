@@ -1,6 +1,7 @@
 import React from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { restrictedEnabled } from '../featureFlags';
+import { useAuth } from '../contexts/AuthContext';
+import { isRestrictedEnabled } from '../featureFlags';
 import PageBackground from './PageBackground';
 import PageHeader from './PageHeader';
 
@@ -151,6 +152,7 @@ const ExceptionsBlock = () => {
 const About = () => {
   const navigate = useNavigate();
   const location = useLocation();
+  const { isModerator } = useAuth();
 
   // Scroll to hash anchor after the page has rendered
   React.useEffect(() => {
@@ -316,7 +318,7 @@ const About = () => {
                 <tr style={{ backgroundColor: 'rgba(245,158,11,0.12)' }}>
                   <th className="text-left px-4 py-2.5 text-gray-300 font-semibold">Bounty</th>
                   <th className="text-center px-4 py-2.5 text-gray-300 font-semibold">Points</th>
-                  {restrictedEnabled && (
+                  {isRestrictedEnabled(isModerator) && (
                     <th className="text-center px-4 py-2.5 text-gray-300 font-semibold">Restricted</th>
                   )}
                 </tr>
@@ -334,7 +336,7 @@ const About = () => {
                       <span className="text-yellow-400 font-bold">{std}</span>
                       <span className="text-gray-500 text-xs ml-1">pts</span>
                     </td>
-                    {restrictedEnabled && (
+                    {isRestrictedEnabled(isModerator) && (
                       <td className="px-4 py-2.5 text-center">
                         <span className="text-red-400 font-bold">+{res}</span>
                         <span className="text-gray-500 text-xs ml-1">pts</span>
@@ -380,7 +382,7 @@ const About = () => {
         </Section>
 
         {/* ── Restricted Challenge ──────────────────────────────────────── */}
-        {restrictedEnabled && (
+        {isRestrictedEnabled(isModerator) && (
           <Section
             id="restricted"
             title="Restricted Challenge"

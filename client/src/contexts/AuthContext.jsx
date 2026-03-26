@@ -27,6 +27,7 @@ export const AuthProvider = ({ children }) => {
   const [boardVersion, setBoardVersion] = useState(0);
   const [leaderboardVersion, setLeaderboardVersion] = useState(0);
   const [isPro, setIsPro] = useState(false);
+  const [isModerator, setIsModerator] = useState(false);
 
   // Check pro status whenever the user changes
   useEffect(() => {
@@ -48,6 +49,28 @@ export const AuthProvider = ({ children }) => {
       } catch { setIsPro(false); }
     };
     checkPro();
+  }, [user]);
+
+  // Check moderator status whenever the user changes
+  useEffect(() => {
+    if (!user) { setIsModerator(false); return; }
+    const checkMod = async () => {
+      try {
+        let authHeader;
+        if (isLocalhostDev()) {
+          authHeader = 'Bearer dev_token';
+        } else {
+          const { data: { session } } = await supabase.auth.getSession();
+          authHeader = session ? `Bearer ${session.access_token}` : null;
+        }
+        if (!authHeader) { setIsModerator(false); return; }
+        const API_BASE = isLocalhostDev() ? 'http://localhost:3000/api' : '/api';
+        const res = await fetch(`${API_BASE}/user/is-moderator`, { headers: { Authorization: authHeader } });
+        const d = await res.json();
+        setIsModerator(!!d.isModerator);
+      } catch { setIsModerator(false); }
+    };
+    checkMod();
   }, [user]);
 
   // Realtime subscriptions live here so they survive route changes
@@ -131,6 +154,7 @@ export const AuthProvider = ({ children }) => {
     boardVersion,
     leaderboardVersion,
     isPro,
+    isModerator,
   };
 
   return (

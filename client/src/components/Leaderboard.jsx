@@ -3,11 +3,11 @@ import { useNavigate } from 'react-router-dom';
 import { api } from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
 import AchievementIcon from './AchievementIcon';
-import { restrictedEnabled } from '../featureFlags';
+import { isRestrictedEnabled } from '../featureFlags';
 
 const Leaderboard = () => {
   const navigate = useNavigate();
-  const { leaderboardVersion } = useAuth();
+  const { leaderboardVersion, isModerator } = useAuth();
   const [leaderboard, setLeaderboard] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -255,7 +255,7 @@ const Leaderboard = () => {
                           )
                         )
                       ))}
-                      {restrictedEnabled && ['row', 'column', 'x', 'blackout'].map(type => (
+                      {isRestrictedEnabled(isModerator) && ['row', 'column', 'x', 'blackout'].map(type => (
                         user.achievement_counts?.[`${type}_restricted`] > 0 && (
                           viewMode === 'monthly' ? (
                             <AchievementIcon
