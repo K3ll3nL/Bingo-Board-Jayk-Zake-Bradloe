@@ -3697,7 +3697,7 @@ app.post('/api/badges', upload.single('image'), async (req, res) => {
     if (!description) return res.status(400).json({ error: 'Description is required' });
     if (!trigger)     return res.status(400).json({ error: 'Trigger is required' });
 
-    const VALID_TRIGGERS = ['submission', 'approved', 'rejected', 'monthly_active'];
+    const VALID_TRIGGERS = ['submission', 'approved', 'rejected', 'monthly_active', 'period_end', 'bingo_achievement', 'date_award'];
     if (!VALID_TRIGGERS.includes(trigger)) {
       return res.status(400).json({ error: `Invalid trigger. Must be one of: ${VALID_TRIGGERS.join(', ')}` });
     }
