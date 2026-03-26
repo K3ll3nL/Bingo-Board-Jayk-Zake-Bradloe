@@ -303,7 +303,7 @@ const PokemonGameManager = () => {
   return (
     <div className="h-screen flex flex-col overflow-hidden" style={{ isolation: 'isolate', position: 'relative' }}>
       <PageBackground />
-      <PageHeader title="Pokémon Game Manager" />
+      <PageHeader title="Pokémon Game Manager" badge="mod" />
 
       <div className="flex-1 overflow-hidden p-6">
         <div className="max-w-5xl mx-auto h-full flex flex-col">

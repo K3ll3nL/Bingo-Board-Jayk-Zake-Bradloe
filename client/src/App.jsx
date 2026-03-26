@@ -36,9 +36,8 @@ const getAuthHeader = async () => {
 };
 
 const MainApp = () => {
-  const { user, signInWithDiscord, signOut, loading, isPro } = useAuth();
+  const { user, signInWithDiscord, signOut, loading, isPro, isModerator } = useAuth();
   const navigate = useNavigate();
-  const [isModerator, setIsModerator] = React.useState(false);
   const [menuOpen, setMenuOpen] = React.useState(false);
   const menuRef = React.useRef(null);
 
@@ -62,26 +61,6 @@ const MainApp = () => {
     console.log('User metadata:', user?.user_metadata);
   }, [user, loading]);
 
-  // Check if user is moderator
-  React.useEffect(() => {
-    if (user) {
-      checkModeratorStatus();
-    }
-  }, [user]);
-
-  const checkModeratorStatus = async () => {
-    try {
-      const response = await fetch('/api/user/is-moderator', {
-        headers: {
-          'Authorization': await getAuthHeader()
-        }
-      });
-      const data = await response.json();
-      setIsModerator(data.isModerator);
-    } catch (err) {
-      console.error('Error checking moderator status:', err);
-    }
-  };
 
   const handleLogin = async () => {
     try {

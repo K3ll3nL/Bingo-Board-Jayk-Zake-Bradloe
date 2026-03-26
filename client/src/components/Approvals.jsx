@@ -20,9 +20,8 @@ const getAuthHeader = async () => {
 };
 
 const Approvals = () => {
-  const { user } = useAuth();
+  const { user, isModerator } = useAuth();
   const navigate = useNavigate();
-  const [isModerator, setIsModerator] = useState(false);
   const [activeTab, setActiveTab] = useState('approvals');
   const [approvals, setApprovals] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -31,11 +30,10 @@ const Approvals = () => {
   const [lightboxImage, setLightboxImage] = useState(null);
   const [approvalsLoaded, setApprovalsLoaded] = useState(false);
 
+  // Redirect non-mods once the check resolves
   useEffect(() => {
-    if (user) {
-      checkModeratorStatus();
-    }
-  }, [user]);
+    if (isModerator === false) navigate('/');
+  }, [isModerator, navigate]);
 
   useEffect(() => {
     if (isModerator && !approvalsLoaded) {
@@ -55,19 +53,6 @@ const Approvals = () => {
     return () => supabase.removeChannel(channel);
   }, [isModerator]);
 
-  const checkModeratorStatus = async () => {
-    try {
-      const response = await fetch(`/api/user/is-moderator`, {
-        headers: { 'Authorization': await getAuthHeader() }
-      });
-      const data = await response.json();
-      setIsModerator(data.isModerator);
-      if (!data.isModerator) navigate('/');
-    } catch (err) {
-      console.error('Error checking moderator status:', err);
-      navigate('/');
-    }
-  };
 
   const loadApprovals = async () => {
     try {
@@ -172,7 +157,7 @@ const Approvals = () => {
     }
   };
 
-  if (!user || !isModerator) {
+  if (!user || isModerator !== true) {
     return (
       <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: '#212326' }}>
         <div className="text-lg text-gray-400">Loading...</div>

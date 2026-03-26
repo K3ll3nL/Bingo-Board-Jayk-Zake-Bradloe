@@ -27,7 +27,7 @@ export const AuthProvider = ({ children }) => {
   const [boardVersion, setBoardVersion] = useState(0);
   const [leaderboardVersion, setLeaderboardVersion] = useState(0);
   const [isPro, setIsPro] = useState(false);
-  const [isModerator, setIsModerator] = useState(false);
+  const [isModerator, setIsModerator] = useState(null);
 
   // Check pro status whenever the user changes
   useEffect(() => {

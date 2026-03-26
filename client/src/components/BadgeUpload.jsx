@@ -75,25 +75,16 @@ const INITIAL_FORM = {
 // ── Main component ────────────────────────────────────────────────────────────
 
 export default function BadgeUpload() {
-  const { user, loading: authLoading } = useAuth();
+  const { user, loading: authLoading, isModerator } = useAuth();
   const navigate  = useNavigate();
-  const [isModerator, setIsModerator] = useState(null);
   const [tab,        setTab]        = useState('create'); // 'create' | 'collections'
   const [refreshKey, setRefreshKey] = useState(0);
 
   // ── Mod guard ──────────────────────────────────────────────────────────────
   useEffect(() => {
-    if (authLoading) return;
-    if (!user) { navigate('/'); return; }
-    (async () => {
-      try {
-        const res  = await fetch('/api/user/is-moderator', { headers: await getAuthHeaders() });
-        const data = await res.json();
-        if (!data.isModerator) { navigate('/'); return; }
-        setIsModerator(true);
-      } catch { navigate('/'); }
-    })();
-  }, [user, authLoading, navigate]);
+    if (authLoading || isModerator === null) return;
+    if (!user || !isModerator) navigate('/');
+  }, [user, authLoading, isModerator, navigate]);
 
   if (isModerator === null) {
     return (
