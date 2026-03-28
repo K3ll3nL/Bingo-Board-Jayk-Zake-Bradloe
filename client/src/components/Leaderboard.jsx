@@ -225,9 +225,24 @@ const Leaderboard = () => {
                           </a>
                         )}
                       </div>
-                      <div className={`text-xs text-gray-400`}>
-                        Joined {formatDate(user.created_at)}
-                      </div>
+                      {isRestrictedEnabled(isModerator) ? (
+                        <div className="flex items-center gap-1 mt-0.5 min-h-[16px]">
+                          {(user.badge_slots || []).map((badge, i) => (
+                            badge?.image_url && (
+                              <img
+                                key={i}
+                                src={badge.image_url}
+                                alt={badge.name}
+                                className="w-5 h-5 object-contain"
+                              />
+                            )
+                          ))}
+                        </div>
+                      ) : (
+                        <div className={`text-xs text-gray-400`}>
+                          Joined {formatDate(user.created_at)}
+                        </div>
+                      )}
                     </div>
                   </div>
                   

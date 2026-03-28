@@ -413,7 +413,7 @@ async function processMonthEnd(monthId) {
   for (const { id, name, check_type, check_value, check_qualifier } of badges) {
     // For top_placement types a blank qualifier means "any period" — skip period filter.
     // For approved_count types the qualifier is always required.
-    const anyPeriod = check_type === 'approved_count_in_month' && !check_qualifier;
+    const anyPeriod = !check_qualifier;
     if (!anyPeriod && Number(check_qualifier) !== monthId) continue;
     let userIds = [];
     if (check_type === 'approved_count_in_month') {
@@ -436,7 +436,7 @@ async function processSeasonEnd(seasonId) {
   if (!badges?.length) return awarded;
 
   for (const { id, name, check_type, check_value, check_qualifier } of badges) {
-    const anyPeriod = check_type === 'approved_count_in_season' && !check_qualifier;
+    const anyPeriod = !check_qualifier;
     if (!anyPeriod && Number(check_qualifier) !== seasonId) continue;
     let userIds = [];
     if (check_type === 'approved_count_in_season') {
@@ -459,7 +459,7 @@ async function processYearEnd(yearId) {
   if (!badges?.length) return awarded;
 
   for (const { id, name, check_type, check_value, check_qualifier } of badges) {
-    const anyPeriod = check_type === 'approved_count_in_year' && !check_qualifier;
+    const anyPeriod = !check_qualifier;
     if (!anyPeriod && Number(check_qualifier) !== yearId) continue;
     let userIds = [];
     if (check_type === 'approved_count_in_year') {
@@ -910,6 +910,31 @@ app.get('/api/bingo/board', async (req, res) => {
   }
 });
 
+// Batch-fetches badge slots 1–3 for a list of users and attaches them as badge_slots[]
+async function enrichWithBadgeSlots(users) {
+  const userIds = users.map(u => u.user_id).filter(Boolean);
+  if (userIds.length === 0) return users;
+  const { data: slots } = await supabase
+    .from('user_badges')
+    .select('user_id, slot, badges(id, name, image_url)')
+    .in('user_id', userIds)
+    .not('slot', 'is', null)
+    .lte('slot', 3)
+    .order('slot', { ascending: true });
+  const slotsByUser = {};
+  (slots || []).forEach(row => {
+    if (!slotsByUser[row.user_id]) slotsByUser[row.user_id] = [];
+    slotsByUser[row.user_id].push({ slot: row.slot, badge: row.badges });
+  });
+  return users.map(u => ({
+    ...u,
+    badge_slots: (slotsByUser[u.user_id] || [])
+      .sort((a, b) => a.slot - b.slot)
+      .map(s => s.badge)
+      .filter(Boolean),
+  }));
+}
+
 // Get leaderboard
 app.get('/api/leaderboard', async (req, res) => {
   try {
@@ -1035,9 +1060,10 @@ app.get('/api/leaderboard', async (req, res) => {
         };
       });
 
-      leaderboardCache.set(cacheKey, { data: transformedAllTime, expiresAt: Date.now() + LEADERBOARD_CACHE_TTL });
+      const enrichedAllTime = await enrichWithBadgeSlots(transformedAllTime);
+      leaderboardCache.set(cacheKey, { data: enrichedAllTime, expiresAt: Date.now() + LEADERBOARD_CACHE_TTL });
       res.set('Cache-Control', 'no-store');
-      return res.json(transformedAllTime);
+      return res.json(enrichedAllTime);
     }
 
     // ── SEASON / YEAR BRANCH ─────────────────────────────────────────────────
@@ -1179,9 +1205,10 @@ app.get('/api/leaderboard', async (req, res) => {
         };
       });
 
-      leaderboardCache.set(cacheKey, { data: result, expiresAt: Date.now() + LEADERBOARD_CACHE_TTL });
+      const enrichedResult = await enrichWithBadgeSlots(result);
+      leaderboardCache.set(cacheKey, { data: enrichedResult, expiresAt: Date.now() + LEADERBOARD_CACHE_TTL });
       res.set('Cache-Control', 'no-store');
-      return res.json(result);
+      return res.json(enrichedResult);
     }
 
     // ── MONTHLY BRANCH ───────────────────────────────────────────────────────
@@ -1288,9 +1315,10 @@ app.get('/api/leaderboard', async (req, res) => {
       };
     });
 
-    leaderboardCache.set(cacheKey, { data: transformedData, expiresAt: Date.now() + LEADERBOARD_CACHE_TTL });
+    const enrichedData = await enrichWithBadgeSlots(transformedData);
+    leaderboardCache.set(cacheKey, { data: enrichedData, expiresAt: Date.now() + LEADERBOARD_CACHE_TTL });
     res.set('Cache-Control', 'no-store');
-    res.json(transformedData);
+    res.json(enrichedData);
   } catch (error) {
     console.error('Error fetching leaderboard:', error);
     res.status(500).json({ error: 'Failed to fetch leaderboard', details: error.message });
@@ -3677,6 +3705,79 @@ app.get('/api/users/:userId/badges', async (req, res) => {
   } catch (error) {
     console.error('Error fetching user badges:', error);
     res.status(500).json({ error: 'Failed to fetch user badges', details: error.message });
+  }
+});
+
+// Public badge family ordering (display_order from badge_families table)
+app.get('/api/badge-families', async (req, res) => {
+  try {
+    const { data, error } = await supabase
+      .from('badge_families')
+      .select('id, display_name, display_order')
+      .order('display_order', { ascending: true });
+    if (error) throw error;
+    res.set('Cache-Control', 'no-store');
+    res.json(data || []);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to fetch badge families', details: error.message });
+  }
+});
+
+// Get a user's equipped badge slots — reads slot column on user_badges (public)
+app.get('/api/users/:userId/badge-slots', async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const { data, error } = await supabase
+      .from('user_badges')
+      .select('slot, badge_id, badges(*)')
+      .eq('user_id', userId)
+      .not('slot', 'is', null)
+      .order('slot', { ascending: true });
+    if (error) throw error;
+    res.set('Cache-Control', 'no-store');
+    res.json(data || []);
+  } catch (error) {
+    console.error('Error fetching badge slots:', error);
+    res.status(500).json({ error: 'Failed to fetch badge slots', details: error.message });
+  }
+});
+
+// Save a user's badge slot assignments — updates slot column on user_badges rows (authenticated, own user only)
+app.put('/api/users/:userId/badge-slots', async (req, res) => {
+  try {
+    const requestingUserId = await getAuthenticatedUserId(req);
+    if (!requestingUserId) return res.status(401).json({ error: 'Unauthorized' });
+    const { userId } = req.params;
+    if (requestingUserId !== userId) return res.status(403).json({ error: 'Forbidden' });
+
+    const { slots } = req.body;
+    if (!Array.isArray(slots)) return res.status(400).json({ error: 'slots must be an array' });
+
+    const valid = slots.filter(s => s.slot >= 1 && s.slot <= 8 && s.badge_id);
+
+    // Clear all existing slot assignments for this user
+    const { error: clearError } = await supabase
+      .from('user_badges')
+      .update({ slot: null })
+      .eq('user_id', userId)
+      .not('slot', 'is', null);
+    if (clearError) throw clearError;
+
+    // Set each new slot assignment
+    await Promise.all(
+      valid.map(({ slot, badge_id }) =>
+        supabase
+          .from('user_badges')
+          .update({ slot })
+          .eq('user_id', userId)
+          .eq('badge_id', badge_id)
+      )
+    );
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error updating badge slots:', error);
+    res.status(500).json({ error: 'Failed to update badge slots', details: error.message });
   }
 });
 

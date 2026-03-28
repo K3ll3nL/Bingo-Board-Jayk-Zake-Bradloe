@@ -32,9 +32,9 @@ const CHECK_TYPES_BY_TRIGGER = {
   rejected:          [{ value: 'rejected_count',          label: 'Total rejections' }],
   monthly_active:    [{ value: 'monthly_active_count',    label: 'Active months' }],
   period_end: [
-    { value: 'approved_count_in_month',  label: 'Approved in a specific month' },
-    { value: 'approved_count_in_season', label: 'Approved in a specific season' },
-    { value: 'approved_count_in_year',   label: 'Approved in a specific year' },
+    { value: 'approved_count_in_month',  label: 'Approved in a month (any or specific)' },
+    { value: 'approved_count_in_season', label: 'Approved in a season (any or specific)' },
+    { value: 'approved_count_in_year',   label: 'Approved in a year (any or specific)' },
     { value: 'top_placement_month',      label: 'Top X finish — monthly' },
     { value: 'top_placement_season',     label: 'Top X finish — seasonal' },
     { value: 'top_placement_year',       label: 'Top X finish — yearly' },
@@ -166,8 +166,7 @@ function CreateBadgeTab({ onCreated }) {
   const isPercentage    = form.check_type === 'type_percentage' || form.check_type === 'generation_percentage';
   const isCollection    = form.check_type === 'collection_complete';
   const isPlacement     = ['top_placement_month', 'top_placement_season', 'top_placement_year'].includes(form.check_type);
-  const isApprovedPeriod = ['approved_count_in_month', 'approved_count_in_season', 'approved_count_in_year'].includes(form.check_type);
-  const isPeriodId      = isApprovedPeriod || isPlacement;
+  const isPeriodId      = ['approved_count_in_month', 'approved_count_in_season', 'approved_count_in_year', 'top_placement_month', 'top_placement_season', 'top_placement_year'].includes(form.check_type);
   const isBingo         = form.check_type === 'bingo_achievement_count';
   const isDateAward     = form.check_type === 'date_award';
   const showQualifier   = isPercentage || isCollection || isPeriodId || isBingo || isDateAward;
@@ -234,7 +233,7 @@ function CreateBadgeTab({ onCreated }) {
     setError(null); setSuccess(null);
     if (!imageFile)                        { setError('Please select a badge image.'); return; }
     if (!form.key)                         { setError('Image key is required.'); return; }
-    if (showQualifier && !form.check_qualifier && !isApprovedPeriod) { setError('Please fill in the qualifier.'); return; }
+    if (showQualifier && !form.check_qualifier && !isPeriodId) { setError('Please fill in the qualifier.'); return; }
 
     setSubmitting(true);
     try {
@@ -440,10 +439,8 @@ function CreateBadgeTab({ onCreated }) {
           <Field
             label={periodIdLabel}
             name="check_qualifier" value={form.check_qualifier} onChange={handleField}
-            type="number" placeholder={isApprovedPeriod ? 'blank = any period' : 'e.g. 12'} required={!isApprovedPeriod}
-            note={isApprovedPeriod
-              ? `Leave blank to fire on any closing ${periodIdLabel.replace(' ID', '').toLowerCase()}, or enter a specific ID to target one.`
-              : `Required — find this ID in the Board Builder. Each badge targets one specific ${periodIdLabel.replace(' ID', '').toLowerCase()}.`} />
+            type="number" placeholder="blank = any period" required={false}
+            note={`Leave blank to fire on any closing ${periodIdLabel.replace(' ID', '').toLowerCase()}, or enter a specific ID to target one.`} />
         )}
 
         {/* Qualifier — bingo types (checkboxes) */}
@@ -767,9 +764,9 @@ function checkDescription(badge) {
     case 'generation_percentage':      return `Catch ${v}% of Gen ${q}`;
     case 'collection_complete':        return `Complete '${q}' collection`;
     case 'bingo_achievement_count':    return `Earn ${v} bingo achievement${v != 1 ? 's' : ''}${q && q !== 'any' ? ` (${q})` : ''}`;
-    case 'approved_count_in_month':    return `Get ${v} approval${v != 1 ? 's' : ''} in month ${q}`;
-    case 'approved_count_in_season':   return `Get ${v} approval${v != 1 ? 's' : ''} in season ${q}`;
-    case 'approved_count_in_year':     return `Get ${v} approval${v != 1 ? 's' : ''} in year ${q}`;
+    case 'approved_count_in_month':    return `Get ${v} approval${v != 1 ? 's' : ''} in ${q ? `month ${q}` : 'any month'}`;
+    case 'approved_count_in_season':   return `Get ${v} approval${v != 1 ? 's' : ''} in ${q ? `season ${q}` : 'any season'}`;
+    case 'approved_count_in_year':     return `Get ${v} approval${v != 1 ? 's' : ''} in ${q ? `year ${q}` : 'any year'}`;
     case 'top_placement_month':        return `Finish top ${v} in a monthly leaderboard${q ? ` (month ${q})` : ''}`;
     case 'top_placement_season':       return `Finish top ${v} in a seasonal leaderboard${q ? ` (season ${q})` : ''}`;
     case 'top_placement_year':         return `Finish top ${v} in a yearly leaderboard${q ? ` (year ${q})` : ''}`;

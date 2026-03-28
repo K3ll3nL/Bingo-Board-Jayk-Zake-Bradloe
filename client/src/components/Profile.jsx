@@ -2,18 +2,20 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate, useParams } from 'react-router-dom';
 import PokemonModal from './PokemonModal';
-import { RESTRICTED_LAUNCH_DATE } from '../featureFlags';
+import BadgeCaseModal from './BadgeCaseModal';
+import { isRestrictedEnabled, RESTRICTED_LAUNCH_DATE } from '../featureFlags';
 import PageBackground from './PageBackground';
 import PageHeader from './PageHeader';
 
 const Profile = () => {
-  const { user } = useAuth();
+  const { user, isModerator } = useAuth();
   const navigate = useNavigate();
   const { userId: paramUserId } = useParams();
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [selectedPokemon, setSelectedPokemon] = useState(null);
+  const [showBadgeCase, setShowBadgeCase] = useState(false);
   const [showDexTooltip, setShowDexTooltip] = useState(false);
   const [dexView, setDexView] = useState('type');
   const dexHideTimer = useRef(null);
@@ -118,36 +120,50 @@ const Profile = () => {
           <div className="h-2 bg-gradient-to-r from-purple-600 via-pink-500 to-purple-400" />
 
           <div className="px-8 pt-8 pb-6">
-            {/* Avatar + Name */}
-            <div className="flex items-center gap-6 mb-8">
-              {profile.user.avatar_url ? (
-                <div className="relative flex-shrink-0">
-                  <div className="absolute inset-0 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 blur-sm opacity-60" style={{ margin: '-3px' }} />
-                  <img
-                    src={profile.user.avatar_url}
-                    alt="Avatar"
-                    className="relative w-28 h-28 rounded-full ring-4 ring-purple-500 shadow-xl"
-                  />
+            {/* Avatar + Name + Badge Case button */}
+            <div className="flex items-start justify-between gap-6 mb-8">
+              <div className="flex items-center gap-6">
+                {profile.user.avatar_url ? (
+                  <div className="relative flex-shrink-0">
+                    <div className="absolute inset-0 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 blur-sm opacity-60" style={{ margin: '-3px' }} />
+                    <img
+                      src={profile.user.avatar_url}
+                      alt="Avatar"
+                      className="relative w-28 h-28 rounded-full ring-4 ring-purple-500 shadow-xl"
+                    />
+                  </div>
+                ) : (
+                  <div className="w-28 h-28 rounded-full ring-4 ring-purple-500 bg-gray-700 flex items-center justify-center text-4xl text-gray-400">
+                    ?
+                  </div>
+                )}
+                <div>
+                  <h1 className="text-5xl font-extrabold text-white leading-tight">
+                    {profile.user.display_name}
+                  </h1>
+                  <p className="text-purple-400 text-lg mt-1">@{profile.user.username}</p>
+                  <p className="text-sm text-gray-500 mt-1">
+                    Joined{' '}
+                    {new Date(profile.user.created_at).toLocaleDateString('en-US', {
+                      month: 'long',
+                      day: 'numeric',
+                      year: 'numeric',
+                    })}
+                  </p>
                 </div>
-              ) : (
-                <div className="w-28 h-28 rounded-full ring-4 ring-purple-500 bg-gray-700 flex items-center justify-center text-4xl text-gray-400">
-                  ?
-                </div>
-              )}
-              <div>
-                <h1 className="text-5xl font-extrabold text-white leading-tight">
-                  {profile.user.display_name}
-                </h1>
-                <p className="text-purple-400 text-lg mt-1">@{profile.user.username}</p>
-                <p className="text-sm text-gray-500 mt-1">
-                  Joined{' '}
-                  {new Date(profile.user.created_at).toLocaleDateString('en-US', {
-                    month: 'long',
-                    day: 'numeric',
-                    year: 'numeric',
-                  })}
-                </p>
               </div>
+
+              {/* Badge Case button — mods see immediately, others after RESTRICTED_LAUNCH_DATE */}
+              {isRestrictedEnabled(isModerator) && (
+                <button
+                  onClick={() => setShowBadgeCase(true)}
+                  className="flex-shrink-0 flex items-center gap-2 px-3 py-2 rounded-xl border border-yellow-500/40 bg-yellow-500/10 hover:bg-yellow-500/20 hover:border-yellow-400/60 transition-all text-yellow-300 text-xs font-semibold tracking-wide"
+                  title="Open Badge Case"
+                >
+                  <span>◆</span>
+                  <span>Badge Case</span>
+                </button>
+              )}
             </div>
 
             {/* Inline pill stats */}
@@ -444,6 +460,16 @@ const Profile = () => {
         <PokemonModal
           pokemon={selectedPokemon}
           onClose={() => setSelectedPokemon(null)}
+        />
+      )}
+
+      {/* Badge Case Modal — only rendered when feature is enabled */}
+      {isRestrictedEnabled(isModerator) && (
+        <BadgeCaseModal
+          isOpen={showBadgeCase}
+          onClose={() => setShowBadgeCase(false)}
+          userId={profileUserId}
+          isOwnProfile={!paramUserId || user?.id === paramUserId}
         />
       )}
     </div>
