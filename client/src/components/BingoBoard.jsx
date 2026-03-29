@@ -7,7 +7,7 @@ import AchievementIcon from './AchievementIcon';
 import { isRestrictedEnabled } from '../featureFlags';
 
 const BingoBoard = () => {
-  const { user, boardVersion, isModerator } = useAuth();
+  const { user, boardVersion, isModerator, loading: authLoading } = useAuth();
   const [board, setBoard] = useState([]);
   const [month, setMonth] = useState('');
   const [loading, setLoading] = useState(true);
@@ -18,8 +18,9 @@ const BingoBoard = () => {
   const [selectedPokemon, setSelectedPokemon] = useState(null);
 
   useEffect(() => {
+    if (authLoading) return;
     loadBoard();
-  }, [user, boardVersion]);
+  }, [user, boardVersion, authLoading]);
 
   useEffect(() => {
     // Reset images loaded when board changes
