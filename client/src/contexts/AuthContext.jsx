@@ -64,8 +64,7 @@ export const AuthProvider = ({ children }) => {
           authHeader = session ? `Bearer ${session.access_token}` : null;
         }
         if (!authHeader) { setIsModerator(false); return; }
-        const API_BASE = isLocalhostDev() ? 'http://localhost:3000/api' : '/api';
-        const res = await fetch(`${API_BASE}/user/is-moderator`, { headers: { Authorization: authHeader } });
+        const res = await fetch('/api/user/is-moderator', { headers: { Authorization: authHeader } });
         const d = await res.json();
         setIsModerator(!!d.isModerator);
       } catch { setIsModerator(false); }

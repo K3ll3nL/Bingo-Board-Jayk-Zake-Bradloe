@@ -19,6 +19,8 @@ import OverlayBoard from './components/OverlayBoard';
 import OverlayLeaderboard from './components/OverlayLeaderboard';
 import BadgeUpload from './components/BadgeUpload';
 import PokemonGameManager from './components/PokemonGameManager';
+import FeedbackModal from './components/FeedbackModal';
+import ModFeedback from './components/ModFeedback';
 import logoImage from './Icons/pokemon-bounty-board.png';
 
 const supabase = createClient(
@@ -39,6 +41,7 @@ const MainApp = () => {
   const { user, signInWithDiscord, signOut, loading, isPro, isModerator } = useAuth();
   const navigate = useNavigate();
   const [menuOpen, setMenuOpen] = React.useState(false);
+  const [feedbackOpen, setFeedbackOpen] = React.useState(false);
   const menuRef = React.useRef(null);
 
   React.useEffect(() => {
@@ -203,6 +206,15 @@ const MainApp = () => {
                             </svg>
                             Game Manager
                           </button>
+                          <button
+                            onClick={() => { navigate('/feedback'); setMenuOpen(false); }}
+                            className="w-full px-4 py-2 text-left text-sm text-purple-400 hover:bg-gray-700 flex items-center gap-2"
+                          >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z" />
+                            </svg>
+                            Feedback
+                          </button>
                         </>
                       )}
                       <div className="border-t border-gray-600 my-1"></div>
@@ -214,6 +226,15 @@ const MainApp = () => {
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                         </svg>
                         How to Play
+                      </button>
+                      <button
+                        onClick={() => { setFeedbackOpen(true); setMenuOpen(false); }}
+                        className="w-full px-4 py-2 text-left text-sm text-gray-200 hover:bg-gray-700 flex items-center gap-2"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z" />
+                        </svg>
+                        Suggestions & Bugs
                       </button>
                       <button
                         onClick={() => { signOut(); setMenuOpen(false); }}
@@ -284,6 +305,8 @@ const MainApp = () => {
       {/* <footer className="mt-12 pb-8 text-center text-gray-400 text-sm">
         <p>Made with 💜 for Pokemon trainers</p>
       </footer> */}
+
+      <FeedbackModal isOpen={feedbackOpen} onClose={() => setFeedbackOpen(false)} />
     </div>
   );
 };
@@ -308,6 +331,7 @@ function App() {
           <Route path="/overlay/leaderboard" element={<OverlayLeaderboard />} />
           <Route path="/badge-upload" element={<BadgeUpload />} />
           <Route path="/pokemon-game-manager" element={<PokemonGameManager />} />
+          <Route path="/feedback" element={<ModFeedback />} />
           <Route path="*" element={<MainApp />} />
         </Routes>
       </AuthProvider>
