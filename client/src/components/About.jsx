@@ -235,7 +235,7 @@ const About = () => {
             {[
               {
                 label: 'No RNG Manipulation',
-                body: 'No editing the shiny odds of any kind, whether via third-party applications or in-game non-intentional methods.',
+                body: 'No editing the shiny odds of any kind, whether via third-party applications or in-game, non-intentional methods.',
               },
               {
                 label: 'Some Emulation',

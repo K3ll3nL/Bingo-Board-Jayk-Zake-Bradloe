@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate, useParams } from 'react-router-dom';
 import PokemonModal from './PokemonModal';
-import BadgeCaseModal from './BadgeCaseModal';
+import BadgeCase from './BadgeCase';
 import { isRestrictedEnabled, RESTRICTED_LAUNCH_DATE } from '../featureFlags';
 import PageBackground from './PageBackground';
 import PageHeader from './PageHeader';
@@ -15,7 +15,6 @@ const Profile = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [selectedPokemon, setSelectedPokemon] = useState(null);
-  const [showBadgeCase, setShowBadgeCase] = useState(false);
   const [showDexTooltip, setShowDexTooltip] = useState(false);
   const [dexView, setDexView] = useState('type');
   const dexHideTimer = useRef(null);
@@ -119,10 +118,11 @@ const Profile = () => {
           {/* Top gradient strip */}
           <div className="h-2 bg-gradient-to-r from-purple-600 via-pink-500 to-purple-400" />
 
-          <div className="px-8 pt-8 pb-6">
-            {/* Avatar + Name + Badge Case button */}
-            <div className="flex items-start justify-between gap-6 mb-8">
-              <div className="flex items-center gap-6">
+          <div className="px-8 pt-8 pb-6 flex items-start gap-6">
+
+            {/* Left — avatar + name + stat pills */}
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-6 mb-8">
                 {profile.user.avatar_url ? (
                   <div className="relative flex-shrink-0">
                     <div className="absolute inset-0 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 blur-sm opacity-60" style={{ margin: '-3px' }} />
@@ -153,36 +153,35 @@ const Profile = () => {
                 </div>
               </div>
 
-              {/* Badge Case button — mods see immediately, others after RESTRICTED_LAUNCH_DATE */}
-              {isRestrictedEnabled(isModerator) && (
-                <button
-                  onClick={() => setShowBadgeCase(true)}
-                  className="flex-shrink-0 flex items-center gap-2 px-3 py-2 rounded-xl border border-yellow-500/40 bg-yellow-500/10 hover:bg-yellow-500/20 hover:border-yellow-400/60 transition-all text-yellow-300 text-xs font-semibold tracking-wide"
-                  title="Open Badge Case"
-                >
-                  <span>◆</span>
-                  <span>Badge Case</span>
-                </button>
-              )}
+              {/* Inline pill stats */}
+              <div className="flex flex-wrap gap-3">
+                <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-purple-500/20 border border-purple-500/30">
+                  <span className="text-gray-400 text-sm">Overall Rank</span>
+                  <span className="text-purple-300 font-bold text-sm">
+                    {stats.overallRank === 0 ? 'Unranked' : `#${stats.overallRank}`}
+                  </span>
+                </div>
+                <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-purple-500/20 border border-purple-500/30">
+                  <span className="text-gray-400 text-sm">Total Points</span>
+                  <span className="text-purple-300 font-bold text-sm">{stats.totalPoints || 0}</span>
+                </div>
+                <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-purple-500/20 border border-purple-500/30">
+                  <span className="text-gray-400 text-sm">Total Shinies</span>
+                  <span className="text-purple-300 font-bold text-sm">{stats.totalShinies || 0}</span>
+                </div>
+              </div>
             </div>
 
-            {/* Inline pill stats */}
-            <div className="flex flex-wrap gap-3">
-              <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-purple-500/20 border border-purple-500/30">
-                <span className="text-gray-400 text-sm">Overall Rank</span>
-                <span className="text-purple-300 font-bold text-sm">
-                  {stats.overallRank === 0 ? 'Unranked' : `#${stats.overallRank}`}
-                </span>
+            {/* Right — Badge Case */}
+            {isRestrictedEnabled(isModerator) && (
+              <div className="flex-shrink-0 w-52">
+                <BadgeCase
+                  userId={profileUserId}
+                  isOwnProfile={!paramUserId || user?.id === paramUserId}
+                />
               </div>
-              <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-purple-500/20 border border-purple-500/30">
-                <span className="text-gray-400 text-sm">Total Points</span>
-                <span className="text-purple-300 font-bold text-sm">{stats.totalPoints || 0}</span>
-              </div>
-              <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-purple-500/20 border border-purple-500/30">
-                <span className="text-gray-400 text-sm">Total Shinies</span>
-                <span className="text-purple-300 font-bold text-sm">{stats.totalShinies || 0}</span>
-              </div>
-            </div>
+            )}
+
           </div>
         </div>
 
@@ -303,7 +302,6 @@ const Profile = () => {
 
         {/* Row 3 - Achievements + Restricted side by side */}
         <div className={`grid gap-4 ${showRestricted ? 'grid-cols-1 lg:grid-cols-2' : 'grid-cols-1'}`}>
-          {/* Normal Achievements */}
           <div className="rounded-xl shadow-xl p-5 border border-gray-600" style={{ backgroundColor: '#35373b' }}>
             <h2 className="text-s font-semibold text-gray-400 uppercase tracking-wider mb-3">Bonus Bounties</h2>
             <div className="grid grid-cols-3 gap-2">
@@ -322,7 +320,6 @@ const Profile = () => {
             </div>
           </div>
 
-          {/* Restricted Challenge - only shown after feature launch date */}
           {showRestricted && (
             <div className="rounded-xl shadow-xl p-5 border border-[#78150a]/40" style={{ backgroundColor: '#35373b' }}>
               <div className="flex items-center gap-1.5 mb-3">
@@ -463,15 +460,6 @@ const Profile = () => {
         />
       )}
 
-      {/* Badge Case Modal — only rendered when feature is enabled */}
-      {isRestrictedEnabled(isModerator) && (
-        <BadgeCaseModal
-          isOpen={showBadgeCase}
-          onClose={() => setShowBadgeCase(false)}
-          userId={profileUserId}
-          isOwnProfile={!paramUserId || user?.id === paramUserId}
-        />
-      )}
     </div>
   );
 };

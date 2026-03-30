@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { getAuthHeaders } from '../services/api';
 
 export default function BadgePickerModal({
@@ -17,7 +17,7 @@ export default function BadgePickerModal({
       try {
         const headers = await getAuthHeaders();
         const [badgesRes, familiesRes] = await Promise.all([
-          fetch('/api/badges', { headers }),
+          fetch(`/api/badges?userId=${userId}`, { headers }),
           fetch('/api/badge-families'),
         ]);
         const [badgeData, familyData] = await Promise.all([
@@ -100,26 +100,31 @@ export default function BadgePickerModal({
             </div>
           )}
         </div>
-
-        <div className="px-5 py-3 border-t border-gray-700/60 flex-shrink-0">
-          <p className="text-gray-600 text-xs text-center">
-            Black silhouettes are not yet earned · Secret badges are hidden until unlocked
-          </p>
-        </div>
       </div>
     </div>
   );
 }
 
 function BadgePickerItem({ badge, isCurrentSlot, isOtherSlot, onSelect }) {
-  const [hovered, setHovered] = useState(false);
+  const btnRef = useRef(null);
+  const [tooltipPos, setTooltipPos] = useState(null);
   const isEarned = badge.is_earned;
+
+  const handleMouseEnter = () => {
+    if (!btnRef.current) return;
+    const rect = btnRef.current.getBoundingClientRect();
+    setTooltipPos({
+      x: Math.max(108, Math.min(rect.left + rect.width / 2, window.innerWidth - 108)),
+      y: rect.top,
+    });
+  };
 
   return (
     <div
       className="relative"
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
+      ref={btnRef}
+      onMouseEnter={handleMouseEnter}
+      onMouseLeave={() => setTooltipPos(null)}
     >
       <button
         onClick={() => isEarned && onSelect(badge)}
@@ -141,7 +146,6 @@ function BadgePickerItem({ badge, isCurrentSlot, isOtherSlot, onSelect }) {
             src={badge.image_url}
             alt={badge.name}
             className="w-full h-full object-contain"
-            // Unearned = true black silhouette (classic Pokemon style)
             style={!isEarned ? { filter: 'brightness(0)' } : undefined}
           />
         ) : (
@@ -160,13 +164,34 @@ function BadgePickerItem({ badge, isCurrentSlot, isOtherSlot, onSelect }) {
         )}
       </button>
 
-      {hovered && (
+      {tooltipPos && (
         <div
-          className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 px-2 py-1 rounded-lg text-xs text-white whitespace-nowrap pointer-events-none z-10 shadow-xl"
-          style={{ backgroundColor: '#0d0e10', border: '1px solid rgba(255,255,255,0.1)' }}
+          style={{
+            position: 'fixed',
+            left: tooltipPos.x,
+            top: tooltipPos.y - 6,
+            transform: 'translateX(-50%) translateY(-100%)',
+            zIndex: 9999,
+            maxWidth: 216,
+            pointerEvents: 'none',
+            backgroundColor: '#0d0e10',
+            border: '1px solid rgba(255,255,255,0.08)',
+          }}
+          className="px-2.5 py-1.5 rounded-lg text-xs shadow-xl"
         >
-          {isEarned ? badge.name : badge.is_secret ? '???' : badge.name}
-          {!isEarned && <span className="text-gray-500 ml-1">— not earned</span>}
+          <div className="font-semibold text-white">
+            {badge.is_secret && !isEarned ? '???' : badge.name}
+          </div>
+          {isEarned ? (
+            badge.hint && <div className="text-gray-400 mt-0.5">{badge.hint}</div>
+          ) : badge.hint_visible && badge.hint ? (
+            <div className="text-yellow-400/80 mt-0.5">{badge.hint}</div>
+          ) : (
+            <div className="text-gray-600 mt-0.5 italic">Hint locked until previous earned</div>
+          )}
+          {!isEarned && (
+            <div className="text-gray-500 mt-1">Not yet earned</div>
+          )}
         </div>
       )}
     </div>

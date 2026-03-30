@@ -21,10 +21,15 @@ const getAuthHeader = async () => {
 };
 
 const STATUS_CONFIG = {
-  pending:  { label: 'Pending Review',       color: 'text-yellow-400', accentColor: '#facc15' },
-  accepted: { label: 'Accepted',             color: 'text-green-400',  accentColor: '#4ade80' },
-  rejected: { label: 'Rejected',             color: 'text-red-400',    accentColor: '#f87171' },
-  award:    { label: 'Achievement Awarded', color: 'text-purple-400', accentColor: '#9147ff' },
+  pending:                       { label: 'Pending Review',             color: 'text-yellow-400', accentColor: '#facc15' },
+  accepted:                      { label: 'Accepted',                   color: 'text-green-400',  accentColor: '#4ade80' },
+  accepted_historical:           { label: 'Accepted (Historical)',      color: 'text-green-400',  accentColor: '#4ade80' },
+  accepted_restricted:           { label: 'Accepted (Restricted)',      color: 'text-green-400',  accentColor: '#4ade80' },
+  accepted_downgraded:           { label: 'Accepted (Downgraded)',      color: 'text-yellow-400', accentColor: '#fbbf24' },
+  accepted_downgraded_historical:{ label: 'Accepted (Historical)',      color: 'text-yellow-400', accentColor: '#fbbf24' },
+  rejected:                      { label: 'Rejected',                   color: 'text-red-400',    accentColor: '#f87171' },
+  rejected_restricted_ban:       { label: 'Rejected',                   color: 'text-red-400',    accentColor: '#f87171' },
+  award:                         { label: 'Achievement Awarded',        color: 'text-purple-400', accentColor: '#9147ff' },
 };
 
 // AwardIcon is now handled by AchievementIcon — kept as a thin wrapper for local use

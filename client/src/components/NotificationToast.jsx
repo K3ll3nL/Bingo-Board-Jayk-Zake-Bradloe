@@ -44,18 +44,58 @@ const getBingoIcon = (bingoType, style = {}, restricted = false) => {
   }
 };
 
+const APPROVED_ICON = (
+  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+  </svg>
+);
+
+const REJECTED_ICON = (
+  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
+  </svg>
+);
+
 const STATUS_CONFIG = {
-  approved: {
+  accepted: {
     borderColor: '#22c55e',
     bgColor: '#071a0e',
     badgeBg: '#14532d',
     badgeText: '#86efac',
-    label: 'Approved!',
-    icon: (
-      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
-      </svg>
-    ),
+    label: 'Accepted!',
+    icon: APPROVED_ICON,
+  },
+  accepted_historical: {
+    borderColor: '#22c55e',
+    bgColor: '#071a0e',
+    badgeBg: '#14532d',
+    badgeText: '#86efac',
+    label: 'Accepted (Historical)',
+    icon: APPROVED_ICON,
+  },
+  accepted_restricted: {
+    borderColor: '#22c55e',
+    bgColor: '#071a0e',
+    badgeBg: '#14532d',
+    badgeText: '#86efac',
+    label: 'Accepted (Restricted)',
+    icon: APPROVED_ICON,
+  },
+  accepted_downgraded: {
+    borderColor: '#f59e0b',
+    bgColor: '#1a1200',
+    badgeBg: '#451a00',
+    badgeText: '#fcd34d',
+    label: 'Accepted (Downgraded)',
+    icon: APPROVED_ICON,
+  },
+  accepted_downgraded_historical: {
+    borderColor: '#f59e0b',
+    bgColor: '#1a1200',
+    badgeBg: '#451a00',
+    badgeText: '#fcd34d',
+    label: 'Accepted (Historical)',
+    icon: APPROVED_ICON,
   },
   rejected: {
     borderColor: '#ef4444',
@@ -63,11 +103,15 @@ const STATUS_CONFIG = {
     badgeBg: '#450a0a',
     badgeText: '#fca5a5',
     label: 'Rejected',
-    icon: (
-      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
-      </svg>
-    ),
+    icon: REJECTED_ICON,
+  },
+  rejected_restricted_ban: {
+    borderColor: '#ef4444',
+    bgColor: '#1a0707',
+    badgeBg: '#450a0a',
+    badgeText: '#fca5a5',
+    label: 'Rejected',
+    icon: REJECTED_ICON,
   },
   achievement: {
     borderColor: '#5865F2',
@@ -90,6 +134,16 @@ const DEFAULT_CONFIG = {
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
     </svg>
   ),
+};
+
+const STATUS_BODY = {
+  accepted:                      'accepted',
+  accepted_historical:           'accepted as a historical catch',
+  accepted_restricted:           'accepted as a restricted catch',
+  accepted_downgraded:           'accepted (downgraded from restricted)',
+  accepted_downgraded_historical:'accepted as a historical catch (downgraded)',
+  rejected:                      'rejected',
+  rejected_restricted_ban:       'rejected',
 };
 
 const Toast = ({ notification, onDismiss }) => {
@@ -222,8 +276,8 @@ const Toast = ({ notification, onDismiss }) => {
           ) : (
             <p style={{ color: '#f1f5f9', fontWeight: 600, fontSize: '14px', margin: 0, lineHeight: 1.3 }}>
               {notification.pokemon?.name
-                ? `Your ${notification.pokemon.name} submission was ${notification.status}.`
-                : `Your submission was ${notification.status}.`}
+                ? `Your ${notification.pokemon.name} submission was ${STATUS_BODY[notification.status] ?? notification.status}.`
+                : `Your submission was ${STATUS_BODY[notification.status] ?? notification.status}.`}
             </p>
           )}
 

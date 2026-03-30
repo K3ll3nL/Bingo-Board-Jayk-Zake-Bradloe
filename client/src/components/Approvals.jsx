@@ -29,6 +29,9 @@ const Approvals = () => {
   const [actionNotes, setActionNotes] = useState({});
   const [lightboxImage, setLightboxImage] = useState(null);
   const [approvalsLoaded, setApprovalsLoaded] = useState(false);
+  const [historicalApprovals, setHistoricalApprovals] = useState([]);
+  const [historicalLoaded, setHistoricalLoaded] = useState(false);
+  const [historicalLoading, setHistoricalLoading] = useState(false);
 
   // Redirect non-mods once the check resolves
   useEffect(() => {
@@ -43,15 +46,18 @@ const Approvals = () => {
     }
   }, [isModerator, approvalsLoaded]);
 
-  // Live queue updates — reload whenever any submission, approval, or rejection fires
+  // Live queue updates — reload whichever tab is active
   useEffect(() => {
     if (!isModerator) return;
     const channel = supabase
       .channel('approvals-updates')
-      .on('broadcast', { event: 'queue-changed' }, () => loadApprovals())
+      .on('broadcast', { event: 'queue-changed' }, () => {
+        if (activeTab === 'historical') loadHistoricalApprovals();
+        else loadApprovals();
+      })
       .subscribe();
     return () => supabase.removeChannel(channel);
-  }, [isModerator]);
+  }, [isModerator, activeTab]);
 
 
   const loadApprovals = async () => {
@@ -72,6 +78,23 @@ const Approvals = () => {
     }
   };
 
+  const loadHistoricalApprovals = async () => {
+    try {
+      setHistoricalLoading(true);
+      const response = await fetch('/api/approvals/pending?historical=true', {
+        headers: { 'Authorization': await getAuthHeader() }
+      });
+      if (!response.ok) throw new Error('Failed to load historical approvals');
+      const data = await response.json();
+      setHistoricalApprovals(data);
+      setHistoricalLoaded(true);
+    } catch (err) {
+      console.error('Error loading historical approvals:', err);
+    } finally {
+      setHistoricalLoading(false);
+    }
+  };
+
   const togglePanel = (approvalId, action) => {
     if (expandedPanel?.id === approvalId && expandedPanel?.action === action) {
       setExpandedPanel(null);
@@ -88,6 +111,77 @@ const Approvals = () => {
     setApprovals(prev => prev.filter(a => a.id !== approvalId));
     setExpandedPanel(null);
     setActionNotes(prev => { const n = { ...prev }; delete n[approvalId]; return n; });
+  };
+
+  const removeHistoricalApproval = (approvalId) => {
+    setHistoricalApprovals(prev => prev.filter(a => a.id !== approvalId));
+    setExpandedPanel(null);
+    setActionNotes(prev => { const n = { ...prev }; delete n[approvalId]; return n; });
+  };
+
+  const handleHistoricalApprove = async (approvalId) => {
+    try {
+      const response = await fetch(`/api/approvals/${approvalId}/approve`, {
+        method: 'POST',
+        headers: { 'Authorization': await getAuthHeader(), 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'accepted_historical' })
+      });
+      if (!response.ok) {
+        const err = await response.json();
+        throw new Error(err.error || 'Approval failed');
+      }
+      removeHistoricalApproval(approvalId);
+    } catch (error) {
+      console.error('Error approving historical:', error);
+      alert('Failed to approve: ' + error.message);
+    }
+  };
+
+  const handleHistoricalRestrictedAction = async (approvalId, action) => {
+    const message = actionNotes[approvalId] || '';
+    try {
+      let response;
+      if (action === 'downgrade') {
+        response = await fetch(`/api/approvals/${approvalId}/approve`, {
+          method: 'POST',
+          headers: { 'Authorization': await getAuthHeader(), 'Content-Type': 'application/json' },
+          body: JSON.stringify({ status: 'accepted_downgraded_historical', message })
+        });
+      } else {
+        // warn or ban
+        response = await fetch(`/api/approvals/${approvalId}/reject`, {
+          method: 'POST',
+          headers: { 'Authorization': await getAuthHeader(), 'Content-Type': 'application/json' },
+          body: JSON.stringify({ message, status: action })
+        });
+      }
+      if (!response.ok) {
+        const err = await response.json();
+        throw new Error(err.error || 'Action failed');
+      }
+      removeHistoricalApproval(approvalId);
+    } catch (error) {
+      console.error(`Error on historical ${action}:`, error);
+      alert(`Failed to ${action}: ` + error.message);
+    }
+  };
+
+  const handleHistoricalReject = async (approvalId) => {
+    try {
+      const response = await fetch(`/api/approvals/${approvalId}/reject`, {
+        method: 'POST',
+        headers: { 'Authorization': await getAuthHeader(), 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: actionNotes[approvalId] || '', status: 'rejected' })
+      });
+      if (!response.ok) {
+        const err = await response.json();
+        throw new Error(err.error || 'Rejection failed');
+      }
+      removeHistoricalApproval(approvalId);
+    } catch (error) {
+      console.error('Error rejecting historical:', error);
+      alert('Failed to reject: ' + error.message);
+    }
   };
 
   const handleApprove = async (approvalId) => {
@@ -185,7 +279,10 @@ const Approvals = () => {
               Pending Approvals
             </button>
             <button
-              onClick={() => setActiveTab('historical')}
+              onClick={() => {
+                setActiveTab('historical');
+                if (!historicalLoaded) loadHistoricalApprovals();
+              }}
               className={`px-6 py-2 rounded-lg font-medium transition-colors ${
                 activeTab === 'historical' ? 'bg-purple-500 text-white' : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
               }`}
@@ -437,8 +534,211 @@ const Approvals = () => {
 
           {/* Historical Tab */}
           {activeTab === 'historical' && (
-            <div className="rounded-lg p-8 text-center text-gray-400 border border-gray-600" style={{ backgroundColor: '#35373b' }}>
-              Historical approvals coming soon...
+            <div className="rounded-lg border border-gray-600" style={{ backgroundColor: '#35373b' }}>
+              {historicalLoading ? (
+                <div className="text-center text-gray-400 py-8">Loading historical approvals...</div>
+              ) : historicalApprovals.length === 0 ? (
+                <div className="text-center text-gray-400 py-8">No pending historical approvals</div>
+              ) : (
+                <div className="divide-y divide-gray-600">
+                  {historicalApprovals.map((approval) => {
+                    const panelOpen = expandedPanel?.id === approval.id;
+                    const panelAction = expandedPanel?.action;
+
+                    const isBan = (approval.restricted_strikes || 0) >= 2;
+
+                    return (
+                      <div key={approval.id}>
+                        <div className="p-4 flex items-center gap-4">
+                          {/* Pokemon image */}
+                          <img
+                            src={approval.pokemon_img}
+                            alt={approval.pokemon_name}
+                            className="w-16 h-16 object-contain flex-shrink-0"
+                          />
+
+                          {/* Info */}
+                          <div className="w-52 flex-shrink-0">
+                            <div className="text-white font-medium">{approval.display_name}</div>
+                            <div className="text-sm text-gray-400">
+                              #{String(approval.national_dex_id).padStart(4, '0')} — {approval.pokemon_name}
+                            </div>
+                            <div className="text-xs text-gray-500">
+                              {new Date(approval.created_at).toLocaleString()}
+                            </div>
+                            <span className="inline-block mt-1 px-1.5 py-0.5 rounded text-xs font-semibold bg-blue-900/40 text-blue-300 border border-blue-700/50">
+                              Historical
+                            </span>
+                          </div>
+
+                          {/* Proof */}
+                          <div className="flex-shrink-0">
+                            {approval.proof_url && approval.proof_url2 ? (
+                              <div className="flex gap-2 items-start">
+                                <button onClick={() => setLightboxImage(approval.proof_url)} className="block">
+                                  <img
+                                    src={approval.proof_url}
+                                    alt="Proof of Shiny"
+                                    className="w-28 h-28 object-cover rounded border border-gray-600 hover:border-purple-500 transition-colors cursor-pointer"
+                                  />
+                                  <div className="text-xs text-gray-400 text-center mt-1">Proof of Shiny</div>
+                                </button>
+                                <button onClick={() => setLightboxImage(approval.proof_url2)} className="block">
+                                  <img
+                                    src={approval.proof_url2}
+                                    alt="Proof of Date"
+                                    className="w-28 h-28 object-cover rounded border border-gray-600 hover:border-purple-500 transition-colors cursor-pointer"
+                                  />
+                                  <div className="text-xs text-gray-400 text-center mt-1">Proof of Date</div>
+                                </button>
+                                {approval.proof_link && (
+                                  <a
+                                    href={approval.proof_link}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="self-center text-purple-400 hover:text-purple-300 underline text-sm"
+                                  >
+                                    View Video Link ↗
+                                  </a>
+                                )}
+                              </div>
+                            ) : approval.proof_link ? (
+                              <a
+                                href={approval.proof_link}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-purple-400 hover:text-purple-300 underline text-sm"
+                              >
+                                View Video Link ↗
+                              </a>
+                            ) : approval.proof_url ? (
+                              <button onClick={() => setLightboxImage(approval.proof_url)} className="text-purple-400 hover:text-purple-300 underline text-sm">
+                                View Proof
+                              </button>
+                            ) : null}
+                          </div>
+
+                          <div className="flex-1" />
+
+                          {/* Actions */}
+                          <div className="flex items-center gap-2 flex-shrink-0">
+                            {approval.restricted_submission && (
+                              <>
+                                {/* Warn / Ban */}
+                                <button
+                                  onClick={() => togglePanel(approval.id, isBan ? 'ban' : 'warn')}
+                                  className={`w-10 h-10 flex items-center justify-center rounded-lg transition-colors ${
+                                    panelOpen && panelAction === (isBan ? 'ban' : 'warn')
+                                      ? (isBan ? 'bg-red-800' : 'bg-orange-600')
+                                      : (isBan ? 'bg-red-700 hover:bg-red-800' : 'bg-orange-500 hover:bg-orange-600')
+                                  }`}
+                                  title={isBan ? 'Ban user' : 'Warn user'}
+                                >
+                                  {isBan ? (
+                                    <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                                        d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
+                                    </svg>
+                                  ) : (
+                                    <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                                        d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                                    </svg>
+                                  )}
+                                </button>
+
+                                {/* Downgrade */}
+                                <button
+                                  onClick={() => togglePanel(approval.id, 'downgrade')}
+                                  className={`w-10 h-10 flex items-center justify-center rounded-lg border transition-colors ${
+                                    panelOpen && panelAction === 'downgrade'
+                                      ? 'bg-blue-700 border-blue-600'
+                                      : 'bg-gray-700 border-gray-600 hover:bg-gray-600 hover:border-gray-500'
+                                  }`}
+                                  title="Downgrade to normal submission"
+                                >
+                                  <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                                      d="M19 14l-7 7m0 0l-7-7m7 7V3" />
+                                  </svg>
+                                </button>
+
+                                <div className="w-px h-8 bg-gray-600 mx-1" />
+                              </>
+                            )}
+                            <button
+                              onClick={() => handleHistoricalApprove(approval.id)}
+                              className="w-10 h-10 flex items-center justify-center bg-green-600 hover:bg-green-700 rounded-lg transition-colors"
+                              title="Approve"
+                            >
+                              <svg className="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 20 20">
+                                <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                              </svg>
+                            </button>
+                            <button
+                              onClick={() => togglePanel(approval.id, 'reject')}
+                              className={`w-10 h-10 flex items-center justify-center rounded-lg transition-colors ${
+                                panelOpen && panelAction === 'reject' ? 'bg-red-700' : 'bg-red-600 hover:bg-red-700'
+                              }`}
+                              title="Reject"
+                            >
+                              <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                              </svg>
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Expanded Action Panel */}
+                        {panelOpen && (
+                          <div className="px-4 pb-4 bg-gray-800">
+                            <div className="p-4 rounded-lg border border-gray-600">
+                              <label className="block text-sm font-medium text-gray-300 mb-2">
+                                {panelAction === 'reject' && 'Rejection Notes'}
+                                {panelAction === 'downgrade' && 'Downgrade Notes - accept submission, but as non-restricted'}
+                                {panelAction === 'warn' && 'Warning Message - give a strike to a user, reject submission'}
+                                {panelAction === 'ban' && "Ban Reason - this will revoke the user's ability to submit to the restricted challenge, reject submission"}
+                              </label>
+                              <textarea
+                                value={actionNotes[approval.id] || ''}
+                                onChange={(e) => handleNoteChange(approval.id, e.target.value)}
+                                placeholder={
+                                  panelAction === 'reject' ? 'Enter reason for rejection...' :
+                                  panelAction === 'downgrade' ? 'Explain why this is being downgraded to a normal submission...' :
+                                  panelAction === 'warn' ? 'Enter warning message for the user...' :
+                                  'Enter reason for ban...'
+                                }
+                                className="w-full p-3 bg-gray-700 text-white rounded-lg border border-gray-600 focus:border-purple-500 focus:outline-none mb-3"
+                                rows={3}
+                              />
+                              <div className="flex justify-end">
+                                <button
+                                  onClick={() => {
+                                    if (panelAction === 'reject') handleHistoricalReject(approval.id);
+                                    else handleHistoricalRestrictedAction(approval.id, panelAction);
+                                  }}
+                                  disabled={!actionNotes[approval.id]?.trim()}
+                                  className={`px-4 py-2 text-white rounded-lg font-medium transition-colors disabled:bg-gray-600 disabled:cursor-not-allowed ${
+                                    panelAction === 'reject' ? 'bg-red-600 hover:bg-red-700' :
+                                    panelAction === 'downgrade' ? 'bg-blue-600 hover:bg-blue-700' :
+                                    panelAction === 'warn' ? 'bg-orange-500 hover:bg-orange-600' :
+                                    'bg-red-700 hover:bg-red-800'
+                                  }`}
+                                >
+                                  {panelAction === 'reject' && 'Submit Rejection'}
+                                  {panelAction === 'downgrade' && 'Downgrade Submission'}
+                                  {panelAction === 'warn' && 'Issue Warning'}
+                                  {panelAction === 'ban' && 'Ban User'}
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           )}
         </div>

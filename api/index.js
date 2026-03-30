@@ -1775,7 +1775,7 @@ app.get('/api/upload/available-pokemon', async (req, res) => {
     if (!userId) {
       return res.status(401).json({ error: 'Authentication required' });
     }
-    
+
     const ACTIVE_MONTH_ID = await getActiveMonthId(userId);
     if (!ACTIVE_MONTH_ID) {
       return res.json([]);
@@ -1816,9 +1816,9 @@ app.get('/api/upload/available-pokemon', async (req, res) => {
       .select('id, national_dex_id, name, img_url, game_slugs, restricted_game_slugs')
       .in('id', availablePokemonIds)
       .eq('shiny_available', true);
-    
+
     if (pokemonError) throw pokemonError;
-    
+
     res.json(pokemon || []);
   } catch (error) {
     console.error('Error fetching available Pokemon:', error);
@@ -1879,146 +1879,94 @@ app.get('/api/upload/available-pokemon-restricted', async (req, res) => {
   }
 });
 
-// Get available Pokemon for historical upload (past months, most recent appearance only)
+// Get available Pokemon for historical upload (past months only)
+// Excludes: pokemon in the current month's pool, pokemon where user has a restricted entry,
+// and pokemon currently in the approval queue for that user+month.
 app.get('/api/upload/available-pokemon-historical', async (req, res) => {
   try {
     const userId = await getAuthenticatedUserId(req);
-    if (!userId) {
-      return res.status(401).json({ error: 'Authentication required' });
-    }
+    if (!userId) return res.status(401).json({ error: 'Authentication required' });
 
     const ACTIVE_MONTH_ID = await getActiveMonthId(userId);
-    console.log('Active month ID:', ACTIVE_MONTH_ID);
-    if (!ACTIVE_MONTH_ID) {
-      console.log('No active month found, returning empty array');
-      return res.json([]);
-    }
-    
-    // Get all past months (before current month)
-    const { data: pastMonths, error: monthsError } = await supabase
-      .from('bingo_months')
-      .select('id')
-      .lt('id', ACTIVE_MONTH_ID)
-      .order('id', { ascending: false });
-    
-    console.log('Past months found:', pastMonths?.length, pastMonths?.map(m => m.id));
+    if (!ACTIVE_MONTH_ID) return res.json([]);
+
+    // Parallel: past months, current pool, restricted entries, pending approvals
+    const [
+      { data: pastMonths,      error: monthsError },
+      { data: currentPool,     error: currentPoolError },
+      { data: restrictedEntries, error: restrictedError },
+      { data: pendingApprovals,  error: approvalsError },
+    ] = await Promise.all([
+      supabase.from('bingo_months').select('id, start_date').lt('id', ACTIVE_MONTH_ID).order('id', { ascending: false }),
+      supabase.from('monthly_pokemon_pool').select('pokemon_id').eq('month_id', ACTIVE_MONTH_ID),
+      supabase.from('entries').select('pokemon_id, month_id').eq('user_id', userId).eq('restricted_submission', true),
+      supabase.from('approvals').select('pokemon_id, month_id').eq('user_id', userId),
+    ]);
+
     if (monthsError) throw monthsError;
-    
-    if (!pastMonths || pastMonths.length === 0) {
-      console.log('No past months found, returning empty array');
-      return res.json([]);
-    }
-    
-    // Get Pokemon from all past month pools with their most recent month
-    const { data: allPastPokemon, error: poolError } = await supabase
+    if (currentPoolError) throw currentPoolError;
+    if (restrictedError) throw restrictedError;
+    if (approvalsError) throw approvalsError;
+
+    if (!pastMonths || pastMonths.length === 0) return res.json([]);
+
+    const currentPoolSet = new Set((currentPool || []).map(p => p.pokemon_id));
+    // Keys: "pokemon_id:month_id" — excluded if user has a restricted entry or pending approval
+    const restrictedKeys = new Set((restrictedEntries || []).map(e => `${e.pokemon_id}:${e.month_id}`));
+    const pendingKeys    = new Set((pendingApprovals  || []).map(a => `${a.pokemon_id}:${a.month_id}`));
+
+    // All past pool entries, newest month first
+    const { data: allPastPool, error: poolError } = await supabase
       .from('monthly_pokemon_pool')
       .select('pokemon_id, month_id')
       .in('month_id', pastMonths.map(m => m.id))
       .order('month_id', { ascending: false });
-    
-    console.log('All past Pokemon entries:', allPastPokemon?.length);
+
     if (poolError) throw poolError;
-    
-    // Get current month's pool to exclude them
-    const { data: currentMonthPool, error: currentPoolError } = await supabase
-      .from('monthly_pokemon_pool')
-      .select('pokemon_id')
-      .eq('month_id', ACTIVE_MONTH_ID);
-    
-    console.log('Current month pool size:', currentMonthPool?.length);
-    if (currentPoolError) throw currentPoolError;
-    
-    const currentMonthPokemonIds = new Set(currentMonthPool.map(p => p.pokemon_id));
-    console.log('Current month Pokemon IDs (first 5):', Array.from(currentMonthPokemonIds).slice(0, 5));
-    
-    // Build map: pokemon_id => most_recent_month_id
-    // Only include the MOST RECENT occurrence of each Pokemon (excluding current month)
+
+    // Build pokemon → most-recent past month, skipping current-pool pokemon
     const pokemonMostRecentMonth = {};
-    let skippedCurrentMonth = 0;
-    for (const entry of allPastPokemon) {
-      // Skip if Pokemon is in current month (use current upload instead)
-      if (currentMonthPokemonIds.has(entry.pokemon_id)) {
-        skippedCurrentMonth++;
-        continue;
-      }
-      
-      // Only keep if we haven't seen this Pokemon yet (first = most recent due to ordering)
+    for (const entry of (allPastPool || [])) {
+      if (currentPoolSet.has(entry.pokemon_id)) continue;
       if (!pokemonMostRecentMonth[entry.pokemon_id]) {
         pokemonMostRecentMonth[entry.pokemon_id] = entry.month_id;
       }
     }
-    
-    console.log('Skipped (in current month):', skippedCurrentMonth);
-    console.log('Unique historical Pokemon:', Object.keys(pokemonMostRecentMonth).length);
-    console.log('First 5 historical Pokemon:', Object.entries(pokemonMostRecentMonth).slice(0, 5));
-    
-    // Get user's already caught Pokemon (from ALL months, not just historical)
-    const { data: userEntries, error: entriesError } = await supabase
-      .from('entries')
-      .select('pokemon_id, month_id')
-      .eq('user_id', userId);
-    
-    console.log('User total entries:', userEntries?.length);
-    if (entriesError) throw entriesError;
-    
-    // Build map: pokemon_id => Set of month_ids where user caught it
-    const userCaughtByMonth = {};
-    for (const entry of userEntries) {
-      if (!userCaughtByMonth[entry.pokemon_id]) {
-        userCaughtByMonth[entry.pokemon_id] = new Set();
-      }
-      userCaughtByMonth[entry.pokemon_id].add(entry.month_id);
-    }
-    
-    console.log('User caught Pokemon (unique):', Object.keys(userCaughtByMonth).length);
-    
-    // Filter: Keep Pokemon where user hasn't caught it in its most recent month
-    const availableHistoricalPokemon = [];
-    for (const [pokemonId, monthId] of Object.entries(pokemonMostRecentMonth)) {
-      const caughtInMonths = userCaughtByMonth[parseInt(pokemonId)] || new Set();
-      
-      // Only available if user hasn't caught it in this specific month
-      if (!caughtInMonths.has(monthId)) {
-        availableHistoricalPokemon.push({
-          pokemon_id: parseInt(pokemonId),
-          month_id: monthId
-        });
-      }
-    }
-    
-    console.log('Available historical Pokemon (after filtering):', availableHistoricalPokemon.length);
-    console.log('First 5 available:', availableHistoricalPokemon.slice(0, 5));
-    
-    if (availableHistoricalPokemon.length === 0) {
-      console.log('No historical Pokemon available for user, returning empty array');
-      return res.json([]);
-    }
-    
-    // Get Pokemon details
-    const pokemonIds = availableHistoricalPokemon.map(p => p.pokemon_id);
+
+    // Filter: exclude if restricted entry or pending approval exists for that pokemon+month
+    const available = Object.entries(pokemonMostRecentMonth).filter(([pokemonId, monthId]) => {
+      const key = `${pokemonId}:${monthId}`;
+      return !restrictedKeys.has(key) && !pendingKeys.has(key);
+    });
+
+    if (available.length === 0) return res.json([]);
+
+    const pokemonIds = available.map(([id]) => parseInt(id));
+    const monthById = Object.fromEntries((pastMonths).map(m => [m.id, m.start_date]));
+
     const { data: pokemon, error: pokemonError } = await supabase
       .from('pokemon_master')
-      .select('id, national_dex_id, name, img_url')
+      .select('id, national_dex_id, name, img_url, game_slugs')
       .in('id', pokemonIds)
       .eq('shiny_available', true);
-    
+
     if (pokemonError) throw pokemonError;
-    
-    console.log('Pokemon details fetched:', pokemon?.length);
-    
-    // Attach month_id to each Pokemon for submission
-    const pokemonWithMonth = pokemon.map(p => {
-      const entry = availableHistoricalPokemon.find(h => h.pokemon_id === p.id);
+
+    const monthLookup = Object.fromEntries(available.map(([id, monthId]) => [parseInt(id), monthId]));
+
+    const result = (pokemon || []).map(p => {
+      const monthId = monthLookup[p.id];
+      const startDate = monthById[monthId];
       return {
         ...p,
-        month_id: entry.month_id
+        month_id: monthId,
+        month_label: startDate
+          ? new Date(startDate).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
+          : `Month ${monthId}`,
       };
     });
-    
-    console.log('Returning Pokemon with month info (first 3):', pokemonWithMonth.slice(0, 3));
-    console.log('=== END TESTING MODE ===');
-    
-    res.json(pokemonWithMonth || []);
+
+    res.json(result);
   } catch (error) {
     console.error('Error fetching historical Pokemon:', error);
     res.status(500).json({ error: 'Failed to fetch historical Pokemon' });
@@ -2226,6 +2174,117 @@ app.post('/api/upload/submission', uploadRateLimit, upload.fields([{ name: 'file
   }
 });
 
+// Historical submission — queues a past-month catch for mod review.
+// No points are awarded on approval; board state is not affected.
+app.post('/api/upload/historical-submission', uploadRateLimit, upload.fields([{ name: 'file', maxCount: 1 }, { name: 'file2', maxCount: 1 }]), async (req, res) => {
+  try {
+    const userId = await getAuthenticatedUserId(req);
+    if (!userId) return res.status(401).json({ error: 'Authentication required' });
+
+    const pokemon_id = req.body.pokemon_id;
+    const game       = req.body.game?.trim();
+    const month_id   = parseInt(req.body.month_id);
+    const link       = req.body.link;
+    const file       = req.files?.file?.[0];
+    const file2      = req.files?.file2?.[0];
+
+    if (!pokemon_id)        return res.status(400).json({ error: 'Pokemon ID required' });
+    if (!game)              return res.status(400).json({ error: 'Game is required' });
+    if (!month_id)          return res.status(400).json({ error: 'Month ID required' });
+    if ((!file || !file2) && !link) return res.status(400).json({ error: 'Either both proof images or a video link is required' });
+
+    // Validate month is in the past (not the current active month)
+    const { data: activeMonth } = await supabase
+      .from('bingo_months')
+      .select('id')
+      .lte('start_date', new Date().toISOString())
+      .gte('end_date', new Date().toISOString())
+      .single();
+
+    if (activeMonth && month_id >= activeMonth.id) {
+      return res.status(400).json({ error: 'Historical submissions must be for a past month' });
+    }
+
+    // Validate the Pokemon was in that month's pool
+    const { data: poolEntry } = await supabase
+      .from('monthly_pokemon_pool')
+      .select('pokemon_id')
+      .eq('month_id', month_id)
+      .eq('pokemon_id', parseInt(pokemon_id))
+      .single();
+
+    if (!poolEntry) {
+      return res.status(400).json({ error: 'That Pokemon was not in the pool for the selected month' });
+    }
+
+    // Prevent duplicate: check existing entries and pending approvals for this user/pokemon/month
+    const [{ data: existingEntry }, { data: existingApproval }] = await Promise.all([
+      supabase.from('entries').select('id').eq('user_id', userId).eq('pokemon_id', parseInt(pokemon_id)).eq('month_id', month_id).single(),
+      supabase.from('approvals').select('id').eq('user_id', userId).eq('pokemon_id', parseInt(pokemon_id)).eq('month_id', month_id).single(),
+    ]);
+
+    if (existingEntry)   return res.status(409).json({ error: 'You already have an approved entry for this Pokemon in that month' });
+    if (existingApproval) return res.status(409).json({ error: 'You already have a pending submission for this Pokemon in that month' });
+
+    // File size checks
+    const MAX_FILE_SIZE = 4 * 1024 * 1024;
+    if (file  && file.size  > MAX_FILE_SIZE) return res.status(413).json({ error: `Proof of Shiny is too large (${(file.size  / 1048576).toFixed(1)}MB). Compress to under 4MB.`, fileTooBig: true });
+    if (file2 && file2.size > MAX_FILE_SIZE) return res.status(413).json({ error: `Proof of Date is too large (${(file2.size / 1048576).toFixed(1)}MB). Compress to under 4MB.`, fileTooBig: true });
+    if (file && file2 && (file.size + file2.size) > MAX_FILE_SIZE) return res.status(413).json({ error: `Combined images too large. Compress both to under 4MB total.`, fileTooBig: true });
+
+    // Upload images to R2 (same as regular submission)
+    let proofUrl = null;
+    let proofUrl2 = null;
+    if (file && file2) {
+      try {
+        const { S3Client, PutObjectCommand } = require('@aws-sdk/client-s3');
+        const s3Client = new S3Client({
+          region: 'auto',
+          endpoint: `https://${process.env.R2_ACCOUNT_ID}.r2.cloudflarestorage.com`,
+          credentials: { accessKeyId: process.env.R2_ACCESS_KEY_ID, secretAccessKey: process.env.R2_SECRET_ACCESS_KEY },
+        });
+        const ts = Date.now();
+        const key1 = `approval/${userId}-${pokemon_id}-${ts}-hist-shiny-${file.originalname}`;
+        const key2 = `approval/${userId}-${pokemon_id}-${ts}-hist-date-${file2.originalname}`;
+        await s3Client.send(new PutObjectCommand({ Bucket: process.env.R2_BUCKET_NAME || 'shiny-sprites', Key: key1, Body: file.buffer, ContentType: file.mimetype }));
+        proofUrl = `${process.env.R2_BUCKET_URL}/${key1}`;
+        await s3Client.send(new PutObjectCommand({ Bucket: process.env.R2_BUCKET_NAME || 'shiny-sprites', Key: key2, Body: file2.buffer, ContentType: file2.mimetype }));
+        proofUrl2 = `${process.env.R2_BUCKET_URL}/${key2}`;
+      } catch (r2Error) {
+        return res.status(500).json({ error: 'File upload failed', details: r2Error.message });
+      }
+    }
+
+    const { data: approval, error: approvalError } = await supabase
+      .from('approvals')
+      .insert({
+        user_id: userId,
+        pokemon_id: parseInt(pokemon_id),
+        month_id,
+        proof_url: proofUrl,
+        proof_url2: proofUrl2,
+        proof_link: link || null,
+        game,
+        restricted_submission: false,
+        historical: true,
+      })
+      .select()
+      .single();
+
+    if (approvalError) throw approvalError;
+
+    res.json({ success: true, approval });
+
+    Promise.all([
+      broadcastUpdate('approvals-updates', 'queue-changed', {}),
+      awardBadgesForTrigger(userId, 'submission'),
+    ]).catch(err => console.error('Post-historical-submission broadcast failed:', err.message));
+  } catch (error) {
+    console.error('Error submitting historical catch:', error);
+    res.status(500).json({ error: 'Failed to submit historical catch', details: error.message });
+  }
+});
+
 // Get recent catches for a specific Pokemon
 app.get('/api/pokemon/:pokemonId/recent-catches', async (req, res) => {
   try {
@@ -2347,19 +2406,21 @@ app.post('/api/approvals/:id/approve', async (req, res) => {
     // Check if user is moderator
     const { data: isMod, error: modError } = await supabase
       .from('moderators')
-      .select('id')
+      .select('id, moderator_name')
       .eq('id', moderatorId)
       .single();
-    
+
     if (modError || !isMod) {
       console.log('Moderator check failed:', modError);
       return res.status(403).json({ error: 'Moderator access required' });
     }
-    
+
+    const moderatorName = isMod.moderator_name || 'Unknown Moderator';
+
     // Get approval details including image URLs BEFORE deleting the record
     const { data: approval, error: approvalFetchError } = await supabase
       .from('approvals')
-      .select('user_id, pokemon_id, proof_url, proof_url2, proof_link, game')
+      .select('user_id, pokemon_id, proof_url, proof_url2, proof_link, game, historical, month_id')
       .eq('id', id)
       .single();
 
@@ -2368,9 +2429,56 @@ app.post('/api/approvals/:id/approve', async (req, res) => {
       throw approvalFetchError;
     }
 
-    console.log('Calling approve_submission RPC...');
-
     const { status: approvalStatus } = req.body;
+    const R2_BUCKET_URL = process.env.R2_BUCKET_URL;
+    const imagesToDelete = [approval.proof_url, approval.proof_url2]
+      .filter(url => url?.startsWith(R2_BUCKET_URL));
+
+    if (approval.historical) {
+      // Historical approvals: bypass RPC — handle entirely in Express (no points, no board)
+      const validHistoricalStatuses = ['accepted_historical', 'accepted_downgraded_historical'];
+      const historicalStatus = validHistoricalStatuses.includes(approvalStatus) ? approvalStatus : 'accepted_historical';
+      const isDowngradedHistorical = historicalStatus === 'accepted_downgraded_historical';
+
+      let historicalNote = `Approved by ${moderatorName}`;
+      if (isDowngradedHistorical) historicalNote += ' (downgraded)';
+      if (!approval.proof_url2 && approval.proof_url) {
+        historicalNote += `. Link was ${approval.proof_url}`;
+      }
+
+      const { error: entryError } = await supabase.from('entries').insert({
+        user_id: approval.user_id,
+        pokemon_id: approval.pokemon_id,
+        month_id: approval.month_id,
+        game: approval.game,
+        historical: true,
+        restricted_submission: !isDowngradedHistorical && !!approval.restricted_submission,
+        moderator_note: historicalNote,
+      });
+      if (entryError) throw entryError;
+
+      const { error: deleteError } = await supabase.from('approvals').delete().eq('id', id);
+      if (deleteError) throw deleteError;
+
+      await supabase.from('notifications').insert({
+        user_id: approval.user_id,
+        pokemon_id: approval.pokemon_id,
+        status: historicalStatus,
+        notified: false,
+      });
+
+      res.json({ success: true });
+
+      Promise.all([
+        broadcastUpdate('approvals-updates', 'queue-changed', {}),
+        broadcastNotificationToasts(approval.user_id),
+        awardBadgesForTrigger(approval.user_id, 'approved'),
+      ]).catch(err => console.error('Post-historical-approval broadcast failed (non-fatal):', err.message));
+      deleteR2Images(imagesToDelete).catch(() => {});
+      return;
+    }
+
+    console.log('Calling approve_submission RPC...');
 
     // Call stored procedure
     const { data, error } = await supabase.rpc('approve_submission', {
@@ -2378,12 +2486,12 @@ app.post('/api/approvals/:id/approve', async (req, res) => {
       p_moderator_id: moderatorId,
       p_status: approvalStatus || 'accepted'
     });
-    
+
     if (error) {
       console.error('RPC error:', error);
       throw error;
     }
-    
+
     console.log('Approval successful:', data);
 
     // Respond immediately — broadcasts and cleanup are non-critical side effects
@@ -2403,9 +2511,6 @@ app.post('/api/approvals/:id/approve', async (req, res) => {
     ]).catch(err => console.error('Post-approval broadcast failed (non-fatal):', err.message));
 
     // Delete images from R2 (fire-and-forget; same reasoning)
-    const R2_BUCKET_URL = process.env.R2_BUCKET_URL;
-    const imagesToDelete = [approval.proof_url, approval.proof_url2]
-      .filter(url => url?.startsWith(R2_BUCKET_URL));
     deleteR2Images(imagesToDelete).catch(() => {});
   } catch (error) {
     console.error('Error approving submission:', error);
@@ -2448,15 +2553,63 @@ app.post('/api/approvals/:id/reject', async (req, res) => {
     // Get approval details including image URLs BEFORE deleting the record
     const { data: approval, error: approvalFetchError } = await supabase
       .from('approvals')
-      .select('user_id, pokemon_id, proof_url, proof_url2, proof_link, game')
+      .select('user_id, pokemon_id, proof_url, proof_url2, proof_link, game, historical')
       .eq('id', id)
       .single();
-    
+
     if (approvalFetchError) {
       console.error('Error fetching approval:', approvalFetchError);
       throw approvalFetchError;
     }
-    
+
+    const R2_BUCKET_URL_REJ = process.env.R2_BUCKET_URL;
+    const rejImagesToDelete = [approval.proof_url, approval.proof_url2]
+      .filter(url => url?.startsWith(R2_BUCKET_URL_REJ));
+
+    if (approval.historical) {
+      // Historical rejections: bypass RPC — delete approval, notify user
+      const historicalNotifStatus = rejectAction === 'ban' ? 'rejected_restricted_ban' : 'rejected';
+
+      const { error: deleteError } = await supabase.from('approvals').delete().eq('id', id);
+      if (deleteError) throw deleteError;
+
+      await supabase.from('notifications').insert({
+        user_id: approval.user_id,
+        pokemon_id: approval.pokemon_id,
+        status: historicalNotifStatus,
+        message: message || 'No reason provided',
+        notified: false,
+      });
+
+      res.json({ success: true });
+
+      if (rejectAction === 'warn') {
+        (async () => {
+          try {
+            const { data: userData } = await supabase
+              .from('users')
+              .select('restricted_strikes')
+              .eq('id', approval.user_id)
+              .single();
+            await supabase
+              .from('users')
+              .update({ restricted_strikes: (userData?.restricted_strikes || 0) + 1 })
+              .eq('id', approval.user_id);
+          } catch (err) {
+            console.error('Failed to increment restricted_strikes (non-fatal):', err.message);
+          }
+        })();
+      }
+
+      Promise.all([
+        broadcastUpdate('approvals-updates', 'queue-changed', {}),
+        broadcastNotificationToasts(approval.user_id),
+        awardBadgesForTrigger(approval.user_id, 'rejected'),
+      ]).catch(err => console.error('Post-historical-rejection broadcast failed (non-fatal):', err.message));
+      deleteR2Images(rejImagesToDelete).catch(() => {});
+      return;
+    }
+
     console.log('Calling reject_submission RPC...');
 
     const rpcStatus = rejectAction === 'ban' ? 'rejected_restricted_ban' : 'rejected';
@@ -2508,10 +2661,7 @@ app.post('/api/approvals/:id/reject', async (req, res) => {
     ]).catch(err => console.error('Post-rejection broadcast failed (non-fatal):', err.message));
 
     // Delete images from R2 (fire-and-forget)
-    const R2_BUCKET_URL = process.env.R2_BUCKET_URL;
-    const imagesToDelete = [approval.proof_url, approval.proof_url2]
-      .filter(url => url?.startsWith(R2_BUCKET_URL));
-    deleteR2Images(imagesToDelete).catch(() => {});
+    deleteR2Images(rejImagesToDelete).catch(() => {});
   } catch (error) {
     console.error('Error rejecting submission:', error);
     res.status(500).json({ 
@@ -2756,9 +2906,10 @@ app.get('/api/approvals/pending', async (req, res) => {
       return res.status(403).json({ error: 'Forbidden' });
     }
 
-    console.log('Fetching pending approvals...');
-    
-    // Get all approvals with user and pokemon info
+    const historical = req.query.historical === 'true';
+    console.log(`Fetching ${historical ? 'historical' : 'pending'} approvals...`);
+
+    // Get approvals with user and pokemon info, filtered by historical flag
     const { data: approvals, error } = await supabase
       .from('approvals')
       .select(`
@@ -2770,7 +2921,9 @@ app.get('/api/approvals/pending', async (req, res) => {
         game,
         user_id,
         pokemon_id,
+        month_id,
         restricted_submission,
+        historical,
         users!apptovals_user_id_fkey (
           display_name,
           restricted_strikes
@@ -2781,6 +2934,7 @@ app.get('/api/approvals/pending', async (req, res) => {
           img_url
         )
       `)
+      .eq('historical', historical)
       .order('created_at', { ascending: true });
     
     if (error) {
@@ -2807,7 +2961,9 @@ app.get('/api/approvals/pending', async (req, res) => {
       national_dex_id: approval.pokemon_master?.national_dex_id || 0,
       pokemon_img: approval.pokemon_master?.img_url || '',
       restricted_submission: approval.restricted_submission || false,
-      restricted_strikes: approval.users?.restricted_strikes || 0
+      restricted_strikes: approval.users?.restricted_strikes || 0,
+      historical: approval.historical || false,
+      month_id: approval.month_id || null,
     }));
     
     res.json(formattedApprovals);
@@ -3606,7 +3762,10 @@ app.get('/api/overlay/leaderboard', async (req, res) => {
 // Unauthenticated users see the same view as a user with no earned badges.
 app.get('/api/badges', async (req, res) => {
   try {
-    const userId = await getAuthenticatedUserId(req);
+    const requesterId = await getAuthenticatedUserId(req);
+    // Caller may pass ?userId= to compute hint visibility for a specific user
+    // (e.g. viewing another user's badge picker). Falls back to the authenticated user.
+    const userId = req.query.userId || requesterId;
 
     const { data: badges, error } = await supabase
       .from('badges')
@@ -3627,13 +3786,23 @@ app.get('/api/badges', async (req, res) => {
       earnedBadgeIds = new Set((earned || []).map(e => e.badge_id));
     }
 
-    // Build a set of earned family_orders per family so we can check hint unlock rules
-    const earnedByFamily = {}; // family -> Set<family_order>
+    // Group badges by family, sorted by family_order (nulls sort last).
+    // This index-based approach handles null/non-consecutive family_order values
+    // correctly — a badge's hint is locked if any badge before it in the chain
+    // hasn't been earned yet.
+    const familyChains = {}; // family -> Badge[] sorted by position
     for (const badge of (badges || [])) {
-      if (badge.family && earnedBadgeIds.has(badge.id)) {
-        if (!earnedByFamily[badge.family]) earnedByFamily[badge.family] = new Set();
-        earnedByFamily[badge.family].add(badge.family_order);
+      if (badge.family) {
+        if (!familyChains[badge.family]) familyChains[badge.family] = [];
+        familyChains[badge.family].push(badge);
       }
+    }
+    for (const family in familyChains) {
+      familyChains[family].sort((a, b) => {
+        const ao = a.family_order ?? Infinity;
+        const bo = b.family_order ?? Infinity;
+        return ao - bo;
+      });
     }
 
     const result = (badges || []).map(badge => {
@@ -3661,14 +3830,18 @@ app.get('/api/badges', async (req, res) => {
         };
       }
 
-      // Non-secret: hint is visible if:
-      //   - badge has no family, OR
-      //   - badge is first in its family (family_order = 1 or null), OR
-      //   - user has earned the previous badge in the family
+      // Non-secret: hint is visible only if every badge that precedes this one
+      // in its family chain has already been earned.
       let hintVisible = true;
-      if (badge.family && badge.family_order > 1) {
-        const familyEarned = earnedByFamily[badge.family] || new Set();
-        hintVisible = familyEarned.has(badge.family_order - 1);
+      if (badge.family) {
+        const chain = familyChains[badge.family] || [];
+        const idx = chain.findIndex(b => b.id === badge.id);
+        for (let i = 0; i < idx; i++) {
+          if (!earnedBadgeIds.has(chain[i].id)) {
+            hintVisible = false;
+            break;
+          }
+        }
       }
 
       return {
