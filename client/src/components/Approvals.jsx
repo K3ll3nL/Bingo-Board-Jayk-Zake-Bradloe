@@ -250,7 +250,47 @@ const Approvals = () => {
 
                           {/* Proof — directly right of info */}
                           <div className="flex-shrink-0">
-                            {!approval.proof_url2 ? (
+                            {approval.proof_url && approval.proof_url2 ? (
+                              <div>
+                                <div className="flex gap-2 items-start">
+                                  <button onClick={() => setLightboxImage(approval.proof_url)} className="block">
+                                    <img
+                                      src={approval.proof_url}
+                                      alt="Proof of Shiny"
+                                      className="w-28 h-28 object-cover rounded border border-gray-600 hover:border-purple-500 transition-colors cursor-pointer"
+                                    />
+                                    <div className="text-xs text-gray-400 text-center mt-1">Proof of Shiny</div>
+                                  </button>
+                                  <button onClick={() => setLightboxImage(approval.proof_url2)} className="block">
+                                    <img
+                                      src={approval.proof_url2}
+                                      alt="Proof of Date"
+                                      className="w-28 h-28 object-cover rounded border border-gray-600 hover:border-purple-500 transition-colors cursor-pointer"
+                                    />
+                                    <div className="text-xs text-gray-400 text-center mt-1">Proof of Date</div>
+                                  </button>
+                                  {approval.proof_link && (
+                                    <a
+                                      href={approval.proof_link}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="self-center text-purple-400 hover:text-purple-300 underline text-sm"
+                                    >
+                                      View Video Link ↗
+                                    </a>
+                                  )}
+                                </div>
+                              </div>
+                            ) : approval.proof_link ? (
+                              <a
+                                href={approval.proof_link}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-purple-400 hover:text-purple-300 underline text-sm"
+                              >
+                                View Video Link ↗
+                              </a>
+                            ) : approval.proof_url ? (
                               <a
                                 href={approval.proof_url}
                                 target="_blank"
@@ -259,26 +299,7 @@ const Approvals = () => {
                               >
                                 View Proof Link ↗
                               </a>
-                            ) : (
-                              <div className="flex gap-2">
-                                <button onClick={() => setLightboxImage(approval.proof_url)} className="block">
-                                  <img
-                                    src={approval.proof_url}
-                                    alt="Proof of Shiny"
-                                    className="w-28 h-28 object-cover rounded border border-gray-600 hover:border-purple-500 transition-colors cursor-pointer"
-                                  />
-                                  <div className="text-xs text-gray-400 text-center mt-1">Proof of Shiny</div>
-                                </button>
-                                <button onClick={() => setLightboxImage(approval.proof_url2)} className="block">
-                                  <img
-                                    src={approval.proof_url2}
-                                    alt="Proof of Date"
-                                    className="w-28 h-28 object-cover rounded border border-gray-600 hover:border-purple-500 transition-colors cursor-pointer"
-                                  />
-                                  <div className="text-xs text-gray-400 text-center mt-1">Proof of Date</div>
-                                </button>
-                              </div>
-                            )}
+                            ) : null}
                           </div>
 
                           {/* Spacer */}

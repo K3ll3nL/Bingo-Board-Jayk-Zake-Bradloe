@@ -216,7 +216,7 @@ const Upload = () => {
     if (!selectedPokemon) { setError('Please select a Pokemon'); return; }
     if (!game.trim())     { setError('Please select the game you hunted in'); return; }
     if (isRestricted && !mediaUrl) { setError('Restricted submissions require a VOD or video link.'); return; }
-    if (!isRestricted && (!mediaFile || !mediaFile2)) { setError('Both proof images are required'); return; }
+    if (!isRestricted && !mediaUrl.trim() && (!mediaFile || !mediaFile2)) { setError('Please provide either both proof images or a video link'); return; }
 
     const MAX_FILE_SIZE = 4 * 1024 * 1024;
     if (mediaFile && mediaFile.size > MAX_FILE_SIZE) {
@@ -620,7 +620,7 @@ const Upload = () => {
               {/* ── Submit ──────────────────────────────────────────────────── */}
               <button
                 type="submit"
-                disabled={submitting || !selectedPokemon || !game.trim() || (isRestricted ? !mediaUrl : (!mediaFile || !mediaFile2))}
+                disabled={submitting || !selectedPokemon || !game.trim() || (isRestricted ? !mediaUrl : (!mediaUrl.trim() && (!mediaFile || !mediaFile2)))}
                 className="w-full py-3 bg-purple-500 text-white rounded-lg font-medium hover:bg-purple-600 disabled:bg-gray-600 disabled:cursor-not-allowed transition-colors"
               >
                 {submitting ? 'Submitting...' : 'Submit Catch'}

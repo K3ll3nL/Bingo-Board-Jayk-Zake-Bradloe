@@ -2069,8 +2069,8 @@ app.post('/api/upload/submission', uploadRateLimit, upload.fields([{ name: 'file
     if (restricted_submission && !url) {
       return res.status(400).json({ error: 'Restricted submissions require a video link' });
     }
-    if (!restricted_submission && (!file || !file2)) {
-      return res.status(400).json({ error: 'Both proof images are required' });
+    if (!restricted_submission && (!file || !file2) && !link) {
+      return res.status(400).json({ error: 'Either both proof images or a video link is required' });
     }
     
     // Check file sizes (Vercel has a 4.5MB request body limit)
