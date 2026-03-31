@@ -234,8 +234,8 @@ const About = () => {
           <div className="rounded-lg overflow-hidden border mb-5" style={{ borderColor: 'rgba(211,8,8,0.35)' }}>
             {[
               {
-                label: 'No RNG Manipulation',
-                body: 'No editing the shiny odds of any kind, whether via third-party applications or in-game, non-intentional methods.',
+                label: 'No Code Editing',
+                body: 'No editing the shiny odds of any kind, whether via third-party applications or in-game, non-intentional methods. This includes cloning/glitching, RNG manipulation, save editing, and any other method that alters the game\'s code or memory to increase shiny chances. As a rule of thumb, if it seems like it might be against the spirit of fair play, it probably is.',
               },
               {
                 label: 'Some Emulation',
@@ -307,7 +307,7 @@ const About = () => {
         >
           <p className="text-gray-300 leading-relaxed mb-5">
             Bonus Bounties are the classic bingo win conditions, rewarding players with additional
-            points on top of their standard submission score. There are four Bonus Bounties in
+            points on top of their standard submission score. There are four types of Bonus Bounties in
             total, each corresponding to a distinct pattern on the board:
           </p>
 
@@ -417,8 +417,8 @@ const About = () => {
                   </svg>
                 </span>
                 <p className="text-gray-300 text-sm leading-relaxed">
-                  <span className="text-white font-medium">Double bounty points -</span> Bounty 
-                  Submissions and Bonus Bounties earned through the restricted challenge give an extra bonus point payout of that achievement.
+                  <span className="text-white font-medium">Extra bounty points -</span> Bounty 
+                  Submissions and Bonus Bounties earned through the restricted challenge give an additional bonus point payout of that achievement.
                 </p>
               </div>
               <div className="flex gap-3 items-start">
