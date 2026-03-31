@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { getAuthHeaders } from '../services/api';
+import { ALLOWED_GAMES } from '../constants/games';
 import PageBackground from './PageBackground';
 import PageHeader from './PageHeader';
 
@@ -523,15 +524,17 @@ function CreateBadgeTab({ onCreated }) {
 // ── Manage Collections tab ────────────────────────────────────────────────────
 
 function ManageCollectionsTab() {
-  const [slug,        setSlug]        = useState('');
-  const [slugOptions, setSlugOptions] = useState([]);
-  const [isNewSlug,   setIsNewSlug]   = useState(false);
-  const [members,     setMembers]     = useState(null);  // null = not loaded yet
-  const [loadingCol,  setLoadingCol]  = useState(false);
-  const [searchQ,     setSearchQ]     = useState('');
-  const [results,     setResults]     = useState([]);
-  const [searching,   setSearching]   = useState(false);
-  const [feedback,    setFeedback]    = useState(null); // { type: 'ok'|'err', msg }
+  const [slug,         setSlug]         = useState('');
+  const [slugOptions,  setSlugOptions]  = useState([]); // [{ slug, required_game }]
+  const [isNewSlug,    setIsNewSlug]    = useState(false);
+  const [members,      setMembers]      = useState(null);  // null = not loaded yet
+  const [requiredGame, setRequiredGame] = useState('');    // '' = any game
+  const [savingGame,   setSavingGame]   = useState(false);
+  const [loadingCol,   setLoadingCol]   = useState(false);
+  const [searchQ,      setSearchQ]      = useState('');
+  const [results,      setResults]      = useState([]);
+  const [searching,    setSearching]    = useState(false);
+  const [feedback,     setFeedback]     = useState(null); // { type: 'ok'|'err', msg }
   const searchTimer = useRef(null);
 
   // Load all existing slugs on mount
@@ -540,12 +543,18 @@ function ManageCollectionsTab() {
       try {
         const res  = await fetch('/api/admin/collections', { headers: await getAuthHeaders() });
         const data = await res.json();
-        setSlugOptions(data || []);
-      } catch { /* silent — dropdown just stays empty */ }
+        // Normalize: API may return [{slug, required_game}] or legacy [string]
+        const normalized = (data || []).map(item =>
+          typeof item === 'string' ? { slug: item, required_game: null } : item
+        );
+        setSlugOptions(normalized);
+      } catch { /* silent */ }
     })();
   }, []);
 
-  const resetCollection = () => { setMembers(null); setResults([]); setSearchQ(''); setFeedback(null); };
+  const resetCollection = () => {
+    setMembers(null); setResults([]); setSearchQ(''); setFeedback(null); setRequiredGame('');
+  };
 
   const handleSlugSelect = (e) => {
     const val = e.target.value;
@@ -569,11 +578,35 @@ function ManageCollectionsTab() {
       const res  = await fetch(`/api/admin/collections/${encodeURIComponent(s.trim())}`, { headers: await getAuthHeaders() });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
-      setMembers(data);
+      setMembers(data.members);
+      setRequiredGame(data.required_game ?? '');
     } catch (err) {
       setFeedback({ type: 'err', msg: err.message });
     } finally {
       setLoadingCol(false);
+    }
+  };
+
+  const saveRequiredGame = async (game) => {
+    if (!slug.trim()) return;
+    setSavingGame(true);
+    setFeedback(null);
+    try {
+      const headers = await getAuthHeaders();
+      const res = await fetch(`/api/admin/collections/${encodeURIComponent(slug.trim())}/game`, {
+        method: 'PUT',
+        headers: { ...headers, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ required_game: game || null }),
+      });
+      if (!res.ok) { const d = await res.json(); throw new Error(d.error); }
+      setRequiredGame(game);
+      // Update slug options cache
+      setSlugOptions(prev => prev.map(o => o.slug === slug ? { ...o, required_game: game || null } : o));
+      setFeedback({ type: 'ok', msg: game ? `Game requirement set to "${ALLOWED_GAMES.find(g => g.key === game)?.label ?? game}".` : 'Game requirement cleared.' });
+    } catch (err) {
+      setFeedback({ type: 'err', msg: err.message });
+    } finally {
+      setSavingGame(false);
     }
   };
 
@@ -606,7 +639,7 @@ function ManageCollectionsTab() {
     }
   };
 
-  // Debounced search
+  // Debounced search — no game filter here; game filter is a collection property
   const handleSearchChange = (e) => {
     const q = e.target.value;
     setSearchQ(q);
@@ -617,7 +650,6 @@ function ManageCollectionsTab() {
       try {
         const res  = await fetch(`/api/pokemon/search?q=${encodeURIComponent(q)}`, { headers: await getAuthHeaders() });
         const data = await res.json();
-        // Filter out already-added members
         const memberIds = new Set((members || []).map(p => p.id));
         setResults((data || []).filter(p => !memberIds.has(p.id)));
       } catch { setResults([]); }
@@ -640,7 +672,11 @@ function ManageCollectionsTab() {
           style={{ backgroundColor: '#2a2d31' }}
         >
           <option value="">— select a collection —</option>
-          {slugOptions.map(s => <option key={s} value={s}>{s}</option>)}
+          {slugOptions.map(o => (
+            <option key={o.slug} value={o.slug}>
+              {o.slug}{o.required_game ? ` [${o.required_game}]` : ''}
+            </option>
+          ))}
           <option value="__new__">＋ New collection…</option>
         </select>
 
@@ -667,6 +703,42 @@ function ManageCollectionsTab() {
           </div>
         )}
       </div>
+
+      {/* Game requirement — only shown once a collection is loaded */}
+      {slugLoaded && (
+        <div className="rounded-lg border border-gray-600 p-4" style={{ backgroundColor: '#2a2d31' }}>
+          <div className="flex items-center gap-3 flex-wrap">
+            <div className="flex-1 min-w-[200px]">
+              <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1">
+                Required Game
+              </label>
+              <p className="text-xs text-gray-500 mb-2">
+                Only submissions from this game count toward completing this collection. Leave blank to accept any game.
+              </p>
+              <select
+                value={requiredGame}
+                onChange={e => setRequiredGame(e.target.value)}
+                disabled={savingGame}
+                className="w-full rounded-lg px-3 py-2 text-sm text-white border border-gray-500 focus:border-purple-400 focus:outline-none disabled:opacity-50"
+                style={{ backgroundColor: '#35373b' }}
+              >
+                <option value="">Any game</option>
+                {ALLOWED_GAMES.map(g => (
+                  <option key={g.key} value={g.key}>{g.label}</option>
+                ))}
+              </select>
+            </div>
+            <button
+              type="button"
+              onClick={() => saveRequiredGame(requiredGame)}
+              disabled={savingGame}
+              className="mt-5 px-4 py-2 rounded-lg text-sm font-medium text-white bg-purple-600 hover:bg-purple-500 disabled:opacity-50 transition-colors self-end"
+            >
+              {savingGame ? 'Saving…' : 'Save'}
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Feedback */}
       {feedback && (

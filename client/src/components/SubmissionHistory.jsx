@@ -30,6 +30,7 @@ const STATUS_CONFIG = {
   rejected:                      { label: 'Rejected',                   color: 'text-red-400',    accentColor: '#f87171' },
   rejected_restricted_ban:       { label: 'Rejected',                   color: 'text-red-400',    accentColor: '#f87171' },
   award:                         { label: 'Achievement Awarded',        color: 'text-purple-400', accentColor: '#9147ff' },
+  badge_earned:                  { label: 'Badge Earned',               color: 'text-purple-300', accentColor: '#a855f7' },
 };
 
 // AwardIcon is now handled by AchievementIcon — kept as a thin wrapper for local use
@@ -107,6 +108,7 @@ const SubmissionHistory = () => {
             {notifications.map((n) => {
               const cfg = STATUS_CONFIG[n.status] || STATUS_CONFIG.pending;
               const isAward = n.status === 'award';
+              const isBadge = n.status === 'badge_earned';
 
               return (
                 <div
@@ -116,7 +118,19 @@ const SubmissionHistory = () => {
                 >
                   {/* Icon */}
                   <div className="flex-shrink-0 flex flex-col items-center gap-2">
-                    {isAward ? (
+                    {isBadge && n.badge?.image_url ? (
+                      <img
+                        src={n.badge.image_url}
+                        alt={n.badge.name}
+                        className="w-10 h-10 object-contain"
+                      />
+                    ) : isBadge ? (
+                      <div className="w-10 h-10 rounded-full bg-purple-500/30 flex items-center justify-center">
+                        <svg className="w-5 h-5 text-purple-300" fill="currentColor" viewBox="0 0 20 20">
+                          <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                        </svg>
+                      </div>
+                    ) : isAward ? (
                       <div className="w-10 h-10 rounded-full bg-purple-500/30 flex items-center justify-center">
                         <AwardIcon type={n.message} restricted={n.restricted ?? false} />
                       </div>
@@ -147,13 +161,20 @@ const SubmissionHistory = () => {
                       <span className="text-xs text-gray-500 flex-shrink-0">{formatDate(n.created_at)}</span>
                     </div>
 
-                    {n.pokemon && !isAward && (
+                    {isBadge && n.badge && (
+                      <p className="text-sm text-gray-300 mt-0.5">{n.badge.name}</p>
+                    )}
+                    {isBadge && n.badge?.description && (
+                      <p className="text-sm text-gray-500 mt-0.5">{n.badge.description}</p>
+                    )}
+
+                    {n.pokemon && !isAward && !isBadge && (
                       <p className="text-sm text-gray-300 mt-0.5">
                         #{n.pokemon.national_dex_id} {n.pokemon.name}
                       </p>
                     )}
 
-                    {n.message && !isAward && (
+                    {n.message && !isAward && !isBadge && (
                       <p className="text-sm text-gray-400 mt-1 italic">"{n.message}"</p>
                     )}
                   </div>

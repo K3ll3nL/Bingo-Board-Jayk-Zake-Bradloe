@@ -38,28 +38,36 @@ const contextBuilders = {
   },
 
   async approved(userId, supabase) {
-    // Two queries, shared by every approved-trigger badge — no matter how many exist.
-    const [{ data: userEntries }, { data: allPokemon }] = await Promise.all([
+    // Three queries, shared by every approved-trigger badge.
+    const [{ data: userEntries }, { data: allPokemon }, { data: gameFilters }] = await Promise.all([
       supabase
         .from('entries')
-        .select('pokemon_id, restricted_submission, pokemon_master!fk_entries_pokemon(type1, type2, generation, collection_ids)')
+        .select('pokemon_id, restricted_submission, game, pokemon_master!fk_entries_pokemon(type1, type2, generation, collection_ids)')
         .eq('user_id', userId),
       supabase
         .from('pokemon_master')
         .select('type1, type2, generation, collection_ids')
         .eq('shiny_available', true),
+      supabase
+        .from('collection_game_filter')
+        .select('slug, required_game'),
     ]);
+
+    // Build collection game-filter lookup: { slug -> required_game | null }
+    const collectionGameFilter = Object.fromEntries(
+      (gameFilters || []).map(g => [g.slug, g.required_game])
+    );
 
     // Deduplicate entries — one record per distinct pokemon_id caught
     const seenIds    = new Set();
-    const caughtMeta = []; // pokemon_master data for each unique caught pokemon
+    const caughtMeta = []; // { ...pokemon_master, game } for each unique caught pokemon
     let restrictedApproved = 0;
 
     for (const entry of (userEntries || [])) {
       if (entry.restricted_submission) restrictedApproved++;
       if (seenIds.has(entry.pokemon_id)) continue;
       seenIds.add(entry.pokemon_id);
-      if (entry.pokemon_master) caughtMeta.push(entry.pokemon_master);
+      if (entry.pokemon_master) caughtMeta.push({ ...entry.pokemon_master, game: entry.game });
     }
 
     // ── Type ──────────────────────────────────────────────────────────────────
@@ -85,13 +93,30 @@ const contextBuilders = {
     }
 
     // ── Collections ───────────────────────────────────────────────────────────
+    // For collections with a required_game, only count entries from that game.
+    // We need all entries (not just deduplicated) for game-filtered collections,
+    // because the same pokemon in different games counts differently per-collection.
     const collectionCaught = {};
     const collectionTotal  = {};
-    for (const p of caughtMeta) {
-      for (const col of (p.collection_ids ?? [])) {
-        collectionCaught[col] = (collectionCaught[col] ?? 0) + 1;
+
+    // Build per-collection caught set: for game-filtered collections, track
+    // caught pokemon_ids only from the required game.
+    const collectionCaughtIds = {}; // { slug -> Set of pokemon_ids }
+
+    for (const entry of (userEntries || [])) {
+      const meta = entry.pokemon_master;
+      if (!meta) continue;
+      for (const col of (meta.collection_ids ?? [])) {
+        const requiredGame = collectionGameFilter[col]; // undefined = no filter
+        if (requiredGame && entry.game !== requiredGame) continue;
+        if (!collectionCaughtIds[col]) collectionCaughtIds[col] = new Set();
+        collectionCaughtIds[col].add(entry.pokemon_id);
       }
     }
+    for (const [col, ids] of Object.entries(collectionCaughtIds)) {
+      collectionCaught[col] = ids.size;
+    }
+
     for (const p of (allPokemon || [])) {
       for (const col of (p.collection_ids ?? [])) {
         collectionTotal[col] = (collectionTotal[col] ?? 0) + 1;

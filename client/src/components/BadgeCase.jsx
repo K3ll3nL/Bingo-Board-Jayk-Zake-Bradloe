@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { getAuthHeaders } from '../services/api';
 import BadgePickerModal from './BadgePickerModal';
+import BadgeCaseModal from './BadgeCaseModal';
 
 const TOTAL_SLOTS = 8;
 const LEADERBOARD_SLOTS = 3;
@@ -8,6 +9,7 @@ const LEADERBOARD_SLOTS = 3;
 export default function BadgeCase({ userId, isOwnProfile }) {
   const [slots, setSlots] = useState(Array(TOTAL_SLOTS).fill(null));
   const [pickerSlot, setPickerSlot] = useState(null);
+  const [modalOpen, setModalOpen] = useState(false);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -86,7 +88,18 @@ export default function BadgeCase({ userId, isOwnProfile }) {
         {/* Header */}
         <div className="px-4 py-3 border-b border-gray-700/60 flex items-center justify-between">
           <span className="text-yellow-300 text-xs font-bold tracking-widest uppercase">◆ Badge Case ◆</span>
-          {saving && <span className="text-gray-500 text-xs">Saving…</span>}
+          <div className="flex items-center gap-2">
+            {saving && <span className="text-gray-500 text-xs">Saving…</span>}
+            <button
+              onClick={() => setModalOpen(true)}
+              title="Expand badge case"
+              className="text-gray-500 hover:text-yellow-300 transition-colors"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8V4m0 0h4M4 4l5 5M20 8V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5M20 16v4m0 0h-4m4 0l-5-5" />
+              </svg>
+            </button>
+          </div>
         </div>
 
         {/* Slots */}
@@ -119,6 +132,13 @@ export default function BadgeCase({ userId, isOwnProfile }) {
           </div>
         </div>
       </div>
+
+      <BadgeCaseModal
+        isOpen={modalOpen}
+        onClose={() => setModalOpen(false)}
+        userId={userId}
+        isOwnProfile={isOwnProfile}
+      />
 
       {pickerSlot !== null && (
         <BadgePickerModal

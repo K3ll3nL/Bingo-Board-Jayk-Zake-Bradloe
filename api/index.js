@@ -205,7 +205,21 @@ const awardBadgesForTrigger = async (userId, trigger) => {
 
     if (inserted?.length) {
       const insertedIds = new Set(inserted.map(i => i.badge_id));
-      for (const badge of newlyEarned.filter(b => insertedIds.has(b.id))) {
+      const awardedBadges = newlyEarned.filter(b => insertedIds.has(b.id));
+
+      // Insert a notification row for each earned badge (notified:true — toast fires via badge-awards channel)
+      if (awardedBadges.length) {
+        await supabase.from('notifications').insert(
+          awardedBadges.map(b => ({
+            user_id:  userId,
+            status:   'badge_earned',
+            message:  b.id,   // badge UUID stored in message for enrichment
+            notified: true,
+          }))
+        );
+      }
+
+      for (const badge of awardedBadges) {
         await broadcastUpdate(`badge-awards-${userId}`, 'badge-earned', {
           id:          badge.id,
           name:        badge.name,
@@ -916,7 +930,7 @@ async function enrichWithBadgeSlots(users) {
   if (userIds.length === 0) return users;
   const { data: slots } = await supabase
     .from('user_badges')
-    .select('user_id, slot, badges(id, name, image_url)')
+    .select('user_id, slot, badges(id, name, image_url, family)')
     .in('user_id', userIds)
     .not('slot', 'is', null)
     .lte('slot', 3)
@@ -2786,19 +2800,31 @@ app.get('/api/notifications', async (req, res) => {
     const awardIds = [...new Set(notifications.filter(n => n.award).map(n => n.award))];
     let awardMap = {};
     if (awardIds.length > 0) {
-      console.log('Looking up award IDs:', awardIds);
       const { data: awards, error: awardsError } = await supabase
         .from('bingo_achievements')
         .select('id, bingo_type')
         .in('id', awardIds);
-      console.log('Award lookup result:', { awards, awardsError });
       if (!awardsError && awards) awardMap = Object.fromEntries(awards.map(a => [a.id, a]));
+    }
+
+    // Enrich badge_earned notifications — message stores the badge UUID
+    const badgeIds = [...new Set(
+      notifications.filter(n => n.status === 'badge_earned' && n.message).map(n => n.message)
+    )];
+    let badgeMap = {};
+    if (badgeIds.length > 0) {
+      const { data: badges } = await supabase
+        .from('badges')
+        .select('id, name, description, image_url')
+        .in('id', badgeIds);
+      if (badges) badgeMap = Object.fromEntries(badges.map(b => [b.id, b]));
     }
 
     const enriched = notifications.map(n => ({
       ...n,
-      pokemon: n.pokemon_id ? (pokemonMap[n.pokemon_id] || null) : null,
-      achievement: n.award ? (awardMap[n.award] || null) : null,
+      pokemon:     n.pokemon_id ? (pokemonMap[n.pokemon_id] || null) : null,
+      achievement: n.award      ? (awardMap[n.award]        || null) : null,
+      badge:       n.status === 'badge_earned' && n.message ? (badgeMap[n.message] || null) : null,
     }));
 
     // When fetching for the toast (unread=true), also consume broadcast notifications
@@ -4098,7 +4124,7 @@ app.get('/api/pokemon/search', async (req, res) => {
 
     const { data, error } = await supabase
       .from('pokemon_master')
-      .select('id, name, national_dex_id, img_url, collection_ids')
+      .select('id, name, national_dex_id, img_url, collection_ids, game_slugs')
       .ilike('name', `%${q}%`)
       .order('national_dex_id')
       .limit(20);
@@ -4194,7 +4220,7 @@ app.patch('/api/admin/badge-families/:id', async (req, res) => {
 
 // ── Collection management (mod only) ─────────────────────────────────────────
 
-// GET /api/admin/collections — all distinct collection slugs
+// GET /api/admin/collections — all distinct collection slugs with their required_game
 app.get('/api/admin/collections', async (req, res) => {
   try {
     const userId = await getAuthenticatedUserId(req);
@@ -4209,7 +4235,40 @@ app.get('/api/admin/collections', async (req, res) => {
     if (error) throw error;
 
     const slugs = [...new Set((data || []).flatMap(p => p.collection_ids || []))].sort();
-    res.json(slugs);
+
+    // Fetch game filters for all slugs
+    const { data: gameFilters } = await supabase
+      .from('collection_game_filter')
+      .select('slug, required_game')
+      .in('slug', slugs);
+    const gameFilterMap = Object.fromEntries((gameFilters || []).map(g => [g.slug, g.required_game]));
+
+    res.json(slugs.map(slug => ({ slug, required_game: gameFilterMap[slug] ?? null })));
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// PUT /api/admin/collections/:slug/game — set or clear the required game for a collection
+app.put('/api/admin/collections/:slug/game', async (req, res) => {
+  try {
+    const userId = await getAuthenticatedUserId(req);
+    if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+    const { data: mod } = await supabase.from('moderators').select('id').eq('id', userId).single();
+    if (!mod) return res.status(403).json({ error: 'Moderators only' });
+
+    const { slug } = req.params;
+    const { required_game } = req.body; // null or a game key string
+
+    if (required_game === null || required_game === undefined || required_game === '') {
+      // Clear the filter
+      await supabase.from('collection_game_filter').delete().eq('slug', slug);
+    } else {
+      await supabase
+        .from('collection_game_filter')
+        .upsert({ slug, required_game }, { onConflict: 'slug' });
+    }
+    res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -4224,14 +4283,21 @@ app.get('/api/admin/collections/:slug', async (req, res) => {
     if (!mod) return res.status(403).json({ error: 'Moderators only' });
 
     const { slug } = req.params;
-    const { data, error } = await supabase
-      .from('pokemon_master')
-      .select('id, name, national_dex_id, img_url, collection_ids')
-      .contains('collection_ids', [slug])
-      .order('national_dex_id');
+    const [{ data, error }, { data: gameFilter }] = await Promise.all([
+      supabase
+        .from('pokemon_master')
+        .select('id, name, national_dex_id, img_url, collection_ids')
+        .contains('collection_ids', [slug])
+        .order('national_dex_id'),
+      supabase
+        .from('collection_game_filter')
+        .select('required_game')
+        .eq('slug', slug)
+        .maybeSingle(),
+    ]);
 
     if (error) throw error;
-    res.json(data || []);
+    res.json({ members: data || [], required_game: gameFilter?.required_game ?? null });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
