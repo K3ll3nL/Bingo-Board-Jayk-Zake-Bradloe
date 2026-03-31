@@ -108,20 +108,20 @@ const EXCEPTIONS = [
       ];
       return (
         <>
-          <div className="flex gap-4 items-center">
-          <p className="flex-1">
+          <p className="mb-3">
             We require a different first image. Instead of the usual image of the encounter, we need
             the <span className="text-white font-medium">first page of the summary</span> that contains
             the TID/username as well as the shiny indicator and model.
           </p>
-          <figure className="flex-shrink-0 rounded-lg overflow-hidden cursor-zoom-in" style={{ backgroundColor: '#2a2c30', width: '150px' }} onClick={() => openLightbox(svImages, 0)}>
-            <img src={svImages[0]} alt="Summary screen" className="w-full object-contain" loading="lazy" />
-            <figcaption className="text-center text-gray-500 text-[9px] py-2 px-3">Correct image 1 for SV</figcaption>
-          </figure>
-          <figure className="flex-shrink-0 rounded-lg overflow-hidden cursor-zoom-in" style={{ backgroundColor: '#2a2c30', width: '150px' }} onClick={() => openLightbox(svImages, 1)}>
-            <img src={svImages[1]} alt="Summary screen" className="w-full object-contain" loading="lazy" />
-            <figcaption className="text-center text-gray-500 text-[9px] py-2 px-3">Correct image 2 for SV</figcaption>
-          </figure>
+          <div className="flex gap-3">
+            <figure className="flex-1 rounded-lg overflow-hidden cursor-zoom-in" style={{ backgroundColor: '#2a2c30' }} onClick={() => openLightbox(svImages, 0)}>
+              <img src={svImages[0]} alt="Summary screen" className="w-full object-contain" loading="lazy" />
+              <figcaption className="text-center text-gray-500 text-[9px] py-2 px-3">Correct image 1 for SV</figcaption>
+            </figure>
+            <figure className="flex-1 rounded-lg overflow-hidden cursor-zoom-in" style={{ backgroundColor: '#2a2c30' }} onClick={() => openLightbox(svImages, 1)}>
+              <img src={svImages[1]} alt="Summary screen" className="w-full object-contain" loading="lazy" />
+              <figcaption className="text-center text-gray-500 text-[9px] py-2 px-3">Correct image 2 for SV</figcaption>
+            </figure>
           </div>
         </>
       );
@@ -441,7 +441,7 @@ const About = () => {
           <div className="rounded-lg overflow-hidden border border-gray-600 mb-5">
             <div className="flex gap-4 items-center px-4 py-3.5" style={{ backgroundColor: 'rgba(42,44,48,0.6)' }}>
               <span className="flex-shrink-0 w-6 h-6 rounded-full text-white text-xs font-bold flex items-center justify-center" style={{ backgroundColor: '#3b82f6' }}>1</span>
-              <div className="flex gap-4 items-center w-full">
+              <div className="flex flex-col sm:flex-row gap-4 sm:items-center w-full">
                 <div className="flex-1">
                 <p className="text-white font-medium text-sm mb-1">Encounter screenshot</p>
                 <p className="text-gray-400 text-sm leading-relaxed">
@@ -449,7 +449,7 @@ const About = () => {
                   view, Dynamax Adventure results page, etc.
                 </p>
                 </div>
-                <figure className="flex-shrink-0 rounded-lg overflow-hidden cursor-zoom-in" style={{ backgroundColor: '#2a2c30', width: '170px' }} onClick={() => setLightboxImage('https://pub-583ae6cd5f8b4b58b0ee7053ea1d4b0b.r2.dev/assets/correct_img1.png')}>
+                <figure className="sm:flex-shrink-0 rounded-lg overflow-hidden cursor-zoom-in" style={{ backgroundColor: '#2a2c30', width: '170px', maxWidth: '100%' }} onClick={() => setLightboxImage('https://pub-583ae6cd5f8b4b58b0ee7053ea1d4b0b.r2.dev/assets/correct_img1.png')}>
                   <img
                     src="https://pub-583ae6cd5f8b4b58b0ee7053ea1d4b0b.r2.dev/assets/correct_img1.png"
                     alt="The Pokémon encountered in the wild"
@@ -464,14 +464,14 @@ const About = () => {
             </div>
             <div className="border-t border-gray-600 flex gap-4 items-center px-4 py-3.5" style={{ backgroundColor: 'rgba(42,44,48,0.6)' }}>
               <span className="flex-shrink-0 w-6 h-6 rounded-full text-white text-xs font-bold flex items-center justify-center" style={{ backgroundColor: '#3b82f6' }}>2</span>
-              <div className="flex gap-4 items-center w-full">
+              <div className="flex flex-col sm:flex-row gap-4 sm:items-center w-full">
                 <div className="flex-1">
                 <p className="text-white font-medium text-sm mb-1">Date screenshot</p>
                 <p className="text-gray-400 text-sm leading-relaxed">
                   A screenshot showing the in-game or system date on which the Pokémon was caught.
                 </p>
                 </div>
-                <figure className="flex-shrink-0 rounded-lg overflow-hidden cursor-zoom-in" style={{ backgroundColor: '#2a2c30', width: '170px' }} onClick={() => setLightboxImage('https://pub-583ae6cd5f8b4b58b0ee7053ea1d4b0b.r2.dev/assets/correct_img2.png')}>
+                <figure className="sm:flex-shrink-0 rounded-lg overflow-hidden cursor-zoom-in" style={{ backgroundColor: '#2a2c30', width: '170px', maxWidth: '100%' }} onClick={() => setLightboxImage('https://pub-583ae6cd5f8b4b58b0ee7053ea1d4b0b.r2.dev/assets/correct_img2.png')}>
                   <img
                     src="https://pub-583ae6cd5f8b4b58b0ee7053ea1d4b0b.r2.dev/assets/correct_img2.png"
                     alt="Date proof screen"
