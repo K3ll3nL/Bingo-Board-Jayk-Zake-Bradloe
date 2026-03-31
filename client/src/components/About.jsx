@@ -87,7 +87,7 @@ const ExceptionCard = ({ game, open, onToggle, divider, children }) => (
     </button>
     {open && (
       <div
-        className="px-4 py-3 border-t border-gray-600 text-gray-300 text-sm leading-relaxed"
+        className="px-4 pl-8 py-3 border-t border-gray-600 text-gray-300 text-sm leading-relaxed"
         style={{ backgroundColor: 'rgba(42,44,48,0.4)' }}
       >
         {children}
@@ -101,38 +101,51 @@ const EXCEPTIONS = [
   {
     key: 'sv',
     game: 'Pokémon Scarlet / Violet',
-    content: (
-      <>
-        We require a different first image. Instead of the usual image of the encounter, we need
-        the <span className="text-white font-medium">first page of the summary</span> that contains
-        the TID/username as well as the shiny indicator and model.
-      </>
-    ),
+    content: (openLightbox) => {
+      const svImages = [
+        'https://pub-583ae6cd5f8b4b58b0ee7053ea1d4b0b.r2.dev/assets/correct_img1_sv.png',
+        'https://pub-583ae6cd5f8b4b58b0ee7053ea1d4b0b.r2.dev/assets/correct_img2_sv.png',
+      ];
+      return (
+        <>
+          <div className="flex gap-4 items-center">
+          <p className="flex-1">
+            We require a different first image. Instead of the usual image of the encounter, we need
+            the <span className="text-white font-medium">first page of the summary</span> that contains
+            the TID/username as well as the shiny indicator and model.
+          </p>
+          <figure className="flex-shrink-0 rounded-lg overflow-hidden cursor-zoom-in" style={{ backgroundColor: '#2a2c30', width: '150px' }} onClick={() => openLightbox(svImages, 0)}>
+            <img src={svImages[0]} alt="Summary screen" className="w-full object-contain" loading="lazy" />
+            <figcaption className="text-center text-gray-500 text-[9px] py-2 px-3">Correct image 1 for SV</figcaption>
+          </figure>
+          <figure className="flex-shrink-0 rounded-lg overflow-hidden cursor-zoom-in" style={{ backgroundColor: '#2a2c30', width: '150px' }} onClick={() => openLightbox(svImages, 1)}>
+            <img src={svImages[1]} alt="Summary screen" className="w-full object-contain" loading="lazy" />
+            <figcaption className="text-center text-gray-500 text-[9px] py-2 px-3">Correct image 2 for SV</figcaption>
+          </figure>
+          </div>
+        </>
+      );
+    },
   },
   {
     key: 'gen1-3',
     game: 'Generations I–III',
-    content: (
-      <>
-        Because these games do not store a date of capture, a video submission is required instead
-        of screenshots.
-      </>
-    ),
+    content: () => <>Because these games do not store a date of capture, a video submission is required instead of screenshots.</>,
   },
 ];
 
-const ExceptionsBlock = () => {
+const ExceptionsBlock = ({ openLightbox, exceptions = EXCEPTIONS, title = 'Exceptions' }) => {
   const [openKey, setOpenKey] = React.useState(null);
   return (
     <div className="mb-5">
       <h3 className="text-white font-semibold text-sm mb-3 flex items-center gap-2">
-        Exceptions
+        {title}
       </h3>
       <div
         className="rounded-lg overflow-hidden border border-gray-600"
         style={{ backgroundColor: 'rgba(42,44,48,0.6)' }}
       >
-        {EXCEPTIONS.map((ex, i) => (
+        {exceptions.map((ex, i) => (
           <ExceptionCard
             key={ex.key}
             game={ex.game}
@@ -140,7 +153,7 @@ const ExceptionsBlock = () => {
             onToggle={() => setOpenKey(openKey === ex.key ? null : ex.key)}
             divider={i > 0}
           >
-            {ex.content}
+            {ex.content(openLightbox)}
           </ExceptionCard>
         ))}
       </div>
@@ -148,11 +161,164 @@ const ExceptionsBlock = () => {
   );
 };
 
+const RulesBlock = ({ rules, exceptions = [], title, exceptionsTitle = 'Exceptions', openLightbox }) => (
+  <div className="mb-5">
+    {title && <h3 className="text-white font-semibold text-sm mb-3">{title}</h3>}
+    <div className="space-y-0 rounded-lg overflow-hidden border border-gray-600" style={{ backgroundColor: 'rgba(42,44,48,0.6)' }}>
+      {rules.map((rule, i) => (
+        <div key={rule.key} className={`px-4 py-3 flex gap-4 ${i > 0 ? 'border-t border-gray-700/60' : ''}`}>
+          <span className="text-gray-400 text-xs font-semibold uppercase tracking-wide w-36 flex-shrink-0 pt-0.5">{rule.game}</span>
+          <div className="flex-1 text-sm">{rule.content(openLightbox)}</div>
+        </div>
+      ))}
+    </div>
+    {exceptions.length > 0 && (
+      <div className="mt-3">
+        <h4 className="text-gray-400 text-xs font-semibold uppercase tracking-wide mb-2">{exceptionsTitle}</h4>
+        <div className="space-y-0 rounded-lg overflow-hidden border border-gray-600" style={{ backgroundColor: 'rgba(42,44,48,0.6)' }}>
+          {exceptions.map((ex, i) => (
+            <div key={ex.key} className={`px-4 py-3 flex gap-4 ${i > 0 ? 'border-t border-gray-700/60' : ''}`}>
+              <span className="text-gray-400 text-xs font-semibold uppercase tracking-wide w-36 flex-shrink-0 pt-0.5">{ex.game}</span>
+              <div className="flex-1 text-sm">{ex.content(openLightbox)}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+    )}
+  </div>
+);
+
+/* ── Restricted Challenge rules ───────────────────────────────────────── */
+const RESTRICTED_RULES = [
+  {
+    key: 'all',
+    game: 'All Games',
+    content: () => (
+      <ul className="space-y-1 text-sm text-gray-300 list-disc list-inside">
+        <li>All standard board rules apply</li>
+        <li>Eggs are not allowed <span className="text-gray-500">(see exceptions)</span></li>
+      </ul>
+    ),
+  },
+  {
+    key: 'plza',
+    game: 'Pokémon Legends: Z-A',
+    content: () => (
+      <ul className="space-y-1 text-sm text-gray-300 list-disc list-inside">
+        <li>No Shiny Charm</li>
+        <li>No Hyperspace <span className="text-gray-500">(see exceptions)</span></li>
+        <li>No AFK Hunting</li>
+      </ul>
+    ),
+  },
+  {
+    key: 'sv',
+    game: 'Scarlet & Violet',
+    content: () => (
+      <ul className="space-y-1 text-sm text-gray-300 list-disc list-inside">
+        <li>No Shiny Charm</li>
+        <li>No Sparkling Power</li>
+      </ul>
+    ),
+  },
+  {
+    key: 'pla',
+    game: 'Legends: Arceus',
+    content: () => <p className="text-gray-400 text-sm italic">No additional restrictions at this time.</p>,
+  },
+  {
+    key: 'bdsp',
+    game: 'Brilliant Diamond & Shining Pearl',
+    content: () => <p className="text-gray-400 text-sm italic">No additional restrictions at this time.</p>,
+  },
+  {
+    key: 'swsh',
+    game: 'Sword & Shield',
+    content: () => <p className="text-gray-400 text-sm italic">No additional restrictions at this time.</p>,
+  },
+  {
+    key: 'lgpe',
+    game: "Let's Go Pikachu & Eevee",
+    content: () => <p className="text-gray-300 text-sm">Catch Combos may not exceed 11.</p>,
+  },
+  {
+    key: 'usum',
+    game: 'Ultra Sun & Ultra Moon',
+    content: () => (
+      <p className="text-gray-300 text-sm">
+        No Ultra Warp Ride <span className="text-gray-500">(see exceptions)</span>.
+      </p>
+    ),
+  },
+  {
+    key: 'sm',
+    game: 'Sun & Moon',
+    content: () => <p className="text-gray-400 text-sm italic">No additional restrictions at this time.</p>,
+  },
+  {
+    key: 'oras',
+    game: 'Omega Ruby & Alpha Sapphire',
+    content: () => <p className="text-gray-300 text-sm">No Fishing.</p>,
+  },
+  {
+    key: 'xy',
+    game: 'X & Y',
+    content: () => <p className="text-gray-300 text-sm">No Fishing.</p>,
+  },
+];
+
+const RESTRICTED_EXCEPTIONS = [
+  {
+    key: 'hyperspace',
+    game: 'Hyperspace',
+    content: () => (
+      <p className="text-gray-300 text-sm">
+        Allowed for <span className="text-white font-medium">Gimmighoul</span> and{' '}
+        <span className="text-white font-medium">Gholdengo</span> without Sparkling Power.
+      </p>
+    ),
+  },
+  {
+    key: 'eggs',
+    game: 'Eggs',
+    content: () => (
+      <ul className="space-y-1 text-sm text-gray-300 list-disc list-inside">
+        <li><span className="text-white font-medium">Phione</span> is allowed</li>
+        <li><span className="text-white font-medium">Gen 9 Starters</span> are allowed</li>
+      </ul>
+    ),
+  },
+  {
+    key: 'uwr',
+    game: 'Ultra Warp Ride',
+    content: () => (
+      <p className="text-gray-300 text-sm">
+        Allowed when hunting <span className="text-white font-medium">Legendaries</span>.
+      </p>
+    ),
+  },
+];
+
 /* ════════════════════════════════════════════════════════════════════════ */
 const About = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { isModerator } = useAuth();
+  const [lightbox, setLightbox] = React.useState(null); // { images: [], index: number }
+  const openLightbox = (images, index = 0) => setLightbox({ images, index });
+  const closeLightbox = () => setLightbox(null);
+  const setLightboxImage = (url) => openLightbox([url], 0); // compat for single-image figures
+
+  React.useEffect(() => {
+    if (!lightbox) return;
+    const handler = (e) => {
+      if (e.key === 'ArrowRight') setLightbox(l => l && l.index < l.images.length - 1 ? { ...l, index: l.index + 1 } : l);
+      if (e.key === 'ArrowLeft')  setLightbox(l => l && l.index > 0 ? { ...l, index: l.index - 1 } : l);
+      if (e.key === 'Escape') closeLightbox();
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [lightbox]);
 
   // Scroll to hash anchor after the page has rendered
   React.useEffect(() => {
@@ -273,29 +439,55 @@ const About = () => {
 
           {/* Required screenshots */}
           <div className="rounded-lg overflow-hidden border border-gray-600 mb-5">
-            <div className="flex gap-4 px-4 py-3.5" style={{ backgroundColor: 'rgba(42,44,48,0.6)' }}>
-              <span className="flex-shrink-0 w-6 h-6 rounded-full text-white text-xs font-bold flex items-center justify-center mt-0.5" style={{ backgroundColor: '#3b82f6' }}>1</span>
-              <div>
+            <div className="flex gap-4 items-center px-4 py-3.5" style={{ backgroundColor: 'rgba(42,44,48,0.6)' }}>
+              <span className="flex-shrink-0 w-6 h-6 rounded-full text-white text-xs font-bold flex items-center justify-center" style={{ backgroundColor: '#3b82f6' }}>1</span>
+              <div className="flex gap-4 items-center w-full">
+                <div className="flex-1">
                 <p className="text-white font-medium text-sm mb-1">Encounter screenshot</p>
                 <p className="text-gray-400 text-sm leading-relaxed">
                   The first image must be of the initial encounter — the egg hatch screen, in-battle
                   view, Dynamax Adventure results page, etc.
                 </p>
+                </div>
+                <figure className="flex-shrink-0 rounded-lg overflow-hidden cursor-zoom-in" style={{ backgroundColor: '#2a2c30', width: '170px' }} onClick={() => setLightboxImage('https://pub-583ae6cd5f8b4b58b0ee7053ea1d4b0b.r2.dev/assets/correct_img1.png')}>
+                  <img
+                    src="https://pub-583ae6cd5f8b4b58b0ee7053ea1d4b0b.r2.dev/assets/correct_img1.png"
+                    alt="The Pokémon encountered in the wild"
+                    className="w-full object-contain"
+                    loading="lazy"
+                  />
+                  <figcaption className="text-center text-gray-500 text-[9px] py-2 px-3">
+                    The Pokémon encountered in the wild
+                  </figcaption>
+                </figure>
               </div>
             </div>
-            <div className="border-t border-gray-600 flex gap-4 px-4 py-3.5" style={{ backgroundColor: 'rgba(42,44,48,0.6)' }}>
-              <span className="flex-shrink-0 w-6 h-6 rounded-full text-white text-xs font-bold flex items-center justify-center mt-0.5" style={{ backgroundColor: '#3b82f6' }}>2</span>
-              <div>
+            <div className="border-t border-gray-600 flex gap-4 items-center px-4 py-3.5" style={{ backgroundColor: 'rgba(42,44,48,0.6)' }}>
+              <span className="flex-shrink-0 w-6 h-6 rounded-full text-white text-xs font-bold flex items-center justify-center" style={{ backgroundColor: '#3b82f6' }}>2</span>
+              <div className="flex gap-4 items-center w-full">
+                <div className="flex-1">
                 <p className="text-white font-medium text-sm mb-1">Date screenshot</p>
                 <p className="text-gray-400 text-sm leading-relaxed">
                   A screenshot showing the in-game or system date on which the Pokémon was caught.
                 </p>
+                </div>
+                <figure className="flex-shrink-0 rounded-lg overflow-hidden cursor-zoom-in" style={{ backgroundColor: '#2a2c30', width: '170px' }} onClick={() => setLightboxImage('https://pub-583ae6cd5f8b4b58b0ee7053ea1d4b0b.r2.dev/assets/correct_img2.png')}>
+                  <img
+                    src="https://pub-583ae6cd5f8b4b58b0ee7053ea1d4b0b.r2.dev/assets/correct_img2.png"
+                    alt="Date proof screen"
+                    className="w-full object-contain"
+                    loading="lazy"
+                  />
+                  <figcaption className="text-center text-gray-500 text-[9px] py-2 px-3">
+                    Date proof screen
+                  </figcaption>
+                </figure>
               </div>
             </div>
           </div>
 
           {/* Game-specific exceptions */}
-          <ExceptionsBlock />
+          <ExceptionsBlock openLightbox={openLightbox} />
         </Section>
 
         {/* ── Bonus Bounties ────────────────────────────────────────────── */}
@@ -436,7 +628,7 @@ const About = () => {
             </div>
 
             {/* How to toggle */}
-            <div className="rounded-lg border px-4 py-3" style={{ borderColor: '#78150a55', backgroundColor: 'rgba(120,21,10,0.15)' }}>
+            <div className="rounded-lg border px-4 py-3 mb-6" style={{ borderColor: '#78150a55', backgroundColor: 'rgba(120,21,10,0.15)' }}>
               <p className="text-gray-300 text-sm leading-relaxed">
                 To submit as restricted, toggle the{' '}
                 <span
@@ -453,10 +645,77 @@ const About = () => {
                 mode, and only a video link will be accepted.
               </p>
             </div>
+
+            {/* Per-game restrictions + exceptions */}
+            <RulesBlock
+              rules={RESTRICTED_RULES}
+              exceptions={RESTRICTED_EXCEPTIONS}
+              title="Rules by Game"
+              exceptionsTitle="Exceptions"
+              openLightbox={openLightbox}
+            />
           </Section>
         )}
 
       </div>
+
+      {lightbox && (
+        <div
+          className="fixed inset-0 bg-black bg-opacity-90 flex items-center justify-center z-50 p-4"
+          onClick={closeLightbox}
+        >
+          <div className="relative max-w-5xl max-h-[90vh] flex items-center gap-4" onClick={(e) => e.stopPropagation()}>
+            {/* Prev */}
+            <button
+              onClick={() => setLightbox(l => ({ ...l, index: l.index - 1 }))}
+              disabled={lightbox.index === 0}
+              className="text-white hover:text-gray-300 disabled:opacity-20 transition-colors flex-shrink-0"
+            >
+              <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+              </svg>
+            </button>
+
+            <div className="relative">
+              <button
+                onClick={closeLightbox}
+                className="absolute -top-12 right-0 text-white hover:text-gray-300 transition-colors"
+              >
+                <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+              <img
+                src={lightbox.images[lightbox.index]}
+                alt="Preview"
+                className="max-w-full max-h-[90vh] object-contain rounded-lg"
+              />
+              {lightbox.images.length > 1 && (
+                <div className="absolute bottom-2 left-0 right-0 flex justify-center gap-2">
+                  {lightbox.images.map((_, i) => (
+                    <button
+                      key={i}
+                      onClick={() => setLightbox(l => ({ ...l, index: i }))}
+                      className={`w-2 h-2 rounded-full transition-colors ${i === lightbox.index ? 'bg-white' : 'bg-gray-500 hover:bg-gray-300'}`}
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Next */}
+            <button
+              onClick={() => setLightbox(l => ({ ...l, index: l.index + 1 }))}
+              disabled={lightbox.index === lightbox.images.length - 1}
+              className="text-white hover:text-gray-300 disabled:opacity-20 transition-colors flex-shrink-0"
+            >
+              <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+              </svg>
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
