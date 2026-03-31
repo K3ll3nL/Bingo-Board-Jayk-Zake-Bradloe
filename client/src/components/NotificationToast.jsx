@@ -136,6 +136,19 @@ const DEFAULT_CONFIG = {
   ),
 };
 
+const BADGE_CONFIG = {
+  borderColor: '#a855f7',
+  bgColor: '#0f0a1a',
+  badgeBg: '#3b0764',
+  badgeText: '#e9d5ff',
+  label: 'Badge Earned!',
+  icon: (
+    <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+      <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+    </svg>
+  ),
+};
+
 const STATUS_BODY = {
   accepted:                      'accepted',
   accepted_historical:           'accepted as a historical catch',
@@ -149,8 +162,11 @@ const STATUS_BODY = {
 const Toast = ({ notification, onDismiss }) => {
   const [visible, setVisible] = useState(false);
   const [progress, setProgress] = useState(100);
+  const isBadgeEarned = notification.status === 'badge_earned';
   const isAchievement = notification.status === 'award' || !!notification.achievement;
-  const config = isAchievement
+  const config = isBadgeEarned
+    ? BADGE_CONFIG
+    : isAchievement
     ? STATUS_CONFIG.achievement
     : (STATUS_CONFIG[notification.status] || DEFAULT_CONFIG);
 
@@ -208,8 +224,22 @@ const Toast = ({ notification, onDismiss }) => {
     >
       {/* Main content */}
       <div className="flex items-start gap-3 p-3">
-        {/* Left icon: bingo type badge for achievements, pokemon sprite otherwise */}
-        {isAchievement ? (
+        {/* Left icon: badge image, bingo type, or pokemon sprite */}
+        {isBadgeEarned ? (
+          notification.image_url ? (
+            <img
+              src={notification.image_url}
+              alt={notification.name || 'Badge'}
+              draggable="false"
+              style={{ width: '48px', height: '48px', flexShrink: 0, imageRendering: 'auto' }}
+            />
+          ) : (
+            <div style={{ width: '48px', height: '48px', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center',
+              backgroundColor: BADGE_CONFIG.badgeBg, borderRadius: '8px', border: `2px solid ${BADGE_CONFIG.borderColor}`, color: BADGE_CONFIG.badgeText }}>
+              {BADGE_CONFIG.icon}
+            </div>
+          )
+        ) : isAchievement ? (
           <div style={{
             width: '48px', height: '48px', borderRadius: '8px', flexShrink: 0, position: 'relative',
             backgroundColor: isRestricted ? '#78150a' : config.badgeBg,
@@ -230,7 +260,7 @@ const Toast = ({ notification, onDismiss }) => {
               </div>
             )}
           </div>
-        ) : spriteUrl ? (
+        ) : !isBadgeEarned && spriteUrl ? (
           <img
             src={spriteUrl}
             alt={notification.pokemon?.name || ''}
@@ -265,7 +295,11 @@ const Toast = ({ notification, onDismiss }) => {
           </div>
 
           {/* Title */}
-          {isAchievement ? (
+          {isBadgeEarned ? (
+            <p style={{ color: '#f1f5f9', fontWeight: 600, fontSize: '14px', margin: 0, lineHeight: 1.3 }}>
+              {notification.name || 'New badge unlocked!'}
+            </p>
+          ) : isAchievement ? (
             <p style={{ color: '#f1f5f9', fontWeight: 600, fontSize: '14px', margin: 0, lineHeight: 1.3 }}>
               {notification.is_broadcast
                 ? `${notification.winner?.display_name || 'Someone'} was awarded the first ${notification.achievement?.month_name ? `${notification.achievement.month_name} ` : ''}${BINGO_TYPE_LABELS[bingoType] || bingoType}!`
@@ -278,6 +312,13 @@ const Toast = ({ notification, onDismiss }) => {
               {notification.pokemon?.name
                 ? `Your ${notification.pokemon.name} submission was ${STATUS_BODY[notification.status] ?? notification.status}.`
                 : `Your submission was ${STATUS_BODY[notification.status] ?? notification.status}.`}
+            </p>
+          )}
+
+          {/* Badge description */}
+          {isBadgeEarned && notification.description && (
+            <p style={{ color: '#94a3b8', fontSize: '12px', margin: '2px 0 0', lineHeight: 1.4 }}>
+              {notification.description}
             </p>
           )}
 
@@ -364,7 +405,9 @@ const NotificationToast = () => {
 
   const dismiss = useCallback((notification) => {
     setQueue(prev => prev.filter(n => n._queueId !== notification._queueId));
-    if (notification.is_broadcast) {
+    if (notification._direct) {
+      // badge-earned or other direct broadcasts — no DB row to mark
+    } else if (notification.is_broadcast) {
       deleteBroadcast(notification.id);
     } else {
       markNotified(notification.id);
@@ -398,6 +441,20 @@ const NotificationToast = () => {
       .channel(`notifications-${user.id}`)
       .on('broadcast', { event: 'new-notification' }, ({ payload }) => {
         enqueue([payload]);
+      })
+      .subscribe();
+
+    return () => supabase.removeChannel(channel);
+  }, [user?.id, enqueue]);
+
+  // Subscribe to badge-earned events (server broadcasts when awardBadgesForTrigger fires)
+  useEffect(() => {
+    if (!user?.id) return;
+
+    const channel = supabase
+      .channel(`badge-awards-${user.id}`)
+      .on('broadcast', { event: 'badge-earned' }, ({ payload }) => {
+        enqueue([{ ...payload, status: 'badge_earned', _direct: true }]);
       })
       .subscribe();
 

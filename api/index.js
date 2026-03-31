@@ -1835,14 +1835,14 @@ app.get('/api/upload/available-pokemon-restricted', async (req, res) => {
     const ACTIVE_MONTH_ID = await getActiveMonthId(userId);
     if (!ACTIVE_MONTH_ID) return res.json([]);
 
-    // Fetch pool, entries, and pending approvals in parallel
+    // Fetch pool, entries (all + restricted), and pending approvals in parallel
     const [
       { data: poolPokemon, error: poolError },
-      { data: restrictedEntries, error: entriesError },
+      { data: allEntries, error: entriesError },
       { data: restrictedApprovals, error: approvalsError },
     ] = await Promise.all([
       supabase.from('monthly_pokemon_pool').select('pokemon_id').eq('month_id', ACTIVE_MONTH_ID),
-      supabase.from('entries').select('pokemon_id').eq('user_id', userId).eq('month_id', ACTIVE_MONTH_ID).eq('restricted_submission', true),
+      supabase.from('entries').select('pokemon_id, restricted_submission').eq('user_id', userId).eq('month_id', ACTIVE_MONTH_ID),
       supabase.from('approvals').select('pokemon_id').eq('user_id', userId).eq('month_id', ACTIVE_MONTH_ID).eq('restricted_submission', true),
     ]);
 
@@ -1853,9 +1853,13 @@ app.get('/api/upload/available-pokemon-restricted', async (req, res) => {
     const pokemonIds = [...new Set((poolPokemon || []).map(p => p.pokemon_id))];
 
     const restrictedIds = new Set([
-      ...restrictedEntries.map(e => e.pokemon_id),
-      ...restrictedApprovals.map(a => a.pokemon_id),
+      ...(allEntries || []).filter(e => e.restricted_submission).map(e => e.pokemon_id),
+      ...(restrictedApprovals || []).map(a => a.pokemon_id),
     ]);
+    // Pokemon with a standard (non-restricted) entry — show in restricted list but flag them
+    const standardIds = new Set(
+      (allEntries || []).filter(e => !e.restricted_submission).map(e => e.pokemon_id)
+    );
 
     // Exclude pokemon already submitted as restricted
     const availableIds = pokemonIds.filter(id => !restrictedIds.has(id));
@@ -1872,7 +1876,12 @@ app.get('/api/upload/available-pokemon-restricted', async (req, res) => {
 
     if (pokemonError) throw pokemonError;
 
-    res.json(pokemon || []);
+    const result = (pokemon || []).map(p => ({
+      ...p,
+      has_standard_entry: standardIds.has(p.id),
+    }));
+
+    res.json(result);
   } catch (error) {
     console.error('Error fetching restricted available Pokemon:', error);
     res.status(500).json({ error: 'Failed to fetch available Pokemon for restricted' });
@@ -1946,7 +1955,7 @@ app.get('/api/upload/available-pokemon-historical', async (req, res) => {
 
     const { data: pokemon, error: pokemonError } = await supabase
       .from('pokemon_master')
-      .select('id, national_dex_id, name, img_url, game_slugs')
+      .select('id, national_dex_id, name, img_url, game_slugs, restricted_game_slugs')
       .in('id', pokemonIds)
       .eq('shiny_available', true);
 
@@ -2707,6 +2716,19 @@ app.post('/api/admin/clear-cache', async (req, res) => {
 });
 
 // Check if user is a moderator
+// Sync avatar from Discord identity — call after OAuth login to keep avatar_url fresh
+app.post('/api/user/sync-avatar', async (req, res) => {
+  try {
+    const userId = await getAuthenticatedUserId(req);
+    if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+    const avatarUrl = await refreshAvatarFromDiscord(userId);
+    res.json({ success: true, avatar_url: avatarUrl });
+  } catch (err) {
+    console.error('sync-avatar error:', err.message);
+    res.status(500).json({ error: 'Failed to sync avatar' });
+  }
+});
+
 app.get('/api/user/is-moderator', async (req, res) => {
   try {
     const userId = await getAuthenticatedUserId(req);

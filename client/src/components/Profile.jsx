@@ -351,7 +351,7 @@ const Profile = () => {
         {board.length > 0 && (
           <div className="rounded-xl shadow-xl p-6 border border-gray-600" style={{ backgroundColor: '#35373b' }}>
             <h2 className="text-2xl font-bold text-white mb-6">{boardMonth} Bingo Progress</h2>
-            <div className="grid grid-cols-5 gap-2 max-w-2xl mx-auto">
+            <div className="grid grid-cols-5 gap-2 mx-auto" style={{ maxWidth: '605px' }}>
               {board.map((cell) => {
                 const isFreeSpace = cell.position === 13;
                 const isEmpty = cell.pokemon_name === 'EMPTY';

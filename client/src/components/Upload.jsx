@@ -24,6 +24,8 @@ const getAuthHeader = async () => {
 // ── Historical Upload Section ────────────────────────────────────────────────
 
 const HistoricalUploadSection = () => {
+  const { isModerator } = useAuth();
+  const restrictedEnabled = isRestrictedEnabled(isModerator);
   const [pokemon, setPokemon] = useState(null); // null = loading
   const [selectedPokemon, setSelectedPokemon] = useState('');
   const [dropdownOpen, setDropdownOpen] = useState(false);
@@ -33,6 +35,10 @@ const HistoricalUploadSection = () => {
   const [mediaFile, setMediaFile] = useState(null);
   const [mediaFile2, setMediaFile2] = useState(null);
   const [sortBy, setSortBy] = useState('dex');
+  const [isRestricted, setIsRestricted] = useState(false);
+  const [showTooltip, setShowTooltip] = useState(false);
+  const tooltipHideTimer = useRef(null);
+  const tooltipShowTimer = useRef(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(false);
@@ -66,10 +72,34 @@ const HistoricalUploadSection = () => {
 
   const selectedPokeData = (pokemon || []).find(p => p.id === parseInt(selectedPokemon)) ?? null;
   const selectedGameObj  = ALLOWED_GAMES.find(g => g.label === game) ?? null;
+  const selectedGameKey  = selectedGameObj?.key ?? null;
 
-  const filteredGames = selectedPokemon && selectedPokeData
-    ? ALLOWED_GAMES.filter(g => (selectedPokeData.game_slugs ?? []).includes(g.key))
-    : ALLOWED_GAMES;
+  // Game-specific proof config (from games.js)
+  const shinyLabel   = selectedGameObj?.shiny_label ?? 'Proof of Shiny';
+  const noImageProof = !!selectedGameObj?.no_image_proof;
+
+  const slugField = isRestricted ? 'restricted_game_slugs' : 'game_slugs';
+
+  let filteredGames;
+  if (selectedPokemon && selectedPokeData) {
+    filteredGames = ALLOWED_GAMES.filter(g => (selectedPokeData[slugField] ?? []).includes(g.key));
+  } else if (isRestricted) {
+    const restrictedKeys = new Set((pokemon || []).flatMap(p => p.restricted_game_slugs ?? []));
+    filteredGames = ALLOWED_GAMES.filter(g => restrictedKeys.has(g.key));
+  } else {
+    filteredGames = ALLOWED_GAMES;
+  }
+
+  let isRestrictedAvailable;
+  if (selectedPokemon && selectedGameKey) {
+    isRestrictedAvailable = (selectedPokeData?.restricted_game_slugs ?? []).includes(selectedGameKey);
+  } else if (selectedPokemon) {
+    isRestrictedAvailable = (selectedPokeData?.restricted_game_slugs ?? []).length > 0;
+  } else if (selectedGameKey) {
+    isRestrictedAvailable = (pokemon || []).some(p => (p.restricted_game_slugs ?? []).includes(selectedGameKey));
+  } else {
+    isRestrictedAvailable = true;
+  }
 
   const sortedPokemon = [...(pokemon || [])].sort((a, b) =>
     sortBy === 'dex' ? a.national_dex_id - b.national_dex_id : a.name.localeCompare(b.name)
@@ -81,16 +111,20 @@ const HistoricalUploadSection = () => {
     const poke = (pokemon || []).find(p => p.id === pokeId);
     if (game) {
       const gameKey = ALLOWED_GAMES.find(g => g.label === game)?.key;
-      if (gameKey && !(poke?.game_slugs ?? []).includes(gameKey)) setGame('');
+      if (gameKey && !(poke?.[slugField] ?? []).includes(gameKey)) setGame('');
     }
+    if (isRestricted && !(poke?.restricted_game_slugs ?? []).length) setIsRestricted(false);
   };
 
   const handleSelectGame = (gameLabel) => {
     const gameKey = ALLOWED_GAMES.find(g => g.label === gameLabel)?.key;
     setGame(gameLabel);
     setGameDropdownOpen(false);
-    if (selectedPokemon && gameKey && !(selectedPokeData?.game_slugs ?? []).includes(gameKey)) {
+    if (selectedPokemon && gameKey && !(selectedPokeData?.[slugField] ?? []).includes(gameKey)) {
       setSelectedPokemon('');
+    }
+    if (isRestricted && gameKey && !(selectedPokeData?.restricted_game_slugs ?? []).includes(gameKey)) {
+      setIsRestricted(false);
     }
   };
 
@@ -98,7 +132,8 @@ const HistoricalUploadSection = () => {
     e.preventDefault();
     if (!selectedPokemon)    { setError('Please select a Pokemon'); return; }
     if (!game.trim())        { setError('Please select the game you hunted in'); return; }
-    if (!mediaUrl.trim() && (!mediaFile || !mediaFile2)) {
+    if (isRestricted && !mediaUrl.trim()) { setError('Restricted submissions require a VOD or video link.'); return; }
+    if (!isRestricted && !mediaUrl.trim() && (!mediaFile || !mediaFile2)) {
       setError('Please provide either both proof images or a video link');
       return;
     }
@@ -113,11 +148,16 @@ const HistoricalUploadSection = () => {
     try {
       const formData = new FormData();
       formData.append('pokemon_id', selectedPokemon);
+      formData.append('restricted_submission', isRestricted ? 'true' : 'false');
       formData.append('game', game.trim());
       formData.append('month_id', String(selectedPokeData.month_id));
-      if (mediaFile)           formData.append('file', mediaFile);
-      if (mediaFile2)          formData.append('file2', mediaFile2);
-      if (mediaUrl.trim())     formData.append('link', mediaUrl.trim());
+      if (isRestricted) {
+        formData.append('link', mediaUrl.trim());
+      } else {
+        if (mediaFile)           formData.append('file', mediaFile);
+        if (mediaFile2)          formData.append('file2', mediaFile2);
+        if (mediaUrl.trim())     formData.append('link', mediaUrl.trim());
+      }
 
       const response = await fetch('/api/upload/historical-submission', {
         method: 'POST',
@@ -307,10 +347,92 @@ const HistoricalUploadSection = () => {
         </div>
       </div>
 
+      {/* Video link + restricted button */}
+      <div className="mb-6 flex items-end gap-2">
+        <div className="flex-1">
+          <label className="block text-xs font-medium text-gray-300 mb-2">
+            {isRestricted || noImageProof
+              ? <><span>Video Link</span> <span className="text-red-400">*</span></>
+              : <span className="text-gray-400">Supplemental Video Link <span className="text-gray-500">(optional)</span></span>
+            }
+          </label>
+          <input
+            type="url"
+            value={mediaUrl}
+            onChange={(e) => setMediaUrl(e.target.value)}
+            placeholder="Twitch clip, VOD, or YouTube link"
+            className="w-full p-3 bg-gray-700 text-white rounded-lg border border-gray-600 focus:border-purple-500 focus:outline-none"
+            disabled={submitting}
+          />
+        </div>
+
+        {restrictedEnabled && (
+          <div
+            className="relative flex-shrink-0"
+            onMouseEnter={() => {
+              clearTimeout(tooltipHideTimer.current);
+              tooltipShowTimer.current = setTimeout(() => setShowTooltip(true), 600);
+            }}
+            onMouseLeave={() => {
+              clearTimeout(tooltipShowTimer.current);
+              tooltipHideTimer.current = setTimeout(() => setShowTooltip(false), 150);
+            }}
+          >
+            <button
+              type="button"
+              disabled={!isRestrictedAvailable}
+              onClick={() => {
+                if (!isRestrictedAvailable) return;
+                const next = !isRestricted;
+                setIsRestricted(next);
+                if (next) {
+                  setMediaFile(null);
+                  setMediaFile2(null);
+                }
+              }}
+              className={`h-[46px] flex items-center gap-1.5 px-3 rounded-lg border transition-colors ${
+                !isRestrictedAvailable
+                  ? 'border-gray-700 bg-gray-800 text-gray-600 cursor-not-allowed opacity-50'
+                  : isRestricted
+                    ? 'border-[#78150a] bg-[#78150a] text-white'
+                    : 'border-gray-600 bg-gray-700 text-gray-400 hover:border-gray-500 hover:text-gray-300'
+              }`}
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                  d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+              </svg>
+              <span className="text-xs font-medium">Restricted</span>
+              <svg className="w-3.5 h-3.5 opacity-60" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                  d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            </button>
+
+            {showTooltip && (
+              <div
+                className="absolute left-full top-1/2 -translate-y-1/2 ml-2 w-52 bg-gray-900 border border-gray-700 rounded-lg p-3 text-xs z-10 shadow-lg"
+                onMouseEnter={() => { clearTimeout(tooltipHideTimer.current); clearTimeout(tooltipShowTimer.current); }}
+                onMouseLeave={() => { tooltipHideTimer.current = setTimeout(() => setShowTooltip(false), 150); }}
+              >
+                <p className="font-medium text-white mb-1">Restricted Challenge</p>
+                <p className="text-gray-400 mb-2">Submit a VOD or stored video link to count toward the restricted challenge.</p>
+                <a href="/about#restricted" className="text-purple-400 hover:text-purple-300 transition-colors">Learn more →</a>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
       {/* Proof uploads */}
-      <div className="grid grid-cols-2 gap-4 mb-4">
+      <div className={`grid grid-cols-2 gap-4 mb-4 transition-opacity duration-200 ${noImageProof ? 'opacity-40 pointer-events-none select-none' : ''}`}>
         <div>
-          <label className="block text-xs font-medium text-gray-300 mb-2">Proof of Shiny</label>
+          <label className="block text-xs font-medium text-gray-300 mb-2">
+            {isRestricted || noImageProof
+              ? <>{shinyLabel} <span className="text-gray-500">(optional)</span></>
+              : <>{shinyLabel} <span className="text-red-400">*</span></>
+            }
+          </label>
           <input type="file" onChange={(e) => { if (e.target.files[0]) setMediaFile(e.target.files[0]); }} accept="image/*,video/*" className="hidden" id="hist-file-1" disabled={submitting} />
           <label htmlFor="hist-file-1" className="block w-full p-6 border-2 border-dashed rounded-lg text-center cursor-pointer transition-colors border-gray-600 bg-gray-700 hover:border-purple-500">
             {mediaFile ? (
@@ -321,7 +443,12 @@ const HistoricalUploadSection = () => {
           </label>
         </div>
         <div>
-          <label className="block text-xs font-medium text-gray-300 mb-2">Proof of Date</label>
+          <label className="block text-xs font-medium text-gray-300 mb-2">
+            {isRestricted || noImageProof
+              ? <>Proof of Date <span className="text-gray-500">(optional)</span></>
+              : <>Proof of Date <span className="text-red-400">*</span></>
+            }
+          </label>
           <input type="file" onChange={(e) => { if (e.target.files[0]) setMediaFile2(e.target.files[0]); }} accept="image/*,video/*" className="hidden" id="hist-file-2" disabled={submitting} />
           <label htmlFor="hist-file-2" className="block w-full p-6 border-2 border-dashed rounded-lg text-center cursor-pointer transition-colors border-gray-600 bg-gray-700 hover:border-purple-500">
             {mediaFile2 ? (
@@ -333,24 +460,9 @@ const HistoricalUploadSection = () => {
         </div>
       </div>
 
-      {/* Video link */}
-      <div className="mb-6">
-        <label className="block text-xs font-medium text-gray-400 mb-2">
-          Supplemental Video Link <span className="text-gray-500">(optional)</span>
-        </label>
-        <input
-          type="url"
-          value={mediaUrl}
-          onChange={(e) => setMediaUrl(e.target.value)}
-          placeholder="Twitch clip, VOD, or YouTube link"
-          className="w-full p-3 bg-gray-700 text-white rounded-lg border border-gray-600 focus:border-purple-500 focus:outline-none"
-          disabled={submitting}
-        />
-      </div>
-
       <button
         type="submit"
-        disabled={submitting || !selectedPokemon || !game.trim() || (!mediaUrl.trim() && (!mediaFile || !mediaFile2))}
+        disabled={submitting || !selectedPokemon || !game.trim() || (isRestricted || noImageProof ? !mediaUrl.trim() : (!mediaUrl.trim() && (!mediaFile || !mediaFile2)))}
         className="w-full py-3 bg-blue-500 text-white rounded-lg font-medium hover:bg-blue-600 disabled:bg-gray-600 disabled:cursor-not-allowed transition-colors"
       >
         {submitting ? 'Submitting...' : 'Submit Historical Catch'}
@@ -395,6 +507,7 @@ const Upload = () => {
       loadRestrictedAvailablePokemon();
     }
   }, [isRestricted]);
+
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -454,7 +567,12 @@ const Upload = () => {
     : availablePokemon;
 
   // The key slug for the currently selected game (used for filtering)
-  const selectedGameKey = ALLOWED_GAMES.find(g => g.label === game)?.key ?? null;
+  const selectedGameObj = ALLOWED_GAMES.find(g => g.label === game) ?? null;
+  const selectedGameKey = selectedGameObj?.key ?? null;
+
+  // Game-specific proof config (from games.js)
+  const shinyLabel    = selectedGameObj?.shiny_label ?? 'Proof of Shiny';
+  const noImageProof  = !!selectedGameObj?.no_image_proof;
 
   // Pokemon data object for the currently selected Pokemon
   const selectedPokemonData = currentPokemonList.find(p => p.id === parseInt(selectedPokemon)) ?? null;
@@ -497,6 +615,18 @@ const Upload = () => {
   } else {
     isRestrictedAvailable = true;
   }
+
+  // True when the selected pokemon already has a standard entry — forces restricted mode
+  const isLockedRestricted = restrictedEnabled && !!selectedPokemonData?.has_standard_entry;
+
+  // Force restricted on when a standard entry exists for the selected pokemon
+  useEffect(() => {
+    if (isLockedRestricted && !isRestricted) {
+      setIsRestricted(true);
+      setMediaFile(null);
+      setMediaFile2(null);
+    }
+  }, [isLockedRestricted]);
 
   // ── Selection handlers with cross-invalidation ──────────────────────────────
 
@@ -622,8 +752,6 @@ const Upload = () => {
   const selectedPokeObj = sortedPokemon.find(p => p.id === parseInt(selectedPokemon))
     ?? currentPokemonList.find(p => p.id === parseInt(selectedPokemon));
 
-  const selectedGameObj = ALLOWED_GAMES.find(g => g.label === game);
-
   return (
     <div className="min-h-screen" style={{ isolation: 'isolate', position: 'relative' }}>
       <PageBackground />
@@ -657,15 +785,14 @@ const Upload = () => {
           )}
 
           {/* ── Historical Form ─────────────────────────────────────────────── */}
-          {restrictedEnabled && isHistoricalMode && (
-            <div className="rounded-lg shadow-lg p-6 border border-gray-600" style={{ backgroundColor: '#35373b' }}>
+          {restrictedEnabled && (
+            <div className={`rounded-lg shadow-lg p-6 border border-gray-600 ${!isHistoricalMode ? 'hidden' : ''}`} style={{ backgroundColor: '#35373b' }}>
               <HistoricalUploadSection />
             </div>
           )}
 
           {/* ── Current Month Form ──────────────────────────────────────────── */}
-          {(!isHistoricalMode || !restrictedEnabled) && (
-          <div className="rounded-lg shadow-lg p-6 border border-gray-600" style={{ backgroundColor: '#35373b' }}>
+          <div className={`rounded-lg shadow-lg p-6 border border-gray-600 ${isHistoricalMode && restrictedEnabled ? 'hidden' : ''}`} style={{ backgroundColor: '#35373b' }}>
 
             {error && (
               <div className="mb-4 p-3 bg-red-900 border border-red-700 rounded-lg text-red-200 text-sm">{error}</div>
@@ -837,12 +964,106 @@ const Upload = () => {
                 </div>
               </div>
 
+              {/* Video Link + Restricted Toggle */}
+              <div className="mb-6 flex items-end gap-2">
+                <div className="flex-1">
+                  <label className="block text-xs font-medium text-gray-300 mb-2">
+                    {isRestricted || noImageProof
+                      ? <><span>Video Link</span> <span className="text-red-400">*</span></>
+                      : <span className="text-gray-400">Supplemental Video Link <span className="text-gray-500">(optional)</span></span>
+                    }
+                  </label>
+                  <input
+                    type="url"
+                    value={mediaUrl}
+                    onChange={(e) => setMediaUrl(e.target.value)}
+                    placeholder="Twitch clip, VOD, or YouTube link"
+                    className="w-full p-3 bg-gray-700 text-white rounded-lg border border-gray-600 focus:border-purple-500 focus:outline-none"
+                    disabled={submitting}
+                  />
+                </div>
+
+                {restrictedEnabled && (
+                  <div
+                    className="relative flex-shrink-0"
+                    onMouseEnter={() => {
+                      clearTimeout(tooltipHideTimer.current);
+                      tooltipShowTimer.current = setTimeout(() => setShowTooltip(true), 600);
+                    }}
+                    onMouseLeave={() => {
+                      clearTimeout(tooltipShowTimer.current);
+                      tooltipHideTimer.current = setTimeout(() => setShowTooltip(false), 150);
+                    }}
+                  >
+                    <button
+                      type="button"
+                      disabled={!isRestrictedAvailable || isLockedRestricted}
+                      onClick={() => {
+                        if (!isRestrictedAvailable || isLockedRestricted) return;
+                        const next = !isRestricted;
+                        setIsRestricted(next);
+                        if (next) {
+                          setMediaFile(null);
+                          setMediaFile2(null);
+                          if (selectedPokemon && !(selectedPokemonData?.restricted_game_slugs ?? []).length) {
+                            setSelectedPokemon('');
+                          }
+                          if (selectedGameKey && !currentPokemonList.some(p => (p.restricted_game_slugs ?? []).includes(selectedGameKey))) {
+                            setGame('');
+                          }
+                        }
+                      }}
+                      className={`h-[46px] flex items-center gap-1.5 px-3 rounded-lg border transition-colors ${
+                        !isRestrictedAvailable
+                          ? 'border-gray-700 bg-gray-800 text-gray-600 cursor-not-allowed opacity-50'
+                          : isLockedRestricted
+                            ? 'border-[#78150a] bg-[#78150a] text-white cursor-not-allowed'
+                            : isRestricted
+                              ? 'border-[#78150a] bg-[#78150a] text-white'
+                              : 'border-gray-600 bg-gray-700 text-gray-400 hover:border-gray-500 hover:text-gray-300'
+                      }`}
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                          d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                      </svg>
+                      <span className="text-xs font-medium">Restricted</span>
+                      <svg className="w-3.5 h-3.5 opacity-60" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                          d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                    </button>
+
+                    {showTooltip && (
+                      <div
+                        className="absolute left-full top-1/2 -translate-y-1/2 ml-2 w-52 bg-gray-900 border border-gray-700 rounded-lg p-3 text-xs z-10 shadow-lg"
+                        onMouseEnter={() => { clearTimeout(tooltipHideTimer.current); clearTimeout(tooltipShowTimer.current); }}
+                        onMouseLeave={() => { tooltipHideTimer.current = setTimeout(() => setShowTooltip(false), 150); }}
+                      >
+                        {isLockedRestricted ? (
+                          <p className="text-yellow-300">You already have a standard submission for this Pokémon — restricted only.</p>
+                        ) : (
+                          <>
+                            <p className="font-medium text-white mb-1">Restricted Challenge</p>
+                            <p className="text-gray-400 mb-2">Submit a VOD or stored video link to count toward the restricted challenge.</p>
+                            <a href="/about#restricted" className="text-purple-400 hover:text-purple-300 transition-colors">Learn more →</a>
+                          </>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+
               {/* Image Uploads */}
-              <div className={`transition-opacity duration-200 ${isRestricted ? 'opacity-40 pointer-events-none select-none' : ''}`}>
+              <div className={`transition-opacity duration-200 ${noImageProof ? 'opacity-40 pointer-events-none select-none' : ''}`}>
                 <div className="grid grid-cols-2 gap-4 mb-4">
                   <div>
                     <label className="block text-xs font-medium text-gray-300 mb-2">
-                      Proof of Shiny <span className="text-red-400">*</span>
+                      {isRestricted || noImageProof
+                        ? <>{shinyLabel} <span className="text-gray-500">(optional)</span></>
+                        : <>{shinyLabel} <span className="text-red-400">*</span></>
+                      }
                     </label>
                     <input type="file" onChange={handleFileChange} accept="image/*,video/*" className="hidden" id="file-upload-1" disabled={submitting} />
                     <label htmlFor="file-upload-1" className="block w-full p-6 border-2 border-dashed rounded-lg text-center cursor-pointer transition-colors border-gray-600 bg-gray-700 hover:border-purple-500">
@@ -866,7 +1087,10 @@ const Upload = () => {
 
                   <div>
                     <label className="block text-xs font-medium text-gray-300 mb-2">
-                      Proof of Date <span className="text-red-400">*</span>
+                      {isRestricted || noImageProof
+                        ? <>Proof of Date <span className="text-gray-500">(optional)</span></>
+                        : <>Proof of Date <span className="text-red-400">*</span></>
+                      }
                     </label>
                     <input type="file" onChange={handleFile2Change} accept="image/*,video/*" className="hidden" id="file-upload-2" disabled={submitting} />
                     <label htmlFor="file-upload-2" className="block w-full p-6 border-2 border-dashed rounded-lg text-center cursor-pointer transition-colors border-gray-600 bg-gray-700 hover:border-purple-500">
@@ -890,93 +1114,10 @@ const Upload = () => {
                 </div>
               </div>
 
-              {/* Video Link + Restricted Toggle */}
-              <div className="mb-6 flex items-stretch gap-2">
-                <div className="flex-1">
-                  <label className="block text-xs font-medium text-gray-300 mb-2">
-                    {isRestricted
-                      ? <><span>Video Link</span> <span className="text-red-400">*</span></>
-                      : <span className="text-gray-400">Supplemental Video Link <span className="text-gray-500">(optional)</span></span>
-                    }
-                  </label>
-                  <input
-                    type="url"
-                    value={mediaUrl}
-                    onChange={(e) => setMediaUrl(e.target.value)}
-                    placeholder="Twitch clip, VOD, or YouTube link"
-                    className="w-full p-3 bg-gray-700 text-white rounded-lg border border-gray-600 focus:border-purple-500 focus:outline-none"
-                    disabled={submitting}
-                  />
-                </div>
-
-                {restrictedEnabled && (
-                  <div
-                    className="relative flex-shrink-0 self-end"
-                    onMouseEnter={() => {
-                      clearTimeout(tooltipHideTimer.current);
-                      tooltipShowTimer.current = setTimeout(() => setShowTooltip(true), 600);
-                    }}
-                    onMouseLeave={() => {
-                      clearTimeout(tooltipShowTimer.current);
-                      tooltipHideTimer.current = setTimeout(() => setShowTooltip(false), 150);
-                    }}
-                  >
-                    <button
-                      type="button"
-                      disabled={!isRestrictedAvailable}
-                      onClick={() => {
-                        if (!isRestrictedAvailable) return;
-                        const next = !isRestricted;
-                        setIsRestricted(next);
-                        if (next) {
-                          setMediaFile(null);
-                          setMediaFile2(null);
-                          if (selectedPokemon && !(selectedPokemonData?.restricted_game_slugs ?? []).length) {
-                            setSelectedPokemon('');
-                          }
-                          if (selectedGameKey && !currentPokemonList.some(p => (p.restricted_game_slugs ?? []).includes(selectedGameKey))) {
-                            setGame('');
-                          }
-                        }
-                      }}
-                      className={`h-[46px] flex items-center gap-1.5 px-3 rounded-lg border transition-colors ${
-                        !isRestrictedAvailable
-                          ? 'border-gray-700 bg-gray-800 text-gray-600 cursor-not-allowed opacity-50'
-                          : isRestricted
-                            ? 'border-[#78150a] bg-[#78150a] text-white'
-                            : 'border-gray-600 bg-gray-700 text-gray-400 hover:border-gray-500 hover:text-gray-300'
-                      }`}
-                    >
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                          d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-                      </svg>
-                      <span className="text-xs font-medium">Restricted</span>
-                      <svg className="w-3.5 h-3.5 opacity-60" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                          d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                      </svg>
-                    </button>
-
-                    {showTooltip && (
-                      <div
-                        className="absolute left-full top-1/2 -translate-y-1/2 ml-2 w-52 bg-gray-900 border border-gray-700 rounded-lg p-3 text-xs z-10 shadow-lg"
-                        onMouseEnter={() => { clearTimeout(tooltipHideTimer.current); clearTimeout(tooltipShowTimer.current); }}
-                        onMouseLeave={() => { tooltipHideTimer.current = setTimeout(() => setShowTooltip(false), 150); }}
-                      >
-                        <p className="font-medium text-white mb-1">Restricted Challenge</p>
-                        <p className="text-gray-400 mb-2">Submit a VOD or stored video link to count toward the restricted challenge.</p>
-                        <a href="/about#restricted" className="text-purple-400 hover:text-purple-300 transition-colors">Learn more →</a>
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-
               {/* Submit */}
               <button
                 type="submit"
-                disabled={submitting || !selectedPokemon || !game.trim() || (isRestricted ? !mediaUrl : (!mediaUrl.trim() && (!mediaFile || !mediaFile2)))}
+                disabled={submitting || !selectedPokemon || !game.trim() || (isRestricted || noImageProof ? !mediaUrl : (!mediaUrl.trim() && (!mediaFile || !mediaFile2)))}
                 className="w-full py-3 bg-purple-500 text-white rounded-lg font-medium hover:bg-purple-600 disabled:bg-gray-600 disabled:cursor-not-allowed transition-colors"
               >
                 {submitting ? 'Submitting...' : 'Submit Catch'}
@@ -984,7 +1125,6 @@ const Upload = () => {
 
             </form>
           </div>
-          )}
 
         </div>
       </div>

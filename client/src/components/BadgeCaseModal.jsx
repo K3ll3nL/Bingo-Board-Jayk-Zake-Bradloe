@@ -8,6 +8,8 @@ const LEADERBOARD_SLOTS = 3;
 export default function BadgeCaseModal({ isOpen, onClose, userId, isOwnProfile }) {
   const [slots, setSlots] = useState(Array(TOTAL_SLOTS).fill(null));
   const [pickerSlot, setPickerSlot] = useState(null);
+  const [viewingBadge, setViewingBadge] = useState(null);
+  const [expanded, setExpanded] = useState(false);
   const [lidOpen, setLidOpen] = useState(false);
   const [slotsVisible, setSlotsVisible] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -100,16 +102,16 @@ export default function BadgeCaseModal({ isOpen, onClose, userId, isOwnProfile }
         style={{ backgroundColor: 'rgba(0,0,0,0.8)' }}
         onClick={onClose}
       >
-        {/* Card — 25% bigger than before */}
+        {/* Card */}
         <div
-          className="relative w-full rounded-2xl overflow-hidden border border-gray-600 shadow-2xl"
-          style={{ backgroundColor: '#1a1c1f', maxWidth: '480px' }}
+          className="relative w-full rounded-2xl overflow-hidden border border-gray-600 shadow-2xl transition-all duration-300"
+          style={{ backgroundColor: '#1a1c1f', maxWidth: expanded ? 'min(860px, 92vw)' : '480px' }}
           onClick={e => e.stopPropagation()}
         >
           {/* Top accent strip */}
           <div className="h-1.5 bg-gradient-to-r from-yellow-500 via-yellow-300 to-yellow-500" />
 
-          {/* Header — title centered, close button absolutely right */}
+          {/* Header — title centered, buttons absolutely right */}
           <div className="relative flex items-center justify-center px-5 py-3 border-b border-gray-700/60">
             <span className="text-yellow-300 text-xs font-bold tracking-widest uppercase">
               ◆ Badge Case ◆
@@ -117,12 +119,39 @@ export default function BadgeCaseModal({ isOpen, onClose, userId, isOwnProfile }
             {saving && (
               <span className="absolute left-5 text-gray-500 text-xs">Saving…</span>
             )}
-            <button
-              onClick={onClose}
-              className="absolute right-4 text-gray-500 hover:text-white text-lg leading-none transition-colors"
-            >
-              ✕
-            </button>
+            <div className="absolute right-0 top-0 flex items-stretch h-full">
+              {/* Expand/collapse button — square top-right and bottom-left corners */}
+              <button
+                onClick={() => setExpanded(e => !e)}
+                title={expanded ? 'Collapse' : 'Expand'}
+                style={{
+                  borderTopLeftRadius: '6px',
+                  borderTopRightRadius: 0,
+                  borderBottomLeftRadius: 0,
+                  borderBottomRightRadius: '6px',
+                  borderLeft: '1px solid rgba(255,255,255,0.07)',
+                  borderBottom: '1px solid rgba(255,255,255,0.07)',
+                }}
+                className="px-3 text-gray-500 hover:text-white hover:bg-gray-700/40 transition-colors flex items-center"
+              >
+                {expanded ? (
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 9L4 4m0 0h5m-5 0v5M15 9l5-5m0 0h-5m5 0v5M9 15l-5 5m0 0h5m-5 0v-5M15 15l5 5m0 0h-5m5 0v-5" />
+                  </svg>
+                ) : (
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8V4m0 0h4M4 4l5 5M20 8V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5M20 16v4m0 0h-4m4 0l-5-5" />
+                  </svg>
+                )}
+              </button>
+              {/* Close button */}
+              <button
+                onClick={onClose}
+                className="px-4 text-gray-500 hover:text-white text-lg leading-none transition-colors"
+              >
+                ✕
+              </button>
+            </div>
           </div>
 
           {/* Case body */}
@@ -162,8 +191,8 @@ export default function BadgeCaseModal({ isOpen, onClose, userId, isOwnProfile }
                 transition: 'opacity 0.25s ease',
               }}
             >
-              {/* Top row — 4 slots, first 3 have yellow border */}
-              <div className="grid grid-cols-4 gap-3 mb-3">
+              {/* Top row */}
+              <div className={`grid grid-cols-4 gap-${expanded ? '5' : '3'} mb-${expanded ? '5' : '3'}`}>
                 {slots.slice(0, 4).map((badge, i) => (
                   <SlotButton
                     key={i}
@@ -171,14 +200,15 @@ export default function BadgeCaseModal({ isOpen, onClose, userId, isOwnProfile }
                     slotNumber={i + 1}
                     isLeaderboard={i < LEADERBOARD_SLOTS}
                     isOwnProfile={isOwnProfile}
-                    onClick={() => isOwnProfile && setPickerSlot(i)}
+                    expanded={expanded}
+                    onClick={() => badge ? setViewingBadge(badge) : (isOwnProfile && setPickerSlot(i))}
                     onClear={(e) => handleClearSlot(i, e)}
                   />
                 ))}
               </div>
 
-              {/* Bottom row — slots 5–8 */}
-              <div className="grid grid-cols-4 gap-3">
+              {/* Bottom row */}
+              <div className={`grid grid-cols-4 gap-${expanded ? '5' : '3'}`}>
                 {slots.slice(4).map((badge, i) => (
                   <SlotButton
                     key={i + 4}
@@ -186,7 +216,8 @@ export default function BadgeCaseModal({ isOpen, onClose, userId, isOwnProfile }
                     slotNumber={i + 5}
                     isLeaderboard={false}
                     isOwnProfile={isOwnProfile}
-                    onClick={() => isOwnProfile && setPickerSlot(i + 4)}
+                    expanded={expanded}
+                    onClick={() => badge ? setViewingBadge(badge) : (isOwnProfile && setPickerSlot(i + 4))}
                     onClear={(e) => handleClearSlot(i + 4, e)}
                   />
                 ))}
@@ -195,6 +226,49 @@ export default function BadgeCaseModal({ isOpen, onClose, userId, isOwnProfile }
           </div>
         </div>
       </div>
+
+      {viewingBadge && (
+        <div
+          className="fixed inset-0 flex items-center justify-center p-4"
+          style={{ backgroundColor: 'rgba(0,0,0,0.88)', zIndex: 60 }}
+          onClick={() => setViewingBadge(null)}
+        >
+          <div
+            className="flex flex-col items-center rounded-2xl border border-gray-600 shadow-2xl p-8 gap-4"
+            style={{ backgroundColor: '#1a1c1f', maxWidth: '320px', width: '100%' }}
+            onClick={e => e.stopPropagation()}
+          >
+            <img
+              src={viewingBadge.image_url}
+              alt={viewingBadge.name}
+              draggable="false"
+              className="object-contain"
+              style={{ width: '160px', height: '160px' }}
+            />
+            <div className="text-center">
+              <div className="text-white font-bold text-lg">{viewingBadge.name}</div>
+              {viewingBadge.description && (
+                <div className="text-gray-400 text-sm mt-1">{viewingBadge.description}</div>
+              )}
+              {viewingBadge.hint && (
+                <div className="text-yellow-400/80 text-xs mt-2 italic">{viewingBadge.hint}</div>
+              )}
+            </div>
+            {isOwnProfile && (
+              <button
+                onClick={() => {
+                  const idx = slots.findIndex(b => b?.id === viewingBadge.id);
+                  setViewingBadge(null);
+                  if (idx !== -1) setPickerSlot(idx);
+                }}
+                className="px-4 py-1.5 bg-gray-700 hover:bg-gray-600 text-gray-300 text-sm rounded-lg transition-colors"
+              >
+                Change slot
+              </button>
+            )}
+          </div>
+        </div>
+      )}
 
       {pickerSlot !== null && (
         <BadgePickerModal
@@ -210,17 +284,19 @@ export default function BadgeCaseModal({ isOpen, onClose, userId, isOwnProfile }
   );
 }
 
-function SlotButton({ badge, slotNumber, isLeaderboard, isOwnProfile, onClick, onClear }) {
+function SlotButton({ badge, slotNumber, isLeaderboard, isOwnProfile, expanded, onClick, onClear }) {
   return (
     <div className="relative group">
       <button
         onClick={onClick}
-        disabled={!isOwnProfile}
+        disabled={!badge && !isOwnProfile}
         title={badge ? badge.name : isOwnProfile ? `Assign slot ${slotNumber}` : `Slot ${slotNumber} empty`}
+        style={expanded ? { width: '160px', height: '160px' } : undefined}
         className={[
-          'w-full aspect-square rounded-xl border-2 flex items-center justify-center overflow-hidden transition-all duration-150',
+          expanded ? 'rounded-2xl border-2' : 'w-full aspect-square rounded-xl border-2',
+          'flex items-center justify-center overflow-hidden transition-all duration-150',
           isLeaderboard ? 'border-yellow-500/50' : 'border-gray-700',
-          isOwnProfile
+          badge || isOwnProfile
             ? 'cursor-pointer hover:border-purple-400 hover:bg-gray-700/40'
             : 'cursor-default',
           !badge ? 'bg-gray-800/50' : '',
@@ -230,6 +306,7 @@ function SlotButton({ badge, slotNumber, isLeaderboard, isOwnProfile, onClick, o
           <img
             src={badge.image_url}
             alt={badge.name}
+            draggable="false"
             className="w-full h-full object-contain p-1.5"
           />
         ) : (
@@ -244,6 +321,12 @@ function SlotButton({ badge, slotNumber, isLeaderboard, isOwnProfile, onClick, o
         >
           ×
         </button>
+      )}
+      {expanded && badge && (
+        <div className="mt-2 text-center">
+          <div className="text-white text-xs font-medium truncate" style={{ maxWidth: '160px' }}>{badge.name}</div>
+          {isLeaderboard && <div className="text-yellow-400/70 text-[10px]">◆ Leaderboard</div>}
+        </div>
       )}
     </div>
   );

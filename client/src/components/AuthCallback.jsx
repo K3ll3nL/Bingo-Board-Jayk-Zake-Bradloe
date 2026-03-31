@@ -31,6 +31,11 @@ const AuthCallback = () => {
         }
         
         if (session) {
+          // Sync Discord avatar in background — fire and forget
+          fetch('/api/user/sync-avatar', {
+            method: 'POST',
+            headers: { Authorization: `Bearer ${session.access_token}` },
+          }).catch(() => {});
           navigate('/');
         } else {
           setError('Authentication failed. Please try again.');

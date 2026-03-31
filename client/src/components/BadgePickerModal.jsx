@@ -145,6 +145,7 @@ function BadgePickerItem({ badge, isCurrentSlot, isOtherSlot, onSelect }) {
           <img
             src={badge.image_url}
             alt={badge.name}
+            draggable="false"
             className="w-full h-full object-contain"
             style={!isEarned ? { filter: 'brightness(0)' } : undefined}
           />

@@ -6,10 +6,14 @@
 //   3. Deploy.
 //
 // Fields:
-//   key      — stable slug stored in the DB (never change after launch)
-//   label    — display name shown to users
-//   img_urls — array of logo URLs from R2, up to 3 (for games with multiple
-//              version logos). Single-version games use a 1-item array.
+//   key            — stable slug stored in the DB (never change after launch)
+//   label          — display name shown to users
+//   img_urls       — array of logo URLs from R2, up to 3 (for games with multiple
+//                    version logos). Single-version games use a 1-item array.
+//   shiny_label    — (optional) replaces "Proof of Shiny" label on the upload form
+//                    e.g. "Overworld Screenshot" for games without a shiny flash
+//   no_image_proof — (optional) if true, image upload fields are greyed out and
+//                    disabled; use for games with no in-game screenshot capability
 // ─────────────────────────────────────────────────────────────────────────────
 
 const R2_BASE = 'https://pub-583ae6cd5f8b4b58b0ee7053ea1d4b0b.r2.dev/assets/games';
@@ -19,11 +23,13 @@ export const ALLOWED_GAMES = [
     key: 'firered_leafgreen',
     label: 'Pokémon FireRed / LeafGreen',
     img_urls: [`${R2_BASE}/firered.png`,`${R2_BASE}/leafgreen.png`],
+    no_image_proof: true,
   },
   {
     key: 'legends_za',
     label: 'Pokémon Legends: Z-A',
     img_urls: [`${R2_BASE}/legends_za.png`],
+    shiny_label: 'Overworld Screenshot',
   },
   {
     key: 'scarlet_violet',
@@ -99,30 +105,36 @@ export const ALLOWED_GAMES = [
     key: 'emerald',
     label: 'Pokémon Emerald',
     img_urls: [`${R2_BASE}/emerald.png`],
+    no_image_proof: true,
   },
   {
     key: 'ruby_sapphire',
     label: 'Pokémon Ruby / Sapphire',
     img_urls: [`${R2_BASE}/ruby.png`, `${R2_BASE}/sapphire.png`],
+    no_image_proof: true,
   },
   {
     key: 'crystal',
     label: 'Pokémon Crystal',
     img_urls: [`${R2_BASE}/crystal.png`],
+    no_image_proof: true,
   },
   {
     key: 'gold_silver',
     label: 'Pokémon Gold / Silver',
     img_urls: [`${R2_BASE}/gold.png`, `${R2_BASE}/silver.png`],
+    no_image_proof: true,
   },
   {
     key: 'yellow',
     label: 'Pokémon Yellow',
     img_urls: [`${R2_BASE}/yellow.png`],
+    no_image_proof: true,
   },
   {
     key: 'red_blue',
     label: 'Pokémon Red / Blue',
     img_urls: [`${R2_BASE}/red.png`, `${R2_BASE}/blue.png`],
+    no_image_proof: true,
   },
 ];

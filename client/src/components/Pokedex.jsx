@@ -26,6 +26,7 @@ const Pokedex = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [caughtCount, setCaughtCount] = useState(0);
+  const [search, setSearch] = useState('');
 
   useEffect(() => {
     if (user) {
@@ -103,8 +104,17 @@ const Pokedex = () => {
       {/* Pokedex Grid */}
       <div className="p-8">
         <div className="max-w-7xl mx-auto">
+          <div className="mb-4 max-w-sm">
+            <input
+              type="text"
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              placeholder="Search Pokémon..."
+              className="w-full px-4 py-2 bg-gray-800 border border-gray-600 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-purple-500 text-sm"
+            />
+          </div>
           <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-10 xl:grid-cols-12 gap-2">
-            {pokemon.map((poke) => (
+            {pokemon.filter(p => !search.trim() || p.name.toLowerCase().includes(search.trim().toLowerCase())).map((poke) => (
               <div
                 key={poke.id}
                 className={`

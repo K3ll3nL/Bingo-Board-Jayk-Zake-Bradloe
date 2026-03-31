@@ -226,14 +226,14 @@ const Leaderboard = () => {
                         )}
                       </div>
                       {isRestrictedEnabled(isModerator) ? (
-                        <div className="flex items-center gap-1 mt-0.5 min-h-[16px]">
+                        <div className="flex items-center gap-1 mt-0 min-h-[16px]">
                           {(user.badge_slots || []).map((badge, i) => (
                             badge?.image_url && (
                               <img
                                 key={i}
                                 src={badge.image_url}
                                 alt={badge.name}
-                                className="w-5 h-5 object-contain"
+                                className="w-7 h-7"
                               />
                             )
                           ))}
