@@ -623,7 +623,7 @@ async function getActiveMonth(userId = null) {
   }
 
   // Offset now by -2 hours so bare end_dates (stored as midnight UTC) effectively expire 2 hours later
-  const offsetNow = new Date(now.getTime() - 2 * 60 * 60 * 1000);
+  const offsetNow = new Date(now.getTime() - 4 * 60 * 60 * 1000);
   const nowISO = offsetNow.toISOString();
 
   // Cache hit: valid as long as we haven't passed the month's end_date (+2h offset)
