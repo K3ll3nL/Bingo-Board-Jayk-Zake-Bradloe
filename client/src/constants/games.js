@@ -30,11 +30,20 @@ export const ALLOWED_GAMES = [
     label: 'Pokémon Legends: Z-A',
     img_urls: [`${R2_BASE}/legends_za.png`],
     shiny_label: 'Overworld Screenshot',
+    restricted_checklist: [
+      { id: 'lza_no_shiny_charm',  label: 'Proof I do not have shiny charm' },
+      { id: 'lza_no_hyperspace',   label: 'I am not catching this shiny in hyperspace' },
+      { id: 'lza_no_afk',          label: 'I was not hunting this Pokémon AFK' },
+    ],
   },
   {
     key: 'scarlet_violet',
     label: 'Pokémon Scarlet / Violet',
     img_urls: [`${R2_BASE}/scarlet.png`, `${R2_BASE}/violet.png`],
+    restricted_checklist: [
+      { id: 'sv_no_shiny_charm', label: 'Proof I do not have shiny charm' },
+      { id: 'sv_no_sandwich',    label: 'Proof that I was not using a sparkling power sandwich' },
+    ],
   },
   {
     key: 'legends_arceus',
@@ -55,11 +64,17 @@ export const ALLOWED_GAMES = [
     key: 'lets_go_pikachu_eevee',
     label: 'Pokémon Lets Go Pikachu / Eevee',
     img_urls: [`${R2_BASE}/lets_go_pikachu.png`, `${R2_BASE}/lets_go_eevee.png`],
+    restricted_checklist: [
+      { id: 'lgpe_chain_limit', label: 'My shiny charm chain is not above 11' },
+    ],
   },
   {
     key: 'ultra_sun_ultra_moon',
     label: 'Pokémon Ultra Sun / Ultra Moon',
     img_urls: [`${R2_BASE}/ultra_sun.png`, `${R2_BASE}/ultra_moon.png`],
+    restricted_checklist: [
+      { id: 'usum_no_uwr', label: 'Proof that I was not in ultra warp ride' },
+    ],
   },
   {
     key: 'sun_moon',
@@ -70,11 +85,17 @@ export const ALLOWED_GAMES = [
     key: 'omega_ruby_alpha_sapphire',
     label: 'Pokémon Omega Ruby / Alpha Sapphire',
     img_urls: [`${R2_BASE}/omega_ruby.png`, `${R2_BASE}/alpha_sapphire.png`],
+    restricted_checklist: [
+      { id: 'oras_no_fishing', label: 'A shiny that was not caught while fishing' },
+    ],
   },
   {
     key: 'x_y',
     label: 'Pokémon X / Y',
     img_urls: [`${R2_BASE}/x.png`, `${R2_BASE}/y.png`],
+    restricted_checklist: [
+      { id: 'xy_no_fishing', label: 'A shiny that was not caught while fishing' },
+    ],
   },
   {
     key: 'black2_white2',

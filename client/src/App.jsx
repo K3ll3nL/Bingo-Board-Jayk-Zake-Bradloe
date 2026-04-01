@@ -21,6 +21,8 @@ import BadgeUpload from './components/BadgeUpload';
 import PokemonGameManager from './components/PokemonGameManager';
 import FeedbackModal from './components/FeedbackModal';
 import ModFeedback from './components/ModFeedback';
+import BannerBar from './components/BannerBar';
+import BannerManagerModal from './components/BannerManagerModal';
 import logoImage from './Icons/pokemon-bounty-board.png';
 
 const supabase = createClient(
@@ -42,6 +44,7 @@ const MainApp = () => {
   const navigate = useNavigate();
   const [menuOpen, setMenuOpen] = React.useState(false);
   const [feedbackOpen, setFeedbackOpen] = React.useState(false);
+  const [bannerManagerOpen, setBannerManagerOpen] = React.useState(false);
   const menuRef = React.useRef(null);
 
   React.useEffect(() => {
@@ -215,6 +218,15 @@ const MainApp = () => {
                             </svg>
                             Feedback
                           </button>
+                          <button
+                            onClick={() => { setBannerManagerOpen(true); setMenuOpen(false); }}
+                            className="w-full px-4 py-2 text-left text-sm text-purple-400 hover:bg-gray-700 flex items-center gap-2"
+                          >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5.882V19.24a1.76 1.76 0 01-3.417.592l-2.147-6.15M18 13a3 3 0 100-6M5.436 13.683A4.001 4.001 0 017 6h1.832c4.1 0 7.625-1.234 9.168-3v14c-1.543-1.766-5.067-3-9.168-3H7a3.988 3.988 0 01-1.564-.317z" />
+                            </svg>
+                            Manage Banners
+                          </button>
                         </>
                       )}
                       <div className="border-t border-gray-600 my-1"></div>
@@ -284,6 +296,7 @@ const MainApp = () => {
             </p>
           </div>
         )}
+        <BannerBar />
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Bingo Board Module */}
@@ -307,6 +320,7 @@ const MainApp = () => {
       </footer> */}
 
       <FeedbackModal isOpen={feedbackOpen} onClose={() => setFeedbackOpen(false)} />
+      <BannerManagerModal isOpen={bannerManagerOpen} onClose={() => setBannerManagerOpen(false)} />
     </div>
   );
 };

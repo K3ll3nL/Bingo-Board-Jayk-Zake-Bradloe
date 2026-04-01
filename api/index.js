@@ -527,6 +527,7 @@ async function processYearEnd(yearId) {
 // SSE connections manager
 const sseClients = new Map(); // userId -> Set of response objects
 const sseAnonymousClients = new Set(); // Set of anonymous response objects
+const approvalsInProgress = new Set(); // approval IDs currently being processed (spam-click guard)
 
 function sendSSEToUser(userId, event, data) {
   const clients = sseClients.get(userId);
@@ -2453,9 +2454,12 @@ app.get('/api/pokemon/:pokemonId/recent-catches', async (req, res) => {
 
 // Approve a submission
 app.post('/api/approvals/:id/approve', async (req, res) => {
+  const { id } = req.params;
+  if (approvalsInProgress.has(id)) {
+    return res.status(409).json({ error: 'This submission is already being processed' });
+  }
+  approvalsInProgress.add(id);
   try {
-    const { id } = req.params;
-
     console.log('Approving submission:', id);
 
     const moderatorId = await getAuthenticatedUserId(req);
@@ -4526,6 +4530,63 @@ app.patch('/api/mod/feedback/:id/status', async (req, res) => {
   } catch (err) {
     console.error('Error updating feedback status:', err);
     res.status(500).json({ error: 'Failed to update status' });
+  }
+});
+
+// ── Banners ───────────────────────────────────────────────────────────────────
+
+app.get('/api/banners', async (req, res) => {
+  try {
+    const now = new Date().toISOString();
+    const { data, error } = await supabase
+      .from('banners')
+      .select('*')
+      .lte('starts_at', now)
+      .gt('expires_at', now)
+      .order('starts_at', { ascending: true });
+    if (error) throw error;
+    res.json(data);
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to fetch banners' });
+  }
+});
+
+app.post('/api/banners', async (req, res) => {
+  try {
+    const userId = await getAuthenticatedUserId(req);
+    if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+    const { data: mod } = await supabase.from('moderators').select('id').eq('id', userId).single();
+    if (!mod) return res.status(403).json({ error: 'Moderators only' });
+    const { message, link_url, link_label, image_url, starts_at, expires_at } = req.body;
+    if (!message?.trim()) return res.status(400).json({ error: 'message is required' });
+    if (!starts_at) return res.status(400).json({ error: 'starts_at is required' });
+    if (!expires_at) return res.status(400).json({ error: 'expires_at is required' });
+    const { data, error } = await supabase.from('banners').insert({
+      message: message.trim(),
+      link_url: link_url?.trim() || null,
+      link_label: link_label?.trim() || null,
+      image_url: image_url?.trim() || null,
+      starts_at,
+      expires_at,
+    }).select().single();
+    if (error) throw error;
+    res.json(data);
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to create banner' });
+  }
+});
+
+app.delete('/api/banners/:id', async (req, res) => {
+  try {
+    const userId = await getAuthenticatedUserId(req);
+    if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+    const { data: mod } = await supabase.from('moderators').select('id').eq('id', userId).single();
+    if (!mod) return res.status(403).json({ error: 'Moderators only' });
+    const { error } = await supabase.from('banners').delete().eq('id', req.params.id);
+    if (error) throw error;
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to delete banner' });
   }
 });
 

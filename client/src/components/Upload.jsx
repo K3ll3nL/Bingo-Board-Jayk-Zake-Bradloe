@@ -493,6 +493,15 @@ const Upload = () => {
   const [showTooltip, setShowTooltip] = useState(false);
   const tooltipHideTimer = useRef(null);
   const tooltipShowTimer = useRef(null);
+  const [checkedItems, setCheckedItems] = useState(() => {
+    const result = {};
+    for (const g of ALLOWED_GAMES) {
+      for (const item of g.restricted_checklist ?? []) {
+        result[item.id] = localStorage.getItem(`restricted_check_${item.id}`) === 'true';
+      }
+    }
+    return result;
+  });
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(false);
@@ -571,8 +580,15 @@ const Upload = () => {
   const selectedGameKey = selectedGameObj?.key ?? null;
 
   // Game-specific proof config (from games.js)
-  const shinyLabel    = selectedGameObj?.shiny_label ?? 'Proof of Shiny';
-  const noImageProof  = !!selectedGameObj?.no_image_proof;
+  const shinyLabel       = selectedGameObj?.shiny_label ?? 'Proof of Shiny';
+  const noImageProof     = !!selectedGameObj?.no_image_proof;
+  const activeChecklist  = selectedGameObj?.restricted_checklist ?? [];
+
+  const toggleCheck = (id) => {
+    const next = !checkedItems[id];
+    localStorage.setItem(`restricted_check_${id}`, String(next));
+    setCheckedItems(prev => ({ ...prev, [id]: next }));
+  };
 
   // Pokemon data object for the currently selected Pokemon
   const selectedPokemonData = currentPokemonList.find(p => p.id === parseInt(selectedPokemon)) ?? null;
@@ -636,9 +652,6 @@ const Upload = () => {
     setDropdownOpen(false);
     if (game && selectedGameKey && !(poke?.game_slugs ?? []).includes(selectedGameKey)) {
       setGame('');
-      if (isRestricted) setIsRestricted(false);
-    } else if (isRestricted && selectedGameKey && !(poke?.restricted_game_slugs ?? []).includes(selectedGameKey)) {
-      setIsRestricted(false);
     }
   };
 
@@ -648,9 +661,6 @@ const Upload = () => {
     setGameDropdownOpen(false);
     if (selectedPokemon && gameKey && !(selectedPokemonData?.game_slugs ?? []).includes(gameKey)) {
       setSelectedPokemon('');
-      if (isRestricted) setIsRestricted(false);
-    } else if (isRestricted && gameKey && !(selectedPokemonData?.restricted_game_slugs ?? []).includes(gameKey)) {
-      setIsRestricted(false);
     }
   };
 
@@ -987,10 +997,12 @@ const Upload = () => {
                   <div
                     className="relative flex-shrink-0"
                     onMouseEnter={() => {
+                      if (isRestricted && !isLockedRestricted) return;
                       clearTimeout(tooltipHideTimer.current);
                       tooltipShowTimer.current = setTimeout(() => setShowTooltip(true), 600);
                     }}
                     onMouseLeave={() => {
+                      if (isRestricted && !isLockedRestricted) return;
                       clearTimeout(tooltipShowTimer.current);
                       tooltipHideTimer.current = setTimeout(() => setShowTooltip(false), 150);
                     }}
@@ -1005,12 +1017,6 @@ const Upload = () => {
                         if (next) {
                           setMediaFile(null);
                           setMediaFile2(null);
-                          if (selectedPokemon && !(selectedPokemonData?.restricted_game_slugs ?? []).length) {
-                            setSelectedPokemon('');
-                          }
-                          if (selectedGameKey && !currentPokemonList.some(p => (p.restricted_game_slugs ?? []).includes(selectedGameKey))) {
-                            setGame('');
-                          }
                         }
                       }}
                       className={`h-[46px] flex items-center gap-1.5 px-3 rounded-lg border transition-colors ${
@@ -1034,7 +1040,24 @@ const Upload = () => {
                       </svg>
                     </button>
 
-                    {showTooltip && (
+                    {isRestricted && !isLockedRestricted && activeChecklist.length > 0 ? (
+                      <div className="absolute left-full top-0 ml-2 w-56 bg-gray-900 border border-gray-700 rounded-lg p-3 text-xs z-10 shadow-lg">
+                        <p className="font-medium text-white mb-2">My video includes...</p>
+                        <div className="space-y-2">
+                          {activeChecklist.map(item => (
+                            <label key={item.id} className="flex items-start gap-2 cursor-pointer select-none">
+                              <input
+                                type="checkbox"
+                                checked={!!checkedItems[item.id]}
+                                onChange={() => toggleCheck(item.id)}
+                                className="mt-0.5 flex-shrink-0 accent-purple-500"
+                              />
+                              <span className="text-gray-300 leading-tight">{item.label}</span>
+                            </label>
+                          ))}
+                        </div>
+                      </div>
+                    ) : showTooltip ? (
                       <div
                         className="absolute left-full top-1/2 -translate-y-1/2 ml-2 w-52 bg-gray-900 border border-gray-700 rounded-lg p-3 text-xs z-10 shadow-lg"
                         onMouseEnter={() => { clearTimeout(tooltipHideTimer.current); clearTimeout(tooltipShowTimer.current); }}
@@ -1050,7 +1073,7 @@ const Upload = () => {
                           </>
                         )}
                       </div>
-                    )}
+                    ) : null}
                   </div>
                 )}
               </div>
