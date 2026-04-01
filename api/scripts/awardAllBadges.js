@@ -150,7 +150,7 @@ async function main() {
           .select('user_id')
           .eq('month_id', month.id)
           .eq('historical', false)
-          .order('id', { ascending: true })
+          .order('created_at', { ascending: true })
           .limit(1)
           .single();
 

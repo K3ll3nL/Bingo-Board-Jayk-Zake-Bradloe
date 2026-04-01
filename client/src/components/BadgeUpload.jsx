@@ -853,6 +853,7 @@ function checkDescription(badge) {
     case 'top_placement_year':         return `Finish top ${v} in a yearly leaderboard${q ? ` (year ${q})` : ''}`;
     case 'date_award':                 return `Awarded on ${q || 'a specific date'}`;
     case 'account_age_months':         return `Account at least ${v} month${v != 1 ? 's' : ''} old`;
+    case 'first_approval_month':       return 'First player to have a catch approved in a month';
     default:                           return 'Unknown criteria';
   }
 }
