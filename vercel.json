@@ -6,7 +6,7 @@
   "crons": [
     {
       "path": "/api/internal/period-end",
-      "schedule": "0 1 * * *"
+      "schedule": "0 0 * * *"
     }
   ]
 }
