@@ -166,7 +166,7 @@ const broadcastNotificationToasts = async (userId) => {
 //   3. Build context ONCE (1-2 DB queries regardless of badge count).
 //   4. Evaluate unearned badges via buildCheckFromDB(badge)(ctx).
 //   5. Insert + broadcast newly earned badges.
-const awardBadgesForTrigger = async (userId, trigger) => {
+const awardBadgesForTrigger = async (userId, trigger, { monthId } = {}) => {
   try {
     const { data: triggerBadges } = await supabase
       .from('badges')
@@ -175,19 +175,50 @@ const awardBadgesForTrigger = async (userId, trigger) => {
 
     if (!triggerBadges?.length) return;
 
-    const badgeIds = triggerBadges.map(b => b.id);
-    const { data: earnedRows } = await supabase
-      .from('user_badges')
-      .select('badge_id')
-      .eq('user_id', userId)
-      .in('badge_id', badgeIds);
+    // Monthly badges (e.g. first_approval_month) can be earned once per month,
+    // so their "already earned" check is scoped to (user, badge, month) rather than (user, badge).
+    const monthlyBadgeIds = new Set(
+      triggerBadges.filter(b => b.check_type === 'first_approval_month').map(b => b.id)
+    );
+    const regularBadgeIds = triggerBadges.filter(b => !monthlyBadgeIds.has(b.id)).map(b => b.id);
 
-    const earnedIdSet = new Set((earnedRows || []).map(e => e.badge_id));
+    const earnedIdSet = new Set();
+    const earnedChecks = [];
+
+    if (regularBadgeIds.length) {
+      earnedChecks.push(
+        supabase
+          .from('user_badges')
+          .select('badge_id')
+          .eq('user_id', userId)
+          .in('badge_id', regularBadgeIds)
+          .then(({ data }) => { for (const r of data || []) earnedIdSet.add(r.badge_id); })
+      );
+    }
+    if (monthlyBadgeIds.size) {
+      if (monthId) {
+        earnedChecks.push(
+          supabase
+            .from('user_badges')
+            .select('badge_id')
+            .eq('user_id', userId)
+            .in('badge_id', [...monthlyBadgeIds])
+            .eq('month_id', monthId)
+            .then(({ data }) => { for (const r of data || []) earnedIdSet.add(r.badge_id); })
+        );
+      } else {
+        // No monthId provided — skip monthly badges entirely this invocation
+        for (const id of monthlyBadgeIds) earnedIdSet.add(id);
+      }
+    }
+
+    await Promise.all(earnedChecks);
+
     const unearned = triggerBadges.filter(b => !earnedIdSet.has(b.id));
     if (!unearned.length) return;
 
     // Build context once — shared across all check evaluations
-    const ctx = await contextBuilders[trigger](userId, supabase);
+    const ctx = await contextBuilders[trigger](userId, supabase, { monthId });
 
     // buildCheckFromDB is only called for unearned candidates
     const newlyEarned = unearned.filter(b => buildCheckFromDB(b)(ctx));
@@ -195,7 +226,11 @@ const awardBadgesForTrigger = async (userId, trigger) => {
 
     const { data: inserted, error: insertError } = await supabase
       .from('user_badges')
-      .insert(newlyEarned.map(b => ({ user_id: userId, badge_id: b.id })))
+      .insert(newlyEarned.map(b => ({
+        user_id:  userId,
+        badge_id: b.id,
+        ...(monthlyBadgeIds.has(b.id) && monthId ? { month_id: monthId } : {}),
+      })))
       .select('badge_id');
 
     if (insertError) {
@@ -2533,7 +2568,7 @@ app.post('/api/approvals/:id/approve', async (req, res) => {
       broadcastUpdate('leaderboard-updates', 'leaderboard-changed', {}),
       broadcastUpdate('approvals-updates', 'queue-changed', {}),
       broadcastNotificationToasts(approval.user_id),
-      awardBadgesForTrigger(approval.user_id, 'approved'),
+      awardBadgesForTrigger(approval.user_id, 'approved', { monthId: approval.month_id }),
     ]).catch(err => console.error('Post-approval broadcast failed (non-fatal):', err.message));
 
     // Delete images from R2 (fire-and-forget; same reasoning)

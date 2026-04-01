@@ -17,6 +17,7 @@
 //                  ctx.typeApproved/Total    ({ fire: N, ... } — distinct caught/available per type)
 //                  ctx.genApproved/Total     ({ 1: N, ...    } — distinct caught/available per gen)
 //                  ctx.collectionProgress    ({ weather_trio: { caught: 2, total: 3 }, ... })
+//                  ctx.firstApprovalOfMonth  (true if no other user has an entry for monthId yet)
 //   'monthly_active' — ctx.activeMonths       (distinct months with at least one approved entry)
 //   'rejected'       — ctx.totalRejected      (all-time rejected notifications)
 // ─────────────────────────────────────────────────────────────────────────────
@@ -37,7 +38,7 @@ const contextBuilders = {
     return { totalSubmissions: count ?? 0 };
   },
 
-  async approved(userId, supabase) {
+  async approved(userId, supabase, { monthId } = {}) {
     // Three queries, shared by every approved-trigger badge.
     const [{ data: userEntries }, { data: allPokemon }, { data: gameFilters }] = await Promise.all([
       supabase
@@ -127,6 +128,18 @@ const contextBuilders = {
       collectionProgress[col] = { total: collectionTotal[col], caught: collectionCaught[col] ?? 0 };
     }
 
+    // First approval of month: true if no other user has an approved entry this month yet.
+    // Relies on the entry already being committed by the time the context is built.
+    let firstApprovalOfMonth = false;
+    if (monthId) {
+      const { count: othersCount } = await supabase
+        .from('entries')
+        .select('*', { count: 'exact', head: true })
+        .eq('month_id', monthId)
+        .neq('user_id', userId);
+      firstApprovalOfMonth = othersCount === 0;
+    }
+
     return {
       totalApproved: seenIds.size,
       restrictedApproved,
@@ -135,6 +148,7 @@ const contextBuilders = {
       genApproved,         // { 1: 45, 2: 12, ... }
       genTotal,            // { 1: 80, 2: 30, ... }
       collectionProgress,  // { weather_trio: { caught: 2, total: 3 }, ... }
+      firstApprovalOfMonth,
     };
   },
 
@@ -581,6 +595,7 @@ function buildCheckFromDB({ check_type, check_value, check_qualifier }) {
     // ── Bingo achievement count ───────────────────────────────────────────────
     // check_qualifier: 'any' | comma-separated base types e.g. 'row,blackout'
     // Each base type includes its _restricted variant (folded in contextBuilder).
+    case 'first_approval_month': return (ctx) => ctx.firstApprovalOfMonth === true;
     case 'account_age_months':   return (ctx) => ctx.accountAgeMonths >= check_value;
     case 'bingo_achievement_count': {
       const types = (!check_qualifier || check_qualifier === 'any')

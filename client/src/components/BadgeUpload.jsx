@@ -29,6 +29,7 @@ const CHECK_TYPES_BY_TRIGGER = {
     { value: 'type_percentage',       label: '% of a type caught' },
     { value: 'generation_percentage', label: '% of a generation caught' },
     { value: 'collection_complete',   label: 'Complete a collection (100%)' },
+    { value: 'first_approval_month',  label: 'First approval of the month — one winner per month' },
   ],
   rejected:          [{ value: 'rejected_count',          label: 'Total rejections' }],
   monthly_active:    [{ value: 'monthly_active_count',    label: 'Active months' }],
@@ -164,12 +165,13 @@ function CreateBadgeTab({ onCreated }) {
 
   // Derived
   const checkTypes      = CHECK_TYPES_BY_TRIGGER[form.trigger] ?? [];
-  const isPercentage    = form.check_type === 'type_percentage' || form.check_type === 'generation_percentage';
-  const isCollection    = form.check_type === 'collection_complete';
-  const isPlacement     = ['top_placement_month', 'top_placement_season', 'top_placement_year'].includes(form.check_type);
-  const isPeriodId      = ['approved_count_in_month', 'approved_count_in_season', 'approved_count_in_year', 'top_placement_month', 'top_placement_season', 'top_placement_year'].includes(form.check_type);
-  const isBingo         = form.check_type === 'bingo_achievement_count';
-  const isDateAward     = form.check_type === 'date_award';
+  const isPercentage         = form.check_type === 'type_percentage' || form.check_type === 'generation_percentage';
+  const isCollection         = form.check_type === 'collection_complete';
+  const isPlacement          = ['top_placement_month', 'top_placement_season', 'top_placement_year'].includes(form.check_type);
+  const isPeriodId           = ['approved_count_in_month', 'approved_count_in_season', 'approved_count_in_year', 'top_placement_month', 'top_placement_season', 'top_placement_year'].includes(form.check_type);
+  const isBingo              = form.check_type === 'bingo_achievement_count';
+  const isDateAward          = form.check_type === 'date_award';
+  const isFirstApprovalMonth = form.check_type === 'first_approval_month';
   const showQualifier   = isPercentage || isCollection || isPeriodId || isBingo || isDateAward;
   const checkValueLabel = isPlacement ? 'Top X (max rank)' : isPercentage ? 'Percentage (0–100)' : 'Threshold';
   const checkValuePH    = isPlacement ? '3' : isPercentage ? '100' : '1';
@@ -464,8 +466,15 @@ function CreateBadgeTab({ onCreated }) {
           </div>
         )}
 
+        {/* First approval of month — no threshold or qualifier needed */}
+        {isFirstApprovalMonth && (
+          <p className="text-xs text-gray-500">
+            Awarded once per month to the first player whose catch is approved. No threshold required.
+          </p>
+        )}
+
         {/* Check value */}
-        {!isCollection && !isDateAward && (
+        {!isCollection && !isDateAward && !isFirstApprovalMonth && (
           <div>
             <label className="block text-sm font-medium text-gray-300 mb-1">
               {checkValueLabel} <span className="text-red-400">*</span>
