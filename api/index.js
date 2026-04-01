@@ -622,13 +622,16 @@ async function getActiveMonth(userId = null) {
     }
   }
 
-  // Cache hit: valid as long as we haven't passed the month's end_date
-  if (activeMonthCache && now < new Date(activeMonthCache.end_date)) {
+  // Offset now by -2 hours so bare end_dates (stored as midnight UTC) effectively expire 2 hours later
+  const offsetNow = new Date(now.getTime() - 2 * 60 * 60 * 1000);
+  const nowISO = offsetNow.toISOString();
+
+  // Cache hit: valid as long as we haven't passed the month's end_date (+2h offset)
+  if (activeMonthCache && offsetNow < new Date(activeMonthCache.end_date)) {
     return activeMonthCache;
   }
 
   // Cache miss or expired — fetch from DB and cache the result
-  const nowISO = now.toISOString();
   console.log('Fetching active month from DB - date:', nowISO);
   const { data: activeMonthData, error: monthError } = await supabase
     .from('bingo_months')
