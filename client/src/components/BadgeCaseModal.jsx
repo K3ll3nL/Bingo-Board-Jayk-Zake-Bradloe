@@ -298,7 +298,6 @@ function SlotButton({ badge, slotNumber, isLeaderboard, isOwnProfile, onClick, o
       {badge && (
         <div className="mt-2 text-center">
           <div className="text-white text-xs font-medium truncate" style={{ maxWidth: '160px' }}>{badge.name}</div>
-          {isLeaderboard && <div className="text-yellow-400/70 text-[10px]">◆ Leaderboard</div>}
         </div>
       )}
     </div>
