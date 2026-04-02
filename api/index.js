@@ -2566,7 +2566,8 @@ app.post('/api/approvals/:id/approve', async (req, res) => {
     const { data, error } = await supabase.rpc('approve_submission', {
       p_approval_id: parseInt(id),
       p_moderator_id: moderatorId,
-      p_status: approvalStatus || 'accepted'
+      p_status: approvalStatus || 'accepted',
+      p_game: approval.game || null
     });
 
     if (error) {

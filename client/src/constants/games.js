@@ -43,6 +43,7 @@ export const ALLOWED_GAMES = [
     restricted_checklist: [
       { id: 'sv_no_shiny_charm', label: 'Proof I do not have shiny charm' },
       { id: 'sv_no_sandwich',    label: 'Proof that I was not using a sparkling power sandwich' },
+      { id: 'sv_no_outbreak',    label: 'Proof that I am not using an outbreak' },
     ],
   },
   {

@@ -218,6 +218,7 @@ const RESTRICTED_RULES = [
       <ul className="space-y-1 text-sm text-gray-300 list-disc list-inside">
         <li>No Shiny Charm</li>
         <li>No Sparkling Power</li>
+        <li>No Outbreaks</li>
       </ul>
     ),
   },
