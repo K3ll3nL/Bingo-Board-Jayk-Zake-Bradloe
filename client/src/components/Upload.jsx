@@ -240,25 +240,25 @@ const HistoricalUploadSection = () => {
       )}
 
       {/* Pokemon selector */}
-      <div className="mb-6">
+      <div className="mb-4 sm:mb-6">
         <div className="flex items-center justify-between mb-2">
           <label className="block text-sm font-medium text-gray-200">Select Pokemon</label>
-          <div className="flex gap-2">
+          <div className="flex rounded-lg overflow-hidden border border-gray-600 divide-x divide-gray-600 flex-shrink-0">
             <button type="button" onClick={() => setSortBy('dex')}
-              className={`px-3 py-1 text-xs rounded ${sortBy === 'dex' ? 'bg-purple-500 text-white' : 'bg-gray-700 text-gray-300'}`}>
+              className={`px-2 py-1.5 text-xs font-medium transition-colors ${sortBy === 'dex' ? 'bg-purple-500 text-white' : 'bg-gray-800 text-gray-300'}`}>
               Dex #
             </button>
             <button type="button" onClick={() => setSortBy('alpha')}
-              className={`px-3 py-1 text-xs rounded ${sortBy === 'alpha' ? 'bg-purple-500 text-white' : 'bg-gray-700 text-gray-300'}`}>
+              className={`px-2 py-1.5 text-xs font-medium transition-colors ${sortBy === 'alpha' ? 'bg-purple-500 text-white' : 'bg-gray-800 text-gray-300'}`}>
               A-Z
             </button>
             <button type="button" onClick={() => setSortBy('month')}
-              className={`px-3 py-1 text-xs rounded ${sortBy === 'month' ? 'bg-purple-500 text-white' : 'bg-gray-700 text-gray-300'}`}>
+              className={`px-2 py-1.5 text-xs font-medium transition-colors ${sortBy === 'month' ? 'bg-purple-500 text-white' : 'bg-gray-800 text-gray-300'}`}>
               Month
             </button>
             {restrictedEnabled && (
               <button type="button" onClick={() => setSortBy('restricted')}
-                className={`px-3 py-1 text-xs rounded ${sortBy === 'restricted' ? 'bg-[#78150a] text-white' : 'bg-gray-700 text-gray-300'}`}>
+                className={`px-2 py-1.5 text-xs font-medium transition-colors ${sortBy === 'restricted' ? 'bg-[#78150a] text-white' : 'bg-gray-800 text-gray-300'}`}>
                 Restricted
               </button>
             )}
@@ -401,110 +401,114 @@ const HistoricalUploadSection = () => {
       </div>
 
       {/* Video link + restricted button */}
-      <div className="mb-6 flex items-end gap-2">
-        <div className="flex-1">
-          <label className="block text-xs font-medium text-gray-300 mb-2">
-            {isRestricted || noImageProof
-              ? <><span>Video Link</span> <span className="text-red-400">*</span></>
-              : <span className="text-gray-400">Supplemental Video Link <span className="text-gray-500">(optional)</span></span>
-            }
-          </label>
-          <input
-            type="url"
-            value={mediaUrl}
-            onChange={(e) => setMediaUrl(e.target.value)}
-            placeholder="Twitch clip, VOD, or YouTube link"
-            className="w-full p-3 bg-gray-700 text-white rounded-lg border border-gray-600 focus:border-purple-500 focus:outline-none"
-            disabled={submitting}
-          />
+      <div className="mb-6">
+        <div className="flex items-end gap-2">
+          <div className="flex-1">
+            <label className="block text-xs font-medium text-gray-300 mb-2">
+              {isRestricted || noImageProof
+                ? <><span>Video Link</span> <span className="text-red-400">*</span></>
+                : <span className="text-gray-400">Video Link <span className="text-gray-500">(optional)</span></span>
+              }
+            </label>
+            <input
+              type="url"
+              value={mediaUrl}
+              onChange={(e) => setMediaUrl(e.target.value)}
+              placeholder="Twitch clip, VOD, or YouTube link"
+              className="w-full p-3 bg-gray-700 text-white rounded-lg border border-gray-600 focus:border-purple-500 focus:outline-none"
+              disabled={submitting}
+            />
+          </div>
+
+          {restrictedEnabled && (
+            <div
+              className="relative flex-shrink-0"
+              onMouseEnter={() => {
+                if (isLockedRestricted) return;
+                clearTimeout(tooltipHideTimer.current);
+                tooltipShowTimer.current = setTimeout(() => setShowTooltip(true), 600);
+              }}
+              onMouseLeave={() => {
+                if (isLockedRestricted) return;
+                clearTimeout(tooltipShowTimer.current);
+                tooltipHideTimer.current = setTimeout(() => setShowTooltip(false), 150);
+              }}
+            >
+              <button
+                type="button"
+                disabled={!isRestrictedAvailable || isLockedRestricted}
+                onClick={() => {
+                  if (!isRestrictedAvailable || isLockedRestricted) return;
+                  const next = !isRestricted;
+                  setIsRestricted(next);
+                  if (next) {
+                    setMediaFile(null);
+                    setMediaFile2(null);
+                  }
+                }}
+                className={`h-[46px] flex items-center gap-1.5 px-3 rounded-lg border transition-colors ${
+                  !isRestrictedAvailable
+                    ? 'border-gray-700 bg-gray-800 text-gray-600 cursor-not-allowed opacity-50'
+                    : isLockedRestricted
+                      ? 'border-[#78150a] bg-[#78150a] text-white cursor-not-allowed'
+                      : isRestricted
+                        ? 'border-[#78150a] bg-[#78150a] text-white'
+                        : 'border-gray-600 bg-gray-700 text-gray-400 hover:border-gray-500 hover:text-gray-300'
+                }`}
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                    d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                </svg>
+                <span className="text-xs font-medium">Restricted</span>
+                <svg className="w-3.5 h-3.5 opacity-60" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                    d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              </button>
+
+              {showLockedTooltip && (
+                <div className="absolute bottom-full right-0 mb-2 w-56 bg-gray-900 border border-gray-700 rounded-lg p-2 text-xs z-10 shadow-lg text-center pointer-events-none">
+                  <p className="text-yellow-300">You already have a standard submission for this Pokémon — restricted only.</p>
+                </div>
+              )}
+              {!isRestricted && showTooltip && (
+                <div
+                  className="absolute right-0 top-full mt-1 w-52 bg-gray-900 border border-gray-700 rounded-lg p-3 text-xs z-10 shadow-lg"
+                  onMouseEnter={() => { clearTimeout(tooltipHideTimer.current); clearTimeout(tooltipShowTimer.current); }}
+                  onMouseLeave={() => { tooltipHideTimer.current = setTimeout(() => setShowTooltip(false), 150); }}
+                >
+                  <p className="font-medium text-white mb-1">Restricted Challenge</p>
+                  <p className="text-gray-400 mb-2">Submit a VOD or stored video link to count toward the restricted challenge.</p>
+                  <a href="/about#restricted" className="text-purple-400 hover:text-purple-300 transition-colors">Learn more →</a>
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
-        {restrictedEnabled && (
-          <div
-            className="relative flex-shrink-0"
-            onMouseEnter={() => {
-              if (isLockedRestricted) return;
-              clearTimeout(tooltipHideTimer.current);
-              tooltipShowTimer.current = setTimeout(() => setShowTooltip(true), 600);
-            }}
-            onMouseLeave={() => {
-              if (isLockedRestricted) return;
-              clearTimeout(tooltipShowTimer.current);
-              tooltipHideTimer.current = setTimeout(() => setShowTooltip(false), 150);
-            }}
-          >
-            <button
-              type="button"
-              disabled={!isRestrictedAvailable || isLockedRestricted}
-              onClick={() => {
-                if (!isRestrictedAvailable || isLockedRestricted) return;
-                const next = !isRestricted;
-                setIsRestricted(next);
-                if (next) {
-                  setMediaFile(null);
-                  setMediaFile2(null);
-                }
-              }}
-              className={`h-[46px] flex items-center gap-1.5 px-3 rounded-lg border transition-colors ${
-                !isRestrictedAvailable
-                  ? 'border-gray-700 bg-gray-800 text-gray-600 cursor-not-allowed opacity-50'
-                  : isLockedRestricted
-                    ? 'border-[#78150a] bg-[#78150a] text-white cursor-not-allowed'
-                    : isRestricted
-                      ? 'border-[#78150a] bg-[#78150a] text-white'
-                      : 'border-gray-600 bg-gray-700 text-gray-400 hover:border-gray-500 hover:text-gray-300'
-              }`}
-            >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                  d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-              </svg>
-              <span className="text-xs font-medium">Restricted</span>
-              <svg className="w-3.5 h-3.5 opacity-60" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                  d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-            </button>
-
-            {showLockedTooltip && (
-              <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-56 bg-gray-900 border border-gray-700 rounded-lg p-2 text-xs z-10 shadow-lg text-center pointer-events-none">
-                <p className="text-yellow-300">You already have a standard submission for this Pokémon — restricted only.</p>
-              </div>
-            )}
-            {isRestricted && activeChecklist.length > 0 ? (
-              <div className="absolute left-full top-0 ml-2 w-56 bg-gray-900 border border-gray-700 rounded-lg p-3 text-xs z-10 shadow-lg">
-                <p className="font-medium text-white mb-2">My video includes...</p>
-                <div className="space-y-2">
-                  {activeChecklist.map(item => (
-                    <label key={item.id} className="flex items-start gap-2 cursor-pointer select-none">
-                      <input
-                        type="checkbox"
-                        checked={!!checkedItems[item.id]}
-                        onChange={() => toggleCheck(item.id)}
-                        className="mt-0.5 flex-shrink-0 accent-purple-500"
-                      />
-                      <span className="text-gray-300 leading-tight">{item.label}</span>
-                    </label>
-                  ))}
-                </div>
-              </div>
-            ) : showTooltip ? (
-              <div
-                className="absolute left-full top-1/2 -translate-y-1/2 ml-2 w-52 bg-gray-900 border border-gray-700 rounded-lg p-3 text-xs z-10 shadow-lg"
-                onMouseEnter={() => { clearTimeout(tooltipHideTimer.current); clearTimeout(tooltipShowTimer.current); }}
-                onMouseLeave={() => { tooltipHideTimer.current = setTimeout(() => setShowTooltip(false), 150); }}
-              >
-                <p className="font-medium text-white mb-1">Restricted Challenge</p>
-                <p className="text-gray-400 mb-2">Submit a VOD or stored video link to count toward the restricted challenge.</p>
-                <a href="/about#restricted" className="text-purple-400 hover:text-purple-300 transition-colors">Learn more →</a>
-              </div>
-            ) : null}
+        {restrictedEnabled && isRestricted && activeChecklist.length > 0 && (
+          <div className="mt-2 bg-gray-900 border border-gray-700 rounded-lg p-3 text-xs">
+            <p className="font-medium text-white mb-2">My video includes...</p>
+            <div className="space-y-2">
+              {activeChecklist.map(item => (
+                <label key={item.id} className="flex items-start gap-2 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={!!checkedItems[item.id]}
+                    onChange={() => toggleCheck(item.id)}
+                    className="mt-0.5 flex-shrink-0 accent-purple-500"
+                  />
+                  <span className="text-gray-300 leading-tight">{item.label}</span>
+                </label>
+              ))}
+            </div>
           </div>
         )}
       </div>
 
       {/* Proof uploads */}
-      <div className={`grid grid-cols-2 gap-4 mb-4 transition-opacity duration-200 ${noImageProof ? 'opacity-40 pointer-events-none select-none' : ''}`}>
+      <div className={`grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4 transition-opacity duration-200 ${noImageProof ? 'opacity-40 pointer-events-none select-none' : ''}`}>
         <div>
           <label className="block text-xs font-medium text-gray-300 mb-2">
             {isRestricted || noImageProof
@@ -513,7 +517,7 @@ const HistoricalUploadSection = () => {
             }
           </label>
           <input type="file" onChange={(e) => { if (e.target.files[0]) setMediaFile(e.target.files[0]); }} accept="image/*,video/*" className="hidden" id="hist-file-1" disabled={submitting} />
-          <label htmlFor="hist-file-1" className="block w-full p-6 border-2 border-dashed rounded-lg text-center cursor-pointer transition-colors border-gray-600 bg-gray-700 hover:border-purple-500">
+          <label htmlFor="hist-file-1" className="block w-full p-4 sm:p-6 border-2 border-dashed rounded-lg text-center cursor-pointer transition-colors border-gray-600 bg-gray-700 hover:border-purple-500">
             {mediaFile ? (
               <div className="text-white"><svg className="w-6 h-6 mx-auto mb-2 text-green-400" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" /></svg><p className="text-xs truncate">{mediaFile.name}</p></div>
             ) : (
@@ -529,7 +533,7 @@ const HistoricalUploadSection = () => {
             }
           </label>
           <input type="file" onChange={(e) => { if (e.target.files[0]) setMediaFile2(e.target.files[0]); }} accept="image/*,video/*" className="hidden" id="hist-file-2" disabled={submitting} />
-          <label htmlFor="hist-file-2" className="block w-full p-6 border-2 border-dashed rounded-lg text-center cursor-pointer transition-colors border-gray-600 bg-gray-700 hover:border-purple-500">
+          <label htmlFor="hist-file-2" className="block w-full p-4 sm:p-6 border-2 border-dashed rounded-lg text-center cursor-pointer transition-colors border-gray-600 bg-gray-700 hover:border-purple-500">
             {mediaFile2 ? (
               <div className="text-white"><svg className="w-6 h-6 mx-auto mb-2 text-green-400" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" /></svg><p className="text-xs truncate">{mediaFile2.name}</p></div>
             ) : (
@@ -871,7 +875,7 @@ const Upload = () => {
       <PageBackground />
       <PageHeader title="Upload Catch" />
 
-      <div className="p-8">
+      <div className="p-4 sm:p-8">
         <div className="max-w-2xl mx-auto">
 
           {/* Mode toggle */}
@@ -880,7 +884,7 @@ const Upload = () => {
               <button
                 type="button"
                 onClick={() => setIsHistoricalMode(false)}
-                className={`px-5 py-2 rounded-lg font-medium text-sm transition-colors ${
+                className={`px-3.5 py-1.5 sm:px-5 sm:py-2 rounded-lg font-medium text-xs sm:text-sm transition-colors ${
                   !isHistoricalMode ? 'bg-purple-500 text-white' : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
                 }`}
               >
@@ -889,7 +893,7 @@ const Upload = () => {
               <button
                 type="button"
                 onClick={() => setIsHistoricalMode(true)}
-                className={`px-5 py-2 rounded-lg font-medium text-sm transition-colors ${
+                className={`px-3.5 py-1.5 sm:px-5 sm:py-2 rounded-lg font-medium text-xs sm:text-sm transition-colors ${
                   isHistoricalMode ? 'bg-blue-500 text-white' : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
                 }`}
               >
@@ -900,13 +904,13 @@ const Upload = () => {
 
           {/* ── Historical Form ─────────────────────────────────────────────── */}
           {restrictedEnabled && (
-            <div className={`rounded-lg shadow-lg p-6 border border-gray-600 ${!isHistoricalMode ? 'hidden' : ''}`} style={{ backgroundColor: '#35373b' }}>
+            <div className={`rounded-lg shadow-lg p-4 sm:p-6 border border-gray-600 ${!isHistoricalMode ? 'hidden' : ''}`} style={{ backgroundColor: '#35373b' }}>
               <HistoricalUploadSection />
             </div>
           )}
 
           {/* ── Current Month Form ──────────────────────────────────────────── */}
-          <div className={`rounded-lg shadow-lg p-6 border border-gray-600 ${isHistoricalMode && restrictedEnabled ? 'hidden' : ''}`} style={{ backgroundColor: '#35373b' }}>
+          <div className={`rounded-lg shadow-lg p-4 sm:p-6 border border-gray-600 ${isHistoricalMode && restrictedEnabled ? 'hidden' : ''}`} style={{ backgroundColor: '#35373b' }}>
 
             {error && (
               <div className="mb-4 p-3 bg-red-900 border border-red-700 rounded-lg text-red-200 text-sm">{error}</div>
@@ -920,23 +924,23 @@ const Upload = () => {
             <form onSubmit={handleSubmit}>
 
               {/* Pokemon Selection */}
-              <div className="mb-6">
+              <div className="mb-4 sm:mb-6">
                 <div className="flex items-center justify-between mb-2">
                   <label className="block text-sm font-medium text-gray-200">
                     Select Pokemon
                   </label>
-                  <div className="flex gap-2">
+                  <div className="flex rounded-lg overflow-hidden border border-gray-600 divide-x divide-gray-600 flex-shrink-0">
                     <button type="button" onClick={() => setSortBy('dex')}
-                      className={`px-3 py-1 text-xs rounded ${sortBy === 'dex' ? 'bg-purple-500 text-white' : 'bg-gray-700 text-gray-300'}`}>
+                      className={`px-2 py-1.5 text-xs font-medium transition-colors ${sortBy === 'dex' ? 'bg-purple-500 text-white' : 'bg-gray-800 text-gray-300'}`}>
                       Dex #
                     </button>
                     <button type="button" onClick={() => setSortBy('alpha')}
-                      className={`px-3 py-1 text-xs rounded ${sortBy === 'alpha' ? 'bg-purple-500 text-white' : 'bg-gray-700 text-gray-300'}`}>
+                      className={`px-2 py-1.5 text-xs font-medium transition-colors ${sortBy === 'alpha' ? 'bg-purple-500 text-white' : 'bg-gray-800 text-gray-300'}`}>
                       A-Z
                     </button>
                     {restrictedEnabled && (
                       <button type="button" onClick={() => setSortBy('restricted')}
-                        className={`px-3 py-1 text-xs rounded ${sortBy === 'restricted' ? 'bg-[#78150a] text-white' : 'bg-gray-700 text-gray-300'}`}>
+                        className={`px-2 py-1.5 text-xs font-medium transition-colors ${sortBy === 'restricted' ? 'bg-[#78150a] text-white' : 'bg-gray-800 text-gray-300'}`}>
                         Restricted
                       </button>
                     )}
@@ -1007,7 +1011,7 @@ const Upload = () => {
               </div>
 
               {/* Game Selection */}
-              <div className="mb-6">
+              <div className="mb-4 sm:mb-6">
                 <label className="block text-sm font-medium text-gray-200 mb-2">
                   Game Hunted In <span className="text-red-400">*</span>
                 </label>
@@ -1090,111 +1094,115 @@ const Upload = () => {
               </div>
 
               {/* Video Link + Restricted Toggle */}
-              <div className="mb-6 flex items-end gap-2">
-                <div className="flex-1">
-                  <label className="block text-xs font-medium text-gray-300 mb-2">
-                    {isRestricted || noImageProof
-                      ? <><span>Video Link</span> <span className="text-red-400">*</span></>
-                      : <span className="text-gray-400">Supplemental Video Link <span className="text-gray-500">(optional)</span></span>
-                    }
-                  </label>
-                  <input
-                    type="url"
-                    value={mediaUrl}
-                    onChange={(e) => setMediaUrl(e.target.value)}
-                    placeholder="Twitch clip, VOD, or YouTube link"
-                    className="w-full p-3 bg-gray-700 text-white rounded-lg border border-gray-600 focus:border-purple-500 focus:outline-none"
-                    disabled={submitting}
-                  />
+              <div className="mb-4 sm:mb-6">
+                <div className="flex items-end gap-2">
+                  <div className="flex-1">
+                    <label className="block text-xs font-medium text-gray-300 mb-2">
+                      {isRestricted || noImageProof
+                        ? <><span>Video Link</span> <span className="text-red-400">*</span></>
+                        : <span className="text-gray-400">Video Link <span className="text-gray-500">(optional)</span></span>
+                      }
+                    </label>
+                    <input
+                      type="url"
+                      value={mediaUrl}
+                      onChange={(e) => setMediaUrl(e.target.value)}
+                      placeholder="Twitch clip, VOD, or YouTube link"
+                      className="w-full p-3 bg-gray-700 text-white rounded-lg border border-gray-600 focus:border-purple-500 focus:outline-none"
+                      disabled={submitting}
+                    />
+                  </div>
+
+                  {restrictedEnabled && (
+                    <div
+                      className="relative flex-shrink-0"
+                      onMouseEnter={() => {
+                        if (isRestricted || isLockedRestricted) return;
+                        clearTimeout(tooltipHideTimer.current);
+                        tooltipShowTimer.current = setTimeout(() => setShowTooltip(true), 600);
+                      }}
+                      onMouseLeave={() => {
+                        if (isRestricted || isLockedRestricted) return;
+                        clearTimeout(tooltipShowTimer.current);
+                        tooltipHideTimer.current = setTimeout(() => setShowTooltip(false), 150);
+                      }}
+                    >
+                      <button
+                        type="button"
+                        disabled={!isRestrictedAvailable || isLockedRestricted}
+                        onClick={() => {
+                          if (!isRestrictedAvailable || isLockedRestricted) return;
+                          const next = !isRestricted;
+                          setIsRestricted(next);
+                          if (next) {
+                            setMediaFile(null);
+                            setMediaFile2(null);
+                          }
+                        }}
+                        className={`h-[46px] flex items-center gap-1.5 px-3 rounded-lg border transition-colors ${
+                          !isRestrictedAvailable
+                            ? 'border-gray-700 bg-gray-800 text-gray-600 cursor-not-allowed opacity-50'
+                            : isLockedRestricted
+                              ? 'border-[#78150a] bg-[#78150a] text-white cursor-not-allowed'
+                              : isRestricted
+                                ? 'border-[#78150a] bg-[#78150a] text-white'
+                                : 'border-gray-600 bg-gray-700 text-gray-400 hover:border-gray-500 hover:text-gray-300'
+                        }`}
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                            d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                        </svg>
+                        <span className="text-xs font-medium">Restricted</span>
+                        <svg className="w-3.5 h-3.5 opacity-60" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                            d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                      </button>
+
+                      {showLockedTooltip && (
+                        <div className="absolute bottom-full right-0 mb-2 w-56 bg-gray-900 border border-gray-700 rounded-lg p-3 text-xs z-10 shadow-lg whitespace-normal text-center pointer-events-none">
+                          <p className="text-yellow-300">You already have a standard submission for this Pokémon — restricted only.</p>
+                        </div>
+                      )}
+                      {!isRestricted && showTooltip && (
+                        <div
+                          className="absolute right-0 top-full mt-1 w-52 bg-gray-900 border border-gray-700 rounded-lg p-3 text-xs z-10 shadow-lg"
+                          onMouseEnter={() => { clearTimeout(tooltipHideTimer.current); clearTimeout(tooltipShowTimer.current); }}
+                          onMouseLeave={() => { tooltipHideTimer.current = setTimeout(() => setShowTooltip(false), 150); }}
+                        >
+                          <p className="font-medium text-white mb-1">Restricted Challenge</p>
+                          <p className="text-gray-400 mb-2">Submit a VOD or stored video link to count toward the restricted challenge.</p>
+                          <a href="/about#restricted" className="text-purple-400 hover:text-purple-300 transition-colors">Learn more →</a>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
 
-                {restrictedEnabled && (
-                  <div
-                    className="relative flex-shrink-0"
-                    onMouseEnter={() => {
-                      if (isRestricted || isLockedRestricted) return;
-                      clearTimeout(tooltipHideTimer.current);
-                      tooltipShowTimer.current = setTimeout(() => setShowTooltip(true), 600);
-                    }}
-                    onMouseLeave={() => {
-                      if (isRestricted || isLockedRestricted) return;
-                      clearTimeout(tooltipShowTimer.current);
-                      tooltipHideTimer.current = setTimeout(() => setShowTooltip(false), 150);
-                    }}
-                  >
-                    <button
-                      type="button"
-                      disabled={!isRestrictedAvailable || isLockedRestricted}
-                      onClick={() => {
-                        if (!isRestrictedAvailable || isLockedRestricted) return;
-                        const next = !isRestricted;
-                        setIsRestricted(next);
-                        if (next) {
-                          setMediaFile(null);
-                          setMediaFile2(null);
-                        }
-                      }}
-                      className={`h-[46px] flex items-center gap-1.5 px-3 rounded-lg border transition-colors ${
-                        !isRestrictedAvailable
-                          ? 'border-gray-700 bg-gray-800 text-gray-600 cursor-not-allowed opacity-50'
-                          : isLockedRestricted
-                            ? 'border-[#78150a] bg-[#78150a] text-white cursor-not-allowed'
-                            : isRestricted
-                              ? 'border-[#78150a] bg-[#78150a] text-white'
-                              : 'border-gray-600 bg-gray-700 text-gray-400 hover:border-gray-500 hover:text-gray-300'
-                      }`}
-                    >
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                          d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-                      </svg>
-                      <span className="text-xs font-medium">Restricted</span>
-                      <svg className="w-3.5 h-3.5 opacity-60" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                          d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                      </svg>
-                    </button>
-
-                    {showLockedTooltip && (
-                      <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-56 bg-gray-900 border border-gray-700 rounded-lg p-3 text-xs z-10 shadow-lg whitespace-normal text-center pointer-events-none">
-                        <p className="text-yellow-300">You already have a standard submission for this Pokémon — restricted only.</p>
-                      </div>
-                    )}
-                    {isRestricted && activeChecklist.length > 0 ? (
-                      <div className="absolute left-full top-0 ml-2 w-56 bg-gray-900 border border-gray-700 rounded-lg p-3 text-xs z-10 shadow-lg">
-                        <p className="font-medium text-white mb-2">My video includes...</p>
-                        <div className="space-y-2">
-                          {activeChecklist.map(item => (
-                            <label key={item.id} className="flex items-start gap-2 cursor-pointer select-none">
-                              <input
-                                type="checkbox"
-                                checked={!!checkedItems[item.id]}
-                                onChange={() => toggleCheck(item.id)}
-                                className="mt-0.5 flex-shrink-0 accent-purple-500"
-                              />
-                              <span className="text-gray-300 leading-tight">{item.label}</span>
-                            </label>
-                          ))}
-                        </div>
-                      </div>
-                    ) : showTooltip ? (
-                      <div
-                        className="absolute left-full top-1/2 -translate-y-1/2 ml-2 w-52 bg-gray-900 border border-gray-700 rounded-lg p-3 text-xs z-10 shadow-lg"
-                        onMouseEnter={() => { clearTimeout(tooltipHideTimer.current); clearTimeout(tooltipShowTimer.current); }}
-                        onMouseLeave={() => { tooltipHideTimer.current = setTimeout(() => setShowTooltip(false), 150); }}
-                      >
-                        <p className="font-medium text-white mb-1">Restricted Challenge</p>
-                        <p className="text-gray-400 mb-2">Submit a VOD or stored video link to count toward the restricted challenge.</p>
-                        <a href="/about#restricted" className="text-purple-400 hover:text-purple-300 transition-colors">Learn more →</a>
-                      </div>
-                    ) : null}
+                {restrictedEnabled && isRestricted && activeChecklist.length > 0 && (
+                  <div className="mt-2 bg-gray-900 border border-gray-700 rounded-lg p-3 text-xs">
+                    <p className="font-medium text-white mb-2">My video includes...</p>
+                    <div className="space-y-2">
+                      {activeChecklist.map(item => (
+                        <label key={item.id} className="flex items-start gap-2 cursor-pointer select-none">
+                          <input
+                            type="checkbox"
+                            checked={!!checkedItems[item.id]}
+                            onChange={() => toggleCheck(item.id)}
+                            className="mt-0.5 flex-shrink-0 accent-purple-500"
+                          />
+                          <span className="text-gray-300 leading-tight">{item.label}</span>
+                        </label>
+                      ))}
+                    </div>
                   </div>
                 )}
               </div>
 
               {/* Image Uploads */}
               <div className={`transition-opacity duration-200 ${noImageProof ? 'opacity-40 pointer-events-none select-none' : ''}`}>
-                <div className="grid grid-cols-2 gap-4 mb-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
                   <div>
                     <label className="block text-xs font-medium text-gray-300 mb-2">
                       {isRestricted || noImageProof
@@ -1203,7 +1211,7 @@ const Upload = () => {
                       }
                     </label>
                     <input type="file" onChange={handleFileChange} accept="image/*,video/*" className="hidden" id="file-upload-1" disabled={submitting} />
-                    <label htmlFor="file-upload-1" className="block w-full p-6 border-2 border-dashed rounded-lg text-center cursor-pointer transition-colors border-gray-600 bg-gray-700 hover:border-purple-500">
+                    <label htmlFor="file-upload-1" className="block w-full p-4 sm:p-6 border-2 border-dashed rounded-lg text-center cursor-pointer transition-colors border-gray-600 bg-gray-700 hover:border-purple-500">
                       {mediaFile ? (
                         <div className="text-white">
                           <svg className="w-6 h-6 mx-auto mb-2 text-green-400" fill="currentColor" viewBox="0 0 20 20">
@@ -1230,7 +1238,7 @@ const Upload = () => {
                       }
                     </label>
                     <input type="file" onChange={handleFile2Change} accept="image/*,video/*" className="hidden" id="file-upload-2" disabled={submitting} />
-                    <label htmlFor="file-upload-2" className="block w-full p-6 border-2 border-dashed rounded-lg text-center cursor-pointer transition-colors border-gray-600 bg-gray-700 hover:border-purple-500">
+                    <label htmlFor="file-upload-2" className="block w-full p-4 sm:p-6 border-2 border-dashed rounded-lg text-center cursor-pointer transition-colors border-gray-600 bg-gray-700 hover:border-purple-500">
                       {mediaFile2 ? (
                         <div className="text-white">
                           <svg className="w-6 h-6 mx-auto mb-2 text-green-400" fill="currentColor" viewBox="0 0 20 20">
