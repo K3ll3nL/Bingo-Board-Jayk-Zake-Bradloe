@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth, supabase } from '../contexts/AuthContext';
+import restrictedIcon from '../Icons/restricted-icon.png';
 import { getAuthHeaders } from '../services/api';
 
 const TOAST_DURATION = 5000;
@@ -254,9 +255,7 @@ const Toast = ({ notification, onDismiss }) => {
                 backgroundColor: '#1a0302', border: '1.5px solid rgba(255,255,255,0.2)',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
               }}>
-                <svg width="9" height="9" fill="none" stroke="white" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-                </svg>
+                <img src={restrictedIcon} alt="" style={{ width: '9px', height: '9px', objectFit: 'contain' }} />
               </div>
             )}
           </div>

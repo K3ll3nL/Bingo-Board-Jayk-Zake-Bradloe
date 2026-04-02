@@ -1631,6 +1631,124 @@ app.get('/api/profile/:userId/board', async (req, res) => {
   }
 });
 
+// Get list of past months a user participated in (has entries)
+app.get('/api/profile/:userId/past-months', async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const activeMonth = await getActiveMonth(null);
+    const activeMonthId = activeMonth?.id;
+
+    const { data: entryRows, error: entriesError } = await supabase
+      .from('entries')
+      .select('month_id')
+      .eq('user_id', userId);
+
+    if (entriesError) throw entriesError;
+
+    const monthIds = [...new Set((entryRows || []).map(e => e.month_id))]
+      .filter(id => id !== activeMonthId);
+
+    if (monthIds.length === 0) return res.json([]);
+
+    const { data: months, error: monthsError } = await supabase
+      .from('bingo_months')
+      .select('id, month_year_display')
+      .in('id', monthIds)
+      .order('id', { ascending: false });
+
+    if (monthsError) throw monthsError;
+
+    res.json(months || []);
+  } catch (err) {
+    console.error('Error fetching past months:', err);
+    res.status(500).json({ error: 'Failed to fetch past months' });
+  }
+});
+
+// Get board state for a specific past month
+app.get('/api/profile/:userId/board/:monthId', async (req, res) => {
+  try {
+    const { userId, monthId } = req.params;
+
+    const [
+      { data: monthData, error: monthError },
+      { data: entries, error: entriesError },
+      { data: poolData, error: poolError },
+    ] = await Promise.all([
+      supabase.from('bingo_months').select('id, month_year_display').eq('id', monthId).single(),
+      supabase.from('entries').select('pokemon_id').eq('user_id', userId).eq('month_id', monthId),
+      supabase.from('monthly_pokemon_pool').select('position, pokemon_id').eq('month_id', monthId).order('position', { ascending: true }),
+    ]);
+
+    if (monthError || !monthData) return res.status(404).json({ error: 'Month not found' });
+    if (entriesError) throw entriesError;
+    if (poolError) throw poolError;
+
+    const completedPokemonIds = new Set((entries || []).map(e => e.pokemon_id));
+    const pokemonIds = (poolData || []).map(p => p.pokemon_id).filter(Boolean);
+
+    const { data: pokemonData, error: pokemonError } = await supabase
+      .from('pokemon_master')
+      .select('id, national_dex_id, name, img_url')
+      .in('id', pokemonIds)
+      .eq('shiny_available', true);
+
+    if (pokemonError) throw pokemonError;
+
+    const pokemonMap = {};
+    (pokemonData || []).forEach(p => { pokemonMap[p.id] = p; });
+
+    const poolByPosition = {};
+    (poolData || []).forEach(pool => { poolByPosition[pool.position] = pool; });
+
+    const board = [];
+    for (let position = 1; position <= 25; position++) {
+      if (position === 13) {
+        board.push({
+          id: `free-space-${monthId}`,
+          position: 13,
+          national_dex_id: null,
+          is_checked: true,
+          is_pending: false,
+          pokemon_name: 'FREE SPACE',
+          pokemon_gif: null,
+        });
+      } else {
+        const pool = poolByPosition[position];
+        const poke = pool ? pokemonMap[pool.pokemon_id] : null;
+        if (poke) {
+          board.push({
+            id: `${monthId}-${position}`,
+            position,
+            pokemon_id: pool.pokemon_id,
+            national_dex_id: poke.national_dex_id,
+            is_checked: completedPokemonIds.has(pool.pokemon_id),
+            is_pending: false,
+            pokemon_name: poke.name || 'Unknown',
+            pokemon_gif: poke.img_url,
+          });
+        } else {
+          board.push({
+            id: `empty-${monthId}-${position}`,
+            position,
+            pokemon_id: pool?.pokemon_id ?? null,
+            national_dex_id: null,
+            is_checked: false,
+            is_pending: false,
+            pokemon_name: 'EMPTY',
+            pokemon_gif: null,
+          });
+        }
+      }
+    }
+
+    res.json({ month: monthData.month_year_display, board });
+  } catch (err) {
+    console.error('Error fetching historical board:', err);
+    res.status(500).json({ error: 'Failed to fetch board', details: err.message });
+  }
+});
+
 // Get user's Pokedex (all pokemon with caught status)
 app.get('/api/pokedex', async (req, res) => {
   try {

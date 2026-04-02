@@ -3,6 +3,8 @@ import { useAuth } from '../contexts/AuthContext';
 import { useNavigate, useParams } from 'react-router-dom';
 import PokemonModal from './PokemonModal';
 import BadgeCase from './BadgeCase';
+import BingoGrid from './BingoGrid';
+import restrictedIcon from '../Icons/restricted-icon.png';
 import { isRestrictedEnabled, RESTRICTED_LAUNCH_DATE } from '../featureFlags';
 import PageBackground from './PageBackground';
 import PageHeader from './PageHeader';
@@ -23,11 +25,16 @@ const Profile = () => {
   const profileUserId = paramUserId || user?.id;
   const [board, setBoard] = useState([]);
   const [boardMonth, setBoardMonth] = useState('');
+  const [pastMonths, setPastMonths] = useState([]);
+  const [selectedMonthId, setSelectedMonthId] = useState(null); // null = current
+  const [boardCache, setBoardCache] = useState({}); // monthId -> { board, month }
+  const [boardLoading, setBoardLoading] = useState(false);
 
   useEffect(() => {
     if (profileUserId) {
       loadProfile();
       loadBoard();
+      loadPastMonths();
     } else {
       setLoading(false);
     }
@@ -57,6 +64,34 @@ const Profile = () => {
       setBoardMonth(data.month);
     } catch (err) {
       console.error('Failed to load board:', err);
+    }
+  };
+
+  const loadPastMonths = async () => {
+    try {
+      const response = await fetch(`/api/profile/${profileUserId}/past-months`);
+      if (!response.ok) return;
+      const data = await response.json();
+      setPastMonths(data);
+    } catch (err) {
+      console.error('Failed to load past months:', err);
+    }
+  };
+
+  const selectMonth = async (monthId) => {
+    setSelectedMonthId(monthId);
+    if (monthId === null) return;
+    if (boardCache[monthId]) return;
+    setBoardLoading(true);
+    try {
+      const response = await fetch(`/api/profile/${profileUserId}/board/${monthId}`);
+      if (!response.ok) throw new Error('Failed to fetch board');
+      const data = await response.json();
+      setBoardCache(prev => ({ ...prev, [monthId]: data }));
+    } catch (err) {
+      console.error('Failed to load board for month:', err);
+    } finally {
+      setBoardLoading(false);
     }
   };
 
@@ -118,30 +153,30 @@ const Profile = () => {
           {/* Top gradient strip */}
           <div className="h-2 bg-gradient-to-r from-purple-600 via-pink-500 to-purple-400" />
 
-          <div className="px-8 pt-8 pb-6 flex items-start gap-6">
+          <div className="px-4 pt-4 pb-4 sm:px-8 sm:pt-8 sm:pb-6 flex flex-col sm:flex-row items-start gap-4 sm:gap-6">
 
             {/* Left — avatar + name + stat pills */}
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-6 mb-8">
+            <div className="flex-1 min-w-0 w-full">
+              <div className="flex items-center gap-3 sm:gap-6 mb-5 sm:mb-8">
                 {profile.user.avatar_url ? (
                   <div className="relative flex-shrink-0">
                     <div className="absolute inset-0 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 blur-sm opacity-60" style={{ margin: '-3px' }} />
                     <img
                       src={profile.user.avatar_url}
                       alt="Avatar"
-                      className="relative w-28 h-28 rounded-full ring-4 ring-purple-500 shadow-xl"
+                      className="relative w-20 h-20 sm:w-28 sm:h-28 rounded-full ring-4 ring-purple-500 shadow-xl"
                     />
                   </div>
                 ) : (
-                  <div className="w-28 h-28 rounded-full ring-4 ring-purple-500 bg-gray-700 flex items-center justify-center text-4xl text-gray-400">
+                  <div className="w-20 h-20 sm:w-28 sm:h-28 rounded-full ring-4 ring-purple-500 bg-gray-700 flex items-center justify-center text-4xl text-gray-400">
                     ?
                   </div>
                 )}
-                <div>
-                  <h1 className="text-5xl font-extrabold text-white leading-tight">
+                <div className="min-w-0">
+                  <h1 className="text-3xl sm:text-5xl font-extrabold text-white leading-tight truncate">
                     {profile.user.display_name}
                   </h1>
-                  <p className="text-purple-400 text-lg mt-1">@{profile.user.username}</p>
+                  <p className="text-purple-400 text-base sm:text-lg mt-1">@{profile.user.username}</p>
                   <p className="text-sm text-gray-500 mt-1">
                     Joined{' '}
                     {new Date(profile.user.created_at).toLocaleDateString('en-US', {
@@ -154,27 +189,27 @@ const Profile = () => {
               </div>
 
               {/* Inline pill stats */}
-              <div className="flex flex-wrap gap-3">
-                <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-purple-500/20 border border-purple-500/30">
+              <div className="flex flex-wrap gap-2 sm:gap-3">
+                <div className="flex items-center gap-2 px-3 sm:px-4 py-2 rounded-full bg-purple-500/20 border border-purple-500/30">
                   <span className="text-gray-400 text-sm">Overall Rank</span>
                   <span className="text-purple-300 font-bold text-sm">
                     {stats.overallRank === 0 ? 'Unranked' : `#${stats.overallRank}`}
                   </span>
                 </div>
-                <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-purple-500/20 border border-purple-500/30">
+                <div className="flex items-center gap-2 px-3 sm:px-4 py-2 rounded-full bg-purple-500/20 border border-purple-500/30">
                   <span className="text-gray-400 text-sm">Total Points</span>
                   <span className="text-purple-300 font-bold text-sm">{stats.totalPoints || 0}</span>
                 </div>
-                <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-purple-500/20 border border-purple-500/30">
+                <div className="flex items-center gap-2 px-3 sm:px-4 py-2 rounded-full bg-purple-500/20 border border-purple-500/30">
                   <span className="text-gray-400 text-sm">Total Shinies</span>
                   <span className="text-purple-300 font-bold text-sm">{stats.totalShinies || 0}</span>
                 </div>
               </div>
             </div>
 
-            {/* Right — Badge Case */}
+            {/* Badge Case — stacks below on mobile, side column on sm+ */}
             {isRestrictedEnabled(isModerator) && (
-              <div className="flex-shrink-0 w-52">
+              <div className="w-full sm:flex-shrink-0 sm:w-52">
                 <BadgeCase
                   userId={profileUserId}
                   isOwnProfile={!paramUserId || user?.id === paramUserId}
@@ -188,8 +223,13 @@ const Profile = () => {
         {/* Row 2 - 5 Stat Cards */}
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 border-gray-600">
           <div
-            className="relative rounded-xl shadow-xl p-5 border border-gray-600 cursor-default"
+            className="col-span-2 md:col-span-1 relative rounded-xl shadow-xl p-5 border border-gray-600 cursor-pointer select-none"
             style={{ backgroundColor: '#35373b' }}
+            onClick={() => {
+              clearTimeout(dexHideTimer.current);
+              clearTimeout(dexShowTimer.current);
+              setShowDexTooltip(v => !v);
+            }}
             onMouseEnter={() => {
               clearTimeout(dexHideTimer.current);
               dexShowTimer.current = setTimeout(() => setShowDexTooltip(true), 600);
@@ -199,7 +239,15 @@ const Profile = () => {
               dexHideTimer.current = setTimeout(() => setShowDexTooltip(false), 150);
             }}
           >
-            <div className="text-gray-400 text-xs uppercase tracking-wider mb-2">Pokémon Caught</div>
+            <div className="flex items-center justify-between mb-2">
+              <div className="text-gray-400 text-xs uppercase tracking-wider">Pokémon Caught</div>
+              <svg
+                className={`w-3.5 h-3.5 text-gray-500 transition-transform duration-200 ${showDexTooltip ? 'rotate-180' : ''}`}
+                fill="none" stroke="currentColor" viewBox="0 0 24 24"
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+              </svg>
+            </div>
             <div className="text-3xl font-bold text-purple-400 leading-tight">
               {stats.totalCaught || 0}
               <span className="text-lg text-gray-500 font-normal"> / {stats.totalPokemon || 0}</span>
@@ -217,7 +265,8 @@ const Profile = () => {
             {/* Dex breakdown tooltip */}
             {showDexTooltip && (
               <div
-                className="absolute top-full left-0 mt-2 w-80 bg-gray-900 border border-gray-700 rounded-lg p-3 text-xs z-50 shadow-lg"
+                className="absolute top-full left-0 right-0 md:right-auto md:w-80 mt-2 bg-gray-900 border border-gray-700 rounded-lg p-3 text-xs z-50 shadow-lg"
+                onClick={e => e.stopPropagation()}
                 onMouseEnter={() => {
                   clearTimeout(dexHideTimer.current);
                   clearTimeout(dexShowTimer.current);
@@ -323,10 +372,7 @@ const Profile = () => {
           {showRestricted && (
             <div className="rounded-xl shadow-xl p-5 border border-[#78150a]/40" style={{ backgroundColor: '#35373b' }}>
               <div className="flex items-center gap-1.5 mb-3">
-                <svg className="w-3 h-3 text-[#e07060]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                    d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-                </svg>
+                <img src={restrictedIcon} alt="" className="w-3 h-3 object-contain" />
                 <h2 className="text-s font-semibold text-[#e07060] uppercase tracking-wider">Restricted Bonus Bounties</h2>
               </div>
               <div className="grid grid-cols-3 gap-2">
@@ -347,83 +393,48 @@ const Profile = () => {
           )}
         </div>
 
-        {/* Row 5 - Current Month Bingo Board */}
-        {board.length > 0 && (
-          <div className="rounded-xl shadow-xl p-6 border border-gray-600" style={{ backgroundColor: '#35373b' }}>
-            <h2 className="text-2xl font-bold text-white mb-6">{boardMonth} Bingo Progress</h2>
-            <div className="grid grid-cols-5 gap-2 mx-auto" style={{ maxWidth: '605px' }}>
-              {board.map((cell) => {
-                const isFreeSpace = cell.position === 13;
-                const isEmpty = cell.pokemon_name === 'EMPTY';
-                const isClickable = !isFreeSpace && !isEmpty;
+        {/* Row 5 - Bingo Board with month navigation */}
+        {(board.length > 0 || pastMonths.length > 0) && (() => {
+          const allMonthIds = [null, ...pastMonths.map(m => m.id)];
+          const currentIndex = allMonthIds.indexOf(selectedMonthId);
+          const displayBoard = selectedMonthId === null ? board : (boardCache[selectedMonthId]?.board ?? []);
+          const displayMonth = selectedMonthId === null ? boardMonth : (boardCache[selectedMonthId]?.month ?? '');
 
-                return (
-                  <div
-                    key={cell.id}
-                    onClick={() => isClickable && setSelectedPokemon(cell)}
-                    className={`
-                      relative rounded-lg border-2 transition-all duration-200 overflow-hidden leading-none
-                      ${cell.is_checked
-                        ? 'border-green-500 text-white font-semibold shadow-lg'
-                        : cell.is_pending
-                        ? 'text-white font-semibold shadow-lg'
-                        : 'border-gray-600 text-gray-300 bg-gray-800'
-                      }
-                      ${isFreeSpace ? 'bg-gradient-to-br from-purple-500 to-pink-500 text-white font-bold border-purple-600 flex items-center justify-center aspect-square' : ''}
-                      ${isEmpty ? 'bg-gray-900 border-gray-700 opacity-50 flex items-center justify-center aspect-square' : ''}
-                      ${isClickable ? 'cursor-pointer hover:scale-105' : ''}
-                    `}
-                    style={{
-                      backgroundColor: !isFreeSpace && !isEmpty
-                        ? cell.is_checked ? '#16a34a'
-                        : cell.is_pending ? '#854d0e'
-                        : undefined
-                        : undefined,
-                      borderColor: !isFreeSpace && !isEmpty && cell.is_pending ? '#ca8a04' : undefined,
-                    }}
-                  >
-                    {!isFreeSpace && !isEmpty && cell.pokemon_gif && (
-                      <img
-                        src={cell.pokemon_gif}
-                        alt={cell.pokemon_name}
-                        className="w-full block"
-                        style={{ verticalAlign: 'top' }}
-                      />
-                    )}
-                    {(isFreeSpace || isEmpty) && (
-                      <span className="text-xs leading-tight break-words">
-                        {cell.pokemon_name}
-                      </span>
-                    )}
-                    {cell.is_checked && !isFreeSpace && (
-                      <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-40">
-                        <svg className="w-8 h-8 text-white" fill="currentColor" viewBox="0 0 20 20">
-                          <path
-                            fillRule="evenodd"
-                            d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
-                            clipRule="evenodd"
-                          />
-                        </svg>
-                      </div>
-                    )}
-                    {cell.is_pending && !isFreeSpace && (
-                      <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-40">
-                        <svg className="w-8 h-8 text-yellow-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth={2}
-                            d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
-                          />
-                        </svg>
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
+          return (
+            <div className="rounded-xl shadow-xl p-6 border border-gray-600" style={{ backgroundColor: '#35373b' }}>
+              {/* Arrow navigation */}
+              <div className="flex items-center justify-between mb-4">
+                <button
+                  onClick={() => selectMonth(allMonthIds[currentIndex + 1])}
+                  disabled={currentIndex >= allMonthIds.length - 1}
+                  className="p-2 rounded-lg text-gray-400 hover:text-white hover:bg-gray-700 disabled:opacity-20 disabled:cursor-default transition-colors"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                  </svg>
+                </button>
+                <h2 className="text-xl font-bold text-white">{displayMonth} Bingo Progress</h2>
+                <button
+                  onClick={() => selectMonth(allMonthIds[currentIndex - 1])}
+                  disabled={currentIndex <= 0}
+                  className="p-2 rounded-lg text-gray-400 hover:text-white hover:bg-gray-700 disabled:opacity-20 disabled:cursor-default transition-colors"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                  </svg>
+                </button>
+              </div>
+
+              {boardLoading ? (
+                <div className="text-gray-400 text-sm text-center py-16">Loading board...</div>
+              ) : displayBoard.length > 0 ? (
+                <div className="mx-auto" style={{ maxWidth: '605px' }}>
+                  <BingoGrid board={displayBoard} onCellClick={setSelectedPokemon} />
+                </div>
+              ) : null}
             </div>
-          </div>
-        )}
+          );
+        })()}
 
         {/* Row 6 - Points Per Month Chart */}
         <div className="rounded-xl shadow-xl p-6 border border-gray-600" style={{ backgroundColor: '#35373b' }}>

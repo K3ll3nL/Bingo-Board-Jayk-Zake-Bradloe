@@ -1,4 +1,5 @@
 import React from 'react';
+import restrictedIcon from '../Icons/restricted-icon.png';
 
 const RESTRICTED_BG = '#78150a';
 const RESTRICTED_BADGE_BG = '#1a0302';
@@ -9,19 +10,7 @@ const LockBadge = ({ large }) => (
     className={`absolute rounded-full flex items-center justify-center ${large ? 'w-4 h-4 -top-1.5 -right-1.5' : 'w-3 h-3 -top-1 -right-1'}`}
     style={{ backgroundColor: RESTRICTED_BADGE_BG, border: '1.5px solid rgba(255,255,255,0.2)' }}
   >
-    <svg
-      className={large ? 'w-2.5 h-2.5 text-white' : 'w-2 h-2 text-white'}
-      fill="none"
-      stroke="currentColor"
-      viewBox="0 0 24 24"
-    >
-      <path
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        strokeWidth={2.5}
-        d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"
-      />
-    </svg>
+    <img src={restrictedIcon} alt="" className={`object-contain ${large ? 'w-2.5 h-2.5' : 'w-2 h-2'}`} />
   </div>
 );
 

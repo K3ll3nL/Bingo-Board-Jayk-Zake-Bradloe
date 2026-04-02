@@ -130,7 +130,7 @@ export default function BadgeCaseModal({ isOpen, onClose, userId, isOwnProfile }
           </div>
 
           {/* Case body */}
-          <div className="relative px-6 py-5" style={{ perspective: '700px' }}>
+          <div className="relative px-3 py-3 sm:px-6 sm:py-5" style={{ perspective: '700px' }}>
 
             {/* Lid — flips backward (away from viewer) to reveal slots */}
             <div
@@ -167,7 +167,7 @@ export default function BadgeCaseModal({ isOpen, onClose, userId, isOwnProfile }
               }}
             >
               {/* Top row */}
-              <div className="grid grid-cols-4 gap-5 mb-5">
+              <div className="grid grid-cols-4 gap-2 sm:gap-5 mb-2 sm:mb-5">
                 {slots.slice(0, 4).map((badge, i) => (
                   <SlotButton
                     key={i}
@@ -182,7 +182,7 @@ export default function BadgeCaseModal({ isOpen, onClose, userId, isOwnProfile }
               </div>
 
               {/* Bottom row */}
-              <div className="grid grid-cols-4 gap-5">
+              <div className="grid grid-cols-4 gap-2 sm:gap-5">
                 {slots.slice(4).map((badge, i) => (
                   <SlotButton
                     key={i + 4}
@@ -207,7 +207,7 @@ export default function BadgeCaseModal({ isOpen, onClose, userId, isOwnProfile }
           onClick={() => setViewingBadge(null)}
         >
           <div
-            className="flex flex-col items-center rounded-2xl border border-gray-600 shadow-2xl p-8 gap-4"
+            className="flex flex-col items-center rounded-2xl border border-gray-600 shadow-2xl p-5 sm:p-8 gap-4"
             style={{ backgroundColor: '#1a1c1f', maxWidth: '320px', width: '100%' }}
             onClick={e => e.stopPropagation()}
           >
@@ -264,9 +264,8 @@ function SlotButton({ badge, slotNumber, isLeaderboard, isOwnProfile, onClick, o
         onClick={onClick}
         disabled={!badge && !isOwnProfile}
         title={badge ? badge.name : isOwnProfile ? `Assign slot ${slotNumber}` : `Slot ${slotNumber} empty`}
-        style={{ width: '160px', height: '160px' }}
         className={[
-          'rounded-2xl border-2',
+          'w-full aspect-square rounded-2xl border-2',
           'flex items-center justify-center overflow-hidden transition-all duration-150',
           isLeaderboard ? 'border-yellow-500/50' : 'border-gray-700',
           badge || isOwnProfile
@@ -296,8 +295,8 @@ function SlotButton({ badge, slotNumber, isLeaderboard, isOwnProfile, onClick, o
         </button>
       )}
       {badge && (
-        <div className="mt-2 text-center">
-          <div className="text-white text-xs font-medium truncate" style={{ maxWidth: '160px' }}>{badge.name}</div>
+        <div className="mt-1 sm:mt-2 text-center">
+          <div className="text-white text-xs font-medium truncate">{badge.name}</div>
         </div>
       )}
     </div>

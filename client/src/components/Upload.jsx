@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import restrictedIcon from '../Icons/restricted-icon.png';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { createClient } from '@supabase/supabase-js';
@@ -313,9 +314,7 @@ const HistoricalUploadSection = () => {
                     #{String(poke.national_dex_id).padStart(4, '0')} — {poke.name}
                   </span>
                   {poke.has_standard_entry && (
-                    <svg className="w-3.5 h-3.5 flex-shrink-0 text-[#e05a4e]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-                    </svg>
+                    <img src={restrictedIcon} alt="" className="w-3.5 h-3.5 flex-shrink-0 object-contain" />
                   )}
                   <span className="text-xs text-gray-400 flex-shrink-0">{poke.month_label}</span>
                 </button>
@@ -456,10 +455,7 @@ const HistoricalUploadSection = () => {
                         : 'border-gray-600 bg-gray-700 text-gray-400 hover:border-gray-500 hover:text-gray-300'
                 }`}
               >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                    d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-                </svg>
+                <img src={restrictedIcon} alt="" className="w-4 h-4 object-contain" />
                 <span className="text-xs font-medium">Restricted</span>
                 <svg className="w-3.5 h-3.5 opacity-60" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
@@ -1149,10 +1145,7 @@ const Upload = () => {
                                 : 'border-gray-600 bg-gray-700 text-gray-400 hover:border-gray-500 hover:text-gray-300'
                         }`}
                       >
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                            d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-                        </svg>
+                        <img src={restrictedIcon} alt="" className="w-4 h-4 object-contain" />
                         <span className="text-xs font-medium">Restricted</span>
                         <svg className="w-3.5 h-3.5 opacity-60" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
