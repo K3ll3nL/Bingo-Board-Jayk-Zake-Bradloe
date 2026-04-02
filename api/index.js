@@ -1834,15 +1834,15 @@ app.get('/api/upload/available-pokemon', async (req, res) => {
       return res.json([]);
     }
 
-    // Fetch pool, entries, and pending approvals in parallel
+    // Fetch pool, entries (all), and pending approvals in parallel
     const [
       { data: poolPokemon, error: poolError },
       { data: userEntries, error: entriesError },
       { data: pendingApprovals, error: approvalsError },
     ] = await Promise.all([
       supabase.from('monthly_pokemon_pool').select('pokemon_id').eq('month_id', ACTIVE_MONTH_ID),
-      supabase.from('entries').select('pokemon_id').eq('user_id', userId).eq('month_id', ACTIVE_MONTH_ID),
-      supabase.from('approvals').select('pokemon_id').eq('user_id', userId),
+      supabase.from('entries').select('pokemon_id, restricted_submission').eq('user_id', userId).eq('month_id', ACTIVE_MONTH_ID),
+      supabase.from('approvals').select('pokemon_id').eq('user_id', userId).eq('month_id', ACTIVE_MONTH_ID),
     ]);
 
     if (poolError) throw poolError;
@@ -1851,13 +1851,18 @@ app.get('/api/upload/available-pokemon', async (req, res) => {
 
     const pokemonIds = [...new Set((poolPokemon || []).map(p => p.pokemon_id))];
 
-    const caughtPokemonIds = new Set([
-      ...userEntries.map(e => e.pokemon_id),
-      ...pendingApprovals.map(a => a.pokemon_id),
-    ]);
+    // Standard entries: user submitted standard but not yet restricted — show as locked
+    const standardOnlyIds = new Set(
+      (userEntries || []).filter(e => !e.restricted_submission).map(e => e.pokemon_id)
+    );
+    // Fully done: has a restricted entry — remove entirely
+    const restrictedIds = new Set(
+      (userEntries || []).filter(e => e.restricted_submission).map(e => e.pokemon_id)
+    );
+    const pendingIds = new Set((pendingApprovals || []).map(a => a.pokemon_id));
 
-    // Filter out already caught or pending Pokemon
-    const availablePokemonIds = pokemonIds.filter(id => !caughtPokemonIds.has(id));
+    // Exclude pokemon that are fully done (restricted entry) or pending approval
+    const availablePokemonIds = pokemonIds.filter(id => !restrictedIds.has(id) && !pendingIds.has(id));
 
     if (availablePokemonIds.length === 0) {
       return res.json([]);
@@ -1872,7 +1877,12 @@ app.get('/api/upload/available-pokemon', async (req, res) => {
 
     if (pokemonError) throw pokemonError;
 
-    res.json(pokemon || []);
+    const result = (pokemon || []).map(p => ({
+      ...p,
+      has_standard_entry: standardOnlyIds.has(p.id),
+    }));
+
+    res.json(result);
   } catch (error) {
     console.error('Error fetching available Pokemon:', error);
     res.status(500).json({ error: 'Failed to fetch available Pokemon' });
@@ -1952,30 +1962,31 @@ app.get('/api/upload/available-pokemon-historical', async (req, res) => {
     const ACTIVE_MONTH_ID = await getActiveMonthId(userId);
     if (!ACTIVE_MONTH_ID) return res.json([]);
 
-    // Parallel: past months, current pool, restricted entries, pending approvals
+    // Parallel: past months, current pool, all entries, pending approvals
     const [
       { data: pastMonths,      error: monthsError },
       { data: currentPool,     error: currentPoolError },
-      { data: restrictedEntries, error: restrictedError },
+      { data: allEntries,      error: entriesError },
       { data: pendingApprovals,  error: approvalsError },
     ] = await Promise.all([
       supabase.from('bingo_months').select('id, start_date').lt('id', ACTIVE_MONTH_ID).order('id', { ascending: false }),
       supabase.from('monthly_pokemon_pool').select('pokemon_id').eq('month_id', ACTIVE_MONTH_ID),
-      supabase.from('entries').select('pokemon_id, month_id').eq('user_id', userId).eq('restricted_submission', true),
+      supabase.from('entries').select('pokemon_id, month_id, restricted_submission').eq('user_id', userId),
       supabase.from('approvals').select('pokemon_id, month_id').eq('user_id', userId),
     ]);
 
     if (monthsError) throw monthsError;
     if (currentPoolError) throw currentPoolError;
-    if (restrictedError) throw restrictedError;
+    if (entriesError) throw entriesError;
     if (approvalsError) throw approvalsError;
 
     if (!pastMonths || pastMonths.length === 0) return res.json([]);
 
     const currentPoolSet = new Set((currentPool || []).map(p => p.pokemon_id));
-    // Keys: "pokemon_id:month_id" — excluded if user has a restricted entry or pending approval
-    const restrictedKeys = new Set((restrictedEntries || []).map(e => `${e.pokemon_id}:${e.month_id}`));
-    const pendingKeys    = new Set((pendingApprovals  || []).map(a => `${a.pokemon_id}:${a.month_id}`));
+    // Keys: "pokemon_id:month_id"
+    const restrictedKeys  = new Set((allEntries || []).filter(e =>  e.restricted_submission).map(e => `${e.pokemon_id}:${e.month_id}`));
+    const standardKeys    = new Set((allEntries || []).filter(e => !e.restricted_submission).map(e => `${e.pokemon_id}:${e.month_id}`));
+    const pendingKeys     = new Set((pendingApprovals || []).map(a => `${a.pokemon_id}:${a.month_id}`));
 
     // All past pool entries, newest month first
     const { data: allPastPool, error: poolError } = await supabase
@@ -2000,6 +2011,10 @@ app.get('/api/upload/available-pokemon-historical', async (req, res) => {
       const key = `${pokemonId}:${monthId}`;
       return !restrictedKeys.has(key) && !pendingKeys.has(key);
     });
+    // Track which pokemon+month combos have a standard-only entry (no restricted yet)
+    const standardOnlyKeys = new Set(
+      [...standardKeys].filter(k => !restrictedKeys.has(k))
+    );
 
     if (available.length === 0) return res.json([]);
 
@@ -2019,12 +2034,14 @@ app.get('/api/upload/available-pokemon-historical', async (req, res) => {
     const result = (pokemon || []).map(p => {
       const monthId = monthLookup[p.id];
       const startDate = monthById[monthId];
+      const key = `${p.id}:${monthId}`;
       return {
         ...p,
         month_id: monthId,
         month_label: startDate
           ? new Date(startDate).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
           : `Month ${monthId}`,
+        has_standard_entry: standardOnlyKeys.has(key),
       };
     });
 

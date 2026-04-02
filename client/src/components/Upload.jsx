@@ -39,6 +39,17 @@ const HistoricalUploadSection = () => {
   const [showTooltip, setShowTooltip] = useState(false);
   const tooltipHideTimer = useRef(null);
   const tooltipShowTimer = useRef(null);
+  const [showLockedTooltip, setShowLockedTooltip] = useState(false);
+  const lockedTooltipTimer = useRef(null);
+  const [checkedItems, setCheckedItems] = useState(() => {
+    const result = {};
+    for (const g of ALLOWED_GAMES) {
+      for (const item of g.restricted_checklist ?? []) {
+        result[item.id] = localStorage.getItem(`restricted_check_${item.id}`) === 'true';
+      }
+    }
+    return result;
+  });
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(false);
@@ -78,6 +89,14 @@ const HistoricalUploadSection = () => {
   const shinyLabel   = selectedGameObj?.shiny_label ?? 'Proof of Shiny';
   const noImageProof = !!selectedGameObj?.no_image_proof;
 
+  const isLockedRestricted = restrictedEnabled && !!selectedPokeData?.has_standard_entry;
+  const activeChecklist = selectedGameObj?.restricted_checklist ?? [];
+  const toggleCheck = (id) => {
+    const next = !checkedItems[id];
+    localStorage.setItem(`restricted_check_${id}`, String(next));
+    setCheckedItems(prev => ({ ...prev, [id]: next }));
+  };
+
   const slugField = isRestricted ? 'restricted_game_slugs' : 'game_slugs';
 
   let filteredGames;
@@ -101,9 +120,32 @@ const HistoricalUploadSection = () => {
     isRestrictedAvailable = true;
   }
 
-  const sortedPokemon = [...(pokemon || [])].sort((a, b) =>
-    sortBy === 'dex' ? a.national_dex_id - b.national_dex_id : a.name.localeCompare(b.name)
-  );
+  const sortedPokemon = [...(pokemon || [])].sort((a, b) => {
+    if (sortBy === 'restricted') {
+      const aLocked = a.has_standard_entry ? 0 : 1;
+      const bLocked = b.has_standard_entry ? 0 : 1;
+      if (aLocked !== bLocked) return aLocked - bLocked;
+      return a.national_dex_id - b.national_dex_id;
+    }
+    if (sortBy === 'month') {
+      if (a.month_id !== b.month_id) return b.month_id - a.month_id; // newest first
+      return a.national_dex_id - b.national_dex_id;
+    }
+    return sortBy === 'dex' ? a.national_dex_id - b.national_dex_id : a.name.localeCompare(b.name);
+  });
+
+  useEffect(() => {
+    if (isLockedRestricted && !isRestricted) {
+      setIsRestricted(true);
+    }
+    clearTimeout(lockedTooltipTimer.current);
+    if (isLockedRestricted) {
+      setShowLockedTooltip(true);
+      lockedTooltipTimer.current = setTimeout(() => setShowLockedTooltip(false), 3000);
+    } else {
+      setShowLockedTooltip(false);
+    }
+  }, [isLockedRestricted]);
 
   const handleSelectPokemon = (pokeId) => {
     setSelectedPokemon(String(pokeId));
@@ -113,7 +155,6 @@ const HistoricalUploadSection = () => {
       const gameKey = ALLOWED_GAMES.find(g => g.label === game)?.key;
       if (gameKey && !(poke?.[slugField] ?? []).includes(gameKey)) setGame('');
     }
-    if (isRestricted && !(poke?.restricted_game_slugs ?? []).length) setIsRestricted(false);
   };
 
   const handleSelectGame = (gameLabel) => {
@@ -122,9 +163,6 @@ const HistoricalUploadSection = () => {
     setGameDropdownOpen(false);
     if (selectedPokemon && gameKey && !(selectedPokeData?.[slugField] ?? []).includes(gameKey)) {
       setSelectedPokemon('');
-    }
-    if (isRestricted && gameKey && !(selectedPokeData?.restricted_game_slugs ?? []).includes(gameKey)) {
-      setIsRestricted(false);
     }
   };
 
@@ -214,6 +252,16 @@ const HistoricalUploadSection = () => {
               className={`px-3 py-1 text-xs rounded ${sortBy === 'alpha' ? 'bg-purple-500 text-white' : 'bg-gray-700 text-gray-300'}`}>
               A-Z
             </button>
+            <button type="button" onClick={() => setSortBy('month')}
+              className={`px-3 py-1 text-xs rounded ${sortBy === 'month' ? 'bg-purple-500 text-white' : 'bg-gray-700 text-gray-300'}`}>
+              Month
+            </button>
+            {restrictedEnabled && (
+              <button type="button" onClick={() => setSortBy('restricted')}
+                className={`px-3 py-1 text-xs rounded ${sortBy === 'restricted' ? 'bg-[#78150a] text-white' : 'bg-gray-700 text-gray-300'}`}>
+                Restricted
+              </button>
+            )}
           </div>
         </div>
         <div className="relative hist-pokemon-dropdown">
@@ -264,6 +312,11 @@ const HistoricalUploadSection = () => {
                   <span className="text-white flex-1">
                     #{String(poke.national_dex_id).padStart(4, '0')} — {poke.name}
                   </span>
+                  {poke.has_standard_entry && (
+                    <svg className="w-3.5 h-3.5 flex-shrink-0 text-[#e05a4e]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                    </svg>
+                  )}
                   <span className="text-xs text-gray-400 flex-shrink-0">{poke.month_label}</span>
                 </button>
               ))}
@@ -370,19 +423,21 @@ const HistoricalUploadSection = () => {
           <div
             className="relative flex-shrink-0"
             onMouseEnter={() => {
+              if (isLockedRestricted) return;
               clearTimeout(tooltipHideTimer.current);
               tooltipShowTimer.current = setTimeout(() => setShowTooltip(true), 600);
             }}
             onMouseLeave={() => {
+              if (isLockedRestricted) return;
               clearTimeout(tooltipShowTimer.current);
               tooltipHideTimer.current = setTimeout(() => setShowTooltip(false), 150);
             }}
           >
             <button
               type="button"
-              disabled={!isRestrictedAvailable}
+              disabled={!isRestrictedAvailable || isLockedRestricted}
               onClick={() => {
-                if (!isRestrictedAvailable) return;
+                if (!isRestrictedAvailable || isLockedRestricted) return;
                 const next = !isRestricted;
                 setIsRestricted(next);
                 if (next) {
@@ -393,9 +448,11 @@ const HistoricalUploadSection = () => {
               className={`h-[46px] flex items-center gap-1.5 px-3 rounded-lg border transition-colors ${
                 !isRestrictedAvailable
                   ? 'border-gray-700 bg-gray-800 text-gray-600 cursor-not-allowed opacity-50'
-                  : isRestricted
-                    ? 'border-[#78150a] bg-[#78150a] text-white'
-                    : 'border-gray-600 bg-gray-700 text-gray-400 hover:border-gray-500 hover:text-gray-300'
+                  : isLockedRestricted
+                    ? 'border-[#78150a] bg-[#78150a] text-white cursor-not-allowed'
+                    : isRestricted
+                      ? 'border-[#78150a] bg-[#78150a] text-white'
+                      : 'border-gray-600 bg-gray-700 text-gray-400 hover:border-gray-500 hover:text-gray-300'
               }`}
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -409,7 +466,29 @@ const HistoricalUploadSection = () => {
               </svg>
             </button>
 
-            {showTooltip && (
+            {showLockedTooltip && (
+              <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-56 bg-gray-900 border border-gray-700 rounded-lg p-2 text-xs z-10 shadow-lg text-center pointer-events-none">
+                <p className="text-yellow-300">You already have a standard submission for this Pokémon — restricted only.</p>
+              </div>
+            )}
+            {isRestricted && activeChecklist.length > 0 ? (
+              <div className="absolute left-full top-0 ml-2 w-56 bg-gray-900 border border-gray-700 rounded-lg p-3 text-xs z-10 shadow-lg">
+                <p className="font-medium text-white mb-2">My video includes...</p>
+                <div className="space-y-2">
+                  {activeChecklist.map(item => (
+                    <label key={item.id} className="flex items-start gap-2 cursor-pointer select-none">
+                      <input
+                        type="checkbox"
+                        checked={!!checkedItems[item.id]}
+                        onChange={() => toggleCheck(item.id)}
+                        className="mt-0.5 flex-shrink-0 accent-purple-500"
+                      />
+                      <span className="text-gray-300 leading-tight">{item.label}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+            ) : showTooltip ? (
               <div
                 className="absolute left-full top-1/2 -translate-y-1/2 ml-2 w-52 bg-gray-900 border border-gray-700 rounded-lg p-3 text-xs z-10 shadow-lg"
                 onMouseEnter={() => { clearTimeout(tooltipHideTimer.current); clearTimeout(tooltipShowTimer.current); }}
@@ -419,7 +498,7 @@ const HistoricalUploadSection = () => {
                 <p className="text-gray-400 mb-2">Submit a VOD or stored video link to count toward the restricted challenge.</p>
                 <a href="/about#restricted" className="text-purple-400 hover:text-purple-300 transition-colors">Learn more →</a>
               </div>
-            )}
+            ) : null}
           </div>
         )}
       </div>
@@ -493,6 +572,8 @@ const Upload = () => {
   const [showTooltip, setShowTooltip] = useState(false);
   const tooltipHideTimer = useRef(null);
   const tooltipShowTimer = useRef(null);
+  const [showLockedTooltip, setShowLockedTooltip] = useState(false);
+  const lockedTooltipTimer = useRef(null);
   const [checkedItems, setCheckedItems] = useState(() => {
     const result = {};
     for (const g of ALLOWED_GAMES) {
@@ -506,6 +587,16 @@ const Upload = () => {
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(false);
   const [isHistoricalMode, setIsHistoricalMode] = useState(false);
+
+  useEffect(() => {
+    return () => {
+      for (const g of ALLOWED_GAMES) {
+        for (const item of g.restricted_checklist ?? []) {
+          localStorage.removeItem(`restricted_check_${item.id}`);
+        }
+      }
+    };
+  }, []);
 
   useEffect(() => {
     if (user) loadAvailablePokemon();
@@ -604,9 +695,16 @@ const Upload = () => {
     filteredPokemonList = currentPokemonList;
   }
 
-  const sortedPokemon = [...filteredPokemonList].sort((a, b) =>
-    sortBy === 'dex' ? a.national_dex_id - b.national_dex_id : a.name.localeCompare(b.name)
-  );
+  const sortedPokemon = [...filteredPokemonList].sort((a, b) => {
+    if (sortBy === 'restricted') {
+      // Locked (standard-only entry) first, then by dex
+      const aLocked = a.has_standard_entry ? 0 : 1;
+      const bLocked = b.has_standard_entry ? 0 : 1;
+      if (aLocked !== bLocked) return aLocked - bLocked;
+      return a.national_dex_id - b.national_dex_id;
+    }
+    return sortBy === 'dex' ? a.national_dex_id - b.national_dex_id : a.name.localeCompare(b.name);
+  });
 
   // ── Filtered games list ─────────────────────────────────────────────────────
   let filteredGames;
@@ -637,10 +735,15 @@ const Upload = () => {
 
   // Force restricted on when a standard entry exists for the selected pokemon
   useEffect(() => {
-    if (isLockedRestricted && !isRestricted) {
-      setIsRestricted(true);
-      setMediaFile(null);
-      setMediaFile2(null);
+    if (isLockedRestricted) {
+      if (!isRestricted) {
+        setIsRestricted(true);
+        setMediaFile(null);
+        setMediaFile2(null);
+      }
+      clearTimeout(lockedTooltipTimer.current);
+      setShowLockedTooltip(true);
+      lockedTooltipTimer.current = setTimeout(() => setShowLockedTooltip(false), 3000);
     }
   }, [isLockedRestricted]);
 
@@ -733,6 +836,7 @@ const Upload = () => {
       setMediaFile(null);
       setMediaFile2(null);
       setIsRestricted(false);
+      setRestrictedAvailablePokemon(null);
 
       setTimeout(() => { setSuccess(false); loadAvailablePokemon(); }, 3000);
     } catch (err) {
@@ -830,6 +934,12 @@ const Upload = () => {
                       className={`px-3 py-1 text-xs rounded ${sortBy === 'alpha' ? 'bg-purple-500 text-white' : 'bg-gray-700 text-gray-300'}`}>
                       A-Z
                     </button>
+                    {restrictedEnabled && (
+                      <button type="button" onClick={() => setSortBy('restricted')}
+                        className={`px-3 py-1 text-xs rounded ${sortBy === 'restricted' ? 'bg-[#78150a] text-white' : 'bg-gray-700 text-gray-300'}`}>
+                        Restricted
+                      </button>
+                    )}
                   </div>
                 </div>
 
@@ -881,9 +991,14 @@ const Upload = () => {
                           className={`w-full p-3 flex items-center gap-3 hover:bg-gray-600 transition-colors text-left ${selectedPokemon === String(poke.id) ? 'bg-gray-600' : ''}`}
                         >
                           <img src={poke.img_url} alt={poke.name} className="w-8 h-8 object-contain flex-shrink-0" />
-                          <span className="text-white">
+                          <span className="text-white flex-1">
                             #{String(poke.national_dex_id).padStart(4, '0')} — {poke.name}
                           </span>
+                          {poke.has_standard_entry && (
+                            <svg className="w-3.5 h-3.5 flex-shrink-0 text-[#e05a4e]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                            </svg>
+                          )}
                         </button>
                       ))}
                     </div>
@@ -997,12 +1112,12 @@ const Upload = () => {
                   <div
                     className="relative flex-shrink-0"
                     onMouseEnter={() => {
-                      if (isRestricted && !isLockedRestricted) return;
+                      if (isRestricted || isLockedRestricted) return;
                       clearTimeout(tooltipHideTimer.current);
                       tooltipShowTimer.current = setTimeout(() => setShowTooltip(true), 600);
                     }}
                     onMouseLeave={() => {
-                      if (isRestricted && !isLockedRestricted) return;
+                      if (isRestricted || isLockedRestricted) return;
                       clearTimeout(tooltipShowTimer.current);
                       tooltipHideTimer.current = setTimeout(() => setShowTooltip(false), 150);
                     }}
@@ -1040,7 +1155,12 @@ const Upload = () => {
                       </svg>
                     </button>
 
-                    {isRestricted && !isLockedRestricted && activeChecklist.length > 0 ? (
+                    {showLockedTooltip && (
+                      <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-56 bg-gray-900 border border-gray-700 rounded-lg p-3 text-xs z-10 shadow-lg whitespace-normal text-center pointer-events-none">
+                        <p className="text-yellow-300">You already have a standard submission for this Pokémon — restricted only.</p>
+                      </div>
+                    )}
+                    {isRestricted && activeChecklist.length > 0 ? (
                       <div className="absolute left-full top-0 ml-2 w-56 bg-gray-900 border border-gray-700 rounded-lg p-3 text-xs z-10 shadow-lg">
                         <p className="font-medium text-white mb-2">My video includes...</p>
                         <div className="space-y-2">
@@ -1063,15 +1183,9 @@ const Upload = () => {
                         onMouseEnter={() => { clearTimeout(tooltipHideTimer.current); clearTimeout(tooltipShowTimer.current); }}
                         onMouseLeave={() => { tooltipHideTimer.current = setTimeout(() => setShowTooltip(false), 150); }}
                       >
-                        {isLockedRestricted ? (
-                          <p className="text-yellow-300">You already have a standard submission for this Pokémon — restricted only.</p>
-                        ) : (
-                          <>
-                            <p className="font-medium text-white mb-1">Restricted Challenge</p>
-                            <p className="text-gray-400 mb-2">Submit a VOD or stored video link to count toward the restricted challenge.</p>
-                            <a href="/about#restricted" className="text-purple-400 hover:text-purple-300 transition-colors">Learn more →</a>
-                          </>
-                        )}
+                        <p className="font-medium text-white mb-1">Restricted Challenge</p>
+                        <p className="text-gray-400 mb-2">Submit a VOD or stored video link to count toward the restricted challenge.</p>
+                        <a href="/about#restricted" className="text-purple-400 hover:text-purple-300 transition-colors">Learn more →</a>
                       </div>
                     ) : null}
                   </div>
