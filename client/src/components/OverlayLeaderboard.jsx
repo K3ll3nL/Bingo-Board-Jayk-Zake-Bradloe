@@ -12,6 +12,58 @@ const MEDAL      = ['🥇', '🥈', '🥉'];
 const TOP3_COLOR = ['#fbbf24', '#d1d5db', '#cd7c2f'];
 const TOP3_BG    = ['rgba(251,191,36,0.08)', 'rgba(209,213,219,0.06)', 'rgba(205,124,47,0.07)'];
 
+const ACHIEVEMENT_TYPES = ['row', 'column', 'x', 'blackout'];
+
+const AchievementSvg = ({ type }) => {
+  if (type === 'row') return <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M4 12h16" />;
+  if (type === 'column') return <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 4v16" />;
+  if (type === 'x') return <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M6 18L18 6M6 6l12 12" />;
+  if (type === 'blackout') return (
+    <>
+      <rect x="3" y="3" width="18" height="18" rx="1" />
+      <path d="M3 7.2h18M3 10.2h18M3 13.8h18M3 16.8h18" />
+      <path d="M7.2 3v18M10.2 3v18M13.8 3v18M16.8 3v18" />
+    </>
+  );
+  return null;
+};
+
+const AchievementIcons = ({ achievements }) => {
+  const earned = ACHIEVEMENT_TYPES.filter(t => achievements?.[t]);
+  if (earned.length === 0) return null;
+  return (
+    <div style={{ display: 'flex', gap: '0.5vw', alignItems: 'center', flexShrink: 0 }}>
+      {earned.map(type => (
+        <div
+          key={type}
+          style={{
+            width: 'clamp(16px, 3.5vw, 26px)',
+            height: 'clamp(16px, 3.5vw, 26px)',
+            borderRadius: '3px',
+            backgroundColor: '#9147ff',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            flexShrink: 0,
+          }}
+        >
+          <svg
+            width="65%" height="65%"
+            viewBox="0 0 24 24"
+            fill={type === 'blackout' ? 'none' : 'none'}
+            stroke="white"
+            strokeWidth="2.5"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <AchievementSvg type={type} />
+          </svg>
+        </div>
+      ))}
+    </div>
+  );
+};
+
 const OverlayLeaderboard = () => {
   const params = new URLSearchParams(window.location.search);
   const apiKey = params.get('key');
@@ -178,6 +230,7 @@ const OverlayLeaderboard = () => {
                     }}>
                       {row.display_name}
                     </div>
+                    <AchievementIcons achievements={row.achievements} />
                     <div style={{
                       flexShrink: 0,
                       fontWeight: 700,
@@ -226,6 +279,7 @@ const OverlayLeaderboard = () => {
                   }}>
                     {pinnedRow.display_name}
                   </div>
+                  <AchievementIcons achievements={pinnedRow.achievements} />
                   <div style={{
                     flexShrink: 0,
                     fontWeight: 700,

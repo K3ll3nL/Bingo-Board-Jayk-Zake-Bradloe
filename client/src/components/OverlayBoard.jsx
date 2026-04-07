@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { createClient } from '@supabase/supabase-js';
+import restrictedIconSrc from '../Icons/restricted-icon.png';
 
 const supabase = createClient(
   import.meta.env.VITE_SUPABASE_URL,
@@ -47,7 +48,14 @@ const OverlayBoard = () => {
         data.states.forEach(s => { stateMap[s.position] = s; });
         const updated = boardRef.current.map(cell => {
           const s = stateMap[cell.position];
-          return s ? { ...cell, is_checked: s.is_checked, is_pending: s.is_pending } : cell;
+          return s ? {
+            ...cell,
+            is_checked: s.is_checked,
+            is_restricted: s.is_restricted,
+            is_historical: s.is_historical,
+            is_pending: s.is_pending,
+            is_pending_restricted: s.is_pending_restricted,
+          } : cell;
         });
         boardRef.current = updated;
         setBoard(updated);
@@ -125,6 +133,7 @@ const OverlayBoard = () => {
           let bg = '#1f2937';
           let borderColor = '#374151';
           if (isFree) { bg = 'linear-gradient(135deg, #7c3aed, #db2777)'; borderColor = '#7c3aed'; }
+          else if (cell.is_restricted) { bg = '#1e3a5f'; borderColor = '#3b82f6'; }
           else if (cell.is_checked) { bg = '#14532d'; borderColor = '#16a34a'; }
           else if (cell.is_pending) { bg = '#451a03'; borderColor = '#d97706'; }
           else if (isEmpty) { bg = '#111827'; borderColor = '#1f2937'; }
@@ -164,8 +173,19 @@ const OverlayBoard = () => {
                 <span style={{ color: '#4b5563', fontSize: '1.5vmin', fontWeight: 600 }}>EMPTY</span>
               )}
 
-              {/* Approved overlay */}
-              {cell.is_checked && !isFree && (
+              {/* Restricted approved overlay — blue tint + restricted icon */}
+              {cell.is_restricted && !isFree && (
+                <div style={{
+                  position: 'absolute', inset: 0,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  background: 'rgba(30,58,138,0.5)',
+                }}>
+                  <img src={restrictedIconSrc} alt="" style={{ width: '35%', height: '35%', objectFit: 'contain' }} />
+                </div>
+              )}
+
+              {/* Standard approved overlay — black tint + checkmark */}
+              {cell.is_checked && !cell.is_restricted && !isFree && (
                 <div style={{
                   position: 'absolute', inset: 0,
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -177,7 +197,7 @@ const OverlayBoard = () => {
                 </div>
               )}
 
-              {/* Pending overlay */}
+              {/* Pending overlay — clock */}
               {cell.is_pending && !isFree && (
                 <div style={{
                   position: 'absolute', inset: 0,
@@ -188,6 +208,24 @@ const OverlayBoard = () => {
                     <circle cx="12" cy="12" r="10" />
                     <polyline points="12 6 12 12 16 14" />
                   </svg>
+                </div>
+              )}
+
+              {/* Historical corner badge */}
+              {cell.is_historical && !isFree && (
+                <div style={{
+                  position: 'absolute', top: '4%', right: '4%',
+                  color: '#fff',
+                  fontWeight: 700,
+                  fontSize: '1.4vmin',
+                  lineHeight: 1,
+                  padding: '1px 3px',
+                  borderRadius: '2px',
+                  backgroundColor: 'rgba(30,58,138,0.85)',
+                  border: '1px solid rgba(96,165,250,0.6)',
+                  pointerEvents: 'none',
+                }}>
+                  H
                 </div>
               )}
             </div>

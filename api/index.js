@@ -3894,12 +3894,15 @@ app.get('/api/overlay/board', async (req, res) => {
     // In slim mode we only need entries + approvals — skip pool and pokemon_master entirely
     if (slim && mode === 'live') {
       const [{ data: entries }, { data: approvals }] = await Promise.all([
-        supabase.from('entries').select('pokemon_id').eq('user_id', userId).eq('month_id', ACTIVE_MONTH_ID),
-        supabase.from('approvals').select('pokemon_id').eq('user_id', userId),
+        supabase.from('entries').select('pokemon_id, restricted_submission, historical').eq('user_id', userId).eq('month_id', ACTIVE_MONTH_ID),
+        supabase.from('approvals').select('pokemon_id, restricted_submission').eq('user_id', userId),
       ]);
 
-      const completedSet = new Set((entries || []).map(e => e.pokemon_id));
-      const pendingSet   = new Set((approvals || []).map(a => a.pokemon_id));
+      const completedSet        = new Set((entries || []).map(e => e.pokemon_id));
+      const restrictedSet       = new Set((entries || []).filter(e => e.restricted_submission).map(e => e.pokemon_id));
+      const historicalSet       = new Set((entries || []).filter(e => e.historical).map(e => e.pokemon_id));
+      const pendingSet          = new Set((approvals || []).map(a => a.pokemon_id));
+      const pendingRestrictedSet = new Set((approvals || []).filter(a => a.restricted_submission).map(a => a.pokemon_id));
 
       const { data: poolData, error: poolError } = await supabase
         .from('monthly_pokemon_pool')
@@ -3910,8 +3913,11 @@ app.get('/api/overlay/board', async (req, res) => {
 
       const states = (poolData || []).map(({ position, pokemon_id }) => ({
         position,
-        is_checked: completedSet.has(pokemon_id),
-        is_pending: !completedSet.has(pokemon_id) && pendingSet.has(pokemon_id),
+        is_checked:           completedSet.has(pokemon_id),
+        is_restricted:        restrictedSet.has(pokemon_id),
+        is_historical:        historicalSet.has(pokemon_id),
+        is_pending:           !completedSet.has(pokemon_id) && pendingSet.has(pokemon_id),
+        is_pending_restricted: completedSet.has(pokemon_id) && !restrictedSet.has(pokemon_id) && pendingRestrictedSet.has(pokemon_id),
       }));
 
       res.set('Cache-Control', 'no-store');
@@ -3924,19 +3930,22 @@ app.get('/api/overlay/board', async (req, res) => {
       { data: poolData, error: poolError },
     ] = await Promise.all([
       mode === 'live'
-        ? supabase.from('entries').select('pokemon_id').eq('user_id', userId).eq('month_id', ACTIVE_MONTH_ID)
+        ? supabase.from('entries').select('pokemon_id, restricted_submission, historical').eq('user_id', userId).eq('month_id', ACTIVE_MONTH_ID)
         : Promise.resolve({ data: [] }),
       mode === 'live'
-        ? supabase.from('approvals').select('pokemon_id').eq('user_id', userId)
+        ? supabase.from('approvals').select('pokemon_id, restricted_submission').eq('user_id', userId)
         : Promise.resolve({ data: [] }),
       supabase.from('monthly_pokemon_pool').select('position, pokemon_id').eq('month_id', ACTIVE_MONTH_ID).order('position', { ascending: true }),
     ]);
 
     if (poolError) throw poolError;
 
-    const completedSet = new Set((entries || []).map(e => e.pokemon_id));
-    const pendingSet   = new Set((approvals || []).map(a => a.pokemon_id));
-    const pokemonIds   = (poolData || []).map(p => p.pokemon_id).filter(Boolean);
+    const completedSet        = new Set((entries || []).map(e => e.pokemon_id));
+    const restrictedSet       = new Set((entries || []).filter(e => e.restricted_submission).map(e => e.pokemon_id));
+    const historicalSet       = new Set((entries || []).filter(e => e.historical).map(e => e.pokemon_id));
+    const pendingSet          = new Set((approvals || []).map(a => a.pokemon_id));
+    const pendingRestrictedSet = new Set((approvals || []).filter(a => a.restricted_submission).map(a => a.pokemon_id));
+    const pokemonIds          = (poolData || []).map(p => p.pokemon_id).filter(Boolean);
 
     const { data: pokemonData } = await supabase
       .from('pokemon_master')
@@ -3959,14 +3968,20 @@ app.get('/api/overlay/board', async (req, res) => {
       const poke = pool ? pokemonMap[pool.pokemon_id] : null;
       board.push(poke ? {
         position: pos,
-        is_checked: mode === 'live' && completedSet.has(pool.pokemon_id),
-        is_pending: mode === 'live' && !completedSet.has(pool.pokemon_id) && pendingSet.has(pool.pokemon_id),
+        is_checked:           mode === 'live' && completedSet.has(pool.pokemon_id),
+        is_restricted:        mode === 'live' && restrictedSet.has(pool.pokemon_id),
+        is_historical:        mode === 'live' && historicalSet.has(pool.pokemon_id),
+        is_pending:           mode === 'live' && !completedSet.has(pool.pokemon_id) && pendingSet.has(pool.pokemon_id),
+        is_pending_restricted: mode === 'live' && completedSet.has(pool.pokemon_id) && !restrictedSet.has(pool.pokemon_id) && pendingRestrictedSet.has(pool.pokemon_id),
         pokemon_name: poke.name || 'Unknown',
         pokemon_gif: poke.img_url,
       } : {
         position: pos,
         is_checked: false,
+        is_restricted: false,
+        is_historical: false,
         is_pending: false,
+        is_pending_restricted: false,
         pokemon_name: 'EMPTY',
         pokemon_gif: null,
       });
@@ -4066,6 +4081,23 @@ app.get('/api/overlay/leaderboard', async (req, res) => {
     const usersMap = {};
     (usersData || []).forEach(u => { usersMap[u.id] = u; });
 
+    // Fetch bingo achievements for current month to display in overlay
+    const achievementsMap = {};
+    try {
+      const achMonth = await getActiveMonth();
+      if (achMonth && userIds.length > 0) {
+        const { data: achData } = await supabase
+          .from('bingo_achievements')
+          .select('user_id, bingo_type')
+          .in('user_id', userIds)
+          .eq('month_id', achMonth.id);
+        (achData || []).forEach(a => {
+          if (!achievementsMap[a.user_id]) achievementsMap[a.user_id] = {};
+          achievementsMap[a.user_id][a.bingo_type] = true;
+        });
+      }
+    } catch {}
+
     const rows = topN.map((u, i) => ({
       rank: i + 1,
       user_id: u.user_id,
@@ -4073,6 +4105,7 @@ app.get('/api/overlay/leaderboard', async (req, res) => {
       username: usersMap[u.user_id]?.username || '',
       points: u.points,
       pinned: false,
+      achievements: achievementsMap[u.user_id] || {},
     }));
 
     // Append streamer row if they're outside the top N
@@ -4085,6 +4118,7 @@ app.get('/api/overlay/leaderboard', async (req, res) => {
         username: usersMap[su.user_id]?.username || '',
         points: su.points,
         pinned: true,
+        achievements: achievementsMap[su.user_id] || {},
       });
     }
 
