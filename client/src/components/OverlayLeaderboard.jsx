@@ -29,28 +29,36 @@ const AchievementSvg = ({ type }) => {
 };
 
 const AchievementIcons = ({ achievements }) => {
-  const earned = ACHIEVEMENT_TYPES.filter(t => achievements?.[t]);
-  if (earned.length === 0) return null;
+  if (!achievements) return null;
+  // Build ordered list: each type shows standard then restricted variant
+  const icons = [];
+  ACHIEVEMENT_TYPES.forEach(type => {
+    if (achievements[type])                    icons.push({ type, restricted: false });
+    if (achievements[`${type}_restricted`])    icons.push({ type, restricted: true });
+  });
+  if (icons.length === 0) return null;
   return (
     <div style={{ display: 'flex', gap: '0.5vw', alignItems: 'center', flexShrink: 0 }}>
-      {earned.map(type => (
+      {icons.map(({ type, restricted }) => (
         <div
-          key={type}
+          key={`${type}${restricted ? '_r' : ''}`}
           style={{
+            position: 'relative',
             width: 'clamp(16px, 3.5vw, 26px)',
             height: 'clamp(16px, 3.5vw, 26px)',
             borderRadius: '3px',
-            backgroundColor: '#9147ff',
+            backgroundColor: restricted ? '#78150a' : '#9147ff',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
             flexShrink: 0,
+            border: restricted ? '1px dashed rgba(255,255,255,0.4)' : 'none',
           }}
         >
           <svg
             width="65%" height="65%"
             viewBox="0 0 24 24"
-            fill={type === 'blackout' ? 'none' : 'none'}
+            fill="none"
             stroke="white"
             strokeWidth="2.5"
             strokeLinecap="round"
