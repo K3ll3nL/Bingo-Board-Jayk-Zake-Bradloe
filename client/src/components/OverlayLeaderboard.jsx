@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { createClient } from '@supabase/supabase-js';
+import restrictedIconSrc from '../Icons/restricted-icon.png';
 
 const supabase = createClient(
   import.meta.env.VITE_SUPABASE_URL,
@@ -52,7 +53,6 @@ const AchievementIcons = ({ achievements }) => {
             alignItems: 'center',
             justifyContent: 'center',
             flexShrink: 0,
-            border: restricted ? '1px dashed rgba(255,255,255,0.4)' : 'none',
           }}
         >
           <svg
@@ -66,6 +66,23 @@ const AchievementIcons = ({ achievements }) => {
           >
             <AchievementSvg type={type} />
           </svg>
+          {restricted && (
+            <div style={{
+              position: 'absolute',
+              top: '-3px',
+              right: '-3px',
+              width: '38%',
+              height: '38%',
+              borderRadius: '50%',
+              backgroundColor: '#1a0302',
+              border: '1px solid rgba(255,255,255,0.2)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}>
+              <img src={restrictedIconSrc} alt="" style={{ width: '70%', height: '70%', objectFit: 'contain' }} />
+            </div>
+          )}
         </div>
       ))}
     </div>
