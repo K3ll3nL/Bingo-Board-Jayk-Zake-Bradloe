@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import AchievementIcon from './AchievementIcon';
+import restrictedIconSrc from '../Icons/restricted-icon.png';
 
 const PokemonModal = ({ pokemon, onClose }) => {
   const navigate = useNavigate();
@@ -28,9 +29,9 @@ const PokemonModal = ({ pokemon, onClose }) => {
 
   const formatDate = (dateString) => {
     const date = new Date(dateString);
-    return date.toLocaleDateString('en-US', { 
-      month: 'short', 
-      day: 'numeric', 
+    return date.toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
       year: 'numeric',
       hour: '2-digit',
       minute: '2-digit'
@@ -44,22 +45,59 @@ const PokemonModal = ({ pokemon, onClose }) => {
 
   if (!pokemon) return null;
 
+  // Derive button state from the 5 possible cell flags
+  // Priority: restricted done > restricted pending > standard pending > standard done > nothing
+  const isRestrictedDone     = !!pokemon.is_restricted;
+  const isRestrictedPending  = !!pokemon.is_pending_restricted;
+  const isStandardPending    = !!pokemon.is_pending;
+  const isStandardDone       = !!pokemon.is_checked && !isRestrictedDone;
+
+  let submitLabel, submitBtnClass, isDisabled;
+  let submitIconContent;
+
+  if (isRestrictedDone) {
+    submitLabel = 'Already Caught!';
+    isDisabled = true;
+    submitBtnClass = 'bg-gray-800 text-gray-500 cursor-not-allowed';
+    submitIconContent = <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />;
+  } else if (isRestrictedPending) {
+    submitLabel = 'Restricted Pending';
+    isDisabled = true;
+    submitBtnClass = 'bg-gray-800 text-gray-500 cursor-not-allowed';
+    submitIconContent = <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />;
+  } else if (isStandardDone) {
+    submitLabel = 'Submit Restricted';
+    isDisabled = false;
+    submitBtnClass = 'bg-gray-700 hover:bg-gray-600 text-white cursor-pointer';
+    submitIconContent = null; // will render restricted icon image instead
+  } else if (isStandardPending) {
+    submitLabel = 'Submission Pending';
+    isDisabled = true;
+    submitBtnClass = 'bg-gray-800 text-gray-500 cursor-not-allowed';
+    submitIconContent = <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />;
+  } else {
+    submitLabel = 'Submit Catch';
+    isDisabled = false;
+    submitBtnClass = 'bg-gray-700 hover:bg-gray-600 text-white cursor-pointer';
+    submitIconContent = <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />;
+  }
+
   return (
-    <div 
+    <div
       className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4"
       onClick={onClose}
     >
-      <div 
-        className="rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto"
-        style={{ backgroundColor: '#35373b' }}
+      <div
+        className="rounded-lg shadow-xl w-full max-w-2xl flex flex-col"
+        style={{ backgroundColor: '#35373b', height: '80vh', maxHeight: '640px' }}
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Header */}
-        <div className="sticky top-0 p-6 border-b border-gray-600" style={{ backgroundColor: '#35373b' }}>
+        {/* Header — fixed */}
+        <div className="flex-shrink-0 p-6 border-b border-gray-600">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
-              <img 
-                src={pokemon.pokemon_gif || pokemon.img_url} 
+              <img
+                src={pokemon.pokemon_gif || pokemon.img_url}
                 alt={pokemon.pokemon_name}
                 className="w-20 h-20 object-contain"
               />
@@ -79,108 +117,100 @@ const PokemonModal = ({ pokemon, onClose }) => {
           </div>
         </div>
 
-        {/* Content */}
-        <div className="p-6">
-          {/* Recent Catches */}
-          <div className="mb-6">
-            <h3 className="text-lg font-bold text-white mb-3">Recent Catches</h3>
-            {loading ? (
-              <div className="text-gray-400 text-center py-4">Loading...</div>
-            ) : recentCatches.length === 0 ? (
-              <div className="text-gray-400 text-center py-4">No catches yet</div>
-            ) : (
-              <div className="divide-y" style={{ borderColor: '#404040' }}>
-                {recentCatches.map((entry, index) => (
-                  <div
-                    key={entry.id}
-                    onClick={() => {
-                      navigate(`/profile/${entry.user_id}`);
-                      onClose();
-                    }}
-                    className="p-2 flex items-center justify-between transition-colors cursor-pointer hover:bg-gray-600"
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className="flex items-center justify-center w-8 h-8">
-                        <span className="font-semibold text-xl text-gray-400">#{index + 1}</span>
-                      </div>
-                      
-                      {entry.avatar_url && (
-                        <img
-                          src={entry.avatar_url}
-                          alt={entry.display_name}
-                          className="w-10 h-10 rounded-full"
-                        />
-                      )}
-                      
-                      <div>
-                        <div className="font-semibold text-l text-white">
-                          {entry.display_name}
-                        </div>
-                        <div className="text-xs text-gray-400">
-                          {formatDate(entry.caught_at)}
-                        </div>
-                      </div>
+        {/* Scrollable content */}
+        <div className="flex-1 overflow-y-auto p-6">
+          <h3 className="text-lg font-bold text-white mb-3">Recent Catches</h3>
+          {loading ? (
+            <div className="text-gray-400 text-center py-4">Loading...</div>
+          ) : recentCatches.length === 0 ? (
+            <div className="text-gray-400 text-center py-4">No catches yet</div>
+          ) : (
+            <div className="divide-y" style={{ borderColor: '#404040' }}>
+              {recentCatches.map((entry, index) => (
+                <div
+                  key={entry.id}
+                  onClick={() => {
+                    navigate(`/profile/${entry.user_id}`);
+                    onClose();
+                  }}
+                  className="p-2 flex items-center justify-between transition-colors cursor-pointer hover:bg-gray-600"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="flex items-center justify-center w-8 h-8">
+                      <span className="font-semibold text-xl text-gray-400">#{index + 1}</span>
                     </div>
-                    
-                    <div className="flex items-center gap-2">
-                      {/* Achievement icons */}
-                      <div className="flex items-center gap-1">
-                        {['row', 'column', 'x', 'blackout'].map(type => (
-                          entry.achievements?.[type] && (
-                            <AchievementIcon
-                              key={type}
-                              type={type}
-                              restricted={entry.achievements?.[`${type}_restricted`] ?? false}
-                              color={entry.hex_code || '#9147ff'}
-                              svgClassName={type === 'blackout' ? 'w-4 h-4' : 'w-3 h-3'}
-                            />
-                          )
-                        ))}
+
+                    {entry.avatar_url && (
+                      <img
+                        src={entry.avatar_url}
+                        alt={entry.display_name}
+                        className="w-10 h-10 rounded-full"
+                      />
+                    )}
+
+                    <div>
+                      <div className="font-semibold text-l text-white">
+                        {entry.display_name}
                       </div>
-                      
-                      <span className="text-xl font-bold text-purple-400">
-                        {entry.points || 0}
-                      </span>
-                      <span className="text-xs text-gray-400">pts</span>
+                      <div className="text-xs text-gray-400">
+                        {formatDate(entry.caught_at)}
+                      </div>
                     </div>
                   </div>
-                ))}
-              </div>
-            )}
-          </div>
 
-          {/* External Links */}
-          <div className="grid grid-cols-2 gap-px bg-gray-600 -mx-6 -mb-6 mt-6">
-            <a
-              href={`https://bulbapedia.bulbagarden.net/wiki/${pokemon.pokemon_name}_(Pok%C3%A9mon)#Game_locations`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="p-4 bg-gray-700 hover:bg-gray-600 text-white text-center font-medium transition-colors flex items-center justify-center gap-2"
-            >
+                  <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-1">
+                      {['row', 'column', 'x', 'blackout'].map(type => (
+                        entry.achievements?.[type] && (
+                          <AchievementIcon
+                            key={type}
+                            type={type}
+                            restricted={entry.achievements?.[`${type}_restricted`] ?? false}
+                            color={entry.hex_code || '#9147ff'}
+                            svgClassName={type === 'blackout' ? 'w-4 h-4' : 'w-3 h-3'}
+                          />
+                        )
+                      ))}
+                    </div>
+
+                    <span className="text-xl font-bold text-purple-400">
+                      {entry.points || 0}
+                    </span>
+                    <span className="text-xs text-gray-400">pts</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Footer buttons — always pinned */}
+        <div className="flex-shrink-0 grid grid-cols-2 gap-px bg-gray-600">
+          <a
+            href={`https://bulbapedia.bulbagarden.net/wiki/${pokemon.pokemon_name}_(Pok%C3%A9mon)#Game_locations`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="p-4 bg-gray-700 hover:bg-gray-600 text-white text-center font-medium transition-colors flex items-center justify-center gap-2"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+            </svg>
+            Bulbapedia
+          </a>
+          <button
+            onClick={isDisabled ? undefined : handleSubmitClick}
+            className={`p-4 text-center font-medium transition-colors flex items-center justify-center gap-2 ${submitBtnClass}`}
+            disabled={isDisabled}
+          >
+            {isStandardDone && !isRestrictedDone ? (
+              <img src={restrictedIconSrc} alt="" className="w-5 h-5 object-contain" />
+            ) : (
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+                {submitIconContent}
               </svg>
-              Bulbapedia
-            </a>
-            <button
-              onClick={pokemon.is_checked ? undefined : handleSubmitClick}
-              className={`p-4 text-center font-medium transition-colors flex items-center justify-center gap-2 ${
-                pokemon.is_checked 
-                  ? 'bg-gray-800 text-gray-500 cursor-not-allowed' 
-                  : 'bg-gray-700 hover:bg-gray-600 text-white cursor-pointer'
-              }`}
-              disabled={pokemon.is_checked}
-            >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                {pokemon.is_checked ? (
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                ) : (
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
-                )}
-              </svg>
-              {pokemon.is_checked ? 'Already Caught!' : 'Submit Catch'}
-            </button>
-          </div>
+            )}
+            {submitLabel}
+          </button>
         </div>
       </div>
     </div>

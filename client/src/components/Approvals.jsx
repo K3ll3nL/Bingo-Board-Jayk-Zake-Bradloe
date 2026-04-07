@@ -5,6 +5,7 @@ import { useNavigate } from 'react-router-dom';
 import { createClient } from '@supabase/supabase-js';
 import PageBackground from './PageBackground';
 import PageHeader from './PageHeader';
+import { ALLOWED_GAMES } from '../constants/games';
 
 const supabase = createClient(
   import.meta.env.VITE_SUPABASE_URL,
@@ -20,6 +21,51 @@ const getAuthHeader = async () => {
   return `Bearer ${session?.access_token}`;
 };
 
+// Game logo strip shown in approval rows
+const GameBadge = ({ gameKey }) => {
+  const game = ALLOWED_GAMES.find(g => g.key === gameKey);
+  if (!game) return <span className="text-xs text-gray-500">{gameKey || '—'}</span>;
+  return (
+    <div className="flex items-center gap-1 mt-1 flex-wrap">
+      {game.img_urls.map((url, i) => (
+        <img key={i} src={url} alt="" className="h-4 object-contain" />
+      ))}
+      <span className="text-xs text-gray-400">{game.label}</span>
+    </div>
+  );
+};
+
+// Restricted rules checklist for a given game (shown to moderators as a reminder)
+const GameRules = ({ gameKey }) => {
+  const game = ALLOWED_GAMES.find(g => g.key === gameKey);
+  if (!game?.restricted_checklist?.length) return null;
+  return (
+    <div className="mt-2 p-2 rounded bg-[#78150a]/10 border border-[#78150a]/30">
+      <div className="text-xs font-semibold text-[#e07060] mb-1">Submitter confirmed:</div>
+      <ul className="space-y-0.5">
+        {game.restricted_checklist.map(item => (
+          <li key={item.id} className="text-xs text-gray-300 flex items-start gap-1">
+            <svg className="w-3 h-3 text-green-400 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+              <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+            </svg>
+            {item.label}
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+};
+
+const STATUS_CONFIG = {
+  accepted:                     { label: 'Accepted',               color: 'text-green-400',  bg: 'bg-green-900/30 border-green-700/40' },
+  accepted_restricted:          { label: 'Accepted (Restricted)',   color: 'text-green-400',  bg: 'bg-green-900/30 border-green-700/40' },
+  accepted_historical:          { label: 'Accepted (Historical)',   color: 'text-blue-400',   bg: 'bg-blue-900/30 border-blue-700/40' },
+  accepted_downgraded:          { label: 'Accepted (Downgraded)',   color: 'text-yellow-400', bg: 'bg-yellow-900/30 border-yellow-700/40' },
+  accepted_downgraded_historical: { label: 'Accepted (Hist. DG)',   color: 'text-yellow-400', bg: 'bg-yellow-900/30 border-yellow-700/40' },
+  rejected:                     { label: 'Rejected',               color: 'text-red-400',    bg: 'bg-red-900/30 border-red-700/40' },
+  rejected_restricted_ban:      { label: 'Banned',                 color: 'text-red-400',    bg: 'bg-red-900/30 border-red-700/40' },
+};
+
 const Approvals = () => {
   const { user, isModerator } = useAuth();
   const navigate = useNavigate();
@@ -33,6 +79,11 @@ const Approvals = () => {
   const [historicalApprovals, setHistoricalApprovals] = useState([]);
   const [historicalLoaded, setHistoricalLoaded] = useState(false);
   const [historicalLoading, setHistoricalLoading] = useState(false);
+  const [historyData, setHistoryData] = useState([]);
+  const [historyLoaded, setHistoryLoaded] = useState(false);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [historyPage, setHistoryPage] = useState(1);
+  const [historyHasMore, setHistoryHasMore] = useState(true);
 
   // Redirect non-mods once the check resolves
   useEffect(() => {
@@ -54,7 +105,7 @@ const Approvals = () => {
       .channel('approvals-updates')
       .on('broadcast', { event: 'queue-changed' }, () => {
         if (activeTab === 'historical') loadHistoricalApprovals();
-        else loadApprovals();
+        else if (activeTab === 'approvals') loadApprovals();
       })
       .subscribe();
     return () => supabase.removeChannel(channel);
@@ -69,7 +120,6 @@ const Approvals = () => {
       });
       if (!response.ok) throw new Error('Failed to load approvals');
       const data = await response.json();
-      console.log('[Approvals] first row sample:', data[0]);
       setApprovals(data);
       setApprovalsLoaded(true);
     } catch (err) {
@@ -93,6 +143,29 @@ const Approvals = () => {
       console.error('Error loading historical approvals:', err);
     } finally {
       setHistoricalLoading(false);
+    }
+  };
+
+  const loadHistory = async (page = 1, append = false) => {
+    try {
+      setHistoryLoading(true);
+      const response = await fetch(`/api/approvals/history?page=${page}&limit=20`, {
+        headers: { 'Authorization': await getAuthHeader() }
+      });
+      if (!response.ok) throw new Error('Failed to load history');
+      const data = await response.json();
+      if (append) {
+        setHistoryData(prev => [...prev, ...data]);
+      } else {
+        setHistoryData(data);
+      }
+      setHistoryHasMore(data.length === 20);
+      setHistoryLoaded(true);
+      setHistoryPage(page);
+    } catch (err) {
+      console.error('Error loading approval history:', err);
+    } finally {
+      setHistoryLoading(false);
     }
   };
 
@@ -149,7 +222,6 @@ const Approvals = () => {
           body: JSON.stringify({ status: 'accepted_downgraded_historical', message })
         });
       } else {
-        // warn or ban
         response = await fetch(`/api/approvals/${approvalId}/reject`, {
           method: 'POST',
           headers: { 'Authorization': await getAuthHeader(), 'Content-Type': 'application/json' },
@@ -234,7 +306,6 @@ const Approvals = () => {
           body: JSON.stringify({ status: 'accepted_downgraded', message })
         });
       } else {
-        // warn or ban
         response = await fetch(`/api/approvals/${approvalId}/reject`, {
           method: 'POST',
           headers: { 'Authorization': await getAuthHeader(), 'Content-Type': 'application/json' },
@@ -260,13 +331,247 @@ const Approvals = () => {
     );
   }
 
+  // ── Shared row renderer for pending/historical approvals ─────────────────────
+  const renderApprovalRow = (approval, isHistorical) => {
+    const isBan = (approval.restricted_strikes || 0) >= 2;
+    const panelOpen = expandedPanel?.id === approval.id;
+    const panelAction = expandedPanel?.action;
+
+    return (
+      <div key={approval.id}>
+        {/* Main Row */}
+        <div className="p-4 flex items-center gap-4">
+          {/* Pokemon Image */}
+          <img
+            src={approval.pokemon_img}
+            alt={approval.pokemon_name}
+            className="w-16 h-16 object-contain flex-shrink-0"
+          />
+
+          {/* Submission Info */}
+          <div className="w-56 flex-shrink-0">
+            <div className="text-white font-medium">{approval.display_name}</div>
+            <div className="text-sm text-gray-400">
+              #{String(approval.national_dex_id).padStart(4, '0')} — {approval.pokemon_name}
+            </div>
+            <div className="text-xs text-gray-500">
+              {new Date(approval.created_at).toLocaleString()}
+            </div>
+
+            {/* Game badge */}
+            {approval.game && <GameBadge gameKey={approval.game} />}
+
+            {/* Historical tag */}
+            {isHistorical && (
+              <span className="inline-block mt-1 px-1.5 py-0.5 rounded text-xs font-semibold bg-blue-900/40 text-blue-300 border border-blue-700/50">
+                Historical
+              </span>
+            )}
+
+            {/* Restricted badge + strikes */}
+            {approval.restricted_submission && (
+              <div className="flex items-center gap-2 mt-1.5">
+                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-semibold bg-[#78150a]/25 text-[#e07060] border border-[#78150a]/50">
+                  <img src={restrictedIcon} alt="" className="w-3 h-3 object-contain" />
+                  Restricted
+                </span>
+                {approval.restricted_strikes > 0 && (
+                  <span className="text-xs text-orange-400 font-medium">
+                    {approval.restricted_strikes} strike{approval.restricted_strikes !== 1 ? 's' : ''}
+                  </span>
+                )}
+              </div>
+            )}
+
+            {/* Game rules reminder for restricted submissions */}
+            {approval.restricted_submission && approval.game && (
+              <GameRules gameKey={approval.game} />
+            )}
+          </div>
+
+          {/* Proof */}
+          <div className="flex-shrink-0">
+            {approval.proof_url && approval.proof_url2 ? (
+              <div>
+                <div className="flex gap-2 items-start">
+                  <button onClick={() => setLightboxImage(approval.proof_url)} className="block">
+                    <img
+                      src={approval.proof_url}
+                      alt="Proof of Shiny"
+                      className="w-28 h-28 object-cover rounded border border-gray-600 hover:border-purple-500 transition-colors cursor-pointer"
+                    />
+                    <div className="text-xs text-gray-400 text-center mt-1">Proof of Shiny</div>
+                  </button>
+                  <button onClick={() => setLightboxImage(approval.proof_url2)} className="block">
+                    <img
+                      src={approval.proof_url2}
+                      alt="Proof of Date"
+                      className="w-28 h-28 object-cover rounded border border-gray-600 hover:border-purple-500 transition-colors cursor-pointer"
+                    />
+                    <div className="text-xs text-gray-400 text-center mt-1">Proof of Date</div>
+                  </button>
+                  {approval.proof_link && (
+                    <a
+                      href={approval.proof_link}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="self-center text-purple-400 hover:text-purple-300 underline text-sm"
+                    >
+                      View Video Link ↗
+                    </a>
+                  )}
+                </div>
+              </div>
+            ) : approval.proof_link ? (
+              <a
+                href={approval.proof_link}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-purple-400 hover:text-purple-300 underline text-sm"
+              >
+                View Video Link ↗
+              </a>
+            ) : approval.proof_url ? (
+              <button onClick={() => setLightboxImage(approval.proof_url)} className="text-purple-400 hover:text-purple-300 underline text-sm">
+                View Proof Link ↗
+              </button>
+            ) : null}
+          </div>
+
+          <div className="flex-1" />
+
+          {/* Action Buttons */}
+          <div className="flex items-center gap-2 flex-shrink-0">
+            {approval.restricted_submission && (
+              <>
+                {/* Warn / Ban (merged) */}
+                <button
+                  onClick={() => togglePanel(approval.id, isBan ? 'ban' : 'warn')}
+                  className={`w-10 h-10 flex items-center justify-center rounded-lg transition-colors ${
+                    panelOpen && panelAction === (isBan ? 'ban' : 'warn')
+                      ? (isBan ? 'bg-red-800' : 'bg-orange-600')
+                      : (isBan ? 'bg-red-700 hover:bg-red-800' : 'bg-orange-500 hover:bg-orange-600')
+                  }`}
+                  title={isBan ? 'Ban user' : 'Warn user'}
+                >
+                  {isBan ? (
+                    <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                        d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
+                    </svg>
+                  ) : (
+                    <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                        d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                    </svg>
+                  )}
+                </button>
+
+                {/* Downgrade */}
+                <button
+                  onClick={() => togglePanel(approval.id, 'downgrade')}
+                  className={`w-10 h-10 flex items-center justify-center rounded-lg border transition-colors ${
+                    panelOpen && panelAction === 'downgrade'
+                      ? 'bg-blue-700 border-blue-600'
+                      : 'bg-gray-700 border-gray-600 hover:bg-gray-600 hover:border-gray-500'
+                  }`}
+                  title="Downgrade to normal submission"
+                >
+                  <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                      d="M19 14l-7 7m0 0l-7-7m7 7V3" />
+                  </svg>
+                </button>
+
+                <div className="w-px h-8 bg-gray-600 mx-1" />
+              </>
+            )}
+
+            {/* Approve */}
+            <button
+              onClick={() => isHistorical ? handleHistoricalApprove(approval.id) : handleApprove(approval.id)}
+              className="w-10 h-10 flex items-center justify-center bg-green-600 hover:bg-green-700 rounded-lg transition-colors"
+              title="Approve"
+            >
+              <svg className="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+              </svg>
+            </button>
+
+            {/* Reject */}
+            <button
+              onClick={() => togglePanel(approval.id, 'reject')}
+              className={`w-10 h-10 flex items-center justify-center rounded-lg transition-colors ${
+                panelOpen && panelAction === 'reject' ? 'bg-red-700' : 'bg-red-600 hover:bg-red-700'
+              }`}
+              title="Reject"
+            >
+              <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+        </div>
+
+        {/* Expanded Action Panel */}
+        {panelOpen && (
+          <div className="px-4 pb-4 bg-gray-800">
+            <div className="p-4 rounded-lg border border-gray-600">
+              <label className="block text-sm font-medium text-gray-300 mb-2">
+                {panelAction === 'reject' && 'Rejection Notes'}
+                {panelAction === 'downgrade' && 'Downgrade Notes - accept submission, but as non-restricted'}
+                {panelAction === 'warn' && 'Warning Message - give a strike to a user, reject submission'}
+                {panelAction === 'ban' && "Ban Reason - this will revoke the user's ability to submit to the restricted challenge, reject submission"}
+              </label>
+              <textarea
+                value={actionNotes[approval.id] || ''}
+                onChange={(e) => handleNoteChange(approval.id, e.target.value)}
+                placeholder={
+                  panelAction === 'reject' ? 'Enter reason for rejection...' :
+                  panelAction === 'downgrade' ? 'Explain why this is being downgraded to a normal submission...' :
+                  panelAction === 'warn' ? 'Enter warning message for the user...' :
+                  'Enter reason for ban...'
+                }
+                className="w-full p-3 bg-gray-700 text-white rounded-lg border border-gray-600 focus:border-purple-500 focus:outline-none mb-3"
+                rows={3}
+              />
+              <div className="flex justify-end">
+                <button
+                  onClick={() => {
+                    if (panelAction === 'reject') {
+                      isHistorical ? handleHistoricalReject(approval.id) : handleReject(approval.id);
+                    } else {
+                      isHistorical
+                        ? handleHistoricalRestrictedAction(approval.id, panelAction)
+                        : handleRestrictedAction(approval.id, panelAction);
+                    }
+                  }}
+                  disabled={!actionNotes[approval.id]?.trim()}
+                  className={`px-4 py-2 text-white rounded-lg font-medium transition-colors disabled:bg-gray-600 disabled:cursor-not-allowed ${
+                    panelAction === 'reject' ? 'bg-red-600 hover:bg-red-700' :
+                    panelAction === 'downgrade' ? 'bg-blue-600 hover:bg-blue-700' :
+                    panelAction === 'warn' ? 'bg-orange-500 hover:bg-orange-600' :
+                    'bg-red-700 hover:bg-red-800'
+                  }`}
+                >
+                  {panelAction === 'reject' && 'Submit Rejection'}
+                  {panelAction === 'downgrade' && 'Downgrade Submission'}
+                  {panelAction === 'warn' && 'Issue Warning'}
+                  {panelAction === 'ban' && 'Ban User'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  };
+
   return (
     <div className="min-h-screen" style={{ isolation: 'isolate', position: 'relative' }}>
       <PageBackground />
-      {/* Header */}
       <PageHeader title="Moderator Approvals" badge="mod" />
 
-      {/* Content */}
       <div className="p-8">
         <div className="max-w-7xl mx-auto">
           {/* Tabs */}
@@ -278,6 +583,11 @@ const Approvals = () => {
               }`}
             >
               Pending Approvals
+              {approvals.length > 0 && (
+                <span className="ml-2 bg-purple-700 text-white text-xs rounded-full px-1.5 py-0.5">
+                  {approvals.length}
+                </span>
+              )}
             </button>
             <button
               onClick={() => {
@@ -289,6 +599,22 @@ const Approvals = () => {
               }`}
             >
               Historical
+              {historicalApprovals.length > 0 && (
+                <span className="ml-2 bg-purple-700 text-white text-xs rounded-full px-1.5 py-0.5">
+                  {historicalApprovals.length}
+                </span>
+              )}
+            </button>
+            <button
+              onClick={() => {
+                setActiveTab('history');
+                if (!historyLoaded) loadHistory(1);
+              }}
+              className={`px-6 py-2 rounded-lg font-medium transition-colors ${
+                activeTab === 'history' ? 'bg-purple-500 text-white' : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+              }`}
+            >
+              Approval History
             </button>
           </div>
 
@@ -301,230 +627,7 @@ const Approvals = () => {
                 <div className="text-center text-gray-400 py-8">No pending approvals</div>
               ) : (
                 <div className="divide-y divide-gray-600">
-                  {approvals.map((approval) => {
-                    const isBan = (approval.restricted_strikes || 0) >= 2;
-                    const panelOpen = expandedPanel?.id === approval.id;
-                    const panelAction = expandedPanel?.action;
-
-                    return (
-                      <div key={approval.id}>
-                        {/* Main Row */}
-                        <div className="p-4 flex items-center gap-4">
-                          {/* Pokemon Image */}
-                          <img
-                            src={approval.pokemon_img}
-                            alt={approval.pokemon_name}
-                            className="w-16 h-16 object-contain flex-shrink-0"
-                          />
-
-                          {/* Submission Info */}
-                          <div className="w-52 flex-shrink-0">
-                            <div className="text-white font-medium">{approval.display_name}</div>
-                            <div className="text-sm text-gray-400">
-                              #{String(approval.national_dex_id).padStart(4, '0')} — {approval.pokemon_name}
-                            </div>
-                            <div className="text-xs text-gray-500">
-                              {new Date(approval.created_at).toLocaleString()}
-                            </div>
-
-                            {/* Restricted badge + strikes */}
-                            {approval.restricted_submission && (
-                              <div className="flex items-center gap-2 mt-1.5">
-                                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-semibold bg-[#78150a]/25 text-[#e07060] border border-[#78150a]/50">
-                                  <img src={restrictedIcon} alt="" className="w-3 h-3 object-contain" />
-                                  Restricted
-                                </span>
-                                {approval.restricted_strikes > 0 && (
-                                  <span className="text-xs text-orange-400 font-medium">
-                                    {approval.restricted_strikes} strike{approval.restricted_strikes !== 1 ? 's' : ''}
-                                  </span>
-                                )}
-                              </div>
-                            )}
-                          </div>
-
-                          {/* Proof — directly right of info */}
-                          <div className="flex-shrink-0">
-                            {approval.proof_url && approval.proof_url2 ? (
-                              <div>
-                                <div className="flex gap-2 items-start">
-                                  <button onClick={() => setLightboxImage(approval.proof_url)} className="block">
-                                    <img
-                                      src={approval.proof_url}
-                                      alt="Proof of Shiny"
-                                      className="w-28 h-28 object-cover rounded border border-gray-600 hover:border-purple-500 transition-colors cursor-pointer"
-                                    />
-                                    <div className="text-xs text-gray-400 text-center mt-1">Proof of Shiny</div>
-                                  </button>
-                                  <button onClick={() => setLightboxImage(approval.proof_url2)} className="block">
-                                    <img
-                                      src={approval.proof_url2}
-                                      alt="Proof of Date"
-                                      className="w-28 h-28 object-cover rounded border border-gray-600 hover:border-purple-500 transition-colors cursor-pointer"
-                                    />
-                                    <div className="text-xs text-gray-400 text-center mt-1">Proof of Date</div>
-                                  </button>
-                                  {approval.proof_link && (
-                                    <a
-                                      href={approval.proof_link}
-                                      target="_blank"
-                                      rel="noopener noreferrer"
-                                      className="self-center text-purple-400 hover:text-purple-300 underline text-sm"
-                                    >
-                                      View Video Link ↗
-                                    </a>
-                                  )}
-                                </div>
-                              </div>
-                            ) : approval.proof_link ? (
-                              <a
-                                href={approval.proof_link}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="text-purple-400 hover:text-purple-300 underline text-sm"
-                              >
-                                View Video Link ↗
-                              </a>
-                            ) : approval.proof_url ? (
-                              <a
-                                href={approval.proof_url}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="text-purple-400 hover:text-purple-300 underline text-sm"
-                              >
-                                View Proof Link ↗
-                              </a>
-                            ) : null}
-                          </div>
-
-                          {/* Spacer */}
-                          <div className="flex-1" />
-
-                          {/* Action Buttons */}
-                          <div className="flex items-center gap-2 flex-shrink-0">
-                            {/* Restricted-only buttons */}
-                            {approval.restricted_submission && (
-                              <>
-                                {/* Warn / Ban (merged) */}
-                                <button
-                                  onClick={() => togglePanel(approval.id, isBan ? 'ban' : 'warn')}
-                                  className={`w-10 h-10 flex items-center justify-center rounded-lg transition-colors ${
-                                    panelOpen && panelAction === (isBan ? 'ban' : 'warn')
-                                      ? (isBan ? 'bg-red-800' : 'bg-orange-600')
-                                      : (isBan ? 'bg-red-700 hover:bg-red-800' : 'bg-orange-500 hover:bg-orange-600')
-                                  }`}
-                                  title={isBan ? 'Ban user' : 'Warn user'}
-                                >
-                                  {isBan ? (
-                                    /* Circle with line through */
-                                    <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                                        d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
-                                    </svg>
-                                  ) : (
-                                    /* Exclamation mark */
-                                    <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                                        d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                                    </svg>
-                                  )}
-                                </button>
-
-                                {/* Downgrade */}
-                                <button
-                                  onClick={() => togglePanel(approval.id, 'downgrade')}
-                                  className={`w-10 h-10 flex items-center justify-center rounded-lg border transition-colors ${
-                                    panelOpen && panelAction === 'downgrade'
-                                      ? 'bg-blue-700 border-blue-600'
-                                      : 'bg-gray-700 border-gray-600 hover:bg-gray-600 hover:border-gray-500'
-                                  }`}
-                                  title="Downgrade to normal submission"
-                                >
-                                  <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                                      d="M19 14l-7 7m0 0l-7-7m7 7V3" />
-                                  </svg>
-                                </button>
-
-                                {/* Separator */}
-                                <div className="w-px h-8 bg-gray-600 mx-1" />
-                              </>
-                            )}
-
-                            {/* Approve */}
-                            <button
-                              onClick={() => handleApprove(approval.id)}
-                              className="w-10 h-10 flex items-center justify-center bg-green-600 hover:bg-green-700 rounded-lg transition-colors"
-                              title="Approve"
-                            >
-                              <svg className="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 20 20">
-                                <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                              </svg>
-                            </button>
-
-                            {/* Reject */}
-                            <button
-                              onClick={() => togglePanel(approval.id, 'reject')}
-                              className={`w-10 h-10 flex items-center justify-center rounded-lg transition-colors ${
-                                panelOpen && panelAction === 'reject' ? 'bg-red-700' : 'bg-red-600 hover:bg-red-700'
-                              }`}
-                              title="Reject"
-                            >
-                              <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                              </svg>
-                            </button>
-                          </div>
-                        </div>
-
-                        {/* Expanded Action Panel */}
-                        {panelOpen && (
-                          <div className="px-4 pb-4 bg-gray-800">
-                            <div className="p-4 rounded-lg border border-gray-600">
-                              <label className="block text-sm font-medium text-gray-300 mb-2">
-                                {panelAction === 'reject' && 'Rejection Notes'}
-                                {panelAction === 'downgrade' && 'Downgrade Notes - accept submission, but as non-restricted'}
-                                {panelAction === 'warn' && 'Warning Message - give a strike to a user, reject submission'}
-                                {panelAction === 'ban' && 'Ban Reason - this will revoke the user\'s ability to submit to the restricted challenge, reject submission'}
-                              </label>
-                              <textarea
-                                value={actionNotes[approval.id] || ''}
-                                onChange={(e) => handleNoteChange(approval.id, e.target.value)}
-                                placeholder={
-                                  panelAction === 'reject' ? 'Enter reason for rejection...' :
-                                  panelAction === 'downgrade' ? 'Explain why this is being downgraded to a normal submission...' :
-                                  panelAction === 'warn' ? 'Enter warning message for the user...' :
-                                  'Enter reason for ban...'
-                                }
-                                className="w-full p-3 bg-gray-700 text-white rounded-lg border border-gray-600 focus:border-purple-500 focus:outline-none mb-3"
-                                rows={3}
-                              />
-                              <div className="flex justify-end">
-                                <button
-                                  onClick={() => {
-                                    if (panelAction === 'reject') handleReject(approval.id);
-                                    else handleRestrictedAction(approval.id, panelAction);
-                                  }}
-                                  disabled={!actionNotes[approval.id]?.trim()}
-                                  className={`px-4 py-2 text-white rounded-lg font-medium transition-colors disabled:bg-gray-600 disabled:cursor-not-allowed ${
-                                    panelAction === 'reject' ? 'bg-red-600 hover:bg-red-700' :
-                                    panelAction === 'downgrade' ? 'bg-blue-600 hover:bg-blue-700' :
-                                    panelAction === 'warn' ? 'bg-orange-500 hover:bg-orange-600' :
-                                    'bg-red-700 hover:bg-red-800'
-                                  }`}
-                                >
-                                  {panelAction === 'reject' && 'Submit Rejection'}
-                                  {panelAction === 'downgrade' && 'Downgrade Submission'}
-                                  {panelAction === 'warn' && 'Issue Warning'}
-                                  {panelAction === 'ban' && 'Ban User'}
-                                </button>
-                              </div>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
+                  {approvals.map(approval => renderApprovalRow(approval, false))}
                 </div>
               )}
             </div>
@@ -539,203 +642,122 @@ const Approvals = () => {
                 <div className="text-center text-gray-400 py-8">No pending historical approvals</div>
               ) : (
                 <div className="divide-y divide-gray-600">
-                  {historicalApprovals.map((approval) => {
-                    const panelOpen = expandedPanel?.id === approval.id;
-                    const panelAction = expandedPanel?.action;
+                  {historicalApprovals.map(approval => renderApprovalRow(approval, true))}
+                </div>
+              )}
+            </div>
+          )}
 
-                    const isBan = (approval.restricted_strikes || 0) >= 2;
-
-                    return (
-                      <div key={approval.id}>
-                        <div className="p-4 flex items-center gap-4">
+          {/* Approval History Tab */}
+          {activeTab === 'history' && (
+            <div className="rounded-lg border border-gray-600" style={{ backgroundColor: '#35373b' }}>
+              {historyLoading && !historyLoaded ? (
+                <div className="text-center text-gray-400 py-8">Loading history...</div>
+              ) : historyData.length === 0 ? (
+                <div className="text-center text-gray-400 py-8">No approval history yet</div>
+              ) : (
+                <>
+                  <div className="divide-y divide-gray-600">
+                    {historyData.map(record => {
+                      const statusCfg = STATUS_CONFIG[record.status] || { label: record.status, color: 'text-gray-400', bg: 'bg-gray-700/30 border-gray-600/40' };
+                      return (
+                        <div key={record.id} className="p-4 flex items-start gap-4">
                           {/* Pokemon image */}
-                          <img
-                            src={approval.pokemon_img}
-                            alt={approval.pokemon_name}
-                            className="w-16 h-16 object-contain flex-shrink-0"
-                          />
+                          {record.pokemon_img && (
+                            <img
+                              src={record.pokemon_img}
+                              alt={record.pokemon_name}
+                              className="w-14 h-14 object-contain flex-shrink-0"
+                            />
+                          )}
 
                           {/* Info */}
-                          <div className="w-52 flex-shrink-0">
-                            <div className="text-white font-medium">{approval.display_name}</div>
-                            <div className="text-sm text-gray-400">
-                              #{String(approval.national_dex_id).padStart(4, '0')} — {approval.pokemon_name}
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-3 flex-wrap">
+                              <span className="text-white font-medium">{record.display_name}</span>
+                              <span className="text-gray-400 text-sm">
+                                #{String(record.national_dex_id || '0').padStart(4, '0')} — {record.pokemon_name}
+                              </span>
+                              <span className={`text-xs font-semibold px-2 py-0.5 rounded border ${statusCfg.bg} ${statusCfg.color}`}>
+                                {statusCfg.label}
+                              </span>
+                              {record.restricted_submission && (
+                                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-semibold bg-[#78150a]/25 text-[#e07060] border border-[#78150a]/50">
+                                  <img src={restrictedIcon} alt="" className="w-3 h-3 object-contain" />
+                                  Restricted
+                                </span>
+                              )}
+                              {record.historical && (
+                                <span className="px-1.5 py-0.5 rounded text-xs font-semibold bg-blue-900/40 text-blue-300 border border-blue-700/50">
+                                  Historical
+                                </span>
+                              )}
                             </div>
-                            <div className="text-xs text-gray-500">
-                              {new Date(approval.created_at).toLocaleString()}
+
+                            <div className="flex items-center gap-4 mt-1 flex-wrap">
+                              <span className="text-xs text-gray-500">
+                                Submitted: {new Date(record.created_at).toLocaleString()}
+                              </span>
+                              <span className="text-xs text-gray-500">
+                                Processed: {new Date(record.processed_at).toLocaleString()}
+                              </span>
                             </div>
-                            <span className="inline-block mt-1 px-1.5 py-0.5 rounded text-xs font-semibold bg-blue-900/40 text-blue-300 border border-blue-700/50">
-                              Historical
-                            </span>
+
+                            {record.game && <div className="mt-1"><GameBadge gameKey={record.game} /></div>}
                           </div>
 
-                          {/* Proof */}
-                          <div className="flex-shrink-0">
-                            {approval.proof_url && approval.proof_url2 ? (
-                              <div className="flex gap-2 items-start">
-                                <button onClick={() => setLightboxImage(approval.proof_url)} className="block">
-                                  <img
-                                    src={approval.proof_url}
-                                    alt="Proof of Shiny"
-                                    className="w-28 h-28 object-cover rounded border border-gray-600 hover:border-purple-500 transition-colors cursor-pointer"
-                                  />
-                                  <div className="text-xs text-gray-400 text-center mt-1">Proof of Shiny</div>
-                                </button>
-                                <button onClick={() => setLightboxImage(approval.proof_url2)} className="block">
-                                  <img
-                                    src={approval.proof_url2}
-                                    alt="Proof of Date"
-                                    className="w-28 h-28 object-cover rounded border border-gray-600 hover:border-purple-500 transition-colors cursor-pointer"
-                                  />
-                                  <div className="text-xs text-gray-400 text-center mt-1">Proof of Date</div>
-                                </button>
-                                {approval.proof_link && (
-                                  <a
-                                    href={approval.proof_link}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="self-center text-purple-400 hover:text-purple-300 underline text-sm"
-                                  >
-                                    View Video Link ↗
-                                  </a>
-                                )}
-                              </div>
-                            ) : approval.proof_link ? (
+                          {/* Proof thumbnails */}
+                          <div className="flex items-start gap-2 flex-shrink-0">
+                            {record.proof_url && (
+                              <button onClick={() => setLightboxImage(record.proof_url)} className="block">
+                                <img
+                                  src={record.proof_url}
+                                  alt="Proof"
+                                  className="w-20 h-20 object-cover rounded border border-gray-600 hover:border-purple-500 transition-colors cursor-pointer"
+                                />
+                              </button>
+                            )}
+                            {record.proof_url2 && (
+                              <button onClick={() => setLightboxImage(record.proof_url2)} className="block">
+                                <img
+                                  src={record.proof_url2}
+                                  alt="Proof 2"
+                                  className="w-20 h-20 object-cover rounded border border-gray-600 hover:border-purple-500 transition-colors cursor-pointer"
+                                />
+                              </button>
+                            )}
+                            {!record.proof_url && !record.proof_url2 && (
+                              <span className="text-xs text-gray-600 italic">Images purged</span>
+                            )}
+                            {record.proof_link && (
                               <a
-                                href={approval.proof_link}
+                                href={record.proof_link}
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                className="text-purple-400 hover:text-purple-300 underline text-sm"
+                                className="text-purple-400 hover:text-purple-300 underline text-sm self-center"
                               >
-                                View Video Link ↗
+                                Video ↗
                               </a>
-                            ) : approval.proof_url ? (
-                              <button onClick={() => setLightboxImage(approval.proof_url)} className="text-purple-400 hover:text-purple-300 underline text-sm">
-                                View Proof
-                              </button>
-                            ) : null}
-                          </div>
-
-                          <div className="flex-1" />
-
-                          {/* Actions */}
-                          <div className="flex items-center gap-2 flex-shrink-0">
-                            {approval.restricted_submission && (
-                              <>
-                                {/* Warn / Ban */}
-                                <button
-                                  onClick={() => togglePanel(approval.id, isBan ? 'ban' : 'warn')}
-                                  className={`w-10 h-10 flex items-center justify-center rounded-lg transition-colors ${
-                                    panelOpen && panelAction === (isBan ? 'ban' : 'warn')
-                                      ? (isBan ? 'bg-red-800' : 'bg-orange-600')
-                                      : (isBan ? 'bg-red-700 hover:bg-red-800' : 'bg-orange-500 hover:bg-orange-600')
-                                  }`}
-                                  title={isBan ? 'Ban user' : 'Warn user'}
-                                >
-                                  {isBan ? (
-                                    <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                                        d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
-                                    </svg>
-                                  ) : (
-                                    <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                                        d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                                    </svg>
-                                  )}
-                                </button>
-
-                                {/* Downgrade */}
-                                <button
-                                  onClick={() => togglePanel(approval.id, 'downgrade')}
-                                  className={`w-10 h-10 flex items-center justify-center rounded-lg border transition-colors ${
-                                    panelOpen && panelAction === 'downgrade'
-                                      ? 'bg-blue-700 border-blue-600'
-                                      : 'bg-gray-700 border-gray-600 hover:bg-gray-600 hover:border-gray-500'
-                                  }`}
-                                  title="Downgrade to normal submission"
-                                >
-                                  <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                                      d="M19 14l-7 7m0 0l-7-7m7 7V3" />
-                                  </svg>
-                                </button>
-
-                                <div className="w-px h-8 bg-gray-600 mx-1" />
-                              </>
                             )}
-                            <button
-                              onClick={() => handleHistoricalApprove(approval.id)}
-                              className="w-10 h-10 flex items-center justify-center bg-green-600 hover:bg-green-700 rounded-lg transition-colors"
-                              title="Approve"
-                            >
-                              <svg className="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 20 20">
-                                <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                              </svg>
-                            </button>
-                            <button
-                              onClick={() => togglePanel(approval.id, 'reject')}
-                              className={`w-10 h-10 flex items-center justify-center rounded-lg transition-colors ${
-                                panelOpen && panelAction === 'reject' ? 'bg-red-700' : 'bg-red-600 hover:bg-red-700'
-                              }`}
-                              title="Reject"
-                            >
-                              <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                              </svg>
-                            </button>
                           </div>
                         </div>
+                      );
+                    })}
+                  </div>
 
-                        {/* Expanded Action Panel */}
-                        {panelOpen && (
-                          <div className="px-4 pb-4 bg-gray-800">
-                            <div className="p-4 rounded-lg border border-gray-600">
-                              <label className="block text-sm font-medium text-gray-300 mb-2">
-                                {panelAction === 'reject' && 'Rejection Notes'}
-                                {panelAction === 'downgrade' && 'Downgrade Notes - accept submission, but as non-restricted'}
-                                {panelAction === 'warn' && 'Warning Message - give a strike to a user, reject submission'}
-                                {panelAction === 'ban' && "Ban Reason - this will revoke the user's ability to submit to the restricted challenge, reject submission"}
-                              </label>
-                              <textarea
-                                value={actionNotes[approval.id] || ''}
-                                onChange={(e) => handleNoteChange(approval.id, e.target.value)}
-                                placeholder={
-                                  panelAction === 'reject' ? 'Enter reason for rejection...' :
-                                  panelAction === 'downgrade' ? 'Explain why this is being downgraded to a normal submission...' :
-                                  panelAction === 'warn' ? 'Enter warning message for the user...' :
-                                  'Enter reason for ban...'
-                                }
-                                className="w-full p-3 bg-gray-700 text-white rounded-lg border border-gray-600 focus:border-purple-500 focus:outline-none mb-3"
-                                rows={3}
-                              />
-                              <div className="flex justify-end">
-                                <button
-                                  onClick={() => {
-                                    if (panelAction === 'reject') handleHistoricalReject(approval.id);
-                                    else handleHistoricalRestrictedAction(approval.id, panelAction);
-                                  }}
-                                  disabled={!actionNotes[approval.id]?.trim()}
-                                  className={`px-4 py-2 text-white rounded-lg font-medium transition-colors disabled:bg-gray-600 disabled:cursor-not-allowed ${
-                                    panelAction === 'reject' ? 'bg-red-600 hover:bg-red-700' :
-                                    panelAction === 'downgrade' ? 'bg-blue-600 hover:bg-blue-700' :
-                                    panelAction === 'warn' ? 'bg-orange-500 hover:bg-orange-600' :
-                                    'bg-red-700 hover:bg-red-800'
-                                  }`}
-                                >
-                                  {panelAction === 'reject' && 'Submit Rejection'}
-                                  {panelAction === 'downgrade' && 'Downgrade Submission'}
-                                  {panelAction === 'warn' && 'Issue Warning'}
-                                  {panelAction === 'ban' && 'Ban User'}
-                                </button>
-                              </div>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
+                  {/* Load more */}
+                  {historyHasMore && (
+                    <div className="p-4 text-center">
+                      <button
+                        onClick={() => loadHistory(historyPage + 1, true)}
+                        disabled={historyLoading}
+                        className="px-6 py-2 bg-gray-700 hover:bg-gray-600 text-gray-300 rounded-lg text-sm disabled:opacity-50"
+                      >
+                        {historyLoading ? 'Loading...' : 'Load more'}
+                      </button>
+                    </div>
+                  )}
+                </>
               )}
             </div>
           )}

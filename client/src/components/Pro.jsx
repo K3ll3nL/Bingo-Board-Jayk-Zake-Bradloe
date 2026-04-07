@@ -72,7 +72,7 @@ const Warn = ({ children }) => (
 
 // ── Main ─────────────────────────────────────────────────────────────────────
 const Pro = () => {
-  const { user, isPro } = useAuth();
+  const { user, isPro, isModerator } = useAuth();
   const navigate = useNavigate();
 
   // undefined = loading, null = no key, object = has key
@@ -84,6 +84,8 @@ const Pro = () => {
   const [lbPeriod, setLbPeriod]   = useState('monthly');
   const [lbLimit, setLbLimit]     = useState(10);
   const [lbPin, setLbPin]         = useState(true);
+  const [aqLimit, setAqLimit]     = useState(5);
+  const [aqNames, setAqNames]     = useState(true);
 
   const origin   = window.location.origin;
   const keyValue = keyInfo?.key_value ?? null;
@@ -96,6 +98,10 @@ const Pro = () => {
   const lbUrl = hasKey
     ? `${origin}/overlay/leaderboard?key=${keyValue}&period=${lbPeriod}&limit=${lbLimit}${lbPin ? '' : '&pin=0'}`
     : `${origin}/overlay/leaderboard?key=generate-your-key&period=${lbPeriod}&limit=${lbLimit}${lbPin ? '' : '&pin=0'}`;
+
+  const aqUrl = hasKey
+    ? `${origin}/overlay/approvals?key=${keyValue}&limit=${aqLimit}${aqNames ? '' : '&show_names=0'}`
+    : `${origin}/overlay/approvals?key=generate-your-key&limit=${aqLimit}${aqNames ? '' : '&show_names=0'}`;
 
   useEffect(() => { if (user) loadKey(); }, [user]);
 
@@ -313,6 +319,62 @@ const Pro = () => {
             </Warn>
           </div>
         </section>
+
+        {/* ── Pending Approvals Overlay (mod only) ── */}
+        {isModerator && (
+          <section className="rounded-2xl shadow-xl overflow-hidden" style={{ backgroundColor: '#35373b', border: '1px solid #4b5563' }}>
+            <div className="h-1 bg-gradient-to-r from-red-600 via-orange-500 to-red-400" />
+            <div className="px-6 py-5 space-y-4">
+              <div>
+                <h2 className="text-base text-white">Pending Approvals Overlay <span className="text-xs font-semibold ml-1 px-1.5 py-0.5 rounded" style={{ backgroundColor: 'rgba(239,68,68,0.15)', color: '#f87171', border: '1px solid rgba(239,68,68,0.3)' }}>Mod only</span></h2>
+                <p className="text-xs text-gray-400 mt-0.5">Shows a queue of pending submissions. Disappears automatically when the queue is empty.</p>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Max items shown</label>
+                  <select
+                    value={aqLimit}
+                    onChange={e => setAqLimit(Number(e.target.value))}
+                    className="w-full px-3 py-2 rounded-lg text-sm text-white outline-none focus:ring-2 focus:ring-purple-500"
+                    style={{ backgroundColor: '#2a2d31', border: '1px solid #374151' }}
+                  >
+                    {[3, 5, 7, 10].map(n => <option key={n} value={n}>{n} items</option>)}
+                  </select>
+                </div>
+                <div className="flex items-end pb-0.5">
+                  <button
+                    onClick={() => setAqNames(v => !v)}
+                    className="flex items-center gap-3 w-full px-4 py-3 rounded-lg text-left transition-all"
+                    style={{
+                      backgroundColor: aqNames ? 'rgba(124,58,237,0.15)' : '#2a2d31',
+                      border: `1.5px solid ${aqNames ? '#7c3aed' : '#374151'}`,
+                    }}
+                  >
+                    <div
+                      className="w-9 h-5 rounded-full flex-shrink-0 relative transition-colors"
+                      style={{ backgroundColor: aqNames ? '#7c3aed' : '#374151' }}
+                    >
+                      <div
+                        className="absolute top-0.5 w-4 h-4 rounded-full bg-white transition-transform"
+                        style={{ transform: aqNames ? 'translateX(18px)' : 'translateX(2px)' }}
+                      />
+                    </div>
+                    <div>
+                      <div className="text-sm font-semibold" style={{ color: aqNames ? '#a78bfa' : '#d1d5db' }}>Show names</div>
+                      <div className="text-xs text-gray-500">Display submitter names</div>
+                    </div>
+                  </button>
+                </div>
+              </div>
+
+              <UrlRow label="Browser source URL (moderator key required)" url={aqUrl} disabled={!hasKey} />
+              <Warn>
+                This overlay requires your API key to belong to a moderator account. Non-moderator keys will receive a 403 error.
+              </Warn>
+            </div>
+          </section>
+        )}
 
         {/* Regenerate footer */}
         <div className="text-center pb-2">

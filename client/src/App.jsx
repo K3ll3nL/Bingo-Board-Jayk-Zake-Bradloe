@@ -17,6 +17,7 @@ import About from './components/About';
 import Pro from './components/Pro';
 import OverlayBoard from './components/OverlayBoard';
 import OverlayLeaderboard from './components/OverlayLeaderboard';
+import OverlayApprovals from './components/OverlayApprovals';
 import BadgeUpload from './components/BadgeUpload';
 import PokemonGameManager from './components/PokemonGameManager';
 import FeedbackModal from './components/FeedbackModal';
@@ -343,6 +344,7 @@ function App() {
           <Route path="/pro" element={<Pro />} />
           <Route path="/overlay/board" element={<OverlayBoard />} />
           <Route path="/overlay/leaderboard" element={<OverlayLeaderboard />} />
+          <Route path="/overlay/approvals" element={<OverlayApprovals />} />
           <Route path="/badge-upload" element={<BadgeUpload />} />
           <Route path="/pokemon-game-manager" element={<PokemonGameManager />} />
           <Route path="/feedback" element={<ModFeedback />} />
