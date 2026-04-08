@@ -4887,7 +4887,7 @@ app.get('/api/overlay/approvals', async (req, res) => {
 
     const { data: approvals } = await supabase
       .from('approvals')
-      .select('id, created_at, pokemon_id, restricted_submission, historical, users!approvals_user_id_fkey(display_name), pokemon_master!approvals_pokemon_id_fkey(name, img_url)')
+      .select('id, created_at, pokemon_id, restricted_submission, historical, game, users!approvals_user_id_fkey(display_name), pokemon_master!approvals_pokemon_id_fkey(name, img_url)')
       .eq('historical', false)
       .order('created_at', { ascending: true });
 
@@ -4897,6 +4897,7 @@ app.get('/api/overlay/approvals', async (req, res) => {
       pokemon_img: a.pokemon_master?.img_url || null,
       display_name: a.users?.display_name || 'Unknown',
       restricted: !!a.restricted_submission,
+      game: a.game || null,
       created_at: a.created_at,
     }));
 
@@ -4904,6 +4905,34 @@ app.get('/api/overlay/approvals', async (req, res) => {
   } catch (err) {
     console.error('Error fetching overlay approvals:', err);
     res.status(500).json({ error: 'Failed to fetch pending approvals' });
+  }
+});
+
+// POST /api/overlay/test-event?key=pb_xxx — mod API key required
+// Fires a queue-changed broadcast so the approvals overlay can be tested on stream.
+app.post('/api/overlay/test-event', async (req, res) => {
+  try {
+    const userId = await validateApiKey(req.query.key);
+    if (!userId) return res.status(401).json({ error: 'Invalid or missing API key' });
+
+    const { data: mod } = await supabase.from('moderators').select('id').eq('id', userId).single();
+    if (!mod) return res.status(403).json({ error: 'Moderator API key required' });
+
+    await broadcastUpdate('approvals-updates', 'queue-changed', {
+      test: true,
+      item: {
+        id: 0,
+        pokemon_name: 'Charizard',
+        pokemon_img: 'https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/6.png',
+        display_name: 'TestUser',
+        restricted: false,
+        game: 'Scarlet/Violet',
+      },
+    });
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Error sending test overlay event:', err);
+    res.status(500).json({ error: 'Failed to send test event' });
   }
 });
 

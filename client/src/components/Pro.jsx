@@ -86,6 +86,7 @@ const Pro = () => {
   const [lbPin, setLbPin]         = useState(true);
   const [aqLimit, setAqLimit]     = useState(5);
   const [aqNames, setAqNames]     = useState(true);
+  const [testEventState, setTestEventState] = useState('idle'); // 'idle' | 'loading' | 'sent' | 'error'
 
   const origin   = window.location.origin;
   const keyValue = keyInfo?.key_value ?? null;
@@ -369,6 +370,32 @@ const Pro = () => {
               </div>
 
               <UrlRow label="Browser source URL (moderator key required)" url={aqUrl} disabled={!hasKey} />
+              <div className="flex items-center gap-3">
+                <button
+                  disabled={!hasKey || testEventState === 'loading'}
+                  onClick={async () => {
+                    setTestEventState('loading');
+                    try {
+                      const res = await fetch(`${API_BASE_URL}/overlay/test-event?key=${encodeURIComponent(keyValue)}`, { method: 'POST' });
+                      setTestEventState(res.ok ? 'sent' : 'error');
+                    } catch {
+                      setTestEventState('error');
+                    }
+                    setTimeout(() => setTestEventState('idle'), 3000);
+                  }}
+                  className="px-4 py-2 rounded-lg text-sm font-semibold transition-all"
+                  style={{
+                    backgroundColor: testEventState === 'sent' ? 'rgba(34,197,94,0.15)' : testEventState === 'error' ? 'rgba(239,68,68,0.15)' : 'rgba(124,58,237,0.15)',
+                    border: `1.5px solid ${testEventState === 'sent' ? '#22c55e' : testEventState === 'error' ? '#ef4444' : '#7c3aed'}`,
+                    color: testEventState === 'sent' ? '#86efac' : testEventState === 'error' ? '#fca5a5' : '#a78bfa',
+                    opacity: (!hasKey || testEventState === 'loading') ? 0.5 : 1,
+                    cursor: (!hasKey || testEventState === 'loading') ? 'not-allowed' : 'pointer',
+                  }}
+                >
+                  {testEventState === 'loading' ? 'Sending…' : testEventState === 'sent' ? 'Event sent!' : testEventState === 'error' ? 'Failed' : 'Send test notification'}
+                </button>
+                <span className="text-xs text-gray-500">Fires a real queue-changed event — your overlay will drop down if it's live.</span>
+              </div>
               <Warn>
                 This overlay requires your API key to belong to a moderator account. Non-moderator keys will receive a 403 error.
               </Warn>

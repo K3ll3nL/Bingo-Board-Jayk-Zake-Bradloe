@@ -1,5 +1,6 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { createClient } from '@supabase/supabase-js';
+import faviconImage from '/logo-16x16.png';
 
 const supabase = createClient(
   import.meta.env.VITE_SUPABASE_URL,
@@ -9,178 +10,180 @@ const supabase = createClient(
 const API_BASE_URL = import.meta.env.DEV ? 'http://localhost:3000/api' : '/api';
 
 // URL params:
-//   ?key=pb_xxx          — moderator API key (required)
-//   ?limit=5             — max items shown (default 5, max 10)
-//   ?show_names=0        — hide submitter names (default 1)
+//   ?key=pb_xxx      — moderator API key (required)
+//   ?show_names=0    — hide submitter names (default: show)
+//   ?duration=5      — seconds to stay visible (default 5, max 30)
+
+const DURATION_DEFAULT = 5000;
 
 const OverlayApprovals = () => {
   const params = new URLSearchParams(window.location.search);
   const apiKey = params.get('key');
-  const limit = Math.min(10, Math.max(1, parseInt(params.get('limit'), 10) || 5));
   const showNames = params.get('show_names') !== '0';
+  const duration = Math.min(30, Math.max(2, parseInt(params.get('duration'), 10) || 5)) * 1000;
 
-  const [data, setData] = useState({ count: 0, items: [] });
-  const [error, setError] = useState(null);
+  const [visible, setVisible] = useState(false);
+  const [submission, setSubmission] = useState(null);
+  const [progress, setProgress] = useState(100);
+  const dismissTimer = useRef(null);
+  const progressInterval = useRef(null);
 
-  // Force transparent background for OBS
+  // Clear all backgrounds set by index.css so OBS sees transparency
   useEffect(() => {
-    document.documentElement.style.background = 'transparent';
-    document.body.style.background = 'transparent';
+    const els = [document.documentElement, document.body, document.getElementById('root')];
+    els.forEach(el => { if (el) el.style.backgroundColor = 'transparent'; });
     return () => {
-      document.documentElement.style.background = '';
-      document.body.style.background = '';
+      els.forEach(el => { if (el) el.style.backgroundColor = ''; });
     };
   }, []);
 
-  const fetchApprovals = useCallback(async () => {
-    if (!apiKey) { setError('No API key provided.'); return; }
-    try {
-      const res = await fetch(`${API_BASE_URL}/overlay/approvals?key=${encodeURIComponent(apiKey)}`, { cache: 'no-store' });
-      if (!res.ok) {
-        const d = await res.json().catch(() => ({}));
-        setError(d.error || 'Failed to load approvals.');
+  const showBanner = useCallback(async (testItem = null) => {
+    let item = testItem;
+
+    if (!item) {
+      if (!apiKey) return;
+      try {
+        const res = await fetch(
+          `${API_BASE_URL}/overlay/approvals?key=${encodeURIComponent(apiKey)}`,
+          { cache: 'no-store' }
+        );
+        if (!res.ok) return;
+        const json = await res.json();
+        if (!json.count) return;
+        item = json.items[json.items.length - 1];
+      } catch {
         return;
       }
-      const json = await res.json();
-      setData(json);
-      setError(null);
-    } catch {
-      setError('Failed to load approvals.');
     }
-  }, [apiKey]);
 
-  // Initial load
-  useEffect(() => { fetchApprovals(); }, [fetchApprovals]);
+    setSubmission(item);
+    setVisible(true);
+    setProgress(100);
 
-  // Live updates + polling fallback
+    if (dismissTimer.current) clearTimeout(dismissTimer.current);
+    if (progressInterval.current) clearInterval(progressInterval.current);
+
+    const start = Date.now();
+    progressInterval.current = setInterval(() => {
+      const elapsed = Date.now() - start;
+      setProgress(Math.max(0, 100 - (elapsed / duration) * 100));
+    }, 50);
+
+    dismissTimer.current = setTimeout(() => {
+      setVisible(false);
+      clearInterval(progressInterval.current);
+    }, duration);
+  }, [apiKey, duration]);
+
   useEffect(() => {
+    if (!apiKey) return;
     const channel = supabase
-      .channel('approvals-updates-overlay')
-      .on('broadcast', { event: 'queue-changed' }, () => { fetchApprovals(); })
+      .channel('approvals-updates')
+      .on('broadcast', { event: 'queue-changed' }, (msg) => {
+        showBanner(msg?.payload?.test ? msg.payload.item : null);
+      })
       .subscribe();
-
-    const poll = setInterval(fetchApprovals, 30_000);
     return () => {
       supabase.removeChannel(channel);
-      clearInterval(poll);
+      if (dismissTimer.current) clearTimeout(dismissTimer.current);
+      if (progressInterval.current) clearInterval(progressInterval.current);
     };
-  }, [fetchApprovals]);
+  }, [showBanner, apiKey]);
 
-  if (error) {
-    return (
-      <div style={{ fontFamily: 'sans-serif', color: '#f87171', padding: '8px', fontSize: '13px' }}>
-        {error}
-      </div>
-    );
-  }
-
-  if (data.count === 0) {
-    // Show nothing when there are no pending — keeps overlay invisible
-    return null;
-  }
-
-  const displayItems = data.items.slice(0, limit);
+  const accentColor = submission?.restricted ? '#ef4444' : '#a855f7';
+  const bgColor     = submission?.restricted ? '#1a0707'  : '#0f0a1a';
 
   return (
     <div style={{
-      fontFamily: "'Segoe UI', sans-serif",
-      display: 'inline-flex',
-      flexDirection: 'column',
-      gap: '6px',
-      minWidth: '220px',
-      maxWidth: '320px',
+      position: 'fixed',
+      top: 0,
+      left: 0,
+      zIndex: 9999,
+      width: '480px',
+      transform: visible ? 'translateY(0)' : 'translateY(-100%)',
+      transition: 'transform 0.4s cubic-bezier(0.34, 1.2, 0.64, 1)',
     }}>
-      {/* Header count badge */}
       <div style={{
-        display: 'flex',
-        alignItems: 'center',
-        gap: '8px',
-        background: 'rgba(30,20,40,0.88)',
+        margin: '12px 14px 0',
         borderRadius: '10px',
-        padding: '6px 12px',
-        border: '1px solid rgba(168,85,247,0.5)',
-        backdropFilter: 'blur(6px)',
+        overflow: 'hidden',
+        boxShadow: '0 12px 40px rgba(0,0,0,0.7)',
+        borderLeft: `5px solid ${accentColor}`,
+        backgroundColor: bgColor,
       }}>
-        {/* Bell icon */}
-        <svg width="16" height="16" fill="none" stroke="#c084fc" strokeWidth="2" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
-        </svg>
-        <span style={{ color: '#e2e8f0', fontWeight: 700, fontSize: '14px' }}>
-          {data.count} Pending
-        </span>
-      </div>
+        {/* Main row */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '16px', padding: '14px 18px', position: 'relative' }}>
 
-      {/* Item list */}
-      {displayItems.map((item, i) => (
-        <div key={item.id ?? i} style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: '8px',
-          background: 'rgba(20,15,30,0.82)',
-          borderRadius: '8px',
-          padding: '5px 10px',
-          border: item.restricted
-            ? '1px solid rgba(220,60,40,0.45)'
-            : '1px solid rgba(100,80,140,0.4)',
-          backdropFilter: 'blur(4px)',
-        }}>
-          {item.pokemon_img && (
+          {/* Pokemon sprite */}
+          {submission?.pokemon_img && (
             <img
-              src={item.pokemon_img}
-              alt={item.pokemon_name}
-              style={{ width: 32, height: 32, objectFit: 'contain', imageRendering: 'pixelated' }}
+              src={submission.pokemon_img}
+              alt={submission.pokemon_name}
+              style={{ width: 96, height: 96, imageRendering: 'pixelated', flexShrink: 0 }}
             />
           )}
-          <div style={{ flex: 1, overflow: 'hidden' }}>
-            <div style={{
-              color: '#f1f5f9',
-              fontSize: '13px',
-              fontWeight: 600,
-              whiteSpace: 'nowrap',
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-            }}>
-              {item.pokemon_name}
-            </div>
-            {showNames && (
-              <div style={{
-                color: '#94a3b8',
-                fontSize: '11px',
-                whiteSpace: 'nowrap',
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
+
+          {/* Text */}
+          <div style={{ flex: 1, minWidth: 0 }}>
+            {/* Badge pill */}
+            <div style={{ marginBottom: '5px' }}>
+              <span style={{
+                backgroundColor: submission?.restricted ? '#450a0a' : '#3b0764',
+                color: submission?.restricted ? '#fca5a5' : '#e9d5ff',
+                fontSize: '12px',
+                fontWeight: 600,
+                padding: '2px 9px',
+                borderRadius: '4px',
               }}>
-                {item.display_name}
-              </div>
+                {submission?.restricted ? 'Restricted Submission' : 'New Submission'}
+              </span>
+            </div>
+
+            {/* Pokemon name */}
+            <p style={{ color: '#f1f5f9', fontWeight: 700, fontSize: '18px', margin: 0, lineHeight: 1.2 }}>
+              {submission?.pokemon_name ?? ''}
+            </p>
+            {/* Submitter — brighter to distinguish from game */}
+            {showNames && submission?.display_name && (
+              <p style={{ color: '#cbd5e1', fontWeight: 500, fontSize: '14px', margin: '3px 0 0', lineHeight: 1.2 }}>
+                {submission.display_name}
+              </p>
+            )}
+            {/* Game — dimmer secondary info */}
+            {submission?.game && (
+              <p style={{ color: '#64748b', fontSize: '12px', margin: '2px 0 0', lineHeight: 1.2 }}>
+                {submission.game}
+              </p>
             )}
           </div>
-          {item.restricted && (
-            <span style={{
-              fontSize: '10px',
-              fontWeight: 700,
-              color: '#f87171',
-              background: 'rgba(220,60,40,0.2)',
-              borderRadius: '4px',
-              padding: '1px 5px',
-              border: '1px solid rgba(220,60,40,0.4)',
-              flexShrink: 0,
-            }}>
-              R
-            </span>
-          )}
-        </div>
-      ))}
 
-      {data.count > limit && (
-        <div style={{
-          color: '#94a3b8',
-          fontSize: '11px',
-          textAlign: 'center',
-          padding: '2px 0',
-        }}>
-          +{data.count - limit} more
+          {/* Site branding — pinned bottom-right */}
+          <div style={{
+            position: 'absolute',
+            bottom: '10px',
+            right: '14px',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '5px',
+            opacity: 0.45,
+          }}>
+            <img src={faviconImage} alt="" style={{ width: 14, height: 14 }} />
+            <span style={{ color: '#a78bfa', fontSize: '11px', fontWeight: 600, whiteSpace: 'nowrap' }}>
+              Pokéboard
+            </span>
+          </div>
         </div>
-      )}
+
+        {/* Progress bar */}
+        <div style={{ height: '3px', backgroundColor: 'rgba(255,255,255,0.08)' }}>
+          <div style={{
+            height: '100%',
+            width: `${progress}%`,
+            backgroundColor: accentColor,
+            transition: 'width 0.05s linear',
+          }} />
+        </div>
+      </div>
     </div>
   );
 };
