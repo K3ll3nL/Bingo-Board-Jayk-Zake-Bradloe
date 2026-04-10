@@ -468,6 +468,7 @@ const Profile = () => {
         <PokemonModal
           pokemon={selectedPokemon}
           onClose={() => setSelectedPokemon(null)}
+          monthId={selectedMonthId}
         />
       )}
 

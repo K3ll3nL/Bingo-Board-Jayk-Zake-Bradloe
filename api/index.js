@@ -1671,23 +1671,23 @@ app.get('/api/profile/:userId/board', async (req, res) => {
   }
 });
 
-// Get list of past months a user participated in (has entries)
+// Get list of all past months that have a pokemon pool (strictly before the active month)
 app.get('/api/profile/:userId/past-months', async (req, res) => {
   try {
-    const { userId } = req.params;
     const activeMonth = await getActiveMonth(null);
     const activeMonthId = activeMonth?.id;
 
-    const { data: entryRows, error: entriesError } = await supabase
-      .from('entries')
+    if (!activeMonthId) return res.json([]);
+
+    // Only months that have at least one pokemon in their pool
+    const { data: poolRows, error: poolError } = await supabase
+      .from('monthly_pokemon_pool')
       .select('month_id')
-      .eq('user_id', userId);
+      .lt('month_id', activeMonthId);
 
-    if (entriesError) throw entriesError;
+    if (poolError) throw poolError;
 
-    const monthIds = [...new Set((entryRows || []).map(e => e.month_id))]
-      .filter(id => id !== activeMonthId);
-
+    const monthIds = [...new Set((poolRows || []).map(r => r.month_id))];
     if (monthIds.length === 0) return res.json([]);
 
     const { data: months, error: monthsError } = await supabase
@@ -2551,6 +2551,7 @@ app.get('/api/pokemon/:pokemonId/recent-catches', async (req, res) => {
         id,
         created_at,
         user_id,
+        restricted_submission,
         users!entries_user_id_fkey (
           display_name,
           avatar_url
@@ -2623,8 +2624,7 @@ app.get('/api/pokemon/:pokemonId/recent-catches', async (req, res) => {
       display_name: entry.users?.display_name || 'Unknown',
       avatar_url: entry.users?.avatar_url,
       points: pointsMap[entry.user_id] || 0,
-      achievements: achievementsMap[entry.user_id] || { row: false, column: false, x: false, blackout: false },
-      hex_code: hexCodeMap[entry.user_id] || '#9147ff'
+      restricted_submission: !!entry.restricted_submission,
     }));
     
     console.log('Returning', formattedEntries.length, 'entries');

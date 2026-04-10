@@ -60,6 +60,14 @@ const HistoricalUploadSection = () => {
   }, []);
 
   useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const pokemonId = params.get('pokemon');
+    if (pokemonId && pokemon?.length > 0) {
+      setSelectedPokemon(pokemonId);
+    }
+  }, [pokemon]);
+
+  useEffect(() => {
     const handleClickOutside = (e) => {
       if (dropdownOpen && !e.target.closest('.hist-pokemon-dropdown')) setDropdownOpen(false);
       if (gameDropdownOpen && !e.target.closest('.hist-game-dropdown')) setGameDropdownOpen(false);
@@ -586,7 +594,10 @@ const Upload = () => {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(false);
-  const [isHistoricalMode, setIsHistoricalMode] = useState(false);
+  const [isHistoricalMode, setIsHistoricalMode] = useState(() => {
+    const params = new URLSearchParams(window.location.search);
+    return params.get('historical') === 'true';
+  });
 
   useEffect(() => {
     return () => {
@@ -995,9 +1006,7 @@ const Upload = () => {
                             #{String(poke.national_dex_id).padStart(4, '0')} — {poke.name}
                           </span>
                           {poke.has_standard_entry && (
-                            <svg className="w-3.5 h-3.5 flex-shrink-0 text-[#e05a4e]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-                            </svg>
+                            <img src={restrictedIcon} alt="" className="w-3.5 h-3.5 flex-shrink-0 object-contain" />
                           )}
                         </button>
                       ))}

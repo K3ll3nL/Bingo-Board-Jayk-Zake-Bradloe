@@ -1,9 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import AchievementIcon from './AchievementIcon';
 import restrictedIconSrc from '../Icons/restricted-icon.png';
 
-const PokemonModal = ({ pokemon, onClose }) => {
+const PokemonModal = ({ pokemon, onClose, monthId = null }) => {
   const navigate = useNavigate();
   const [recentCatches, setRecentCatches] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -39,7 +38,10 @@ const PokemonModal = ({ pokemon, onClose }) => {
   };
 
   const handleSubmitClick = () => {
-    navigate(`/upload?pokemon=${pokemon.pokemon_id}`);
+    const url = monthId
+      ? `/upload?pokemon=${pokemon.pokemon_id}&historical=true`
+      : `/upload?pokemon=${pokemon.pokemon_id}`;
+    navigate(url);
     onClose();
   };
 
@@ -159,20 +161,9 @@ const PokemonModal = ({ pokemon, onClose }) => {
                   </div>
 
                   <div className="flex items-center gap-2">
-                    <div className="flex items-center gap-1">
-                      {['row', 'column', 'x', 'blackout'].map(type => (
-                        entry.achievements?.[type] && (
-                          <AchievementIcon
-                            key={type}
-                            type={type}
-                            restricted={entry.achievements?.[`${type}_restricted`] ?? false}
-                            color={entry.hex_code || '#9147ff'}
-                            svgClassName={type === 'blackout' ? 'w-4 h-4' : 'w-3 h-3'}
-                          />
-                        )
-                      ))}
-                    </div>
-
+                    {entry.restricted_submission && (
+                      <img src={restrictedIconSrc} alt="Restricted" className="w-5 h-5 object-contain" />
+                    )}
                     <span className="text-xl font-bold text-purple-400">
                       {entry.points || 0}
                     </span>
