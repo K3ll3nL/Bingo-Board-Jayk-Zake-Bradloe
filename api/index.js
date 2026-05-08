@@ -3355,7 +3355,7 @@ async function pickRandomPokemonForPosition(monthId, position) {
   // All eligible pokemon (including family_id and category flags for exclusion logic)
   const { data: allPokemon } = await supabase
     .from('pokemon_master')
-    .select('id, name, national_dex_id, family_id, legendary, baby, ultra_beast, paradox, starter, fossil, regional_alt')
+    .select('id, name, national_dex_id, family_id, legendary, baby, ultra_beast, paradox, starter, fossil, regional_alt, pseudo_legendary')
     .eq('shiny_available', true);
 
   const pkFamilyMap = Object.fromEntries((allPokemon || []).map(p => [p.id, p.family_id]));
@@ -3402,7 +3402,7 @@ async function pickRandomPokemonForPosition(monthId, position) {
   (history || []).forEach(r => { usageCount[r.pokemon_id] = (usageCount[r.pokemon_id] || 0) + 1; });
 
   // Calculate current board category distribution
-  const categories = ['legendary', 'baby', 'ultra_beast', 'paradox', 'starter', 'fossil', 'regional_alt'];
+  const categories = ['legendary', 'baby', 'ultra_beast', 'paradox', 'starter', 'fossil', 'regional_alt', 'pseudo_legendary'];
   const boardCategoryCounts = {};
   categories.forEach(cat => { boardCategoryCounts[cat] = 0; });
 
@@ -3424,9 +3424,20 @@ async function pickRandomPokemonForPosition(monthId, position) {
     p.family_id == null || (!boardFamilyIds.has(p.family_id) && !lastMonthFamilyIds.has(p.family_id));
 
   const isWithinCategoryBounds = p => {
+    // Check upper bounds (ceiling)
     for (const cat of categories) {
       if (p[cat] === true && boardCategoryCounts[cat] >= thresholds[cat].ceiling) {
         return false;
+      }
+    }
+    // Check lower bounds (floor) - only 1 slot being replaced, so just check we're not below floor
+    for (const cat of categories) {
+      if (p[cat] !== true) {
+        const currentCount = boardCategoryCounts[cat];
+        if (currentCount < thresholds[cat].floor) {
+          // Can't afford to not pick from this category
+          return false;
+        }
       }
     }
     return true;
@@ -3463,7 +3474,7 @@ async function calculateCategoryThresholds() {
 
   const { data: allPokemon } = await supabase
     .from('pokemon_master')
-    .select('id, legendary, baby, ultra_beast, paradox, starter, fossil, regional_alt')
+    .select('id, legendary, baby, ultra_beast, paradox, starter, fossil, regional_alt, pseudo_legendary')
     .eq('shiny_available', true);
 
   if (!allPokemon || allPokemon.length === 0) {
@@ -3473,7 +3484,7 @@ async function calculateCategoryThresholds() {
   const totalPokemon = allPokemon.length;
   const boardCapacity = Math.floor(totalPokemon / 24);
 
-  const categories = ['legendary', 'baby', 'ultra_beast', 'paradox', 'starter', 'fossil', 'regional_alt'];
+  const categories = ['legendary', 'baby', 'ultra_beast', 'paradox', 'starter', 'fossil', 'regional_alt', 'pseudo_legendary'];
   const thresholds = {};
 
   categories.forEach(cat => {
@@ -3500,7 +3511,7 @@ async function generateNewPoolForMonth(monthId) {
   // Pull every shiny-available pokemon with category flags
   const { data: allPokemon } = await supabase
     .from('pokemon_master')
-    .select('id, name, national_dex_id, family_id, genderless, custom_gender_code, has_gender_difference, has_major_gender_difference, form_id, forms_count, legendary, baby, ultra_beast, paradox, starter, fossil, regional_alt')
+    .select('id, name, national_dex_id, family_id, genderless, custom_gender_code, has_gender_difference, has_major_gender_difference, form_id, forms_count, legendary, baby, ultra_beast, paradox, starter, fossil, regional_alt, pseudo_legendary')
     .eq('shiny_available', true);
 
   if (!allPokemon || allPokemon.length === 0) throw new Error('No pokemon available');
@@ -3537,51 +3548,105 @@ async function generateNewPoolForMonth(monthId) {
     }
   }
 
-  const categories = ['legendary', 'baby', 'ultra_beast', 'paradox', 'starter', 'fossil', 'regional_alt'];
+  const categories = ['legendary', 'baby', 'ultra_beast', 'paradox', 'starter', 'fossil', 'regional_alt', 'pseudo_legendary'];
   const { thresholds } = await calculateCategoryThresholds();
+
+  // Pre-build maps for O(1) lookups
+  const familyMap = Object.fromEntries(allPokemon.map(p => [p.id, p.family_id]));
+  const categoryMaps = {};
+  categories.forEach(cat => {
+    categoryMaps[cat] = new Set(allPokemon.filter(p => p[cat] === true).map(p => p.id));
+  });
 
   // Track category counts on current board
   const selectedCounts = {};
   categories.forEach(cat => { selectedCounts[cat] = 0; });
 
-  function isWithinCategoryBounds(pokemon) {
+  // Calculate initial floor debt: total categories needed to reach all floors
+  let floorDebt = 0;
+  categories.forEach(cat => {
+    const needed = Math.max(0, thresholds[cat].floor - selectedCounts[cat]);
+    floorDebt += needed;
+  });
+
+  function isWithinCategoryBounds(pokemon, remainingSlots) {
+    const slotsAfterThisPick = remainingSlots - 1;
+
+    // Check ceilings: if pokemon has a category at ceiling, reject
     for (const cat of categories) {
-      if (pokemon[cat] === true) {
-        // Adding this pokemon would exceed ceiling for this category
-        if (selectedCounts[cat] >= thresholds[cat].ceiling) {
+      if (categoryMaps[cat].has(pokemon.id) && selectedCounts[cat] >= thresholds[cat].ceiling) {
+        return false;
+      }
+    }
+
+    // Check floors: if we need a category and this pokemon doesn't have it, verify we have slots
+    for (const cat of categories) {
+      if (!categoryMaps[cat].has(pokemon.id)) {
+        const needed = thresholds[cat].floor - selectedCounts[cat];
+        if (needed > 0 && needed > slotsAfterThisPick) {
           return false;
         }
       }
     }
+
+    // CRITICAL: Check if we have enough slots left for remaining floor debt
+    if (slotsAfterThisPick < floorDebt) {
+      // Running low on slots — this pokemon MUST help reduce debt
+      let helpfulCategories = 0;
+      for (const cat of categories) {
+        if (categoryMaps[cat].has(pokemon.id) && selectedCounts[cat] < thresholds[cat].floor) {
+          helpfulCategories++;
+        }
+      }
+
+      if (helpfulCategories === 0) {
+        return false;
+      }
+    }
+
     return true;
   }
 
   function updateCategoryCounts(pokemon) {
-    categories.forEach(cat => {
-      if (pokemon[cat] === true) {
+    for (const cat of categories) {
+      if (categoryMaps[cat].has(pokemon.id)) {
+        if (selectedCounts[cat] < thresholds[cat].floor) {
+          floorDebt--;
+        }
         selectedCounts[cat]++;
       }
-    });
+    }
   }
 
   function pickWithFamilyAndCategoryExclusion(pool, count, excludedFamilies) {
     const picked = [];
     const shuffled = shuffleArray([...pool]);
+    const picked_ids = new Set();
 
     for (const p of shuffled) {
       if (picked.length >= count) break;
-      if ((p.family_id == null || !excludedFamilies.has(p.family_id)) && isWithinCategoryBounds(p)) {
+      const family_ok = p.family_id == null || !excludedFamilies.has(p.family_id);
+      const not_picked = !picked_ids.has(p.id);
+      const remaining = count - picked.length;
+
+      if (family_ok && not_picked && isWithinCategoryBounds(p, remaining)) {
         picked.push(p);
+        picked_ids.add(p.id);
         updateCategoryCounts(p);
         if (p.family_id != null) excludedFamilies.add(p.family_id);
       }
     }
 
-    // Fallback: if we couldn't fill slots with category bounds, just fill with any eligible
+    // Fallback: if we couldn't fill all slots while respecting bounds, fill with any eligible
+    // (should rarely happen if bounds are reasonable)
     for (const p of shuffled) {
       if (picked.length >= count) break;
-      if (!picked.some(pk => pk.id === p.id) && (p.family_id == null || !excludedFamilies.has(p.family_id))) {
+      const family_ok = p.family_id == null || !excludedFamilies.has(p.family_id);
+      const not_picked = !picked_ids.has(p.id);
+
+      if (family_ok && not_picked) {
         picked.push(p);
+        picked_ids.add(p.id);
         updateCategoryCounts(p);
         if (p.family_id != null) excludedFamilies.add(p.family_id);
       }
@@ -3622,11 +3687,11 @@ async function generateNewPoolForMonth(monthId) {
   // Build category distribution stats
   const categoryStats = {};
   categories.forEach(cat => {
-    const count = selectedCounts[cat];
+    const boardCount = selectedCounts[cat];
     const avg = thresholds[cat].avg;
     categoryStats[cat] = {
-      count,
-      avg: avg.toFixed(2),
+      boardCount,
+      avg,
       floor: thresholds[cat].floor,
       ceiling: thresholds[cat].ceiling,
     };
@@ -3949,7 +4014,41 @@ app.get('/api/mod/board-builder', async (req, res) => {
       }));
     }
 
-    res.json({ nextMonth, tiles });
+    // Calculate category stats: actual board distribution + expected distribution
+    const { thresholds } = await calculateCategoryThresholds();
+
+    // Count categories on current board
+    const boardCategoryCounts = {};
+    const categories = ['legendary', 'baby', 'ultra_beast', 'paradox', 'starter', 'fossil', 'regional_alt', 'pseudo_legendary'];
+    categories.forEach(cat => { boardCategoryCounts[cat] = 0; });
+
+    // Fetch pokemon data for all pokemon on the board to count categories
+    const boardPokemonIds = tiles.map(t => t.pokemon?.id || t.pokemon_id).filter(Boolean);
+    if (boardPokemonIds.length > 0) {
+      const { data: boardPokemon } = await supabase
+        .from('pokemon_master')
+        .select('id, legendary, baby, ultra_beast, paradox, starter, fossil, regional_alt, pseudo_legendary')
+        .in('id', boardPokemonIds);
+
+      (boardPokemon || []).forEach(p => {
+        categories.forEach(cat => {
+          if (p[cat] === true) boardCategoryCounts[cat]++;
+        });
+      });
+    }
+
+    // Build category stats with actual board counts + expected distribution
+    const categoryStats = {};
+    categories.forEach(cat => {
+      categoryStats[cat] = {
+        boardCount: boardCategoryCounts[cat],
+        avg: thresholds[cat].avg,
+        floor: thresholds[cat].floor,
+        ceiling: thresholds[cat].ceiling,
+      };
+    });
+
+    res.json({ nextMonth, tiles, categoryStats });
 
   } catch (err) {
     console.error('[BoardBuilder] Unexpected error:', err);
@@ -5058,8 +5157,9 @@ app.get('/api/admin/pokemon-game-slugs', async (req, res) => {
 
     const { data, error } = await supabase
       .from('pokemon_master')
-      .select('id, national_dex_id, name, game_slugs, restricted_game_slugs, shiny_available, forms_count, form_id, custom_gender_code, genderless, has_gender_difference, has_major_gender_difference, legendary, baby, ultra_beast, paradox, starter, fossil, regional_alt')
-      .order('national_dex_id', { ascending: true });
+      .select('id, national_dex_id, name, game_slugs, restricted_game_slugs, shiny_available, forms_count, form_id, custom_gender_code, genderless, has_gender_difference, has_major_gender_difference, legendary, baby, ultra_beast, paradox, starter, fossil, regional_alt, pseudo_legendary')
+      .order('national_dex_id', { ascending: true })
+      .order('form_id', { ascending: true });
 
     if (error) throw error;
     res.json(data || []);
@@ -5072,7 +5172,7 @@ app.get('/api/admin/pokemon-game-slugs', async (req, res) => {
 app.patch('/api/admin/pokemon/:id/game-slugs', async (req, res) => {
   try {
     const { id } = req.params;
-    const { game_slugs, restricted_game_slugs, shiny_available, forms_count, legendary, baby, ultra_beast, paradox, starter, fossil, regional_alt } = req.body;
+    const { game_slugs, restricted_game_slugs, shiny_available, forms_count, legendary, baby, ultra_beast, paradox, starter, fossil, regional_alt, pseudo_legendary } = req.body;
 
     const userId = await getAuthenticatedUserId(req);
     if (!userId) return res.status(401).json({ error: 'Authentication required' });
@@ -5093,6 +5193,7 @@ app.patch('/api/admin/pokemon/:id/game-slugs', async (req, res) => {
     if (typeof starter === 'boolean') updates.starter = starter;
     if (typeof fossil === 'boolean') updates.fossil = fossil;
     if (typeof regional_alt === 'boolean') updates.regional_alt = regional_alt;
+    if (typeof pseudo_legendary === 'boolean') updates.pseudo_legendary = pseudo_legendary;
 
     const { error } = await supabase
       .from('pokemon_master')

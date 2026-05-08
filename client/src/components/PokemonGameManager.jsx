@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { createClient } from '@supabase/supabase-js';
 import { ALLOWED_GAMES } from '../constants/games';
@@ -181,6 +181,7 @@ const CATEGORIES = [
   { key: 'starter', label: 'Starter' },
   { key: 'fossil', label: 'Fossil' },
   { key: 'regional_alt', label: 'Regional Variant' },
+  { key: 'pseudo_legendary', label: 'Pseudo-Legendary' },
 ];
 
 const CategoryDropdown = ({ pokemonId, data, onChange }) => {
@@ -230,11 +231,11 @@ const CategoryDropdown = ({ pokemonId, data, onChange }) => {
     <div
       ref={panelRef}
       style={panelStyle}
-      className="bg-gray-900 border border-gray-600 rounded-lg shadow-2xl overflow-y-auto max-h-64"
+      className="bg-gray-900 border border-gray-600 rounded-lg shadow-2xl overflow-y-auto max-h-96"
     >
-      <div className="space-y-1 p-2">
+      <div className="space-y-2 p-3">
         {CATEGORIES.map(cat => (
-          <label key={cat.key} className="flex items-center gap-3 px-3 py-2 rounded cursor-pointer select-none hover:bg-gray-800 transition-colors">
+          <label key={cat.key} className="flex items-center gap-3 px-3 py-2.5 rounded cursor-pointer select-none hover:bg-gray-800 transition-colors">
             <input
               type="checkbox"
               checked={data[cat.key] ?? false}
@@ -267,6 +268,128 @@ const CategoryDropdown = ({ pokemonId, data, onChange }) => {
     </div>
   );
 };
+
+// ── Pokemon Row ──────────────────────────────────────────────────────────────
+
+const PokemonRow = React.memo(({
+  p, i, data, status, selected, isSelected,
+  toggleSelected, handleSlugChange, handleShinyToggle, handleFormsCountChange, handleCategoryToggle,
+  clipboard, setClipboard, reversed
+}) => (
+  <div
+    className="grid gap-3 items-center px-4 py-2.5 transition-colors hover:bg-white/5"
+    style={{
+      gridTemplateColumns: GRID,
+      backgroundColor: i % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.02)',
+      borderBottom: '1px solid rgba(255,255,255,0.05)',
+    }}
+  >
+    {/* Selection checkbox */}
+    <div className="flex items-center justify-center">
+      <input
+        type="checkbox"
+        checked={isSelected}
+        onChange={() => toggleSelected(p.id)}
+        className="w-4 h-4 rounded accent-purple-500"
+      />
+    </div>
+
+    {/* Sprite */}
+    <PokemonImage pokemon={{ ...p, forms_count: data.forms_count }} className="w-11 h-11" />
+
+    {/* Name */}
+    <div>
+      <div className="text-white text-sm font-medium">{p.name}</div>
+      <div className="text-gray-500 text-xs">#{String(p.national_dex_id).padStart(4, '0')}</div>
+    </div>
+
+    {/* Game slugs */}
+    <SlugDropdown
+      pokemonId={p.id}
+      field="game_slugs"
+      value={data.game_slugs}
+      onChange={handleSlugChange}
+      reversed={reversed}
+    />
+
+    {/* Restricted game slugs */}
+    <SlugDropdown
+      pokemonId={p.id}
+      field="restricted_game_slugs"
+      value={data.restricted_game_slugs}
+      onChange={handleSlugChange}
+      matchValue={data.game_slugs}
+      reversed={reversed}
+    />
+
+    {/* Shiny available */}
+    <label className="flex items-center gap-2 cursor-pointer select-none">
+      <div className="relative">
+        <input
+          type="checkbox"
+          checked={data.shiny_available}
+          onChange={() => handleShinyToggle(p.id)}
+          className="sr-only"
+        />
+        <div className={`w-9 h-5 rounded-full transition-colors ${data.shiny_available ? 'bg-yellow-500' : 'bg-gray-600'}`} />
+        <div className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${data.shiny_available ? 'translate-x-4' : ''}`} />
+      </div>
+    </label>
+
+    {/* Forms count */}
+    <input
+      type="number"
+      min="1"
+      value={data.forms_count}
+      onChange={e => handleFormsCountChange(p.id, e.target.value)}
+      className="w-full px-2 py-1 rounded bg-gray-700 border border-gray-600 text-white text-sm text-center focus:border-blue-400 focus:outline-none"
+    />
+
+    {/* Categories dropdown */}
+    <CategoryDropdown
+      pokemonId={p.id}
+      data={data}
+      onChange={(category, value) => handleCategoryToggle(p.id, category, value)}
+    />
+
+    {/* Copy / Paste */}
+    <div className="flex items-center gap-1">
+      <button
+        type="button"
+        title="Copy slugs"
+        onClick={() => setClipboard({ fromId: p.id, game_slugs: [...data.game_slugs], restricted_game_slugs: [...data.restricted_game_slugs] })}
+        className={`p-1.5 rounded transition-colors text-sm ${clipboard?.fromId === p.id ? 'bg-purple-700 text-white' : 'text-gray-400 hover:text-white hover:bg-gray-700'}`}
+      >📋</button>
+      {clipboard && clipboard.fromId !== p.id && (
+        <button
+          type="button"
+          title="Paste slugs"
+          onClick={() => {
+            handleSlugChange(p.id, 'game_slugs', clipboard.game_slugs);
+            handleSlugChange(p.id, 'restricted_game_slugs', clipboard.restricted_game_slugs);
+          }}
+          className="p-1.5 rounded text-sm text-green-400 hover:text-white hover:bg-gray-700 transition-colors"
+        >📥</button>
+      )}
+    </div>
+
+    {/* Save indicator */}
+    <div className="flex items-center justify-center">
+      <SaveIndicator status={status} />
+    </div>
+  </div>
+), (prev, next) => {
+  // Custom comparison: only re-render if data actually changed
+  return (
+    prev.isSelected === next.isSelected &&
+    prev.data === next.data &&
+    prev.status === next.status &&
+    prev.clipboard?.fromId === next.clipboard?.fromId &&
+    prev.i === next.i
+  );
+});
+
+PokemonRow.displayName = 'PokemonRow';
 
 // ── Save indicator ────────────────────────────────────────────────────────────
 
@@ -337,6 +460,7 @@ const PokemonGameManager = () => {
             starter: p.starter ?? false,
             fossil: p.fossil ?? false,
             regional_alt: p.regional_alt ?? false,
+            pseudo_legendary: p.pseudo_legendary ?? false,
           };
         }
         setLocalData(init);
@@ -397,38 +521,38 @@ const PokemonGameManager = () => {
 
   const handleShinyToggle = (pokemonId) => {
     const newValue = !localData[pokemonId]?.shiny_available;
-    setLocalData(prev => ({
-      ...prev,
-      [pokemonId]: { ...prev[pokemonId], shiny_available: newValue },
-    }));
     if (selected.has(pokemonId)) {
       applyToSelected(pokemonId, 'shiny_available', newValue);
     } else {
+      setLocalData(prev => ({
+        ...prev,
+        [pokemonId]: { ...prev[pokemonId], shiny_available: newValue },
+      }));
       scheduleSave(pokemonId);
     }
   };
 
   const handleFormsCountChange = (pokemonId, value) => {
     const n = Math.max(1, parseInt(value, 10) || 1);
-    setLocalData(prev => ({
-      ...prev,
-      [pokemonId]: { ...prev[pokemonId], forms_count: n },
-    }));
     if (selected.has(pokemonId)) {
       applyToSelected(pokemonId, 'forms_count', n);
     } else {
+      setLocalData(prev => ({
+        ...prev,
+        [pokemonId]: { ...prev[pokemonId], forms_count: n },
+      }));
       scheduleSave(pokemonId);
     }
   };
 
   const handleCategoryToggle = (pokemonId, category, value) => {
-    setLocalData(prev => ({
-      ...prev,
-      [pokemonId]: { ...prev[pokemonId], [category]: value },
-    }));
     if (selected.has(pokemonId)) {
       applyToSelected(pokemonId, category, value);
     } else {
+      setLocalData(prev => ({
+        ...prev,
+        [pokemonId]: { ...prev[pokemonId], [category]: value },
+      }));
       scheduleSave(pokemonId);
     }
   };
@@ -500,10 +624,10 @@ const PokemonGameManager = () => {
 
   // ── Filter ────────────────────────────────────────────────────────────────
 
-  const filtered = pokemon.filter(p => {
+  const filtered = useMemo(() => {
     const q = search.toLowerCase();
-    return !q || p.name.toLowerCase().includes(q) || String(p.national_dex_id).includes(q);
-  });
+    return pokemon.filter(p => !q || p.name.toLowerCase().includes(q) || String(p.national_dex_id).includes(q));
+  }, [pokemon, search]);
 
   // ── Render ────────────────────────────────────────────────────────────────
 
@@ -612,112 +736,26 @@ const PokemonGameManager = () => {
             ) : filtered.length === 0 ? (
               <div className="text-gray-500 text-sm py-8 text-center">No Pokémon found</div>
             ) : filtered.map((p, i) => {
-              const data = localData[p.id] ?? { game_slugs: [], restricted_game_slugs: [], shiny_available: false };
+              const data = localData[p.id] ?? { game_slugs: [], restricted_game_slugs: [], shiny_available: false, forms_count: 1, legendary: false, baby: false, ultra_beast: false, paradox: false, starter: false, fossil: false, regional_alt: false, pseudo_legendary: false };
               const status = saveState[p.id] ?? 'idle';
               return (
-                <div
+                <PokemonRow
                   key={p.id}
-                  className="grid gap-3 items-center px-4 py-2.5 transition-colors hover:bg-white/5"
-                  style={{
-                    gridTemplateColumns: GRID,
-                    backgroundColor: i % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.02)',
-                    borderBottom: '1px solid rgba(255,255,255,0.05)',
-                  }}
-                >
-                  {/* Selection checkbox */}
-                  <div className="flex items-center justify-center">
-                    <input
-                      type="checkbox"
-                      checked={selected.has(p.id)}
-                      onChange={() => toggleSelected(p.id)}
-                      className="w-4 h-4 rounded accent-purple-500"
-                    />
-                  </div>
-
-                  {/* Sprite */}
-                  <PokemonImage pokemon={{ ...p, forms_count: data.forms_count }} className="w-11 h-11" />
-
-                  {/* Name */}
-                  <div>
-                    <div className="text-white text-sm font-medium">{p.name}</div>
-                    <div className="text-gray-500 text-xs">#{String(p.national_dex_id).padStart(4, '0')}</div>
-                  </div>
-
-                  {/* Game slugs */}
-                  <SlugDropdown
-                    pokemonId={p.id}
-                    field="game_slugs"
-                    value={data.game_slugs}
-                    onChange={handleSlugChange}
-                    reversed={reversed}
-                  />
-
-                  {/* Restricted game slugs */}
-                  <SlugDropdown
-                    pokemonId={p.id}
-                    field="restricted_game_slugs"
-                    value={data.restricted_game_slugs}
-                    onChange={handleSlugChange}
-                    matchValue={data.game_slugs}
-                    reversed={reversed}
-                  />
-
-                  {/* Shiny available */}
-                  <label className="flex items-center gap-2 cursor-pointer select-none">
-                    <div className="relative">
-                      <input
-                        type="checkbox"
-                        checked={data.shiny_available}
-                        onChange={() => handleShinyToggle(p.id)}
-                        className="sr-only"
-                      />
-                      <div className={`w-9 h-5 rounded-full transition-colors ${data.shiny_available ? 'bg-yellow-500' : 'bg-gray-600'}`} />
-                      <div className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${data.shiny_available ? 'translate-x-4' : ''}`} />
-                    </div>
-                  </label>
-
-                  {/* Forms count */}
-                  <input
-                    type="number"
-                    min="1"
-                    value={data.forms_count}
-                    onChange={e => handleFormsCountChange(p.id, e.target.value)}
-                    className="w-full px-2 py-1 rounded bg-gray-700 border border-gray-600 text-white text-sm text-center focus:border-blue-400 focus:outline-none"
-                  />
-
-                  {/* Categories dropdown */}
-                  <CategoryDropdown
-                    pokemonId={p.id}
-                    data={data}
-                    onChange={(category, value) => handleCategoryToggle(p.id, category, value)}
-                  />
-
-                  {/* Copy / Paste */}
-                  <div className="flex items-center gap-1">
-                    <button
-                      type="button"
-                      title="Copy slugs"
-                      onClick={() => setClipboard({ fromId: p.id, game_slugs: [...data.game_slugs], restricted_game_slugs: [...data.restricted_game_slugs] })}
-                      className={`p-1.5 rounded transition-colors text-sm ${clipboard?.fromId === p.id ? 'bg-purple-700 text-white' : 'text-gray-400 hover:text-white hover:bg-gray-700'}`}
-                    >📋</button>
-                    {clipboard && clipboard.fromId !== p.id && (
-                      <button
-                        type="button"
-                        title="Paste slugs"
-                        onClick={() => {
-                          handleSlugChange(p.id, 'game_slugs', clipboard.game_slugs);
-                          handleSlugChange(p.id, 'restricted_game_slugs', clipboard.restricted_game_slugs);
-                        }}
-                        className="p-1.5 rounded text-sm text-green-400 hover:text-white hover:bg-gray-700 transition-colors"
-                      >📥</button>
-                    )}
-                  </div>
-
-                  {/* Save indicator */}
-                  <div className="flex items-center justify-center">
-                    <SaveIndicator status={status} />
-                  </div>
-                </div>
+                  p={p}
+                  i={i}
+                  data={data}
+                  status={status}
+                  selected={selected}
+                  isSelected={selected.has(p.id)}
+                  toggleSelected={toggleSelected}
+                  handleSlugChange={handleSlugChange}
+                  handleShinyToggle={handleShinyToggle}
+                  handleFormsCountChange={handleFormsCountChange}
+                  handleCategoryToggle={handleCategoryToggle}
+                  clipboard={clipboard}
+                  setClipboard={setClipboard}
+                  reversed={reversed}
+                />
               );
             })}
           </div>

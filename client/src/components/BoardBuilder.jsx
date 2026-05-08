@@ -493,17 +493,12 @@ export default function BoardBuilder() {
         {/* Category Stats */}
         {categoryStats && (
           <div className="mt-6 p-4 bg-gray-900/50 rounded-lg border border-gray-700">
-            <h3 className="text-sm font-semibold text-gray-300 mb-3">Category Balance</h3>
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2 text-xs">
+            <h3 className="text-sm font-semibold text-gray-300 mb-3">Category Distribution</h3>
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 text-sm">
               {Object.entries(categoryStats).map(([category, stats]) => (
-                <div key={category} className="bg-black/30 px-2 py-1.5 rounded border border-gray-600">
-                  <div className="text-gray-400 font-semibold capitalize mb-0.5">{category}</div>
-                  <div className="text-purple-300">
-                    {stats.count}/{stats.count === stats.floor && stats.count === stats.ceiling
-                      ? `${stats.floor}`
-                      : `${stats.floor}-${stats.ceiling}`}
-                  </div>
-                  <div className="text-gray-500 text-xs">avg {stats.avg}</div>
+                <div key={category} className="flex justify-between items-center">
+                  <span className="text-gray-300 capitalize">{category}</span>
+                  <span className="text-purple-300 font-semibold">{stats.avg}</span>
                 </div>
               ))}
             </div>
