@@ -3,7 +3,7 @@ import { buildVariants } from '../utils/pokemonImageUtils';
 
 const AUTO_CYCLE_MS = 3000;
 
-const PokemonImage = ({ pokemon, className = '' }) => {
+const PokemonImage = ({ pokemon, className = '', disableCycling = false }) => {
   const variants = useMemo(() => buildVariants(pokemon), [pokemon?.national_dex_id]);
 
   const [currentIdx, setCurrentIdx] = useState(0);
@@ -17,7 +17,7 @@ const PokemonImage = ({ pokemon, className = '' }) => {
 
   // Auto-cycle when multiple variants exist
   useEffect(() => {
-    if (variants.length <= 1) return;
+    if (variants.length <= 1 || disableCycling) return;
     const id = setInterval(() => {
       setCurrentIdx(prev => {
         setPrevIdx(prev);
@@ -25,7 +25,7 @@ const PokemonImage = ({ pokemon, className = '' }) => {
       });
     }, AUTO_CYCLE_MS);
     return () => clearInterval(id);
-  }, [pokemon?.national_dex_id, variants.length]);
+  }, [pokemon?.national_dex_id, variants.length, disableCycling]);
 
   if (!pokemon?.national_dex_id) {
     return <div className={className} style={{ background: '#1f2937' }} />;

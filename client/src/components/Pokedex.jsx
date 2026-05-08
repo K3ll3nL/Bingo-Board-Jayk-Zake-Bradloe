@@ -140,7 +140,7 @@ const Pokedex = () => {
                   <PokemonImage
                     pokemon={poke}
                     className="w-full h-full"
-                    enableFormCycling={poke.in_pool}
+                    disableCycling={!poke.in_pool}
                   />
                 </div>
                 {poke.caught && (
