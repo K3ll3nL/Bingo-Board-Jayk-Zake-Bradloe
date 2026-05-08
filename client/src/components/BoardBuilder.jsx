@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { createClient } from '@supabase/supabase-js';
 import { useAuth } from '../contexts/AuthContext';
 import backgroundImage from '../Icons/2026Jan.png';
+import { buildPokemonImageUrl } from '../utils/pokemonImageUtils';
 import logoImage from '../Icons/pokemon-bounty-board.png';
 import PageBackground from './PageBackground';
 import PageHeader from './PageHeader';
@@ -34,11 +35,10 @@ function swapTileData(tiles, pos1, pos2) {
   const tmp = {
     pokemon_id:      updated[i1].pokemon_id,
     name:            updated[i1].name,
-    img_url:         updated[i1].img_url,
     national_dex_id: updated[i1].national_dex_id,
     is_second_round: updated[i1].is_second_round,
   };
-  updated[i1] = { ...updated[i1], ...{ pokemon_id: updated[i2].pokemon_id, name: updated[i2].name, img_url: updated[i2].img_url, national_dex_id: updated[i2].national_dex_id, is_second_round: updated[i2].is_second_round } };
+  updated[i1] = { ...updated[i1], ...{ pokemon_id: updated[i2].pokemon_id, name: updated[i2].name, national_dex_id: updated[i2].national_dex_id, is_second_round: updated[i2].is_second_round } };
   updated[i2] = { ...updated[i2], ...tmp };
   return updated;
 }
@@ -303,7 +303,7 @@ export default function BoardBuilder() {
                       style={{ opacity: isFading ? 0 : (isLoaded ? 1 : 0) }}
                     >
                       <img
-                        src={tile.img_url}
+                        src={buildPokemonImageUrl({ national_dex_id: tile.national_dex_id })}
                         alt={tile.name}
                         className="w-full h-full object-contain p-1"
                         onLoad={() => setLoadedImages(prev => new Set([...prev, pos]))}

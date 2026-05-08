@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import restrictedIconSrc from '../Icons/restricted-icon.png';
+import { buildPokemonImageUrl } from '../utils/pokemonImageUtils';
 
 const PokemonModal = ({ pokemon, onClose, monthId = null }) => {
   const navigate = useNavigate();
@@ -99,7 +100,7 @@ const PokemonModal = ({ pokemon, onClose, monthId = null }) => {
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
               <img
-                src={pokemon.pokemon_gif || pokemon.img_url}
+                src={buildPokemonImageUrl(pokemon.pokemon)}
                 alt={pokemon.pokemon_name}
                 className="w-20 h-20 object-contain"
               />

@@ -4,6 +4,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { createClient } from '@supabase/supabase-js';
 import PageBackground from './PageBackground';
 import PageHeader from './PageHeader';
+import PokemonImage from './PokemonImage';
 
 const supabase = createClient(
   import.meta.env.VITE_SUPABASE_URL,
@@ -119,26 +120,29 @@ const Pokedex = () => {
                 key={poke.id}
                 className={`
                   relative rounded-lg border-2 transition-all duration-200 overflow-hidden leading-none aspect-square
-                  ${poke.caught 
-                    ? 'border-purple-500 bg-gray-800' 
+                  ${poke.caught
+                    ? 'border-purple-500 bg-gray-800'
                     : 'border-gray-700 bg-gray-900'
                   }
                   hover:scale-105 cursor-pointer
                 `}
                 title={`${poke.name} ${poke.caught ? '✓' : ''}`}
               >
-                <img 
-                  src={poke.img_url} 
-                  alt={poke.name}
-                  className={`w-full h-full object-cover block ${
-                    poke.caught 
-                      ? '' 
-                      : poke.in_pool 
-                        ? 'grayscale opacity-30' 
+                <div
+                  className={`w-full h-full ${
+                    poke.caught
+                      ? ''
+                      : poke.in_pool
+                        ? 'grayscale opacity-30'
                         : 'brightness-0 opacity-20'
                   }`}
-                  style={{ verticalAlign: 'top' }}
-                />
+                >
+                  <PokemonImage
+                    pokemon={poke}
+                    className="w-full h-full"
+                    enableFormCycling={poke.in_pool}
+                  />
+                </div>
                 {poke.caught && (
                   <div className="absolute top-1 right-1">
                     <svg className="w-4 h-4 text-green-400" fill="currentColor" viewBox="0 0 20 20">

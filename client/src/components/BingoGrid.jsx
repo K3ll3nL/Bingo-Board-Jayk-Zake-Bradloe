@@ -1,6 +1,7 @@
 import React from 'react';
 import backgroundImage from '../Icons/2026Jan.png';
 import restrictedIcon from '../Icons/restricted-icon.png';
+import PokemonImage from './PokemonImage';
 
 export default function BingoGrid({ board, onCellClick }) {
   return (
@@ -55,12 +56,11 @@ export default function BingoGrid({ board, onCellClick }) {
               borderColor: !isFreeSpace && !isEmpty ? borderColor : undefined,
             }}
           >
-            {!isFreeSpace && !isEmpty && cell.pokemon_gif && (
-              <img
-                src={cell.pokemon_gif}
-                alt={cell.pokemon_name}
-                className="w-full block"
-                style={{ verticalAlign: 'top' }}
+            {!isFreeSpace && !isEmpty && cell.pokemon && (
+              <PokemonImage
+                pokemon={cell.pokemon}
+                className="w-full h-full"
+                enableFormCycling={true}
               />
             )}
             {(isFreeSpace || isEmpty) && (

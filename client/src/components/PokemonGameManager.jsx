@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { createClient } from '@supabase/supabase-js';
 import { ALLOWED_GAMES } from '../constants/games';
+import PokemonImage from './PokemonImage';
 import PageBackground from './PageBackground';
 import PageHeader from './PageHeader';
 
@@ -194,7 +195,7 @@ const SaveIndicator = ({ status }) => {
 
 // ── Main component ────────────────────────────────────────────────────────────
 
-const GRID = '52px 1fr 1fr 1fr 90px 72px 24px';
+const GRID = '52px 1fr 1fr 1fr 90px 72px 72px 24px';
 
 const PokemonGameManager = () => {
   const [pokemon, setPokemon] = useState([]);
@@ -230,6 +231,7 @@ const PokemonGameManager = () => {
             game_slugs: p.game_slugs ?? [],
             restricted_game_slugs: p.restricted_game_slugs ?? [],
             shiny_available: p.shiny_available ?? false,
+            forms_count: p.forms_count ?? 1,
           };
         }
         setLocalData(init);
@@ -287,6 +289,15 @@ const PokemonGameManager = () => {
     setLocalData(prev => ({
       ...prev,
       [pokemonId]: { ...prev[pokemonId], shiny_available: !prev[pokemonId].shiny_available },
+    }));
+    scheduleSave(pokemonId);
+  };
+
+  const handleFormsCountChange = (pokemonId, value) => {
+    const n = Math.max(1, parseInt(value, 10) || 1);
+    setLocalData(prev => ({
+      ...prev,
+      [pokemonId]: { ...prev[pokemonId], forms_count: n },
     }));
     scheduleSave(pokemonId);
   };
@@ -369,6 +380,10 @@ const PokemonGameManager = () => {
                 <span className="w-2 h-2 rounded-full bg-yellow-400 inline-block" />
                 Shiny
               </div>
+              <div className="flex items-center gap-1.5">
+                <span className="w-2 h-2 rounded-full bg-blue-400 inline-block" />
+                Forms
+              </div>
               <div />
               <div />
             </div>
@@ -394,7 +409,7 @@ const PokemonGameManager = () => {
                   }}
                 >
                   {/* Sprite */}
-                  <img src={p.img_url} alt={p.name} className="w-11 h-11 object-contain" />
+                  <PokemonImage pokemon={{ ...p, forms_count: data.forms_count }} className="w-11 h-11" />
 
                   {/* Name */}
                   <div>
@@ -434,6 +449,15 @@ const PokemonGameManager = () => {
                       <div className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${data.shiny_available ? 'translate-x-4' : ''}`} />
                     </div>
                   </label>
+
+                  {/* Forms count */}
+                  <input
+                    type="number"
+                    min="1"
+                    value={data.forms_count}
+                    onChange={e => handleFormsCountChange(p.id, e.target.value)}
+                    className="w-full px-2 py-1 rounded bg-gray-700 border border-gray-600 text-white text-sm text-center focus:border-blue-400 focus:outline-none"
+                  />
 
                   {/* Copy / Paste */}
                   <div className="flex items-center gap-1">

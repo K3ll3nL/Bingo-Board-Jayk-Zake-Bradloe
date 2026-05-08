@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { getAuthHeaders } from '../services/api';
 import { ALLOWED_GAMES } from '../constants/games';
+import { buildPokemonImageUrl } from '../utils/pokemonImageUtils';
 import PageBackground from './PageBackground';
 import PageHeader from './PageHeader';
 
@@ -770,7 +771,7 @@ function ManageCollectionsTab() {
             <ul className="space-y-1.5">
               {members.map(p => (
                 <li key={p.id} className="flex items-center gap-3 rounded-lg px-3 py-2" style={{ backgroundColor: '#2a2d31' }}>
-                  {p.img_url && <img src={p.img_url} alt={p.name} className="w-8 h-8 object-contain" />}
+                  {p.national_dex_id && <img src={buildPokemonImageUrl(p)} alt={p.name} className="w-8 h-8 object-contain" />}
                   <span className="flex-1 text-sm text-white capitalize">{p.name}</span>
                   <span className="text-xs text-gray-500">#{String(p.national_dex_id).padStart(4, '0')}</span>
                   <button
@@ -804,7 +805,7 @@ function ManageCollectionsTab() {
             <ul className="mt-2 space-y-1.5">
               {results.map(p => (
                 <li key={p.id} className="flex items-center gap-3 rounded-lg px-3 py-2" style={{ backgroundColor: '#2a2d31' }}>
-                  {p.img_url && <img src={p.img_url} alt={p.name} className="w-8 h-8 object-contain" />}
+                  {p.national_dex_id && <img src={buildPokemonImageUrl(p)} alt={p.name} className="w-8 h-8 object-contain" />}
                   <span className="flex-1 text-sm text-white capitalize">{p.name}</span>
                   <span className="text-xs text-gray-500">#{String(p.national_dex_id).padStart(4, '0')}</span>
                   <button

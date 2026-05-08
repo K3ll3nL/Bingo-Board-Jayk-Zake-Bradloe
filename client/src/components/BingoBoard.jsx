@@ -11,8 +11,6 @@ const BingoBoard = () => {
   const [board, setBoard] = useState([]);
   const [month, setMonth] = useState('');
   const [loading, setLoading] = useState(true);
-  const [imagesLoaded, setImagesLoaded] = useState(false);
-  const [loadedCount, setLoadedCount] = useState(0);
   const [error, setError] = useState(null);
   const [achievements, setAchievements] = useState({ row: null, column: null, x: null, blackout: null });
   const [selectedPokemon, setSelectedPokemon] = useState(null);
@@ -22,17 +20,6 @@ const BingoBoard = () => {
     loadBoard();
   }, [user, boardVersion, authLoading]);
 
-  useEffect(() => {
-    // Reset images loaded when board changes
-    if (board.length > 0) {
-      const totalImages = board.filter(c => c.pokemon_gif && c.pokemon_name !== 'FREE SPACE' && c.pokemon_name !== 'EMPTY').length;
-      if (totalImages === 0) {
-        // No images to load, show immediately
-        setImagesLoaded(true);
-      }
-    }
-  }, [board]);
-
   const loadBoard = async () => {
     try {
       const data = await api.getBingoBoard(boardVersion);
@@ -40,11 +27,6 @@ const BingoBoard = () => {
       setMonth(data.month);
       setAchievements(data.achievements || { row: null, column: null, x: null, blackout: null });
       setError(null);
-      // Don't reset image states on updates, only on initial load
-      if (loading) {
-        setLoadedCount(0);
-        setImagesLoaded(false);
-      }
     } catch (err) {
       setError('Failed to load bingo board');
       console.error(err);
@@ -53,24 +35,6 @@ const BingoBoard = () => {
     }
   };
 
-  const handleImageLoad = () => {
-    setLoadedCount(prev => {
-      const newCount = prev + 1;
-      // Count only Pokemon images (not FREE SPACE or EMPTY)
-      const totalImages = board.filter(cell => 
-        cell.pokemon_name !== 'FREE SPACE' && 
-        cell.pokemon_name !== 'EMPTY' && 
-        cell.pokemon_gif
-      ).length;
-      
-      if (newCount >= totalImages) {
-        setImagesLoaded(true);
-      }
-      return newCount;
-    });
-  };
-
-  // Show loading screen only during initial API fetch
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -87,35 +51,10 @@ const BingoBoard = () => {
     );
   }
 
-  // Preload images in hidden div if not loaded yet
-  const hasImagesToLoad = board.some(c => c.pokemon_gif && c.pokemon_name !== 'FREE SPACE' && c.pokemon_name !== 'EMPTY');
-
   return (
     <div className="w-full">
-      {!imagesLoaded && hasImagesToLoad && (
-        <div style={{ position: 'absolute', left: '-9999px', top: '-9999px' }}>
-          {board.map((cell) => {
-            if (cell.pokemon_name !== 'FREE SPACE' && cell.pokemon_name !== 'EMPTY' && cell.pokemon_gif) {
-              return (
-                <img 
-                  key={cell.id}
-                  src={cell.pokemon_gif} 
-                  alt={cell.pokemon_name}
-                  onLoad={handleImageLoad}
-                  onError={handleImageLoad}
-                />
-              );
-            }
-            return null;
-          })}
-        </div>
-      )}
-      
-      {/* Show board with opacity transition */}
       <div
         style={{
-          opacity: imagesLoaded || !hasImagesToLoad ? 1 : 0,
-          transition: 'opacity 0.3s',
           maxWidth: '645px',
         }}
         className="mx-auto"

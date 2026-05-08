@@ -7,6 +7,8 @@ import { isRestrictedEnabled } from '../featureFlags';
 import { ALLOWED_GAMES } from '../constants/games';
 import PageBackground from './PageBackground';
 import PageHeader from './PageHeader';
+import PokemonImage from './PokemonImage';
+import { buildPokemonImageUrl } from '../utils/pokemonImageUtils';
 
 const supabase = createClient(
   import.meta.env.VITE_SUPABASE_URL,
@@ -282,7 +284,13 @@ const HistoricalUploadSection = () => {
           >
             {selectedPokemon && selectedPokeData ? (
               <div className="flex items-center gap-3 min-w-0">
-                <img src={selectedPokeData.img_url} alt={selectedPokeData.name} className="w-8 h-8 object-contain flex-shrink-0" />
+                <div className="w-8 h-8 flex-shrink-0">
+                  <PokemonImage
+                    pokemon={selectedPokeData}
+                    className="w-full h-full"
+                    enableFormCycling={true}
+                  />
+                </div>
                 <span className="truncate">
                   #{String(selectedPokeData.national_dex_id).padStart(4, '0')} — {selectedPokeData.name}
                 </span>
@@ -317,7 +325,7 @@ const HistoricalUploadSection = () => {
                   onClick={() => handleSelectPokemon(poke.id)}
                   className={`w-full p-3 flex items-center gap-3 hover:bg-gray-600 transition-colors text-left ${selectedPokemon === String(poke.id) ? 'bg-gray-600' : ''}`}
                 >
-                  <img src={poke.img_url} alt={poke.name} className="w-8 h-8 object-contain flex-shrink-0" />
+                  <img src={buildPokemonImageUrl(poke)} alt={poke.name} className="w-8 h-8 object-contain flex-shrink-0" />
                   <span className="text-white flex-1">
                     #{String(poke.national_dex_id).padStart(4, '0')} — {poke.name}
                   </span>
@@ -963,7 +971,13 @@ const Upload = () => {
                   >
                     {selectedPokemon && selectedPokeObj ? (
                       <div className="flex items-center gap-3 min-w-0">
-                        <img src={selectedPokeObj.img_url} alt={selectedPokeObj.name} className="w-8 h-8 object-contain flex-shrink-0" />
+                        <div className="w-8 h-8 flex-shrink-0">
+                          <PokemonImage
+                            pokemon={selectedPokeObj}
+                            className="w-full h-full"
+                            enableFormCycling={true}
+                          />
+                        </div>
                         <span className="truncate">
                           #{String(selectedPokeObj.national_dex_id).padStart(4, '0')} — {selectedPokeObj.name}
                         </span>
@@ -1001,7 +1015,7 @@ const Upload = () => {
                           onClick={() => handleSelectPokemon(poke.id)}
                           className={`w-full p-3 flex items-center gap-3 hover:bg-gray-600 transition-colors text-left ${selectedPokemon === String(poke.id) ? 'bg-gray-600' : ''}`}
                         >
-                          <img src={poke.img_url} alt={poke.name} className="w-8 h-8 object-contain flex-shrink-0" />
+                          <img src={buildPokemonImageUrl(poke)} alt={poke.name} className="w-8 h-8 object-contain flex-shrink-0" />
                           <span className="text-white flex-1">
                             #{String(poke.national_dex_id).padStart(4, '0')} — {poke.name}
                           </span>

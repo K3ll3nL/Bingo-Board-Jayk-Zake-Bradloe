@@ -46,6 +46,16 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY
 );
 
+// Build a default R2 pokemon image URL from national_dex_id.
+// Uses form 000 and gender 'mf' as safe defaults — sufficient for thumbnails in
+// notifications, approvals, and history where full form/gender data isn't fetched.
+const R2_BASE = 'https://pub-583ae6cd5f8b4b58b0ee7053ea1d4b0b.r2.dev';
+const pokeR2Url = (national_dex_id) => {
+  if (!national_dex_id) return null;
+  const dex = String(national_dex_id).padStart(4, '0');
+  return `${R2_BASE}/poke_capture_${dex}_000_mf_n_00000000_f_r.png`;
+};
+
 // ── Module-level caches ───────────────────────────────────────────────────────
 // Active month: only changes once a month. Cache the result and use end_date to
 // know exactly when it's stale — no arbitrary TTL needed. Mod users with a
@@ -110,7 +120,7 @@ const broadcastNotificationToasts = async (userId) => {
     let pokemonMap = {};
     if (pokemonIds.length > 0) {
       const { data: pokemon } = await supabase
-        .from('pokemon_master').select('id, national_dex_id, name, img_url').in('id', pokemonIds);
+        .from('pokemon_master').select('id, national_dex_id, name').in('id', pokemonIds);
       if (pokemon) pokemonMap = Object.fromEntries(pokemon.map(p => [p.id, p]));
     }
 
@@ -892,7 +902,7 @@ app.get('/api/bingo/board', async (req, res) => {
       const pokemonIds = (poolData || []).map(p => p.pokemon_id).filter(Boolean);
       const { data: pokemonData, error: pokemonError } = await supabase
         .from('pokemon_master')
-        .select('id, national_dex_id, name, img_url')
+        .select('id, national_dex_id, name, display_name, form_id, forms_count, custom_gender_code, genderless, has_gender_difference, has_major_gender_difference')
         .in('id', pokemonIds)
         .eq('shiny_available', true);
 
@@ -938,7 +948,7 @@ app.get('/api/bingo/board', async (req, res) => {
             is_pending: !completedPokemonIds.has(pool.pokemon_id) && pendingPokemonIds.has(pool.pokemon_id),
             is_pending_restricted: completedPokemonIds.has(pool.pokemon_id) && !restrictedPokemonIds.has(pool.pokemon_id) && pendingRestrictedIds.has(pool.pokemon_id),
             pokemon_name: poke.name || 'Unknown',
-            pokemon_gif: poke.img_url,
+            pokemon: poke,
           });
         } else {
           board.push({
@@ -1600,7 +1610,7 @@ app.get('/api/profile/:userId/board', async (req, res) => {
 
     const { data: pokemonData, error: pokemonError } = await supabase
       .from('pokemon_master')
-      .select('id, national_dex_id, name, img_url')
+      .select('id, national_dex_id, name, display_name, form_id, forms_count, custom_gender_code, genderless, has_gender_difference, has_major_gender_difference')
       .in('id', pokemonIds)
       .eq('shiny_available', true);
 
@@ -1641,7 +1651,7 @@ app.get('/api/profile/:userId/board', async (req, res) => {
             is_pending: !completedPokemonIds.has(pool.pokemon_id) && pendingPokemonIds.has(pool.pokemon_id),
             is_pending_restricted: completedPokemonIds.has(pool.pokemon_id) && !restrictedPokemonIds.has(pool.pokemon_id) && pendingRestrictedIds.has(pool.pokemon_id),
             pokemon_name: poke.name || 'Unknown',
-            pokemon_gif: poke.img_url,
+            pokemon: poke,
           });
         } else {
           board.push({
@@ -1731,7 +1741,7 @@ app.get('/api/profile/:userId/board/:monthId', async (req, res) => {
 
     const { data: pokemonData, error: pokemonError } = await supabase
       .from('pokemon_master')
-      .select('id, national_dex_id, name, img_url')
+      .select('id, national_dex_id, name, display_name, form_id, forms_count, custom_gender_code, genderless, has_gender_difference, has_major_gender_difference')
       .in('id', pokemonIds)
       .eq('shiny_available', true);
 
@@ -1770,7 +1780,7 @@ app.get('/api/profile/:userId/board/:monthId', async (req, res) => {
             is_pending: false,
             is_pending_restricted: false,
             pokemon_name: poke.name || 'Unknown',
-            pokemon_gif: poke.img_url,
+            pokemon: poke,
           });
         } else {
           board.push({
@@ -1809,7 +1819,7 @@ app.get('/api/pokedex', async (req, res) => {
     // Get all pokemon
     const { data: allPokemon, error: pokemonError } = await supabase
       .from('pokemon_master')
-      .select('id, national_dex_id, name, display_name, img_url')
+      .select('id, national_dex_id, name, display_name, form_id, forms_count, custom_gender_code, genderless, has_gender_difference, has_major_gender_difference')
       .eq('shiny_available', true)
       .order('national_dex_id', { ascending: true })
       .order('id', { ascending: true });
@@ -1857,7 +1867,12 @@ app.get('/api/pokedex', async (req, res) => {
       national_dex_id: p.national_dex_id,
       name: p.name,
       display_name: p.display_name,
-      img_url: p.img_url,
+      form_id: p.form_id,
+      forms_count: p.forms_count,
+      custom_gender_code: p.custom_gender_code,
+      genderless: p.genderless,
+      has_gender_difference: p.has_gender_difference,
+      has_major_gender_difference: p.has_major_gender_difference,
       caught: caughtIds.has(p.id),  // Check by pokemon_master.id
       in_pool: poolIds.has(p.id)     // Check if ever in monthly pool
     }));
@@ -2037,7 +2052,7 @@ app.get('/api/upload/available-pokemon', async (req, res) => {
     // Get Pokemon details
     const { data: pokemon, error: pokemonError } = await supabase
       .from('pokemon_master')
-      .select('id, national_dex_id, name, img_url, game_slugs, restricted_game_slugs')
+      .select('id, national_dex_id, name, display_name, form_id, forms_count, custom_gender_code, genderless, has_gender_difference, has_major_gender_difference, game_slugs, restricted_game_slugs')
       .in('id', availablePokemonIds)
       .eq('shiny_available', true);
 
@@ -2099,7 +2114,7 @@ app.get('/api/upload/available-pokemon-restricted', async (req, res) => {
 
     const { data: pokemon, error: pokemonError } = await supabase
       .from('pokemon_master')
-      .select('id, national_dex_id, name, img_url, game_slugs, restricted_game_slugs')
+      .select('id, national_dex_id, name, display_name, form_id, forms_count, custom_gender_code, genderless, has_gender_difference, has_major_gender_difference, game_slugs, restricted_game_slugs')
       .in('id', availableIds)
       .eq('shiny_available', true);
 
@@ -2189,7 +2204,7 @@ app.get('/api/upload/available-pokemon-historical', async (req, res) => {
 
     const { data: pokemon, error: pokemonError } = await supabase
       .from('pokemon_master')
-      .select('id, national_dex_id, name, img_url, game_slugs, restricted_game_slugs')
+      .select('id, national_dex_id, name, display_name, form_id, forms_count, custom_gender_code, genderless, has_gender_difference, has_major_gender_difference, game_slugs, restricted_game_slugs')
       .in('id', pokemonIds)
       .eq('shiny_available', true);
 
@@ -3082,7 +3097,7 @@ app.get('/api/notifications', async (req, res) => {
     if (pokemonIds.length > 0) {
       const { data: pokemon, error: pokemonError } = await supabase
         .from('pokemon_master')
-        .select('id, national_dex_id, name, img_url')
+        .select('id, national_dex_id, name')
         .in('id', pokemonIds);
       if (pokemonError) throw pokemonError;
       pokemonMap = Object.fromEntries(pokemon.map(p => [p.id, p]));
@@ -3270,8 +3285,7 @@ app.get('/api/approvals/pending', async (req, res) => {
         ),
         pokemon_master!apptovals_pokemon_id_fkey (
           name,
-          national_dex_id,
-          img_url
+          national_dex_id
         )
       `)
       .eq('historical', historical)
@@ -3299,7 +3313,7 @@ app.get('/api/approvals/pending', async (req, res) => {
       display_name: approval.users?.display_name || 'Unknown',
       pokemon_name: approval.pokemon_master?.name || 'Unknown',
       national_dex_id: approval.pokemon_master?.national_dex_id || 0,
-      pokemon_img: approval.pokemon_master?.img_url || '',
+      pokemon_img: pokeR2Url(approval.pokemon_master?.national_dex_id),
       restricted_submission: approval.restricted_submission || false,
       restricted_strikes: approval.users?.restricted_strikes || 0,
       historical: approval.historical || false,
@@ -3507,7 +3521,7 @@ app.get('/api/mod/board-builder', async (req, res) => {
       // Pull every shiny-available pokemon (including family_id for exclusion logic)
       const { data: allPokemon, error: pkErr } = await supabase
         .from('pokemon_master')
-        .select('id, name, img_url, national_dex_id, family_id')
+        .select('id, name, national_dex_id, family_id')
         .eq('shiny_available', true);
 
       if (pkErr) return res.status(500).json({ error: 'Failed to fetch pokemon', details: pkErr.message });
@@ -3594,7 +3608,6 @@ app.get('/api/mod/board-builder', async (req, res) => {
         position:       positions[i],
         pokemon_id:     p.id,
         name:           p.name,
-        img_url:        p.img_url,
         national_dex_id: p.national_dex_id,
         is_second_round: p.is_second_round,
       }));
@@ -3605,7 +3618,7 @@ app.get('/api/mod/board-builder', async (req, res) => {
 
       const { data: pkDetails } = await supabase
         .from('pokemon_master')
-        .select('id, name, img_url, national_dex_id')
+        .select('id, name, national_dex_id')
         .in('id', pokemonIds);
 
       const pkMap = {};
@@ -3624,7 +3637,6 @@ app.get('/api/mod/board-builder', async (req, res) => {
         position:        r.position,
         pokemon_id:      r.pokemon_id,
         name:            pkMap[r.pokemon_id]?.name || 'Unknown',
-        img_url:         pkMap[r.pokemon_id]?.img_url || null,
         national_dex_id: pkMap[r.pokemon_id]?.national_dex_id || null,
         is_second_round: seenElsewhere.has(r.pokemon_id),
       }));
@@ -3709,7 +3721,7 @@ app.post('/api/mod/board-builder/reroll', async (req, res) => {
     // All eligible pokemon (including family_id for exclusion logic)
     const { data: allPokemon } = await supabase
       .from('pokemon_master')
-      .select('id, name, img_url, national_dex_id, family_id')
+      .select('id, name, national_dex_id, family_id')
       .eq('shiny_available', true);
 
     const pkFamilyMap = Object.fromEntries((allPokemon || []).map(p => [p.id, p.family_id]));
@@ -3784,7 +3796,6 @@ app.post('/api/mod/board-builder/reroll', async (req, res) => {
       position,
       pokemon_id:      pick.id,
       name:            pick.name,
-      img_url:         pick.img_url,
       national_dex_id: pick.national_dex_id,
       is_second_round,
     };
@@ -3949,7 +3960,7 @@ app.get('/api/overlay/board', async (req, res) => {
 
     const { data: pokemonData } = await supabase
       .from('pokemon_master')
-      .select('id, name, img_url')
+      .select('id, national_dex_id, name, display_name, form_id, forms_count, custom_gender_code, genderless, has_gender_difference, has_major_gender_difference')
       .in('id', pokemonIds);
 
     const pokemonMap = {};
@@ -3974,7 +3985,7 @@ app.get('/api/overlay/board', async (req, res) => {
         is_pending:           mode === 'live' && !completedSet.has(pool.pokemon_id) && pendingSet.has(pool.pokemon_id),
         is_pending_restricted: mode === 'live' && completedSet.has(pool.pokemon_id) && !restrictedSet.has(pool.pokemon_id) && pendingRestrictedSet.has(pool.pokemon_id),
         pokemon_name: poke.name || 'Unknown',
-        pokemon_gif: poke.img_url,
+        pokemon: poke,
       } : {
         position: pos,
         is_checked: false,
@@ -4450,7 +4461,7 @@ app.get('/api/pokemon/search', async (req, res) => {
 
     const { data, error } = await supabase
       .from('pokemon_master')
-      .select('id, name, national_dex_id, img_url, collection_ids, game_slugs')
+      .select('id, name, national_dex_id, collection_ids, game_slugs')
       .ilike('name', `%${q}%`)
       .order('national_dex_id')
       .limit(20);
@@ -4612,7 +4623,7 @@ app.get('/api/admin/collections/:slug', async (req, res) => {
     const [{ data, error }, { data: gameFilter }] = await Promise.all([
       supabase
         .from('pokemon_master')
-        .select('id, name, national_dex_id, img_url, collection_ids')
+        .select('id, name, national_dex_id, collection_ids')
         .contains('collection_ids', [slug])
         .order('national_dex_id'),
       supabase
@@ -4706,7 +4717,7 @@ app.get('/api/admin/pokemon-game-slugs', async (req, res) => {
 
     const { data, error } = await supabase
       .from('pokemon_master')
-      .select('id, national_dex_id, name, img_url, game_slugs, restricted_game_slugs, shiny_available')
+      .select('id, national_dex_id, name, game_slugs, restricted_game_slugs, shiny_available, forms_count, form_id, custom_gender_code, genderless, has_gender_difference, has_major_gender_difference')
       .order('national_dex_id', { ascending: true });
 
     if (error) throw error;
@@ -4720,7 +4731,7 @@ app.get('/api/admin/pokemon-game-slugs', async (req, res) => {
 app.patch('/api/admin/pokemon/:id/game-slugs', async (req, res) => {
   try {
     const { id } = req.params;
-    const { game_slugs, restricted_game_slugs, shiny_available } = req.body;
+    const { game_slugs, restricted_game_slugs, shiny_available, forms_count } = req.body;
 
     const userId = await getAuthenticatedUserId(req);
     if (!userId) return res.status(401).json({ error: 'Authentication required' });
@@ -4733,6 +4744,7 @@ app.patch('/api/admin/pokemon/:id/game-slugs', async (req, res) => {
     if (Array.isArray(game_slugs)) updates.game_slugs = game_slugs;
     if (Array.isArray(restricted_game_slugs)) updates.restricted_game_slugs = restricted_game_slugs;
     if (typeof shiny_available === 'boolean') updates.shiny_available = shiny_available;
+    if (Number.isInteger(forms_count) && forms_count >= 1) updates.forms_count = forms_count;
 
     const { error } = await supabase
       .from('pokemon_master')
@@ -4887,14 +4899,14 @@ app.get('/api/overlay/approvals', async (req, res) => {
 
     const { data: approvals } = await supabase
       .from('approvals')
-      .select('id, created_at, pokemon_id, restricted_submission, historical, game, users!approvals_user_id_fkey(display_name), pokemon_master!approvals_pokemon_id_fkey(name, img_url)')
+      .select('id, created_at, pokemon_id, restricted_submission, historical, game, users!approvals_user_id_fkey(display_name), pokemon_master!approvals_pokemon_id_fkey(name, national_dex_id)')
       .eq('historical', false)
       .order('created_at', { ascending: true });
 
     const items = (approvals || []).map(a => ({
       id: a.id,
       pokemon_name: a.pokemon_master?.name || 'Unknown',
-      pokemon_img: a.pokemon_master?.img_url || null,
+      pokemon_img: pokeR2Url(a.pokemon_master?.national_dex_id),
       display_name: a.users?.display_name || 'Unknown',
       restricted: !!a.restricted_submission,
       game: a.game || null,
@@ -4963,7 +4975,7 @@ app.get('/api/approvals/history', async (req, res) => {
 
     const [usersRes, pokemonRes] = await Promise.all([
       userIds.length ? supabase.from('users').select('id, display_name').in('id', userIds) : { data: [] },
-      pokemonIds.length ? supabase.from('pokemon_master').select('id, name, national_dex_id, img_url').in('id', pokemonIds) : { data: [] },
+      pokemonIds.length ? supabase.from('pokemon_master').select('id, name, national_dex_id').in('id', pokemonIds) : { data: [] },
     ]);
 
     const userMap = Object.fromEntries((usersRes.data || []).map(u => [u.id, u]));
@@ -4974,7 +4986,7 @@ app.get('/api/approvals/history', async (req, res) => {
       display_name: userMap[h.user_id]?.display_name || 'Unknown',
       pokemon_name: pokemonMap[h.pokemon_id]?.name || 'Unknown',
       national_dex_id: pokemonMap[h.pokemon_id]?.national_dex_id || null,
-      pokemon_img: pokemonMap[h.pokemon_id]?.img_url || null,
+      pokemon_img: pokeR2Url(pokemonMap[h.pokemon_id]?.national_dex_id),
     }));
 
     res.json(enriched);

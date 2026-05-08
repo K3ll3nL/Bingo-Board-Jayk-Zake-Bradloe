@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth, supabase } from '../contexts/AuthContext';
 import restrictedIcon from '../Icons/restricted-icon.png';
 import { getAuthHeaders } from '../services/api';
+import { buildPokemonImageUrl } from '../utils/pokemonImageUtils';
 
 const TOAST_DURATION = 5000;
 
@@ -203,10 +204,7 @@ const Toast = ({ notification, onDismiss }) => {
 
   const bingoType = notification.achievement?.bingo_type;
   const isRestricted = notification.restricted ?? notification.achievement?.restricted ?? false;
-  const spriteUrl = notification.pokemon?.img_url
-    || (notification.pokemon?.national_dex_id
-      ? `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/${notification.pokemon.national_dex_id}.png`
-      : null);
+  const spriteUrl = buildPokemonImageUrl(notification.pokemon);
 
   return (
     <div

@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import restrictedIconSrc from '../Icons/restricted-icon.png';
+import PokemonImage from './PokemonImage';
 
 const supabase = createClient(
   import.meta.env.VITE_SUPABASE_URL,
@@ -152,12 +153,13 @@ const OverlayBoard = () => {
                 overflow: 'hidden',
               }}
             >
-              {/* Pokemon GIF */}
-              {!isFree && !isEmpty && cell.pokemon_gif && (
-                <img
-                  src={cell.pokemon_gif}
-                  alt={cell.pokemon_name}
-                  style={{ width: '100%', height: '100%', objectFit: 'contain', display: 'block' }}
+              {/* Pokemon image with form cycling */}
+              {!isFree && !isEmpty && cell.pokemon && (
+                <PokemonImage
+                  pokemon={cell.pokemon}
+                  className="w-full h-full"
+                  hideControls={true}
+                  enableFormCycling={true}
                 />
               )}
 
