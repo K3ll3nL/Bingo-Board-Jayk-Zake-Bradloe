@@ -3342,6 +3342,315 @@ function shuffleArray(arr) {
   return out;
 }
 
+// Helper: Pick a random eligible pokemon for a given position during reroll
+async function pickRandomPokemonForPosition(monthId, position) {
+  // Current pool for this month (with position so we can exclude the rerolled slot's family)
+  const { data: pool } = await supabase
+    .from('monthly_pokemon_pool')
+    .select('pokemon_id, position')
+    .eq('month_id', monthId);
+
+  const usedIds = new Set((pool || []).map(r => r.pokemon_id));
+
+  // All eligible pokemon (including family_id and category flags for exclusion logic)
+  const { data: allPokemon } = await supabase
+    .from('pokemon_master')
+    .select('id, name, national_dex_id, family_id, legendary, baby, ultra_beast, paradox, starter, fossil, regional_alt')
+    .eq('shiny_available', true);
+
+  const pkFamilyMap = Object.fromEntries((allPokemon || []).map(p => [p.id, p.family_id]));
+
+  // Family IDs on the current board, excluding the slot being rerolled (its family is freed up)
+  const boardFamilyIds = new Set();
+  (pool || []).forEach(r => {
+    if (r.position !== position) {
+      const fam = pkFamilyMap[r.pokemon_id];
+      if (fam != null) boardFamilyIds.add(fam);
+    }
+  });
+
+  // Family IDs from the previous month's board
+  const lastMonthFamilyIds = new Set();
+  const { data: prevMonthData } = await supabase
+    .from('bingo_months')
+    .select('id')
+    .neq('id', monthId)
+    .order('start_date', { ascending: false })
+    .limit(1);
+  if (prevMonthData && prevMonthData.length > 0) {
+    const { data: prevPool } = await supabase
+      .from('monthly_pokemon_pool')
+      .select('pokemon_id')
+      .eq('month_id', prevMonthData[0].id);
+    const prevIds = (prevPool || []).map(r => r.pokemon_id);
+    if (prevIds.length > 0) {
+      const { data: prevPk } = await supabase
+        .from('pokemon_master')
+        .select('id, family_id')
+        .in('id', prevIds);
+      (prevPk || []).forEach(p => { if (p.family_id != null) lastMonthFamilyIds.add(p.family_id); });
+    }
+  }
+
+  // Usage history excluding this month
+  const { data: history } = await supabase
+    .from('monthly_pokemon_pool')
+    .select('pokemon_id')
+    .neq('month_id', monthId);
+
+  const usageCount = {};
+  (history || []).forEach(r => { usageCount[r.pokemon_id] = (usageCount[r.pokemon_id] || 0) + 1; });
+
+  // Calculate current board category distribution
+  const categories = ['legendary', 'baby', 'ultra_beast', 'paradox', 'starter', 'fossil', 'regional_alt'];
+  const boardCategoryCounts = {};
+  categories.forEach(cat => { boardCategoryCounts[cat] = 0; });
+
+  (pool || []).forEach(r => {
+    if (r.position !== position) {
+      const p = allPokemon.find(pk => pk.id === r.pokemon_id);
+      if (p) {
+        categories.forEach(cat => {
+          if (p[cat] === true) boardCategoryCounts[cat]++;
+        });
+      }
+    }
+  });
+
+  const { thresholds } = await calculateCategoryThresholds();
+
+  // Exclude: already on board, family on current board, family on last month's board
+  const isEligibleFamily = p =>
+    p.family_id == null || (!boardFamilyIds.has(p.family_id) && !lastMonthFamilyIds.has(p.family_id));
+
+  const isWithinCategoryBounds = p => {
+    for (const cat of categories) {
+      if (p[cat] === true && boardCategoryCounts[cat] >= thresholds[cat].ceiling) {
+        return false;
+      }
+    }
+    return true;
+  };
+
+  // Pick from never-used first, then once-used
+  const neverUsed = (allPokemon || []).filter(p => !usageCount[p.id] && !usedIds.has(p.id) && isEligibleFamily(p));
+  const usedOnce  = (allPokemon || []).filter(p => usageCount[p.id] === 1 && !usedIds.has(p.id) && isEligibleFamily(p));
+
+  // Prefer candidates within bounds
+  const neverUsedBounded = neverUsed.filter(isWithinCategoryBounds);
+  const usedOnceBounded = usedOnce.filter(isWithinCategoryBounds);
+
+  const candidates = neverUsedBounded.length > 0 ? neverUsedBounded : usedOnceBounded.length > 0 ? usedOnceBounded : (neverUsed.length > 0 ? neverUsed : usedOnce);
+  if (!candidates.length) return null; // No eligible pokemon available
+
+  const pick = candidates[Math.floor(Math.random() * candidates.length)];
+  const is_second_round = (usageCount[pick.id] || 0) > 0;
+
+  return {
+    pokemon_id: pick.id,
+    name: pick.name,
+    national_dex_id: pick.national_dex_id,
+    is_second_round,
+  };
+}
+
+// Helper: Calculate category balance thresholds for board generation
+// Returns { categoryName: { count, avg, floor, ceiling }, boardCapacity, totalPokemon }
+// Board capacity = total shiny-available pokemon / 24 slots (one complete rotation)
+let categoryThresholdsCache = null;
+async function calculateCategoryThresholds() {
+  if (categoryThresholdsCache) return categoryThresholdsCache;
+
+  const { data: allPokemon } = await supabase
+    .from('pokemon_master')
+    .select('id, legendary, baby, ultra_beast, paradox, starter, fossil, regional_alt')
+    .eq('shiny_available', true);
+
+  if (!allPokemon || allPokemon.length === 0) {
+    throw new Error('No pokemon available');
+  }
+
+  const totalPokemon = allPokemon.length;
+  const boardCapacity = Math.floor(totalPokemon / 24);
+
+  const categories = ['legendary', 'baby', 'ultra_beast', 'paradox', 'starter', 'fossil', 'regional_alt'];
+  const thresholds = {};
+
+  categories.forEach(cat => {
+    const count = allPokemon.filter(p => p[cat] === true).length;
+    const avg = count / boardCapacity;
+    const cleanAvg = Math.round(avg * 100) / 100; // Round to 2 decimals, remove trailing zeros
+    thresholds[cat] = {
+      count,
+      avg: cleanAvg,
+      floor: Math.floor(avg),
+      ceiling: Math.ceil(avg),
+    };
+  });
+
+  categoryThresholdsCache = { thresholds, boardCapacity, totalPokemon };
+  return categoryThresholdsCache;
+}
+
+// Helper: Generate a completely new pool for a month (deletes old, generates new)
+async function generateNewPoolForMonth(monthId) {
+  // Delete existing pool for this month
+  await supabase.from('monthly_pokemon_pool').delete().eq('month_id', monthId);
+
+  // Pull every shiny-available pokemon with category flags
+  const { data: allPokemon } = await supabase
+    .from('pokemon_master')
+    .select('id, name, national_dex_id, family_id, genderless, custom_gender_code, has_gender_difference, has_major_gender_difference, form_id, forms_count, legendary, baby, ultra_beast, paradox, starter, fossil, regional_alt')
+    .eq('shiny_available', true);
+
+  if (!allPokemon || allPokemon.length === 0) throw new Error('No pokemon available');
+
+  // Count how many months each pokemon has appeared in
+  const { data: history } = await supabase
+    .from('monthly_pokemon_pool')
+    .select('pokemon_id')
+    .neq('month_id', monthId);
+
+  const usageCount = {};
+  (history || []).forEach(r => { usageCount[r.pokemon_id] = (usageCount[r.pokemon_id] || 0) + 1; });
+
+  // Build family exclusion set from the previous month's board
+  const lastMonthFamilyIds = new Set();
+  const { data: prevMonthData } = await supabase
+    .from('bingo_months')
+    .select('id')
+    .neq('id', monthId)
+    .order('start_date', { ascending: false })
+    .limit(1);
+  if (prevMonthData && prevMonthData.length > 0) {
+    const { data: prevPool } = await supabase
+      .from('monthly_pokemon_pool')
+      .select('pokemon_id')
+      .eq('month_id', prevMonthData[0].id);
+    const prevIds = (prevPool || []).map(r => r.pokemon_id);
+    if (prevIds.length > 0) {
+      const { data: prevPk } = await supabase
+        .from('pokemon_master')
+        .select('id, family_id')
+        .in('id', prevIds);
+      (prevPk || []).forEach(p => { if (p.family_id != null) lastMonthFamilyIds.add(p.family_id); });
+    }
+  }
+
+  const categories = ['legendary', 'baby', 'ultra_beast', 'paradox', 'starter', 'fossil', 'regional_alt'];
+  const { thresholds } = await calculateCategoryThresholds();
+
+  // Track category counts on current board
+  const selectedCounts = {};
+  categories.forEach(cat => { selectedCounts[cat] = 0; });
+
+  function isWithinCategoryBounds(pokemon) {
+    for (const cat of categories) {
+      if (pokemon[cat] === true) {
+        // Adding this pokemon would exceed ceiling for this category
+        if (selectedCounts[cat] >= thresholds[cat].ceiling) {
+          return false;
+        }
+      }
+    }
+    return true;
+  }
+
+  function updateCategoryCounts(pokemon) {
+    categories.forEach(cat => {
+      if (pokemon[cat] === true) {
+        selectedCounts[cat]++;
+      }
+    });
+  }
+
+  function pickWithFamilyAndCategoryExclusion(pool, count, excludedFamilies) {
+    const picked = [];
+    const shuffled = shuffleArray([...pool]);
+
+    for (const p of shuffled) {
+      if (picked.length >= count) break;
+      if ((p.family_id == null || !excludedFamilies.has(p.family_id)) && isWithinCategoryBounds(p)) {
+        picked.push(p);
+        updateCategoryCounts(p);
+        if (p.family_id != null) excludedFamilies.add(p.family_id);
+      }
+    }
+
+    // Fallback: if we couldn't fill slots with category bounds, just fill with any eligible
+    for (const p of shuffled) {
+      if (picked.length >= count) break;
+      if (!picked.some(pk => pk.id === p.id) && (p.family_id == null || !excludedFamilies.has(p.family_id))) {
+        picked.push(p);
+        updateCategoryCounts(p);
+        if (p.family_id != null) excludedFamilies.add(p.family_id);
+      }
+    }
+
+    return picked;
+  }
+
+  const neverUsed = (allPokemon || []).filter(p => !usageCount[p.id]);
+  const usedOnce  = (allPokemon || []).filter(p => usageCount[p.id] === 1);
+
+  let selected;
+  const familyExclusionSet = new Set(lastMonthFamilyIds);
+  const neverPicked = pickWithFamilyAndCategoryExclusion(neverUsed, 24, familyExclusionSet);
+  if (neverPicked.length >= 24) {
+    selected = neverPicked.map(p => ({ ...p, is_second_round: false }));
+  } else {
+    const need = 24 - neverPicked.length;
+    const oncePicked = pickWithFamilyAndCategoryExclusion(usedOnce, need, familyExclusionSet);
+    selected = [
+      ...neverPicked.map(p => ({ ...p, is_second_round: false })),
+      ...oncePicked.map(p => ({ ...p, is_second_round: true })),
+    ];
+  }
+
+  // Shuffle positions
+  const positions = shuffleArray([1,2,3,4,5,6,7,8,9,10,11,12,14,15,16,17,18,19,20,21,22,23,24,25]);
+
+  const poolRows = selected.map((p, i) => ({
+    month_id:   monthId,
+    pokemon_id: p.id,
+    position:   positions[i],
+  }));
+
+  const { error: poolInsertErr } = await supabase.from('monthly_pokemon_pool').insert(poolRows);
+  if (poolInsertErr) throw new Error(`Failed to insert pokemon pool: ${poolInsertErr.message}`);
+
+  // Build category distribution stats
+  const categoryStats = {};
+  categories.forEach(cat => {
+    const count = selectedCounts[cat];
+    const avg = thresholds[cat].avg;
+    categoryStats[cat] = {
+      count,
+      avg: avg.toFixed(2),
+      floor: thresholds[cat].floor,
+      ceiling: thresholds[cat].ceiling,
+    };
+  });
+
+  return {
+    board: selected.map((p, i) => ({
+      position:       positions[i],
+      is_second_round: p.is_second_round,
+      pokemon: {
+        id: p.id,
+        name: p.name,
+        national_dex_id: p.national_dex_id,
+        genderless: p.genderless,
+        custom_gender_code: p.custom_gender_code,
+        has_gender_difference: p.has_gender_difference,
+        has_major_gender_difference: p.has_major_gender_difference,
+        form_id: p.form_id,
+        forms_count: p.forms_count,
+      },
+    })),
+    categoryStats,
+  };
+}
 
 // GET /api/mod/board-builder
 app.get('/api/mod/board-builder', async (req, res) => {
@@ -3523,7 +3832,7 @@ app.get('/api/mod/board-builder', async (req, res) => {
       // Pull every shiny-available pokemon (including family_id for exclusion logic)
       const { data: allPokemon, error: pkErr } = await supabase
         .from('pokemon_master')
-        .select('id, name, national_dex_id, family_id')
+        .select('id, name, national_dex_id, family_id, genderless, custom_gender_code, has_gender_difference, has_major_gender_difference, form_id, forms_count')
         .eq('shiny_available', true);
 
       if (pkErr) return res.status(500).json({ error: 'Failed to fetch pokemon', details: pkErr.message });
@@ -3608,10 +3917,8 @@ app.get('/api/mod/board-builder', async (req, res) => {
 
       tiles = selected.map((p, i) => ({
         position:       positions[i],
-        pokemon_id:     p.id,
-        name:           p.name,
-        national_dex_id: p.national_dex_id,
         is_second_round: p.is_second_round,
+        pokemon:        p,
       }));
 
     } else {
@@ -3620,7 +3927,7 @@ app.get('/api/mod/board-builder', async (req, res) => {
 
       const { data: pkDetails } = await supabase
         .from('pokemon_master')
-        .select('id, name, national_dex_id')
+        .select('id, name, national_dex_id, genderless, custom_gender_code, has_gender_difference, has_major_gender_difference, form_id, forms_count')
         .in('id', pokemonIds);
 
       const pkMap = {};
@@ -3637,10 +3944,8 @@ app.get('/api/mod/board-builder', async (req, res) => {
 
       tiles = existingPool.map(r => ({
         position:        r.position,
-        pokemon_id:      r.pokemon_id,
-        name:            pkMap[r.pokemon_id]?.name || 'Unknown',
-        national_dex_id: pkMap[r.pokemon_id]?.national_dex_id || null,
         is_second_round: seenElsewhere.has(r.pokemon_id),
+        pokemon:         pkMap[r.pokemon_id],
       }));
     }
 
@@ -3712,83 +4017,13 @@ app.post('/api/mod/board-builder/reroll', async (req, res) => {
     if (!position || !monthId) return res.status(400).json({ error: 'position, monthId required' });
     if (position === 13) return res.status(400).json({ error: 'Cannot reroll FREE SPACE' });
 
-    // Current pool for this month (with position so we can exclude the rerolled slot's family)
-    const { data: pool } = await supabase
-      .from('monthly_pokemon_pool')
-      .select('pokemon_id, position')
-      .eq('month_id', monthId);
-
-    const usedIds = new Set((pool || []).map(r => r.pokemon_id));
-
-    // All eligible pokemon (including family_id for exclusion logic)
-    const { data: allPokemon } = await supabase
-      .from('pokemon_master')
-      .select('id, name, national_dex_id, family_id')
-      .eq('shiny_available', true);
-
-    const pkFamilyMap = Object.fromEntries((allPokemon || []).map(p => [p.id, p.family_id]));
-
-    // Family IDs on the current board, excluding the slot being rerolled (its family is freed up)
-    const boardFamilyIds = new Set();
-    (pool || []).forEach(r => {
-      if (r.position !== position) {
-        const fam = pkFamilyMap[r.pokemon_id];
-        if (fam != null) boardFamilyIds.add(fam);
-      }
-    });
-
-    // Family IDs from the previous month's board
-    const lastMonthFamilyIds = new Set();
-    const { data: prevMonthData } = await supabase
-      .from('bingo_months')
-      .select('id')
-      .neq('id', monthId)
-      .order('start_date', { ascending: false })
-      .limit(1);
-    if (prevMonthData && prevMonthData.length > 0) {
-      const { data: prevPool } = await supabase
-        .from('monthly_pokemon_pool')
-        .select('pokemon_id')
-        .eq('month_id', prevMonthData[0].id);
-      const prevIds = (prevPool || []).map(r => r.pokemon_id);
-      if (prevIds.length > 0) {
-        const { data: prevPk } = await supabase
-          .from('pokemon_master')
-          .select('id, family_id')
-          .in('id', prevIds);
-        (prevPk || []).forEach(p => { if (p.family_id != null) lastMonthFamilyIds.add(p.family_id); });
-      }
-    }
-
-    // Usage history excluding this month
-    const { data: history } = await supabase
-      .from('monthly_pokemon_pool')
-      .select('pokemon_id')
-      .neq('month_id', monthId);
-
-    const usageCount = {};
-    (history || []).forEach(r => { usageCount[r.pokemon_id] = (usageCount[r.pokemon_id] || 0) + 1; });
-
-    // Exclude: already on board, family on current board, family on last month's board
-    const isEligibleFamily = p =>
-      p.family_id == null || (!boardFamilyIds.has(p.family_id) && !lastMonthFamilyIds.has(p.family_id));
-
-    // Pick from never-used first, then once-used
-    const neverUsed = (allPokemon || []).filter(p => !usageCount[p.id] && !usedIds.has(p.id) && isEligibleFamily(p));
-    const usedOnce  = (allPokemon || []).filter(p => usageCount[p.id] === 1 && !usedIds.has(p.id) && isEligibleFamily(p));
-
-    const candidates = neverUsed.length > 0 ? neverUsed : usedOnce;
-    if (!candidates.length) return res.status(409).json({ error: 'No eligible pokemon available for reroll' });
-
-    const pick = candidates[Math.floor(Math.random() * candidates.length)];
-
-    // Is it second-round?
-    const is_second_round = (usageCount[pick.id] || 0) > 0;
+    const pick = await pickRandomPokemonForPosition(monthId, position);
+    if (!pick) return res.status(409).json({ error: 'No eligible pokemon available for reroll' });
 
     // Update the row
     const { error: upErr } = await supabase
       .from('monthly_pokemon_pool')
-      .update({ pokemon_id: pick.id })
+      .update({ pokemon_id: pick.pokemon_id })
       .eq('month_id', monthId)
       .eq('position', position);
 
@@ -3796,10 +4031,10 @@ app.post('/api/mod/board-builder/reroll', async (req, res) => {
 
     const tile = {
       position,
-      pokemon_id:      pick.id,
+      pokemon_id:      pick.pokemon_id,
       name:            pick.name,
       national_dex_id: pick.national_dex_id,
-      is_second_round,
+      is_second_round: pick.is_second_round,
     };
 
     await broadcastUpdate('board-builder-updates', 'tile-update', {
@@ -3807,6 +4042,110 @@ app.post('/api/mod/board-builder/reroll', async (req, res) => {
     });
 
     res.json({ tile });
+
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/mod/board-builder/refresh-all
+app.post('/api/mod/board-builder/refresh-all', async (req, res) => {
+  try {
+    const userId = await getAuthenticatedUserId(req);
+    if (!userId) return res.status(401).json({ error: 'Authentication required' });
+
+    const { data: modRow } = await supabase
+      .from('moderators').select('id').eq('id', userId).maybeSingle();
+    if (!modRow) return res.status(403).json({ error: 'Moderator access required' });
+
+    const { monthId, operationId } = req.body;
+    if (!monthId) return res.status(400).json({ error: 'monthId required' });
+
+    const { board, categoryStats } = await generateNewPoolForMonth(monthId);
+
+    // Broadcast bulk update (all tiles at once)
+    await broadcastUpdate('board-builder-updates', 'tile-update', {
+      type: 'refresh-all',
+      tiles: board,
+      categoryStats,
+      operationId,
+    });
+
+    res.json({ tiles: board, categoryStats });
+
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/mod/board-builder/shuffle
+app.post('/api/mod/board-builder/shuffle', async (req, res) => {
+  try {
+    const userId = await getAuthenticatedUserId(req);
+    if (!userId) return res.status(401).json({ error: 'Authentication required' });
+
+    const { data: modRow } = await supabase
+      .from('moderators').select('id').eq('id', userId).maybeSingle();
+    if (!modRow) return res.status(403).json({ error: 'Moderator access required' });
+
+    const { monthId, operationId } = req.body;
+    if (!monthId) return res.status(400).json({ error: 'monthId required' });
+
+    // Fetch current pool
+    const { data: pool } = await supabase
+      .from('monthly_pokemon_pool')
+      .select('id, position, pokemon_id')
+      .eq('month_id', monthId)
+      .neq('position', 13); // Exclude FREE SPACE
+
+    if (!pool || pool.length < 24) {
+      return res.status(400).json({ error: 'Pool not fully initialized' });
+    }
+
+    // Shuffle positions
+    const positions = [1,2,3,4,5,6,7,8,9,10,11,12,14,15,16,17,18,19,20,21,22,23,24,25];
+    const shuffledPositions = shuffleArray(positions);
+
+    // Create update operations
+    const updates = [];
+    for (let i = 0; i < pool.length; i++) {
+      updates.push({
+        id: pool[i].id,
+        newPosition: shuffledPositions[i],
+      });
+    }
+
+    // Execute all updates in parallel
+    const updatePromises = updates.map(update =>
+      supabase
+        .from('monthly_pokemon_pool')
+        .update({ position: update.newPosition })
+        .eq('id', update.id)
+    );
+
+    const results = await Promise.all(updatePromises);
+    for (const { error: upErr } of results) {
+      if (upErr) {
+        return res.status(500).json({ error: 'Shuffle update failed', details: upErr.message });
+      }
+    }
+
+    // Broadcast shuffle event
+    await broadcastUpdate('board-builder-updates', 'tile-update', {
+      type: 'shuffle',
+      updates: updates.map((u, i) => ({
+        oldPosition: pool[i].position,
+        newPosition: u.newPosition,
+        pokemon_id: pool[i].pokemon_id,
+      })),
+      operationId,
+    });
+
+    res.json({ ok: true, updates: updates.map((u, i) => ({
+      oldPosition: pool[i].position,
+      newPosition: u.newPosition,
+      pokemon_id: pool[i].pokemon_id,
+    })) });
 
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -4719,7 +5058,7 @@ app.get('/api/admin/pokemon-game-slugs', async (req, res) => {
 
     const { data, error } = await supabase
       .from('pokemon_master')
-      .select('id, national_dex_id, name, game_slugs, restricted_game_slugs, shiny_available, forms_count, form_id, custom_gender_code, genderless, has_gender_difference, has_major_gender_difference')
+      .select('id, national_dex_id, name, game_slugs, restricted_game_slugs, shiny_available, forms_count, form_id, custom_gender_code, genderless, has_gender_difference, has_major_gender_difference, legendary, baby, ultra_beast, paradox, starter, fossil, regional_alt')
       .order('national_dex_id', { ascending: true });
 
     if (error) throw error;
@@ -4733,7 +5072,7 @@ app.get('/api/admin/pokemon-game-slugs', async (req, res) => {
 app.patch('/api/admin/pokemon/:id/game-slugs', async (req, res) => {
   try {
     const { id } = req.params;
-    const { game_slugs, restricted_game_slugs, shiny_available, forms_count } = req.body;
+    const { game_slugs, restricted_game_slugs, shiny_available, forms_count, legendary, baby, ultra_beast, paradox, starter, fossil, regional_alt } = req.body;
 
     const userId = await getAuthenticatedUserId(req);
     if (!userId) return res.status(401).json({ error: 'Authentication required' });
@@ -4747,6 +5086,13 @@ app.patch('/api/admin/pokemon/:id/game-slugs', async (req, res) => {
     if (Array.isArray(restricted_game_slugs)) updates.restricted_game_slugs = restricted_game_slugs;
     if (typeof shiny_available === 'boolean') updates.shiny_available = shiny_available;
     if (Number.isInteger(forms_count) && forms_count >= 1) updates.forms_count = forms_count;
+    if (typeof legendary === 'boolean') updates.legendary = legendary;
+    if (typeof baby === 'boolean') updates.baby = baby;
+    if (typeof ultra_beast === 'boolean') updates.ultra_beast = ultra_beast;
+    if (typeof paradox === 'boolean') updates.paradox = paradox;
+    if (typeof starter === 'boolean') updates.starter = starter;
+    if (typeof fossil === 'boolean') updates.fossil = fossil;
+    if (typeof regional_alt === 'boolean') updates.regional_alt = regional_alt;
 
     const { error } = await supabase
       .from('pokemon_master')

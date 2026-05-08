@@ -171,6 +171,103 @@ const SlugDropdown = ({ pokemonId, field, value, onChange, matchValue, reversed 
   );
 };
 
+// ── Category Dropdown ────────────────────────────────────────────────────────
+
+const CATEGORIES = [
+  { key: 'legendary', label: 'Legendary' },
+  { key: 'baby', label: 'Baby' },
+  { key: 'ultra_beast', label: 'Ultra Beast' },
+  { key: 'paradox', label: 'Paradox' },
+  { key: 'starter', label: 'Starter' },
+  { key: 'fossil', label: 'Fossil' },
+  { key: 'regional_alt', label: 'Regional Variant' },
+];
+
+const CategoryDropdown = ({ pokemonId, data, onChange }) => {
+  const [open, setOpen] = useState(false);
+  const [panelStyle, setPanelStyle] = useState({});
+  const btnRef = useRef(null);
+  const panelRef = useRef(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const handler = (e) => {
+      if (
+        btnRef.current && !btnRef.current.contains(e.target) &&
+        panelRef.current && !panelRef.current.contains(e.target)
+      ) setOpen(false);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
+    const handler = () => setOpen(false);
+    document.addEventListener('scroll', handler, true);
+    return () => document.removeEventListener('scroll', handler, true);
+  }, [open]);
+
+  const handleToggleOpen = () => {
+    if (!open && btnRef.current) {
+      const rect = btnRef.current.getBoundingClientRect();
+      const openUp = rect.bottom > window.innerHeight * 0.55;
+      const panelWidth = 220;
+      const idealLeft = rect.left + rect.width / 2 - panelWidth / 2;
+      const clampedLeft = Math.max(8, Math.min(idealLeft, window.innerWidth - panelWidth - 8));
+
+      setPanelStyle(openUp
+        ? { position: 'fixed', width: panelWidth, left: clampedLeft, bottom: window.innerHeight - rect.top + 4, zIndex: 9999 }
+        : { position: 'fixed', width: panelWidth, left: clampedLeft, top: rect.bottom + 4, zIndex: 9999 }
+      );
+    }
+    setOpen(o => !o);
+  };
+
+  const activeCount = CATEGORIES.filter(c => data[c.key]).length;
+
+  const panel = (
+    <div
+      ref={panelRef}
+      style={panelStyle}
+      className="bg-gray-900 border border-gray-600 rounded-lg shadow-2xl overflow-y-auto max-h-64"
+    >
+      <div className="space-y-1 p-2">
+        {CATEGORIES.map(cat => (
+          <label key={cat.key} className="flex items-center gap-3 px-3 py-2 rounded cursor-pointer select-none hover:bg-gray-800 transition-colors">
+            <input
+              type="checkbox"
+              checked={data[cat.key] ?? false}
+              onChange={() => onChange(cat.key, !data[cat.key])}
+              className="w-3.5 h-3.5 rounded accent-cyan-500 flex-shrink-0"
+            />
+            <span className="text-xs text-gray-200">{cat.label}</span>
+          </label>
+        ))}
+      </div>
+    </div>
+  );
+
+  return (
+    <div className="relative">
+      <button
+        ref={btnRef}
+        type="button"
+        onClick={handleToggleOpen}
+        className={`flex items-center justify-between gap-2 w-full px-3 py-1.5 rounded-lg border text-sm transition-colors bg-gray-700 border-gray-600 hover:border-purple-500`}
+      >
+        <span className="text-white text-xs">{activeCount > 0 ? `${activeCount}` : '0'}</span>
+        <svg className={`w-3.5 h-3.5 flex-shrink-0 transition-transform text-gray-400 ${open ? 'rotate-180' : ''}`}
+          fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+        </svg>
+      </button>
+
+      {open && createPortal(panel, document.body)}
+    </div>
+  );
+};
+
 // ── Save indicator ────────────────────────────────────────────────────────────
 
 const SaveIndicator = ({ status }) => {
@@ -195,7 +292,7 @@ const SaveIndicator = ({ status }) => {
 
 // ── Main component ────────────────────────────────────────────────────────────
 
-const GRID = '52px 1fr 1fr 1fr 90px 72px 72px 24px';
+const GRID = '32px 52px 1fr 1fr 1fr 90px 72px 90px 72px 24px';
 
 const PokemonGameManager = () => {
   const [pokemon, setPokemon] = useState([]);
@@ -204,8 +301,9 @@ const PokemonGameManager = () => {
   const [search, setSearch] = useState('');
   const [reversed, setReversed] = useState(false);
   const [clipboard, setClipboard] = useState(null); // { fromId, game_slugs, restricted_game_slugs }
+  const [selected, setSelected] = useState(new Set()); // Set of pokemon IDs
 
-  // Local data edits: { [pokemonId]: { game_slugs, restricted_game_slugs, shiny_available } }
+  // Local data edits: { [pokemonId]: { game_slugs, restricted_game_slugs, shiny_available, forms_count, legendary, baby, ultra_beast, paradox, starter, fossil, regional_alt } }
   const [localData, setLocalData] = useState({});
 
   // Save state per pokemon: 'idle' | 'saving' | 'saved' | 'error'
@@ -232,6 +330,13 @@ const PokemonGameManager = () => {
             restricted_game_slugs: p.restricted_game_slugs ?? [],
             shiny_available: p.shiny_available ?? false,
             forms_count: p.forms_count ?? 1,
+            legendary: p.legendary ?? false,
+            baby: p.baby ?? false,
+            ultra_beast: p.ultra_beast ?? false,
+            paradox: p.paradox ?? false,
+            starter: p.starter ?? false,
+            fossil: p.fossil ?? false,
+            regional_alt: p.regional_alt ?? false,
           };
         }
         setLocalData(init);
@@ -278,19 +383,29 @@ const PokemonGameManager = () => {
   };
 
   const handleSlugChange = (pokemonId, field, newValue) => {
+    const oldValue = localData[pokemonId]?.[field] ?? [];
     setLocalData(prev => ({
       ...prev,
       [pokemonId]: { ...prev[pokemonId], [field]: newValue },
     }));
-    scheduleSave(pokemonId);
+    if (selected.has(pokemonId)) {
+      applyToSelected(pokemonId, field, newValue, oldValue);
+    } else {
+      scheduleSave(pokemonId);
+    }
   };
 
   const handleShinyToggle = (pokemonId) => {
+    const newValue = !localData[pokemonId]?.shiny_available;
     setLocalData(prev => ({
       ...prev,
-      [pokemonId]: { ...prev[pokemonId], shiny_available: !prev[pokemonId].shiny_available },
+      [pokemonId]: { ...prev[pokemonId], shiny_available: newValue },
     }));
-    scheduleSave(pokemonId);
+    if (selected.has(pokemonId)) {
+      applyToSelected(pokemonId, 'shiny_available', newValue);
+    } else {
+      scheduleSave(pokemonId);
+    }
   };
 
   const handleFormsCountChange = (pokemonId, value) => {
@@ -299,7 +414,88 @@ const PokemonGameManager = () => {
       ...prev,
       [pokemonId]: { ...prev[pokemonId], forms_count: n },
     }));
-    scheduleSave(pokemonId);
+    if (selected.has(pokemonId)) {
+      applyToSelected(pokemonId, 'forms_count', n);
+    } else {
+      scheduleSave(pokemonId);
+    }
+  };
+
+  const handleCategoryToggle = (pokemonId, category, value) => {
+    setLocalData(prev => ({
+      ...prev,
+      [pokemonId]: { ...prev[pokemonId], [category]: value },
+    }));
+    if (selected.has(pokemonId)) {
+      applyToSelected(pokemonId, category, value);
+    } else {
+      scheduleSave(pokemonId);
+    }
+  };
+
+  // ── Bulk selection handlers ────────────────────────────────────────────────
+
+  const toggleSelected = (pokemonId) => {
+    setSelected(prev => {
+      const next = new Set(prev);
+      next.has(pokemonId) ? next.delete(pokemonId) : next.add(pokemonId);
+      return next;
+    });
+  };
+
+  const selectAll = () => {
+    setSelected(new Set(filtered.map(p => p.id)));
+  };
+
+  const clearSelection = () => {
+    setSelected(new Set());
+  };
+
+  const applyToSelected = (pokemonId, field, newValue, oldValue) => {
+    if (!selected.has(pokemonId) || selected.size === 0) return;
+
+    // For slug fields, apply the delta (additions/removals) rather than replacing
+    const isSlugField = field === 'game_slugs' || field === 'restricted_game_slugs';
+
+    setLocalData(prev => {
+      const next = { ...prev };
+
+      if (isSlugField) {
+        const added = newValue.filter(slug => !oldValue.includes(slug));
+        const removed = oldValue.filter(slug => !newValue.includes(slug));
+
+        // Apply the delta to all selected Pokemon
+        for (const id of selected) {
+          const current = next[id]?.[field] ?? [];
+          let updated = [...current];
+
+          // Add the slugs that were added to the clicked Pokemon
+          for (const slug of added) {
+            if (!updated.includes(slug)) {
+              updated.push(slug);
+            }
+          }
+
+          // Remove the slugs that were removed from the clicked Pokemon
+          for (const slug of removed) {
+            updated = updated.filter(s => s !== slug);
+          }
+
+          next[id] = { ...next[id], [field]: updated };
+        }
+      } else {
+        // For non-slug fields, replace the value entirely
+        for (const id of selected) {
+          next[id] = { ...next[id], [field]: newValue };
+        }
+      }
+
+      return next;
+    });
+
+    for (const id of selected) {
+      scheduleSave(id);
+    }
   };
 
   // ── Filter ────────────────────────────────────────────────────────────────
@@ -336,6 +532,17 @@ const PokemonGameManager = () => {
               />
             </div>
             <span className="text-sm text-gray-400 ml-auto">
+              {selected.size > 0 && (
+                <>
+                  <span className="text-purple-400 font-medium">{selected.size} selected</span>
+                  <button
+                    type="button"
+                    onClick={clearSelection}
+                    className="ml-2 text-xs text-purple-400 hover:text-purple-300 transition-colors"
+                  >Clear</button>
+                  <span className="mx-2">·</span>
+                </>
+              )}
               {filtered.length} / {pokemon.length} Pokémon
             </span>
             {clipboard && (
@@ -366,6 +573,14 @@ const PokemonGameManager = () => {
             {/* Column headers */}
             <div className="grid gap-3 px-4 py-3 text-xs font-semibold text-gray-400 uppercase tracking-widest border-b border-gray-700 rounded-t-xl sticky top-0 z-10"
               style={{ gridTemplateColumns: GRID, backgroundColor: '#12122a' }}>
+              <div className="flex items-center justify-center">
+                <input
+                  type="checkbox"
+                  checked={selected.size > 0 && selected.size === filtered.length}
+                  onChange={() => selected.size === filtered.length ? clearSelection() : selectAll()}
+                  className="w-4 h-4 rounded accent-purple-500"
+                />
+              </div>
               <div />
               <div>Pokémon</div>
               <div className="flex items-center gap-1.5">
@@ -384,6 +599,7 @@ const PokemonGameManager = () => {
                 <span className="w-2 h-2 rounded-full bg-blue-400 inline-block" />
                 Forms
               </div>
+              <div>Categories</div>
               <div />
               <div />
             </div>
@@ -408,6 +624,16 @@ const PokemonGameManager = () => {
                     borderBottom: '1px solid rgba(255,255,255,0.05)',
                   }}
                 >
+                  {/* Selection checkbox */}
+                  <div className="flex items-center justify-center">
+                    <input
+                      type="checkbox"
+                      checked={selected.has(p.id)}
+                      onChange={() => toggleSelected(p.id)}
+                      className="w-4 h-4 rounded accent-purple-500"
+                    />
+                  </div>
+
                   {/* Sprite */}
                   <PokemonImage pokemon={{ ...p, forms_count: data.forms_count }} className="w-11 h-11" />
 
@@ -457,6 +683,13 @@ const PokemonGameManager = () => {
                     value={data.forms_count}
                     onChange={e => handleFormsCountChange(p.id, e.target.value)}
                     className="w-full px-2 py-1 rounded bg-gray-700 border border-gray-600 text-white text-sm text-center focus:border-blue-400 focus:outline-none"
+                  />
+
+                  {/* Categories dropdown */}
+                  <CategoryDropdown
+                    pokemonId={p.id}
+                    data={data}
+                    onChange={(category, value) => handleCategoryToggle(p.id, category, value)}
                   />
 
                   {/* Copy / Paste */}

@@ -3,10 +3,10 @@ import { useNavigate } from 'react-router-dom';
 import { createClient } from '@supabase/supabase-js';
 import { useAuth } from '../contexts/AuthContext';
 import backgroundImage from '../Icons/2026Jan.png';
-import { buildPokemonImageUrl } from '../utils/pokemonImageUtils';
 import logoImage from '../Icons/pokemon-bounty-board.png';
 import PageBackground from './PageBackground';
 import PageHeader from './PageHeader';
+import PokemonImage from './PokemonImage';
 
 const supabaseClient = createClient(
   import.meta.env.VITE_SUPABASE_URL,
@@ -49,16 +49,19 @@ export default function BoardBuilder() {
   const navigate = useNavigate();
 
   const [tiles, setTiles]           = useState([]);
+  const [categoryStats, setCategoryStats] = useState(null);
   const [nextMonth, setNextMonth]   = useState(null);
   const [loading, setLoading]       = useState(true);
   const [error, setError]           = useState(null);
 
-  // Per-position image-load tracking for fade-in
-  const [loadedImages, setLoadedImages] = useState(new Set());
   // Positions mid-reroll fade-out
   const [fadingOut, setFadingOut]       = useState(new Set());
   // Positions with an in-flight reroll request
   const [rerolling, setRerolling]       = useState(new Set());
+
+  // Bulk operations
+  const [refreshingAll, setRefreshingAll] = useState(false);
+  const [shuffling, setShuffling]         = useState(false);
 
   // Drag state
   const [dragSource, setDragSource] = useState(null);
@@ -70,15 +73,13 @@ export default function BoardBuilder() {
   // ── Load ──────────────────────────────────────────────────────────────────
   // Run once on mount only. Auth header works independently of user state
   // (dev_token in dev, session token in prod), so we don't need to re-fetch
-  // when the user object resolves — that second fire is what caused images to
-  // vanish (loadedImages reset + cached images never re-fire onLoad).
+  // when the user object resolves.
   useEffect(() => { loadBoard(); }, []);
 
   const loadBoard = async () => {
     try {
       setLoading(true);
       setError(null);
-      setLoadedImages(new Set());
       const res = await fetch('/api/mod/board-builder', {
         headers: { Authorization: await getAuthHeader() },
       });
@@ -89,6 +90,7 @@ export default function BoardBuilder() {
       const data = await res.json();
       setNextMonth(data.nextMonth);
       setTiles(data.tiles);
+      setCategoryStats(data.categoryStats);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -120,8 +122,31 @@ export default function BoardBuilder() {
       setFadingOut(prev => new Set([...prev, tile.position]));
       setTimeout(() => {
         setTiles(prev => prev.map(t => t.position === tile.position ? tile : t));
-        setLoadedImages(prev => { const n = new Set(prev); n.delete(tile.position); return n; });
         setFadingOut(prev => { const n = new Set(prev); n.delete(tile.position); return n; });
+      }, 300);
+    } else if (payload.type === 'refresh-all') {
+      const allPositions = new Set(payload.tiles.map(t => t.position));
+      setFadingOut(prev => new Set([...prev, ...allPositions]));
+      setTimeout(() => {
+        setTiles(payload.tiles);
+        if (payload.categoryStats) setCategoryStats(payload.categoryStats);
+        setFadingOut(new Set());
+      }, 300);
+    } else if (payload.type === 'shuffle') {
+      const positionsToFade = new Set(payload.updates.map(u => u.newPosition));
+      setFadingOut(prev => new Set([...prev, ...positionsToFade]));
+      setTimeout(() => {
+        setTiles(prev => {
+          const updateMap = {};
+          payload.updates.forEach(u => {
+            updateMap[u.pokemon_id] = u.newPosition;
+          });
+          return prev.map(t => ({
+            ...t,
+            position: updateMap[t.pokemon_id] ?? t.position,
+          }));
+        });
+        setFadingOut(prev => { const n = new Set(prev); positionsToFade.forEach(p => n.delete(p)); return n; });
       }, 300);
     }
   };
@@ -151,7 +176,6 @@ export default function BoardBuilder() {
 
       setTimeout(() => {
         setTiles(prev => prev.map(t => t.position === position ? tile : t));
-        setLoadedImages(prev => { const n = new Set(prev); n.delete(position); return n; });
         setFadingOut(prev => { const n = new Set(prev); n.delete(position); return n; });
       }, 300);
     } catch (err) {
@@ -211,6 +235,94 @@ export default function BoardBuilder() {
 
   const handleDragEnd = () => { setDragSource(null); setDragTarget(null); };
 
+  // ── Refresh All ───────────────────────────────────────────────────────────
+  const handleRefreshAll = async () => {
+    if (refreshingAll || !nextMonth) return;
+
+    setRefreshingAll(true);
+
+    // Immediate visual feedback: fade out all tiles
+    const allPositions = new Set([1,2,3,4,5,6,7,8,9,10,11,12,14,15,16,17,18,19,20,21,22,23,24,25]);
+    setFadingOut(new Set(allPositions));
+
+    try {
+      const res = await fetch('/api/mod/board-builder/refresh-all', {
+        method: 'POST',
+        headers: { Authorization: await getAuthHeader(), 'Content-Type': 'application/json' },
+        body: JSON.stringify({ monthId: nextMonth.id, operationId: Math.random().toString(36).slice(2) }),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
+      const { tiles: newTiles } = await res.json();
+      setTimeout(() => {
+        setTiles(newTiles);
+        setFadingOut(new Set());
+      }, 300);
+    } catch (err) {
+      console.error('Refresh all failed:', err);
+      setFadingOut(new Set());
+    } finally {
+      setRefreshingAll(false);
+    }
+  };
+
+  // ── Shuffle ───────────────────────────────────────────────────────────────
+  const handleShuffle = async () => {
+    if (shuffling || !nextMonth) return;
+
+    const opId = Math.random().toString(36).slice(2);
+    pendingOps.current.add(opId);
+
+    setShuffling(true);
+
+    // Optimistic update: shuffle positions in client state immediately
+    const allPositions = [1,2,3,4,5,6,7,8,9,10,11,12,14,15,16,17,18,19,20,21,22,23,24,25];
+    const shuffledPositions = (() => {
+      const out = [...allPositions];
+      for (let i = out.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [out[i], out[j]] = [out[j], out[i]];
+      }
+      return out;
+    })();
+
+    const positionMap = {};
+    tiles.forEach((t, i) => {
+      if (i < allPositions.length) {
+        positionMap[allPositions[i]] = shuffledPositions[i];
+      }
+    });
+
+    const positionsToFade = new Set(Object.values(positionMap));
+    setFadingOut(prev => new Set([...prev, ...positionsToFade]));
+
+    setTimeout(() => {
+      setTiles(prev => prev.map(t => ({
+        ...t,
+        position: positionMap[t.position] ?? t.position,
+      })));
+      setFadingOut(new Set());
+    }, 300);
+
+    try {
+      const res = await fetch('/api/mod/board-builder/shuffle', {
+        method: 'POST',
+        headers: { Authorization: await getAuthHeader(), 'Content-Type': 'application/json' },
+        body: JSON.stringify({ monthId: nextMonth.id, operationId: opId }),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.error || `HTTP ${res.status}`);
+      }
+    } catch (err) {
+      console.error('Shuffle failed:', err);
+      pendingOps.current.delete(opId);
+      // Revert to previous state on error would go here if needed
+    } finally {
+      setShuffling(false);
+    }
+  };
+
   // ── Render ────────────────────────────────────────────────────────────────
   if (loading) {
     return (
@@ -250,7 +362,27 @@ export default function BoardBuilder() {
       {/* Grid */}
       <div className="max-w-2xl mx-auto px-4 pt-6 pb-8">
         {/* Month title */}
-        <h2 className="text-2xl font-bold text-purple-400 mb-4">{nextMonth?.month_year_display}</h2>
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-2xl font-bold text-purple-400">{nextMonth?.month_year_display}</h2>
+          <div className="flex gap-2">
+            <button
+              onClick={handleRefreshAll}
+              disabled={refreshingAll}
+              className="px-3 py-1 text-sm bg-purple-700 hover:bg-purple-600 disabled:bg-gray-600 text-white rounded transition-colors"
+              title="Reroll all 24 slots"
+            >
+              {refreshingAll ? '⟳ Refreshing...' : '⟳ Refresh All'}
+            </button>
+            <button
+              onClick={handleShuffle}
+              disabled={shuffling}
+              className="px-3 py-1 text-sm bg-blue-700 hover:bg-blue-600 disabled:bg-gray-600 text-white rounded transition-colors"
+              title="Shuffle all positions"
+            >
+              {shuffling ? '⤨ Shuffling...' : '⤨ Shuffle'}
+            </button>
+          </div>
+        </div>
         <div
           className="grid grid-cols-5 gap-1 rounded-xl overflow-hidden"
           style={{
@@ -266,7 +398,6 @@ export default function BoardBuilder() {
             const isDragging = dragSource === pos;
             const isOver     = dragTarget === pos;
             const isFading   = fadingOut.has(pos);
-            const isLoaded   = loadedImages.has(pos);
 
             if (isFree) {
               return (
@@ -300,20 +431,18 @@ export default function BoardBuilder() {
                     {/* Pokemon image */}
                     <div
                       className="w-full h-full transition-opacity duration-300"
-                      style={{ opacity: isFading ? 0 : (isLoaded ? 1 : 0) }}
+                      style={{ opacity: isFading ? 0 : 1 }}
                     >
-                      <img
-                        src={buildPokemonImageUrl({ national_dex_id: tile.national_dex_id })}
-                        alt={tile.name}
-                        className="w-full h-full object-contain p-1"
-                        onLoad={() => setLoadedImages(prev => new Set([...prev, pos]))}
+                      <PokemonImage
+                        pokemon={tile.pokemon}
+                        className="w-full h-full p-1"
                       />
                     </div>
 
                     {/* Name label */}
                     <div className="absolute bottom-0 left-0 right-0 bg-black/60 text-white text-center py-0.5 px-1"
                          style={{ fontSize: '10px', lineHeight: '1.2' }}>
-                      {tile.name}
+                      {tile.pokemon?.name || tile.name}
                     </div>
 
                     {/* 2nd-round badge */}
@@ -360,6 +489,26 @@ export default function BoardBuilder() {
             </div>
           )}
         </div>
+
+        {/* Category Stats */}
+        {categoryStats && (
+          <div className="mt-6 p-4 bg-gray-900/50 rounded-lg border border-gray-700">
+            <h3 className="text-sm font-semibold text-gray-300 mb-3">Category Balance</h3>
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2 text-xs">
+              {Object.entries(categoryStats).map(([category, stats]) => (
+                <div key={category} className="bg-black/30 px-2 py-1.5 rounded border border-gray-600">
+                  <div className="text-gray-400 font-semibold capitalize mb-0.5">{category}</div>
+                  <div className="text-purple-300">
+                    {stats.count}/{stats.count === stats.floor && stats.count === stats.ceiling
+                      ? `${stats.floor}`
+                      : `${stats.floor}-${stats.ceiling}`}
+                  </div>
+                  <div className="text-gray-500 text-xs">avg {stats.avg}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
