@@ -26,6 +26,34 @@ const getAuthHeader = async () => {
 const ALL_POSITIONS = [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25];
 const FREE_POSITION = 13;
 
+// Build complete pokemon object from tile by looking up in current tiles
+function enrichTileWithPokemon(tile, currentTiles) {
+  if (!tile) return tile;
+  if (tile.pokemon?.national_dex_id) return tile;
+
+  // Try to find pokemon data from other tiles on the board
+  const pokemonFromBoard = currentTiles.find(t => t.pokemon_id === tile.pokemon_id)?.pokemon;
+  if (pokemonFromBoard) {
+    return { ...tile, pokemon: pokemonFromBoard };
+  }
+
+  // Fallback: create minimal pokemon object with tile fields
+  return {
+    ...tile,
+    pokemon: {
+      national_dex_id: tile.national_dex_id,
+      name: tile.name,
+      display_name: tile.display_name,
+      form_id: tile.form_id ?? 0,
+      forms_count: tile.forms_count ?? 1,
+      genderless: tile.genderless ?? false,
+      has_gender_difference: tile.has_gender_difference ?? false,
+      has_major_gender_difference: tile.has_major_gender_difference ?? false,
+      custom_gender_code: tile.custom_gender_code ?? null,
+    },
+  };
+}
+
 // Swap pokemon data between two positions in a tiles array (positions stay fixed)
 function swapTileData(tiles, pos1, pos2) {
   const updated = tiles.map(t => ({ ...t }));
@@ -37,8 +65,9 @@ function swapTileData(tiles, pos1, pos2) {
     name:            updated[i1].name,
     national_dex_id: updated[i1].national_dex_id,
     is_second_round: updated[i1].is_second_round,
+    pokemon:         updated[i1].pokemon,
   };
-  updated[i1] = { ...updated[i1], ...{ pokemon_id: updated[i2].pokemon_id, name: updated[i2].name, national_dex_id: updated[i2].national_dex_id, is_second_round: updated[i2].is_second_round } };
+  updated[i1] = { ...updated[i1], pokemon_id: updated[i2].pokemon_id, name: updated[i2].name, national_dex_id: updated[i2].national_dex_id, is_second_round: updated[i2].is_second_round, pokemon: updated[i2].pokemon };
   updated[i2] = { ...updated[i2], ...tmp };
   return updated;
 }
@@ -67,6 +96,9 @@ export default function BoardBuilder() {
   const [dragSource, setDragSource] = useState(null);
   const [dragTarget, setDragTarget] = useState(null);
 
+  // Lock state: array of 26 booleans (index 0 unused, 13 is always false for free space)
+  const [lockedPositions, setLockedPositions] = useState(Array(26).fill(false));
+
   // Operation IDs we originated — ignore our own broadcast echo
   const pendingOps = useRef(new Set());
 
@@ -89,8 +121,10 @@ export default function BoardBuilder() {
       }
       const data = await res.json();
       setNextMonth(data.nextMonth);
-      setTiles(data.tiles);
+      const enrichedTiles = data.tiles.map(tile => enrichTileWithPokemon(tile, data.tiles));
+      setTiles(enrichedTiles);
       setCategoryStats(data.categoryStats);
+      setLockedPositions(data.lockedPositions || Array(26).fill(false));
     } catch (err) {
       setError(err.message);
     } finally {
@@ -102,7 +136,7 @@ export default function BoardBuilder() {
   useEffect(() => {
     if (!nextMonth) return;
     const channel = supabaseClient
-      .channel('board-builder-updates')
+      .channel(`board-builder-updates-${nextMonth.id}`)
       .on('broadcast', { event: 'tile-update' }, ({ payload }) => {
         if (payload.operationId && pendingOps.current.has(payload.operationId)) {
           pendingOps.current.delete(payload.operationId);
@@ -121,14 +155,18 @@ export default function BoardBuilder() {
       const { tile } = payload;
       setFadingOut(prev => new Set([...prev, tile.position]));
       setTimeout(() => {
-        setTiles(prev => prev.map(t => t.position === tile.position ? tile : t));
+        setTiles(prev => prev.map(t => t.position === tile.position ? enrichTileWithPokemon(tile, prev) : t));
         setFadingOut(prev => { const n = new Set(prev); n.delete(tile.position); return n; });
       }, 300);
     } else if (payload.type === 'refresh-all') {
       const allPositions = new Set(payload.tiles.map(t => t.position));
       setFadingOut(prev => new Set([...prev, ...allPositions]));
       setTimeout(() => {
-        setTiles(payload.tiles);
+        setTiles(prev => {
+          const newTileMap = {};
+          payload.tiles.forEach(nt => { newTileMap[nt.position] = enrichTileWithPokemon(nt, prev); });
+          return prev.map(t => newTileMap[t.position] || t);
+        });
         if (payload.categoryStats) setCategoryStats(payload.categoryStats);
         setFadingOut(new Set());
       }, 300);
@@ -148,6 +186,8 @@ export default function BoardBuilder() {
         });
         setFadingOut(prev => { const n = new Set(prev); positionsToFade.forEach(p => n.delete(p)); return n; });
       }, 300);
+    } else if (payload.type === 'lock-toggled') {
+      setLockedPositions(payload.lockedPositions);
     }
   };
 
@@ -175,7 +215,7 @@ export default function BoardBuilder() {
       const { tile } = await res.json();
 
       setTimeout(() => {
-        setTiles(prev => prev.map(t => t.position === position ? tile : t));
+        setTiles(prev => prev.map(t => t.position === position ? enrichTileWithPokemon(tile, prev) : t));
         setFadingOut(prev => { const n = new Set(prev); n.delete(position); return n; });
       }, 300);
     } catch (err) {
@@ -189,8 +229,72 @@ export default function BoardBuilder() {
     }
   };
 
+  // ── Lock Toggle ──────────────────────────────────────────────────────────
+  const handleToggleLock = async (e, position) => {
+    e.stopPropagation();
+    if (position === FREE_POSITION || !nextMonth) return;
+
+    const isCurrentlyLocked = lockedPositions[position];
+    const newLockedState = !isCurrentlyLocked;
+
+    // Optimistic update
+    const newLockedPositions = [...lockedPositions];
+    newLockedPositions[position] = newLockedState;
+    setLockedPositions(newLockedPositions);
+
+    try {
+      const authHeader = await getAuthHeader();
+      const res = await fetch(`/api/mod/board-builder/${nextMonth.id}/toggle-lock`, {
+        method: 'POST',
+        headers: { Authorization: authHeader, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ position, locked: newLockedState }),
+      });
+      if (!res.ok) {
+        const errBody = await res.json();
+        throw new Error(`HTTP ${res.status}: ${errBody.error}`);
+      }
+      const data = await res.json();
+    } catch (err) {
+      console.error('Toggle lock failed:', err);
+      // Revert on error
+      setLockedPositions(lockedPositions);
+    }
+  };
+
+  // ── Clear All Locks ───────────────────────────────────────────────────────
+  const handleClearAllLocks = async () => {
+    if (!nextMonth) return;
+
+    const opId = Math.random().toString(36).slice(2);
+    pendingOps.current.add(opId);
+
+    // Optimistic update
+    setLockedPositions(Array(26).fill(false));
+
+    try {
+      const authHeader = await getAuthHeader();
+      const res = await fetch(`/api/mod/board-builder/${nextMonth.id}/clear-all-locks`, {
+        method: 'POST',
+        headers: { Authorization: authHeader, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ operationId: opId }),
+      });
+      if (!res.ok) {
+        const errBody = await res.json();
+        throw new Error(`HTTP ${res.status}: ${errBody.error}`);
+      }
+    } catch (err) {
+      console.error('Clear all locks failed:', err);
+      // Revert on error by reloading
+      loadBoard();
+    }
+  };
+
   // ── Drag & Drop ──────────────────────────────────────────────────────────
   const handleDragStart = (e, position) => {
+    if (lockedPositions[position]) {
+      e.preventDefault();
+      return;
+    }
     setDragSource(position);
     e.dataTransfer.effectAllowed = 'move';
     // Suppress the browser's default ghost image
@@ -200,9 +304,13 @@ export default function BoardBuilder() {
   };
 
   const handleDragOver = (e, position) => {
+    if (lockedPositions[position] || position === FREE_POSITION) {
+      e.dataTransfer.dropEffect = 'none';
+      return;
+    }
     e.preventDefault();
     e.dataTransfer.dropEffect = 'move';
-    if (position !== FREE_POSITION) setDragTarget(position);
+    setDragTarget(position);
   };
 
   const handleDrop = async (e, dropPosition) => {
@@ -239,27 +347,41 @@ export default function BoardBuilder() {
   const handleRefreshAll = async () => {
     if (refreshingAll || !nextMonth) return;
 
+    const opId = Math.random().toString(36).slice(2);
+    pendingOps.current.add(opId);
+
     setRefreshingAll(true);
 
-    // Immediate visual feedback: fade out all tiles
-    const allPositions = new Set([1,2,3,4,5,6,7,8,9,10,11,12,14,15,16,17,18,19,20,21,22,23,24,25]);
-    setFadingOut(new Set(allPositions));
+    // Fade out only unlocked tiles
+    const allPositions = [1,2,3,4,5,6,7,8,9,10,11,12,14,15,16,17,18,19,20,21,22,23,24,25];
+    const unlockedPositions = new Set(allPositions.filter(pos => !lockedPositions[pos]));
+    setFadingOut(new Set(unlockedPositions));
 
     try {
       const res = await fetch('/api/mod/board-builder/refresh-all', {
         method: 'POST',
         headers: { Authorization: await getAuthHeader(), 'Content-Type': 'application/json' },
-        body: JSON.stringify({ monthId: nextMonth.id, operationId: Math.random().toString(36).slice(2) }),
+        body: JSON.stringify({ monthId: nextMonth.id, operationId: opId }),
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
 
       const { tiles: newTiles } = await res.json();
       setTimeout(() => {
-        setTiles(newTiles);
+        setTiles(prev => {
+          const newTileMap = {};
+          newTiles.forEach(nt => { newTileMap[nt.position] = enrichTileWithPokemon(nt, prev); });
+          return prev.map(t => {
+            if (unlockedPositions.has(t.position) && newTileMap[t.position]) {
+              return newTileMap[t.position];
+            }
+            return t;
+          });
+        });
         setFadingOut(new Set());
       }, 300);
     } catch (err) {
       console.error('Refresh all failed:', err);
+      pendingOps.current.delete(opId);
       setFadingOut(new Set());
     } finally {
       setRefreshingAll(false);
@@ -275,10 +397,13 @@ export default function BoardBuilder() {
 
     setShuffling(true);
 
-    // Optimistic update: shuffle positions in client state immediately
+    // Optimistic update: shuffle only unlocked positions, respecting locks
     const allPositions = [1,2,3,4,5,6,7,8,9,10,11,12,14,15,16,17,18,19,20,21,22,23,24,25];
-    const shuffledPositions = (() => {
-      const out = [...allPositions];
+    const unlockedPositions = allPositions.filter(pos => !lockedPositions[pos]);
+    const lockedPosSet = new Set(allPositions.filter(pos => lockedPositions[pos]));
+
+    const shuffledUnlockedPositions = (() => {
+      const out = [...unlockedPositions];
       for (let i = out.length - 1; i > 0; i--) {
         const j = Math.floor(Math.random() * (i + 1));
         [out[i], out[j]] = [out[j], out[i]];
@@ -287,13 +412,19 @@ export default function BoardBuilder() {
     })();
 
     const positionMap = {};
+    let unlockedIdx = 0;
     tiles.forEach((t, i) => {
       if (i < allPositions.length) {
-        positionMap[allPositions[i]] = shuffledPositions[i];
+        const pos = allPositions[i];
+        if (lockedPosSet.has(pos)) {
+          positionMap[pos] = pos;
+        } else {
+          positionMap[pos] = shuffledUnlockedPositions[unlockedIdx++];
+        }
       }
     });
 
-    const positionsToFade = new Set(Object.values(positionMap));
+    const positionsToFade = new Set(unlockedPositions);
     setFadingOut(prev => new Set([...prev, ...positionsToFade]));
 
     setTimeout(() => {
@@ -365,6 +496,15 @@ export default function BoardBuilder() {
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-2xl font-bold text-purple-400">{nextMonth?.month_year_display}</h2>
           <div className="flex gap-2">
+            {lockedPositions.some(locked => locked) && (
+              <button
+                onClick={handleClearAllLocks}
+                className="px-3 py-1 text-sm bg-red-700 hover:bg-red-600 disabled:bg-gray-600 text-white rounded transition-colors"
+                title="Remove all locks"
+              >
+                ⟲ Clear Locks
+              </button>
+            )}
             <button
               onClick={handleRefreshAll}
               disabled={refreshingAll}
@@ -411,19 +551,22 @@ export default function BoardBuilder() {
               );
             }
 
+            const isLocked = lockedPositions[pos];
+
             return (
               <div
                 key={pos}
-                draggable
+                draggable={!isLocked}
                 onDragStart={e => handleDragStart(e, pos)}
                 onDragOver={e => handleDragOver(e, pos)}
                 onDrop={e => handleDrop(e, pos)}
                 onDragEnd={handleDragEnd}
                 className={[
-                  'group aspect-square relative flex flex-col items-center justify-center rounded-lg border-2 cursor-grab active:cursor-grabbing overflow-hidden select-none transition-all duration-150',
+                  'group aspect-square relative flex flex-col items-center justify-center rounded-lg border-2 overflow-hidden select-none transition-all duration-150',
                   tile?.is_second_round ? 'border-orange-400 bg-orange-900/50 shadow-[0_0_8px_2px_rgba(251,146,60,0.5)]' : 'border-gray-500 bg-black/30',
                   isDragging ? 'opacity-40 scale-95' : '',
                   isOver    ? 'border-purple-400 scale-105' : '',
+                  isLocked ? 'cursor-not-allowed opacity-75' : 'cursor-grab active:cursor-grabbing',
                 ].join(' ')}
               >
                 {tile ? (
@@ -452,6 +595,33 @@ export default function BoardBuilder() {
                         2×
                       </div>
                     )}
+
+                    {/* Lock icon */}
+                    <button
+                      onClick={e => handleToggleLock(e, pos)}
+                      className={`absolute top-0.5 right-6 rounded p-0.5 transition-all z-10 ${
+                        isLocked
+                          ? 'bg-blue-600 hover:bg-blue-500 text-white shadow-lg shadow-blue-600/50'
+                          : 'bg-black/70 hover:bg-blue-700 text-white opacity-0 group-hover:opacity-100'
+                      }`}
+                      title={isLocked ? 'Unlock Pokémon' : 'Lock Pokémon (won\'t change during Refresh All or Shuffle)'}
+                    >
+                      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2.5">
+                        {isLocked ? (
+                          <>
+                            <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                            <path d="M7 11V6a5 5 0 0110 0v5" />
+                            <circle cx="12" cy="16" r="1" fill="currentColor" />
+                          </>
+                        ) : (
+                          <>
+                            <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                            <path d="M7 11V6a5 5 0 018 0" />
+                            <circle cx="12" cy="16" r="1" fill="currentColor" />
+                          </>
+                        )}
+                      </svg>
+                    </button>
 
                     {/* Reroll button — appears on hover */}
                     <button

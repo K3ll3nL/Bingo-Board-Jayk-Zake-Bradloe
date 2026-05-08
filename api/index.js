@@ -604,7 +604,6 @@ app.use((req, res, next) => {
   const isDev = process.env.NODE_ENV !== 'production' && DEV_USER_ID && authHeader === 'Bearer dev_token';
   
   if (isDev) {
-    console.log('🔧 Dev token detected - bypassing auth for user:', DEV_USER_ID);
     req.devUserId = DEV_USER_ID;
   }
   
@@ -3355,7 +3354,7 @@ async function pickRandomPokemonForPosition(monthId, position) {
   // All eligible pokemon (including family_id and category flags for exclusion logic)
   const { data: allPokemon } = await supabase
     .from('pokemon_master')
-    .select('id, name, national_dex_id, family_id, legendary, baby, ultra_beast, paradox, starter, fossil, regional_alt, pseudo_legendary')
+    .select('id, name, national_dex_id, family_id, legendary, baby, ultra_beast, paradox, starter, fossil, regional_alt, pseudo_legendary, display_name, form_id, forms_count, custom_gender_code, genderless, has_gender_difference, has_major_gender_difference')
     .eq('shiny_available', true);
 
   const pkFamilyMap = Object.fromEntries((allPokemon || []).map(p => [p.id, p.family_id]));
@@ -3462,6 +3461,13 @@ async function pickRandomPokemonForPosition(monthId, position) {
     name: pick.name,
     national_dex_id: pick.national_dex_id,
     is_second_round,
+    display_name: pick.display_name,
+    form_id: pick.form_id,
+    forms_count: pick.forms_count,
+    custom_gender_code: pick.custom_gender_code,
+    genderless: pick.genderless,
+    has_gender_difference: pick.has_gender_difference,
+    has_major_gender_difference: pick.has_major_gender_difference,
   };
 }
 
@@ -3504,14 +3510,19 @@ async function calculateCategoryThresholds() {
 }
 
 // Helper: Generate a completely new pool for a month (deletes old, generates new)
-async function generateNewPoolForMonth(monthId) {
-  // Delete existing pool for this month
-  await supabase.from('monthly_pokemon_pool').delete().eq('month_id', monthId);
+async function generateNewPoolForMonth(monthId, lockedPokemonIds = [], countToGenerate = 24, preAppliedCategoryCounts = null) {
+  // Define board positions (all except free space at 13)
+  const positions = [1,2,3,4,5,6,7,8,9,10,11,12,14,15,16,17,18,19,20,21,22,23,24,25];
+
+  // Only delete/regenerate full pool if generating all 24
+  if (countToGenerate === 24) {
+    await supabase.from('monthly_pokemon_pool').delete().eq('month_id', monthId);
+  }
 
   // Pull every shiny-available pokemon with category flags
   const { data: allPokemon } = await supabase
     .from('pokemon_master')
-    .select('id, name, national_dex_id, family_id, genderless, custom_gender_code, has_gender_difference, has_major_gender_difference, form_id, forms_count, legendary, baby, ultra_beast, paradox, starter, fossil, regional_alt, pseudo_legendary')
+    .select('id, name, national_dex_id, display_name, family_id, genderless, custom_gender_code, has_gender_difference, has_major_gender_difference, form_id, forms_count, legendary, baby, ultra_beast, paradox, starter, fossil, regional_alt, pseudo_legendary')
     .eq('shiny_available', true);
 
   if (!allPokemon || allPokemon.length === 0) throw new Error('No pokemon available');
@@ -3524,6 +3535,12 @@ async function generateNewPoolForMonth(monthId) {
 
   const usageCount = {};
   (history || []).forEach(r => { usageCount[r.pokemon_id] = (usageCount[r.pokemon_id] || 0) + 1; });
+
+  // Account for locked Pokemon in usage count so they're considered "already used" this month
+  const lockedPokemonSet = new Set(lockedPokemonIds);
+  lockedPokemonIds.forEach(id => {
+    usageCount[id] = (usageCount[id] || 0) + 1;
+  });
 
   // Build family exclusion set from the previous month's board
   const lastMonthFamilyIds = new Set();
@@ -3558,9 +3575,28 @@ async function generateNewPoolForMonth(monthId) {
     categoryMaps[cat] = new Set(allPokemon.filter(p => p[cat] === true).map(p => p.id));
   });
 
-  // Track category counts on current board
+  // Track category counts - use provided pre-applied counts OR count from locked Pokemon
   const selectedCounts = {};
-  categories.forEach(cat => { selectedCounts[cat] = 0; });
+
+  if (preAppliedCategoryCounts) {
+    // Use the pre-calculated counts (locked Pokemon already accounted for)
+    categories.forEach(cat => {
+      selectedCounts[cat] = preAppliedCategoryCounts[cat] || 0;
+    });
+  } else {
+    // Count locked Pokemon categories
+    const lockedPokemonData = (allPokemon || []).filter(p => lockedPokemonSet.has(p.id));
+
+    categories.forEach(cat => { selectedCounts[cat] = 0; });
+
+    lockedPokemonData.forEach(p => {
+      categories.forEach(cat => {
+        if (p[cat] === true) {
+          selectedCounts[cat]++;
+        }
+      });
+    });
+  }
 
   // Calculate initial floor debt: total categories needed to reach all floors
   let floorDebt = 0;
@@ -3637,14 +3673,15 @@ async function generateNewPoolForMonth(monthId) {
       }
     }
 
-    // Fallback: if we couldn't fill all slots while respecting bounds, fill with any eligible
-    // (should rarely happen if bounds are reasonable)
+    // Fallback: if we couldn't fill all slots while respecting bounds, try again with bounds
+    // This should rarely trigger, but if it does, we still need to respect ceiling constraints
     for (const p of shuffled) {
       if (picked.length >= count) break;
       const family_ok = p.family_id == null || !excludedFamilies.has(p.family_id);
       const not_picked = !picked_ids.has(p.id);
+      const remaining = count - picked.length;
 
-      if (family_ok && not_picked) {
+      if (family_ok && not_picked && isWithinCategoryBounds(p, remaining)) {
         picked.push(p);
         picked_ids.add(p.id);
         updateCategoryCounts(p);
@@ -3655,16 +3692,17 @@ async function generateNewPoolForMonth(monthId) {
     return picked;
   }
 
-  const neverUsed = (allPokemon || []).filter(p => !usageCount[p.id]);
-  const usedOnce  = (allPokemon || []).filter(p => usageCount[p.id] === 1);
+  // Exclude locked Pokemon from being regenerated
+  const neverUsed = (allPokemon || []).filter(p => !usageCount[p.id] && !lockedPokemonSet.has(p.id));
+  const usedOnce  = (allPokemon || []).filter(p => usageCount[p.id] === 1 && !lockedPokemonSet.has(p.id));
 
   let selected;
   const familyExclusionSet = new Set(lastMonthFamilyIds);
-  const neverPicked = pickWithFamilyAndCategoryExclusion(neverUsed, 24, familyExclusionSet);
-  if (neverPicked.length >= 24) {
+  const neverPicked = pickWithFamilyAndCategoryExclusion(neverUsed, countToGenerate, familyExclusionSet);
+  if (neverPicked.length >= countToGenerate) {
     selected = neverPicked.map(p => ({ ...p, is_second_round: false }));
   } else {
-    const need = 24 - neverPicked.length;
+    const need = countToGenerate - neverPicked.length;
     const oncePicked = pickWithFamilyAndCategoryExclusion(usedOnce, need, familyExclusionSet);
     selected = [
       ...neverPicked.map(p => ({ ...p, is_second_round: false })),
@@ -3672,17 +3710,20 @@ async function generateNewPoolForMonth(monthId) {
     ];
   }
 
-  // Shuffle positions
-  const positions = shuffleArray([1,2,3,4,5,6,7,8,9,10,11,12,14,15,16,17,18,19,20,21,22,23,24,25]);
+  // For return value, just return Pokemon without position assignment (caller will assign)
+  // Note: we don't insert into DB here anymore when called with countToGenerate < 24
 
-  const poolRows = selected.map((p, i) => ({
-    month_id:   monthId,
-    pokemon_id: p.id,
-    position:   positions[i],
-  }));
+  // Only insert to DB if generating full pool
+  if (countToGenerate === 24) {
+    const poolRows = selected.map((p, i) => ({
+      month_id:   monthId,
+      pokemon_id: p.id,
+      position:   positions[i],
+    }));
 
-  const { error: poolInsertErr } = await supabase.from('monthly_pokemon_pool').insert(poolRows);
-  if (poolInsertErr) throw new Error(`Failed to insert pokemon pool: ${poolInsertErr.message}`);
+    const { error: poolInsertErr } = await supabase.from('monthly_pokemon_pool').insert(poolRows);
+    if (poolInsertErr) throw new Error(`Failed to insert pokemon pool: ${poolInsertErr.message}`);
+  }
 
   // Build category distribution stats
   const categoryStats = {};
@@ -3697,22 +3738,35 @@ async function generateNewPoolForMonth(monthId) {
     };
   });
 
+  const boardData = selected.map((p, i) => ({
+    position:       countToGenerate === 24 ? positions[i] : null,
+    pokemon_id:     p.id,
+    name:           p.name,
+    national_dex_id: p.national_dex_id,
+    display_name:   p.display_name,
+    form_id:        p.form_id,
+    forms_count:    p.forms_count,
+    custom_gender_code: p.custom_gender_code,
+    genderless:     p.genderless,
+    has_gender_difference: p.has_gender_difference,
+    has_major_gender_difference: p.has_major_gender_difference,
+    is_second_round: p.is_second_round,
+    pokemon: {
+      id: p.id,
+      name: p.name,
+      national_dex_id: p.national_dex_id,
+      display_name: p.display_name,
+      genderless: p.genderless,
+      custom_gender_code: p.custom_gender_code,
+      has_gender_difference: p.has_gender_difference,
+      has_major_gender_difference: p.has_major_gender_difference,
+      form_id: p.form_id,
+      forms_count: p.forms_count,
+    },
+  }));
+
   return {
-    board: selected.map((p, i) => ({
-      position:       positions[i],
-      is_second_round: p.is_second_round,
-      pokemon: {
-        id: p.id,
-        name: p.name,
-        national_dex_id: p.national_dex_id,
-        genderless: p.genderless,
-        custom_gender_code: p.custom_gender_code,
-        has_gender_difference: p.has_gender_difference,
-        has_major_gender_difference: p.has_major_gender_difference,
-        form_id: p.form_id,
-        forms_count: p.forms_count,
-      },
-    })),
+    board: boardData,
     categoryStats,
   };
 }
@@ -3743,9 +3797,6 @@ app.get('/api/mod/board-builder', async (req, res) => {
     const endDate   = `${nYear}-${pad(nMonth)}-${pad(lastDay)}`;
     const names     = ['January','February','March','April','May','June','July','August','September','October','November','December'];
     const display   = `${names[nMonth - 1]} ${nYear}`;
-
-    console.log(`[BoardBuilder] userId=${userId} month=${monthKey} start=${startDate} end=${endDate}`);
-    console.log(`[BoardBuilder] SUPABASE_URL set=${!!process.env.SUPABASE_URL} SERVICE_KEY set=${!!process.env.SUPABASE_SERVICE_ROLE_KEY} keyLen=${process.env.SUPABASE_SERVICE_ROLE_KEY?.length}`);
 
     // ── Compute season_id and year_id ────────────────────────────────────────
     // Game year runs March → February. e.g. Mar 2025–Feb 2026 = game year 2025.
@@ -3806,8 +3857,6 @@ app.get('/api/mod/board-builder', async (req, res) => {
       season_id = (maxSeasonRow?.[0]?.season_id ?? 0) + 1;
     }
 
-    console.log(`[BoardBuilder] gameYear=${gameYear} quarter=${seasonQuarter} season_id=${season_id} year_id=${year_id}`);
-
     // ── Find or insert next month (never overwrite existing rows) ────────────
     const sbUrl = process.env.SUPABASE_URL;
     const sbKey  = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -3823,7 +3872,6 @@ app.get('/api/mod/board-builder', async (req, res) => {
       { headers: restHeaders }
     );
     const selectText = await selectRes.text();
-    console.log(`[BoardBuilder] SELECT HTTP ${selectRes.status}: ${selectText}`);
 
     if (!selectRes.ok) {
       return res.status(500).json({ error: 'Failed to query bingo_months', http_status: selectRes.status, response: selectText });
@@ -3834,7 +3882,6 @@ app.get('/api/mod/board-builder', async (req, res) => {
 
     // Step 2: insert only if the row does not exist yet
     if (!nextMonth) {
-      console.log(`[BoardBuilder] Row not found — inserting month_year="${monthKey}"`);
       const insertRes = await fetch(`${sbUrl}/rest/v1/bingo_months`, {
         method: 'POST',
         headers: { ...restHeaders, 'Prefer': 'return=representation' },
@@ -3848,7 +3895,6 @@ app.get('/api/mod/board-builder', async (req, res) => {
         }),
       });
       const insertText = await insertRes.text();
-      console.log(`[BoardBuilder] INSERT HTTP ${insertRes.status}: ${insertText}`);
 
       if (!insertRes.ok) {
         return res.status(500).json({ error: 'Failed to insert bingo_month', http_status: insertRes.status, response: insertText });
@@ -3857,12 +3903,10 @@ app.get('/api/mod/board-builder', async (req, res) => {
       const inserted = JSON.parse(insertText);
       nextMonth = Array.isArray(inserted) ? inserted[0] : inserted;
     } else {
-      console.log(`[BoardBuilder] Found existing bingo_month id=${nextMonth.id}`);
 
       // Backfill season_id / year_id if the existing row is missing them
       const needsPatch = nextMonth.season_id == null || nextMonth.year_id == null;
       if (needsPatch) {
-        console.log(`[BoardBuilder] Patching missing season_id/year_id on id=${nextMonth.id}`);
         await fetch(
           `${sbUrl}/rest/v1/bingo_months?id=eq.${nextMonth.id}`,
           {
@@ -3881,8 +3925,6 @@ app.get('/api/mod/board-builder', async (req, res) => {
     if (!nextMonth) {
       return res.status(500).json({ error: 'bingo_month row missing after insert' });
     }
-
-    console.log(`[BoardBuilder] bingo_month id=${nextMonth.id} ready`);
 
     // ── Find or generate pool ────────────────────────────────────────────────
     const { data: existingPool } = await supabase
@@ -3992,7 +4034,7 @@ app.get('/api/mod/board-builder', async (req, res) => {
 
       const { data: pkDetails } = await supabase
         .from('pokemon_master')
-        .select('id, name, national_dex_id, genderless, custom_gender_code, has_gender_difference, has_major_gender_difference, form_id, forms_count')
+        .select('id, name, national_dex_id, display_name, genderless, custom_gender_code, has_gender_difference, has_major_gender_difference, form_id, forms_count')
         .in('id', pokemonIds);
 
       const pkMap = {};
@@ -4048,7 +4090,29 @@ app.get('/api/mod/board-builder', async (req, res) => {
       };
     });
 
-    res.json({ nextMonth, tiles, categoryStats });
+    // Fetch lock state for this month
+    let lockedPositions = Array(26).fill(false);
+    const { data: lockState } = await supabase
+      .from('board_builder_state')
+      .select('locked_positions')
+      .eq('month_id', nextMonth.id)
+      .maybeSingle();
+
+    if (lockState?.locked_positions) {
+      lockedPositions = lockState.locked_positions;
+    } else {
+      // Initialize lock state for new month if it doesn't exist
+      const { error: insertErr } = await supabase.from('board_builder_state').insert({
+        month_id: nextMonth.id,
+        locked_positions: lockedPositions,
+      });
+      // Ignore error if row already exists (race condition)
+      if (insertErr?.code !== '23505') {
+        console.error('Failed to initialize lock state:', insertErr);
+      }
+    }
+
+    res.json({ nextMonth, tiles, categoryStats, lockedPositions });
 
   } catch (err) {
     console.error('[BoardBuilder] Unexpected error:', err);
@@ -4091,7 +4155,7 @@ app.put('/api/mod/board-builder/swap', async (req, res) => {
 
     if (upA || upB) return res.status(500).json({ error: 'Swap update failed' });
 
-    await broadcastUpdate('board-builder-updates', 'tile-update', {
+    await broadcastUpdate(`board-builder-updates-${monthId}`, 'tile-update', {
       type: 'swap', pos1, pos2, operationId,
     });
 
@@ -4134,9 +4198,16 @@ app.post('/api/mod/board-builder/reroll', async (req, res) => {
       name:            pick.name,
       national_dex_id: pick.national_dex_id,
       is_second_round: pick.is_second_round,
+      display_name:    pick.display_name,
+      form_id:         pick.form_id,
+      forms_count:     pick.forms_count,
+      custom_gender_code: pick.custom_gender_code,
+      genderless:      pick.genderless,
+      has_gender_difference: pick.has_gender_difference,
+      has_major_gender_difference: pick.has_major_gender_difference,
     };
 
-    await broadcastUpdate('board-builder-updates', 'tile-update', {
+    await broadcastUpdate(`board-builder-updates-${monthId}`, 'tile-update', {
       type: 'reroll', tile, operationId,
     });
 
@@ -4160,10 +4231,171 @@ app.post('/api/mod/board-builder/refresh-all', async (req, res) => {
     const { monthId, operationId } = req.body;
     if (!monthId) return res.status(400).json({ error: 'monthId required' });
 
-    const { board, categoryStats } = await generateNewPoolForMonth(monthId);
+    // Fetch lock state and current pool BEFORE regenerating
+    const { data: lockState } = await supabase
+      .from('board_builder_state')
+      .select('locked_positions')
+      .eq('month_id', monthId)
+      .maybeSingle();
+
+    const lockedPositions = lockState?.locked_positions || Array(26).fill(false);
+
+    // Get current pool to identify locked Pokemon
+    const { data: currentPool } = await supabase
+      .from('monthly_pokemon_pool')
+      .select('position, pokemon_id')
+      .eq('month_id', monthId)
+      .order('position');
+
+    const currentMap = {};
+    const lockedPokemonIds = [];
+    (currentPool || []).forEach(r => {
+      currentMap[r.position] = r.pokemon_id;
+      if (lockedPositions[r.position]) {
+        lockedPokemonIds.push(r.pokemon_id);
+      }
+    });
+
+    // Count unlocked positions (only generate Pokemon for these)
+    const unlockedPositions = [1,2,3,4,5,6,7,8,9,10,11,12,14,15,16,17,18,19,20,21,22,23,24,25].filter(pos => !lockedPositions[pos]);
+    const numUnlocked = unlockedPositions.length;
+
+    // Pre-calculate category counts for locked Pokemon to pass to generation
+    const { data: allPokemonForLocked } = await supabase
+      .from('pokemon_master')
+      .select('id, legendary, baby, ultra_beast, paradox, starter, fossil, regional_alt, pseudo_legendary')
+      .eq('shiny_available', true);
+
+    const categories = ['legendary', 'baby', 'ultra_beast', 'paradox', 'starter', 'fossil', 'regional_alt', 'pseudo_legendary'];
+    const lockedCategoryCounts = {};
+    categories.forEach(cat => { lockedCategoryCounts[cat] = 0; });
+
+    const lockedPokemonSet = new Set(lockedPokemonIds);
+    const lockedPokemonData = (allPokemonForLocked || []).filter(p => lockedPokemonSet.has(p.id));
+    lockedPokemonData.forEach(p => {
+      categories.forEach(cat => {
+        if (p[cat] === true) {
+          lockedCategoryCounts[cat]++;
+        }
+      });
+    });
+
+    // Fetch Pokemon data for locked Pokemon (need name and national_dex_id for rendering)
+    const uniqueLockedIds = [...new Set(lockedPokemonIds)];
+    const { data: lockedPokemonDetails } = uniqueLockedIds.length > 0
+      ? await supabase
+          .from('pokemon_master')
+          .select('id, name, national_dex_id, display_name, form_id, forms_count, custom_gender_code, genderless, has_gender_difference, has_major_gender_difference')
+          .in('id', uniqueLockedIds)
+      : { data: [] };
+
+    const lockedPokemonMap = {};
+    (lockedPokemonDetails || []).forEach(p => {
+      lockedPokemonMap[p.id] = {
+        name: p.name,
+        national_dex_id: p.national_dex_id,
+        display_name: p.display_name,
+        form_id: p.form_id,
+        forms_count: p.forms_count,
+        custom_gender_code: p.custom_gender_code,
+        genderless: p.genderless,
+        has_gender_difference: p.has_gender_difference,
+        has_major_gender_difference: p.has_major_gender_difference,
+      };
+    });
+
+    // Generate only for unlocked positions, passing locked category counts
+    const { board: newPokemon, categoryStats } = await generateNewPoolForMonth(monthId, lockedPokemonIds, numUnlocked, lockedCategoryCounts);
+
+    // Merge: locked Pokemon stay in place, new Pokemon fill unlocked positions
+    const board = [];
+    let newPokemonIndex = 0;
+    for (let pos = 1; pos <= 25; pos++) {
+      if (pos === 13) continue; // Skip free space
+
+      if (lockedPositions[pos]) {
+        // Keep locked Pokemon with full data
+        const currentPokemonId = currentMap[pos];
+        if (currentPokemonId) {
+          const pokemonData = lockedPokemonMap[currentPokemonId] || {
+            name: '',
+            national_dex_id: 0,
+            display_name: '',
+            form_id: 0,
+            forms_count: 1,
+            custom_gender_code: null,
+            genderless: false,
+            has_gender_difference: false,
+            has_major_gender_difference: false,
+          };
+          board.push({
+            position: pos,
+            pokemon_id: currentPokemonId,
+            name: pokemonData.name,
+            national_dex_id: pokemonData.national_dex_id,
+            display_name: pokemonData.display_name,
+            form_id: pokemonData.form_id,
+            forms_count: pokemonData.forms_count,
+            custom_gender_code: pokemonData.custom_gender_code,
+            genderless: pokemonData.genderless,
+            has_gender_difference: pokemonData.has_gender_difference,
+            has_major_gender_difference: pokemonData.has_major_gender_difference,
+            is_second_round: false,
+            pokemon: {
+              id: currentPokemonId,
+              name: pokemonData.name,
+              national_dex_id: pokemonData.national_dex_id,
+              display_name: pokemonData.display_name,
+              form_id: pokemonData.form_id,
+              forms_count: pokemonData.forms_count,
+              custom_gender_code: pokemonData.custom_gender_code,
+              genderless: pokemonData.genderless,
+              has_gender_difference: pokemonData.has_gender_difference,
+              has_major_gender_difference: pokemonData.has_major_gender_difference,
+            }
+          });
+        }
+      } else {
+        // Add new Pokemon for unlocked position
+        if (newPokemonIndex < newPokemon.length) {
+          const newTile = newPokemon[newPokemonIndex];
+          board.push({
+            position: pos,
+            pokemon_id: newTile.pokemon_id,
+            name: newTile.name,
+            national_dex_id: newTile.national_dex_id,
+            display_name: newTile.display_name,
+            form_id: newTile.form_id,
+            forms_count: newTile.forms_count,
+            custom_gender_code: newTile.custom_gender_code,
+            genderless: newTile.genderless,
+            has_gender_difference: newTile.has_gender_difference,
+            has_major_gender_difference: newTile.has_major_gender_difference,
+            is_second_round: newTile.is_second_round,
+            pokemon: newTile.pokemon
+          });
+          newPokemonIndex++;
+        }
+      }
+    }
+
+    // Batch update all positions in parallel
+    const updatePromises = board.map(tile =>
+      supabase
+        .from('monthly_pokemon_pool')
+        .update({ pokemon_id: tile.pokemon_id })
+        .eq('month_id', monthId)
+        .eq('position', tile.position)
+    );
+    const updateResults = await Promise.all(updatePromises);
+    updateResults.forEach((result, i) => {
+      if (result.error) {
+        console.error(`Failed to update position ${board[i].position}:`, result.error);
+      }
+    });
 
     // Broadcast bulk update (all tiles at once)
-    await broadcastUpdate('board-builder-updates', 'tile-update', {
+    await broadcastUpdate(`board-builder-updates-${monthId}`, 'tile-update', {
       type: 'refresh-all',
       tiles: board,
       categoryStats,
@@ -4190,6 +4422,15 @@ app.post('/api/mod/board-builder/shuffle', async (req, res) => {
     const { monthId, operationId } = req.body;
     if (!monthId) return res.status(400).json({ error: 'monthId required' });
 
+    // Fetch lock state
+    const { data: lockState } = await supabase
+      .from('board_builder_state')
+      .select('locked_positions')
+      .eq('month_id', monthId)
+      .maybeSingle();
+
+    const lockedPositions = lockState?.locked_positions || Array(26).fill(false);
+
     // Fetch current pool
     const { data: pool } = await supabase
       .from('monthly_pokemon_pool')
@@ -4201,50 +4442,190 @@ app.post('/api/mod/board-builder/shuffle', async (req, res) => {
       return res.status(400).json({ error: 'Pool not fully initialized' });
     }
 
-    // Shuffle positions
-    const positions = [1,2,3,4,5,6,7,8,9,10,11,12,14,15,16,17,18,19,20,21,22,23,24,25];
-    const shuffledPositions = shuffleArray(positions);
+    // Separate locked and unlocked positions
+    const unlockedItems = pool.filter(item => !lockedPositions[item.position]);
+    const lockedItems = pool.filter(item => lockedPositions[item.position]);
 
-    // Create update operations
+    // Shuffle unlocked positions among unlocked items
+    const unlockedPositions = unlockedItems.map(p => p.position);
+    const shuffledUnlockedPositions = shuffleArray([...unlockedPositions]);
+
+    // Create update operations: assign shuffled positions to unlocked items
     const updates = [];
-    for (let i = 0; i < pool.length; i++) {
+
+    // Update unlocked items with shuffled positions
+    for (let i = 0; i < unlockedItems.length; i++) {
       updates.push({
-        id: pool[i].id,
-        newPosition: shuffledPositions[i],
+        id: unlockedItems[i].id,
+        newPosition: shuffledUnlockedPositions[i],
+        oldPosition: unlockedItems[i].position,
+        pokemon_id: unlockedItems[i].pokemon_id,
       });
     }
 
-    // Execute all updates in parallel
-    const updatePromises = updates.map(update =>
-      supabase
-        .from('monthly_pokemon_pool')
-        .update({ position: update.newPosition })
-        .eq('id', update.id)
-    );
+    // Keep locked items in place
+    for (const item of lockedItems) {
+      updates.push({
+        id: item.id,
+        newPosition: item.position,
+        oldPosition: item.position,
+        pokemon_id: item.pokemon_id,
+        isLocked: true,
+      });
+    }
 
-    const results = await Promise.all(updatePromises);
-    for (const { error: upErr } of results) {
-      if (upErr) {
-        return res.status(500).json({ error: 'Shuffle update failed', details: upErr.message });
+    // Delete and re-insert unlocked items with new positions
+    const unlockedUpdates = updates.filter(u => !u.isLocked);
+    const unlockedIds = unlockedUpdates.map(u => u.id);
+
+    // Delete unlocked items
+    if (unlockedIds.length > 0) {
+      const { error: deleteErr } = await supabase
+        .from('monthly_pokemon_pool')
+        .delete()
+        .in('id', unlockedIds);
+      if (deleteErr) {
+        return res.status(500).json({ error: 'Shuffle delete failed', details: deleteErr.message });
+      }
+
+      // Re-insert with new positions
+      const reinsertData = unlockedUpdates.map(u => ({
+        month_id: monthId,
+        pokemon_id: u.pokemon_id,
+        position: u.newPosition,
+      }));
+
+      const { error: insertErr } = await supabase
+        .from('monthly_pokemon_pool')
+        .insert(reinsertData);
+      if (insertErr) {
+        return res.status(500).json({ error: 'Shuffle insert failed', details: insertErr.message });
       }
     }
 
-    // Broadcast shuffle event
-    await broadcastUpdate('board-builder-updates', 'tile-update', {
+    // Broadcast shuffle event (include all updates, locked positions will have same old/new)
+    await broadcastUpdate(`board-builder-updates-${monthId}`, 'tile-update', {
       type: 'shuffle',
-      updates: updates.map((u, i) => ({
-        oldPosition: pool[i].position,
+      updates: updates.map(u => ({
+        oldPosition: u.oldPosition,
         newPosition: u.newPosition,
-        pokemon_id: pool[i].pokemon_id,
+        pokemon_id: u.pokemon_id,
       })),
       operationId,
     });
 
-    res.json({ ok: true, updates: updates.map((u, i) => ({
-      oldPosition: pool[i].position,
+    res.json({ ok: true, updates: updates.map(u => ({
+      oldPosition: u.oldPosition,
       newPosition: u.newPosition,
-      pokemon_id: pool[i].pokemon_id,
+      pokemon_id: u.pokemon_id,
     })) });
+
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/mod/board-builder/:monthId/toggle-lock
+app.post('/api/mod/board-builder/:monthId/toggle-lock', async (req, res) => {
+  try {
+    const userId = await getAuthenticatedUserId(req);
+    if (!userId) return res.status(401).json({ error: 'Authentication required' });
+
+    const { data: modRow } = await supabase
+      .from('moderators').select('id').eq('id', userId).maybeSingle();
+    if (!modRow) return res.status(403).json({ error: 'Moderator access required' });
+
+    const { monthId } = req.params;
+    const { position, locked } = req.body;
+
+    if (monthId == null || position == null || typeof locked !== 'boolean') {
+      return res.status(400).json({ error: 'monthId, position, and locked required' });
+    }
+
+    if (position === 13) {
+      return res.status(400).json({ error: 'Cannot lock free space' });
+    }
+
+    // Fetch current lock state
+    const { data: lockState } = await supabase
+      .from('board_builder_state')
+      .select('locked_positions')
+      .eq('month_id', monthId)
+      .maybeSingle();
+
+    let lockedPositions = Array(26).fill(false);
+    if (lockState?.locked_positions) {
+      lockedPositions = [...lockState.locked_positions];
+    }
+
+    // Update lock state for this position
+    lockedPositions[position] = locked;
+
+    // Update in database
+    const { error: updateErr } = await supabase
+      .from('board_builder_state')
+      .update({ locked_positions: lockedPositions })
+      .eq('month_id', monthId);
+
+    if (updateErr) {
+      return res.status(500).json({ error: 'Failed to update lock state', details: updateErr.message });
+    }
+
+    // Broadcast lock change
+    await broadcastUpdate(`board-builder-updates-${monthId}`, 'tile-update', {
+      type: 'lock-toggled',
+      position,
+      locked,
+      lockedPositions,
+    });
+
+    res.json({ position, locked, lockedPositions });
+
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/mod/board-builder/:monthId/clear-all-locks
+app.post('/api/mod/board-builder/:monthId/clear-all-locks', async (req, res) => {
+  try {
+    const userId = await getAuthenticatedUserId(req);
+    if (!userId) return res.status(401).json({ error: 'Authentication required' });
+
+    const { data: modRow } = await supabase
+      .from('moderators').select('id').eq('id', userId).maybeSingle();
+    if (!modRow) return res.status(403).json({ error: 'Moderator access required' });
+
+    const { monthId } = req.params;
+    const { operationId } = req.body;
+
+    if (monthId == null) {
+      return res.status(400).json({ error: 'monthId required' });
+    }
+
+    // Clear all locks
+    const lockedPositions = Array(26).fill(false);
+
+    // Update in database
+    const { error: updateErr } = await supabase
+      .from('board_builder_state')
+      .update({ locked_positions: lockedPositions })
+      .eq('month_id', monthId);
+
+    if (updateErr) {
+      return res.status(500).json({ error: 'Failed to clear locks', details: updateErr.message });
+    }
+
+    // Broadcast lock change
+    const broadcastPayload = {
+      type: 'lock-toggled',
+      lockedPositions,
+    };
+    if (operationId) broadcastPayload.operationId = operationId;
+
+    await broadcastUpdate(`board-builder-updates-${monthId}`, 'tile-update', broadcastPayload);
+
+    res.json({ lockedPositions });
 
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -5200,11 +5581,13 @@ app.patch('/api/admin/pokemon/:id/game-slugs', async (req, res) => {
       .update(updates)
       .eq('id', id);
 
-    if (error) throw error;
+    if (error) {
+      throw error;
+    }
     res.json({ success: true });
   } catch (err) {
     console.error('Error updating pokemon game slugs:', err);
-    res.status(500).json({ error: 'Failed to update pokemon' });
+    res.status(500).json({ error: 'Failed to update pokemon', details: err.message });
   }
 });
 

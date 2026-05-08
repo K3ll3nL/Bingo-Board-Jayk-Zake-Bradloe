@@ -425,6 +425,7 @@ const PokemonGameManager = () => {
   const [reversed, setReversed] = useState(false);
   const [clipboard, setClipboard] = useState(null); // { fromId, game_slugs, restricted_game_slugs }
   const [selected, setSelected] = useState(new Set()); // Set of pokemon IDs
+  const selectedRef = useRef(new Set()); // Keep ref in sync with state for immediate access
 
   // Local data edits: { [pokemonId]: { game_slugs, restricted_game_slugs, shiny_available, forms_count, legendary, baby, ultra_beast, paradox, starter, fossil, regional_alt } }
   const [localData, setLocalData] = useState({});
@@ -484,18 +485,22 @@ const PokemonGameManager = () => {
   const save = useCallback(async (pokemonId) => {
     setSaveState(prev => ({ ...prev, [pokemonId]: 'saving' }));
     try {
+      const payload = localDataRef.current[pokemonId];
       const res = await fetch(`/api/admin/pokemon/${pokemonId}/game-slugs`, {
         method: 'PATCH',
         headers: {
           'Authorization': await getAuthHeader(),
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(localDataRef.current[pokemonId]),
+        body: JSON.stringify(payload),
       });
-      if (!res.ok) throw new Error('Save failed');
+      const resText = await res.text();
+      if (!res.ok) {
+        throw new Error(`Save failed: ${resText}`);
+      }
       setSaveState(prev => ({ ...prev, [pokemonId]: 'saved' }));
       setTimeout(() => setSaveState(prev => ({ ...prev, [pokemonId]: 'idle' })), 2000);
-    } catch {
+    } catch (err) {
       setSaveState(prev => ({ ...prev, [pokemonId]: 'error' }));
     }
   }, []); // no localData dep needed — reads via ref
@@ -546,8 +551,13 @@ const PokemonGameManager = () => {
   };
 
   const handleCategoryToggle = (pokemonId, category, value) => {
+    const oldValue = localData[pokemonId]?.[category] ?? false;
     if (selected.has(pokemonId)) {
-      applyToSelected(pokemonId, category, value);
+      setLocalData(prev => ({
+        ...prev,
+        [pokemonId]: { ...prev[pokemonId], [category]: value },
+      }));
+      applyToSelected(pokemonId, category, value, oldValue);
     } else {
       setLocalData(prev => ({
         ...prev,
@@ -560,26 +570,28 @@ const PokemonGameManager = () => {
   // ── Bulk selection handlers ────────────────────────────────────────────────
 
   const toggleSelected = (pokemonId) => {
-    setSelected(prev => {
-      const next = new Set(prev);
-      next.has(pokemonId) ? next.delete(pokemonId) : next.add(pokemonId);
-      return next;
-    });
+    selectedRef.current.has(pokemonId) ? selectedRef.current.delete(pokemonId) : selectedRef.current.add(pokemonId);
+    setSelected(new Set(selectedRef.current));
   };
 
   const selectAll = () => {
-    setSelected(new Set(filtered.map(p => p.id)));
+    selectedRef.current = new Set(filtered.map(p => p.id));
+    setSelected(new Set(selectedRef.current));
   };
 
   const clearSelection = () => {
+    selectedRef.current = new Set();
     setSelected(new Set());
   };
 
   const applyToSelected = (pokemonId, field, newValue, oldValue) => {
-    if (!selected.has(pokemonId) || selected.size === 0) return;
+    if (!selectedRef.current.has(pokemonId) || selectedRef.current.size === 0) return;
 
     // For slug fields, apply the delta (additions/removals) rather than replacing
     const isSlugField = field === 'game_slugs' || field === 'restricted_game_slugs';
+
+    // Capture selected as an array to ensure stable iteration
+    const selectedArray = Array.from(selectedRef.current);
 
     setLocalData(prev => {
       const next = { ...prev };
@@ -589,7 +601,7 @@ const PokemonGameManager = () => {
         const removed = oldValue.filter(slug => !newValue.includes(slug));
 
         // Apply the delta to all selected Pokemon
-        for (const id of selected) {
+        for (const id of selectedArray) {
           const current = next[id]?.[field] ?? [];
           let updated = [...current];
 
@@ -605,19 +617,19 @@ const PokemonGameManager = () => {
             updated = updated.filter(s => s !== slug);
           }
 
-          next[id] = { ...next[id], [field]: updated };
+          next[id] = { ...(next[id] ?? {}), [field]: updated };
         }
       } else {
         // For non-slug fields, replace the value entirely
-        for (const id of selected) {
-          next[id] = { ...next[id], [field]: newValue };
+        for (const id of selectedArray) {
+          next[id] = { ...(next[id] ?? {}), [field]: newValue };
         }
       }
 
       return next;
     });
 
-    for (const id of selected) {
+    for (const id of selectedArray) {
       scheduleSave(id);
     }
   };
