@@ -2696,12 +2696,14 @@ app.post('/api/approvals/:id/approve', async (req, res) => {
 
     if (approval.historical) {
       // Historical approvals: bypass RPC — handle entirely in Express (no points, no board)
-      const validHistoricalStatuses = ['accepted_historical', 'accepted_downgraded_historical'];
+      const validHistoricalStatuses = ['accepted_historical', 'accepted_downgraded_historical', 'accepted_upgraded_historical'];
       const historicalStatus = validHistoricalStatuses.includes(approvalStatus) ? approvalStatus : 'accepted_historical';
       const isDowngradedHistorical = historicalStatus === 'accepted_downgraded_historical';
+      const isUpgradedHistorical = historicalStatus === 'accepted_upgraded_historical';
 
       let historicalNote = `Approved by ${moderatorName}`;
       if (isDowngradedHistorical) historicalNote += ' (downgraded)';
+      if (isUpgradedHistorical) historicalNote += ' (upgraded)';
       if (approval.proof_link) {
         historicalNote += `. Link was ${approval.proof_link}`;
       }
@@ -2712,7 +2714,7 @@ app.post('/api/approvals/:id/approve', async (req, res) => {
         month_id: approval.month_id,
         game: approval.game,
         historical: true,
-        restricted_submission: !isDowngradedHistorical && !!approval.restricted_submission,
+        restricted_submission: isUpgradedHistorical || (!isDowngradedHistorical && !!approval.restricted_submission),
         moderator_note: historicalNote,
       });
       if (entryError) throw entryError;
@@ -2739,7 +2741,7 @@ app.post('/api/approvals/:id/approve', async (req, res) => {
           month_id: approval.month_id,
           game: approval.game,
           historical: true,
-          restricted_submission: !isDowngradedHistorical && !!approval.restricted_submission,
+          restricted_submission: isUpgradedHistorical || (!isDowngradedHistorical && !!approval.restricted_submission),
           proof_url: approval.proof_url,
           proof_url2: approval.proof_url2,
           proof_link: approval.proof_link,

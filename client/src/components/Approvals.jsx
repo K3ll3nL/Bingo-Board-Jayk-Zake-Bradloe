@@ -62,6 +62,8 @@ const STATUS_CONFIG = {
   accepted_historical:          { label: 'Accepted (Historical)',   color: 'text-blue-400',   bg: 'bg-blue-900/30 border-blue-700/40' },
   accepted_downgraded:          { label: 'Accepted (Downgraded)',   color: 'text-yellow-400', bg: 'bg-yellow-900/30 border-yellow-700/40' },
   accepted_downgraded_historical: { label: 'Accepted (Hist. DG)',   color: 'text-yellow-400', bg: 'bg-yellow-900/30 border-yellow-700/40' },
+  accepted_upgraded:            { label: 'Accepted (Upgraded)',     color: 'text-blue-400',   bg: 'bg-blue-900/30 border-blue-700/40' },
+  accepted_upgraded_historical: { label: 'Accepted (Upg. Hist.)',   color: 'text-blue-400',   bg: 'bg-blue-900/30 border-blue-700/40' },
   rejected:                     { label: 'Rejected',               color: 'text-red-400',    bg: 'bg-red-900/30 border-red-700/40' },
   rejected_restricted_ban:      { label: 'Banned',                 color: 'text-red-400',    bg: 'bg-red-900/30 border-red-700/40' },
 };
@@ -215,7 +217,13 @@ const Approvals = () => {
     const message = actionNotes[approvalId] || '';
     try {
       let response;
-      if (action === 'downgrade') {
+      if (action === 'upgrade') {
+        response = await fetch(`/api/approvals/${approvalId}/approve`, {
+          method: 'POST',
+          headers: { 'Authorization': await getAuthHeader(), 'Content-Type': 'application/json' },
+          body: JSON.stringify({ status: 'accepted_upgraded_historical', message })
+        });
+      } else if (action === 'downgrade') {
         response = await fetch(`/api/approvals/${approvalId}/approve`, {
           method: 'POST',
           headers: { 'Authorization': await getAuthHeader(), 'Content-Type': 'application/json' },
@@ -299,7 +307,13 @@ const Approvals = () => {
     const message = actionNotes[approvalId] || '';
     try {
       let response;
-      if (action === 'downgrade') {
+      if (action === 'upgrade') {
+        response = await fetch(`/api/approvals/${approvalId}/approve`, {
+          method: 'POST',
+          headers: { 'Authorization': await getAuthHeader(), 'Content-Type': 'application/json' },
+          body: JSON.stringify({ status: 'accepted_upgraded', message })
+        });
+      } else if (action === 'downgrade') {
         response = await fetch(`/api/approvals/${approvalId}/approve`, {
           method: 'POST',
           headers: { 'Authorization': await getAuthHeader(), 'Content-Type': 'application/json' },
@@ -487,6 +501,27 @@ const Approvals = () => {
               </>
             )}
 
+            {!approval.restricted_submission && approval.proof_link && (
+              <>
+                <button
+                  onClick={() => togglePanel(approval.id, 'upgrade')}
+                  className={`w-10 h-10 flex items-center justify-center rounded-lg border transition-colors ${
+                    panelOpen && panelAction === 'upgrade'
+                      ? 'bg-yellow-600 border-yellow-500'
+                      : 'bg-yellow-700 border-yellow-600 hover:bg-yellow-600 hover:border-yellow-500'
+                  }`}
+                  title="Upgrade to restricted submission"
+                >
+                  <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                      d="M12 19V5m0 0l-7 7m7-7l7 7" />
+                  </svg>
+                </button>
+
+                <div className="w-px h-8 bg-gray-600 mx-1" />
+              </>
+            )}
+
             {/* Approve */}
             <button
               onClick={() => isHistorical ? handleHistoricalApprove(approval.id) : handleApprove(approval.id)}
@@ -519,6 +554,7 @@ const Approvals = () => {
             <div className="p-4 rounded-lg border border-gray-600">
               <label className="block text-sm font-medium text-gray-300 mb-2">
                 {panelAction === 'reject' && 'Rejection Notes'}
+                {panelAction === 'upgrade' && 'Upgrade Notes - accept submission as restricted'}
                 {panelAction === 'downgrade' && 'Downgrade Notes - accept submission, but as non-restricted'}
                 {panelAction === 'warn' && 'Warning Message - give a strike to a user, reject submission'}
                 {panelAction === 'ban' && "Ban Reason - this will revoke the user's ability to submit to the restricted challenge, reject submission"}
@@ -528,6 +564,7 @@ const Approvals = () => {
                 onChange={(e) => handleNoteChange(approval.id, e.target.value)}
                 placeholder={
                   panelAction === 'reject' ? 'Enter reason for rejection...' :
+                  panelAction === 'upgrade' ? 'Explain why this is being upgraded to a restricted submission...' :
                   panelAction === 'downgrade' ? 'Explain why this is being downgraded to a normal submission...' :
                   panelAction === 'warn' ? 'Enter warning message for the user...' :
                   'Enter reason for ban...'
@@ -549,12 +586,14 @@ const Approvals = () => {
                   disabled={!actionNotes[approval.id]?.trim()}
                   className={`px-4 py-2 text-white rounded-lg font-medium transition-colors disabled:bg-gray-600 disabled:cursor-not-allowed ${
                     panelAction === 'reject' ? 'bg-red-600 hover:bg-red-700' :
+                    panelAction === 'upgrade' ? 'bg-blue-600 hover:bg-blue-700' :
                     panelAction === 'downgrade' ? 'bg-blue-600 hover:bg-blue-700' :
                     panelAction === 'warn' ? 'bg-orange-500 hover:bg-orange-600' :
                     'bg-red-700 hover:bg-red-800'
                   }`}
                 >
                   {panelAction === 'reject' && 'Submit Rejection'}
+                  {panelAction === 'upgrade' && 'Upgrade Submission'}
                   {panelAction === 'downgrade' && 'Downgrade Submission'}
                   {panelAction === 'warn' && 'Issue Warning'}
                   {panelAction === 'ban' && 'Ban User'}

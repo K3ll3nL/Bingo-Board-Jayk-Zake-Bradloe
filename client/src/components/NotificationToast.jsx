@@ -99,6 +99,22 @@ const STATUS_CONFIG = {
     label: 'Accepted (Historical)',
     icon: APPROVED_ICON,
   },
+  accepted_upgraded: {
+    borderColor: '#3b82f6',
+    bgColor: '#0a1929',
+    badgeBg: '#0c2340',
+    badgeText: '#60a5fa',
+    label: 'Accepted (Upgraded)',
+    icon: APPROVED_ICON,
+  },
+  accepted_upgraded_historical: {
+    borderColor: '#3b82f6',
+    bgColor: '#0a1929',
+    badgeBg: '#0c2340',
+    badgeText: '#60a5fa',
+    label: 'Accepted (Historical)',
+    icon: APPROVED_ICON,
+  },
   rejected: {
     borderColor: '#ef4444',
     bgColor: '#1a0707',
@@ -157,6 +173,8 @@ const STATUS_BODY = {
   accepted_restricted:           'accepted as a restricted catch',
   accepted_downgraded:           'accepted (downgraded from restricted)',
   accepted_downgraded_historical:'accepted as a historical catch (downgraded)',
+  accepted_upgraded:             'accepted (upgraded to restricted)',
+  accepted_upgraded_historical:  'accepted as a historical catch (upgraded)',
   rejected:                      'rejected',
   rejected_restricted_ban:       'rejected',
 };

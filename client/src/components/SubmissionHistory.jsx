@@ -28,6 +28,8 @@ const STATUS_CONFIG = {
   accepted_restricted:           { label: 'Accepted (Restricted)',      color: 'text-green-400',  accentColor: '#4ade80' },
   accepted_downgraded:           { label: 'Accepted (Downgraded)',      color: 'text-yellow-400', accentColor: '#fbbf24' },
   accepted_downgraded_historical:{ label: 'Accepted (Historical)',      color: 'text-yellow-400', accentColor: '#fbbf24' },
+  accepted_upgraded:            { label: 'Accepted (Upgraded)',        color: 'text-blue-400',   accentColor: '#60a5fa' },
+  accepted_upgraded_historical: { label: 'Accepted (Historical)',       color: 'text-blue-400',   accentColor: '#60a5fa' },
   rejected:                      { label: 'Rejected',                   color: 'text-red-400',    accentColor: '#f87171' },
   rejected_restricted_ban:       { label: 'Rejected',                   color: 'text-red-400',    accentColor: '#f87171' },
   award:                         { label: 'Achievement Awarded',        color: 'text-purple-400', accentColor: '#9147ff' },
