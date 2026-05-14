@@ -120,7 +120,7 @@ const broadcastNotificationToasts = async (userId) => {
     let pokemonMap = {};
     if (pokemonIds.length > 0) {
       const { data: pokemon } = await supabase
-        .from('pokemon_master').select('id, national_dex_id, name').in('id', pokemonIds);
+        .from('pokemon_master').select('id, national_dex_id, name, form_id, forms_count, genderless, custom_gender_code, has_gender_difference, has_major_gender_difference').in('id', pokemonIds);
       if (pokemon) pokemonMap = Object.fromEntries(pokemon.map(p => [p.id, p]));
     }
 
@@ -3098,7 +3098,7 @@ app.get('/api/notifications', async (req, res) => {
     if (pokemonIds.length > 0) {
       const { data: pokemon, error: pokemonError } = await supabase
         .from('pokemon_master')
-        .select('id, national_dex_id, name')
+        .select('id, national_dex_id, name, form_id, forms_count, genderless, custom_gender_code, has_gender_difference, has_major_gender_difference')
         .in('id', pokemonIds);
       if (pokemonError) throw pokemonError;
       pokemonMap = Object.fromEntries(pokemon.map(p => [p.id, p]));
@@ -3285,8 +3285,15 @@ app.get('/api/approvals/pending', async (req, res) => {
           restricted_strikes
         ),
         pokemon_master!apptovals_pokemon_id_fkey (
+          id,
           name,
-          national_dex_id
+          national_dex_id,
+          form_id,
+          forms_count,
+          genderless,
+          custom_gender_code,
+          has_gender_difference,
+          has_major_gender_difference
         )
       `)
       .eq('historical', historical)
@@ -3314,6 +3321,7 @@ app.get('/api/approvals/pending', async (req, res) => {
       display_name: approval.users?.display_name || 'Unknown',
       pokemon_name: approval.pokemon_master?.name || 'Unknown',
       national_dex_id: approval.pokemon_master?.national_dex_id || 0,
+      pokemon: approval.pokemon_master || null,
       pokemon_img: pokeR2Url(approval.pokemon_master?.national_dex_id),
       restricted_submission: approval.restricted_submission || false,
       restricted_strikes: approval.users?.restricted_strikes || 0,
@@ -5282,7 +5290,7 @@ app.get('/api/pokemon/search', async (req, res) => {
 
     const { data, error } = await supabase
       .from('pokemon_master')
-      .select('id, name, national_dex_id, collection_ids, game_slugs')
+      .select('id, name, national_dex_id, collection_ids, game_slugs, form_id, forms_count, genderless, custom_gender_code, has_gender_difference, has_major_gender_difference')
       .ilike('name', `%${q}%`)
       .order('national_dex_id')
       .limit(20);
@@ -5444,7 +5452,7 @@ app.get('/api/admin/collections/:slug', async (req, res) => {
     const [{ data, error }, { data: gameFilter }] = await Promise.all([
       supabase
         .from('pokemon_master')
-        .select('id, name, national_dex_id, collection_ids')
+        .select('id, name, national_dex_id, collection_ids, form_id, forms_count, genderless, custom_gender_code, has_gender_difference, has_major_gender_difference')
         .contains('collection_ids', [slug])
         .order('national_dex_id'),
       supabase
@@ -5731,7 +5739,7 @@ app.get('/api/overlay/approvals', async (req, res) => {
 
     const { data: approvals } = await supabase
       .from('approvals')
-      .select('id, created_at, pokemon_id, restricted_submission, historical, game, users!approvals_user_id_fkey(display_name), pokemon_master!approvals_pokemon_id_fkey(name, national_dex_id)')
+      .select('id, created_at, pokemon_id, restricted_submission, historical, game, users!approvals_user_id_fkey(display_name), pokemon_master!approvals_pokemon_id_fkey(id, name, national_dex_id, form_id, forms_count, genderless, custom_gender_code, has_gender_difference, has_major_gender_difference)')
       .eq('historical', false)
       .order('created_at', { ascending: true });
 
@@ -5807,7 +5815,7 @@ app.get('/api/approvals/history', async (req, res) => {
 
     const [usersRes, pokemonRes] = await Promise.all([
       userIds.length ? supabase.from('users').select('id, display_name').in('id', userIds) : { data: [] },
-      pokemonIds.length ? supabase.from('pokemon_master').select('id, name, national_dex_id').in('id', pokemonIds) : { data: [] },
+      pokemonIds.length ? supabase.from('pokemon_master').select('id, name, national_dex_id, form_id, forms_count, genderless, custom_gender_code, has_gender_difference, has_major_gender_difference').in('id', pokemonIds) : { data: [] },
     ]);
 
     const userMap = Object.fromEntries((usersRes.data || []).map(u => [u.id, u]));
@@ -5818,6 +5826,7 @@ app.get('/api/approvals/history', async (req, res) => {
       display_name: userMap[h.user_id]?.display_name || 'Unknown',
       pokemon_name: pokemonMap[h.pokemon_id]?.name || 'Unknown',
       national_dex_id: pokemonMap[h.pokemon_id]?.national_dex_id || null,
+      pokemon: pokemonMap[h.pokemon_id] || null,
       pokemon_img: pokeR2Url(pokemonMap[h.pokemon_id]?.national_dex_id),
     }));
 

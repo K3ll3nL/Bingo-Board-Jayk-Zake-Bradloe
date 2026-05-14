@@ -5,7 +5,7 @@ import AchievementIcon from './AchievementIcon';
 import { createClient } from '@supabase/supabase-js';
 import PageBackground from './PageBackground';
 import PageHeader from './PageHeader';
-import { buildPokemonImageUrl } from '../utils/pokemonImageUtils';
+import PokemonImage from './PokemonImage';
 
 const supabase = createClient(
   import.meta.env.VITE_SUPABASE_URL,
@@ -138,11 +138,13 @@ const SubmissionHistory = () => {
                         <AwardIcon type={n.message} restricted={n.restricted ?? false} />
                       </div>
                     ) : n.pokemon?.national_dex_id ? (
-                      <img
-                        src={buildPokemonImageUrl(n.pokemon)}
-                        alt={n.pokemon.name}
-                        className="w-10 h-10 object-contain"
-                      />
+                      <div className="w-10 h-10">
+                        <PokemonImage
+                          pokemon={n.pokemon}
+                          className="w-full h-full"
+                          disableCycling={true}
+                        />
+                      </div>
                     ) : (
                       <div className="w-10 h-10 rounded-full bg-gray-600 flex items-center justify-center">
                         <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">

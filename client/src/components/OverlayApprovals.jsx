@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import faviconImage from '/logo-16x16.png';
+import PokemonImage from './PokemonImage';
 
 const supabase = createClient(
   import.meta.env.VITE_SUPABASE_URL,
@@ -115,7 +116,15 @@ const OverlayApprovals = () => {
         <div style={{ display: 'flex', alignItems: 'center', gap: '16px', padding: '14px 18px', position: 'relative' }}>
 
           {/* Pokemon sprite */}
-          {submission?.pokemon_img && (
+          {submission?.pokemon ? (
+            <div style={{ width: 96, height: 96, flexShrink: 0 }}>
+              <PokemonImage
+                pokemon={submission.pokemon}
+                className="w-full h-full"
+                disableCycling={true}
+              />
+            </div>
+          ) : submission?.pokemon_img && (
             <img
               src={submission.pokemon_img}
               alt={submission.pokemon_name}

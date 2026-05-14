@@ -6,6 +6,7 @@ import { createClient } from '@supabase/supabase-js';
 import PageBackground from './PageBackground';
 import PageHeader from './PageHeader';
 import { ALLOWED_GAMES } from '../constants/games';
+import PokemonImage from './PokemonImage';
 
 const supabase = createClient(
   import.meta.env.VITE_SUPABASE_URL,
@@ -356,11 +357,13 @@ const Approvals = () => {
         {/* Main Row */}
         <div className="p-4 flex items-center gap-4">
           {/* Pokemon Image */}
-          <img
-            src={approval.pokemon_img}
-            alt={approval.pokemon_name}
-            className="w-16 h-16 object-contain flex-shrink-0"
-          />
+          <div className="w-16 h-16 flex-shrink-0">
+            <PokemonImage
+              pokemon={approval.pokemon}
+              className="w-full h-full"
+              disableCycling={true}
+            />
+          </div>
 
           {/* Submission Info */}
           <div className="w-56 flex-shrink-0">
@@ -702,12 +705,14 @@ const Approvals = () => {
                       return (
                         <div key={record.id} className="p-4 flex items-start gap-4">
                           {/* Pokemon image */}
-                          {record.pokemon_img && (
-                            <img
-                              src={record.pokemon_img}
-                              alt={record.pokemon_name}
-                              className="w-14 h-14 object-contain flex-shrink-0"
-                            />
+                          {record.pokemon && (
+                            <div className="w-14 h-14 flex-shrink-0">
+                              <PokemonImage
+                                pokemon={record.pokemon}
+                                className="w-full h-full"
+                                disableCycling={true}
+                              />
+                            </div>
                           )}
 
                           {/* Info */}
