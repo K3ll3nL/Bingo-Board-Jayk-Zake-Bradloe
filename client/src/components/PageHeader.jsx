@@ -245,6 +245,22 @@ const PageHeader = ({
                           </button>
                         </>
                       )}
+                      {isModerator && (
+                        <>
+                          <div className="border-t border-gray-600 my-1" />
+                          <div className="px-4 py-1 text-xs font-semibold text-green-500 uppercase tracking-wider">Game Tools</div>
+                          <button
+                            onClick={() => { navigate('/game-board'); setMenuOpen(false); }}
+                            className="w-full px-4 py-2 text-left text-sm text-green-400 hover:bg-gray-700 flex items-center gap-2"
+                          >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                            Game Board
+                          </button>
+                        </>
+                      )}
                       <div className="border-t border-gray-600 my-1" />
                       <button
                         onClick={() => { navigate('/about'); setMenuOpen(false); }}
