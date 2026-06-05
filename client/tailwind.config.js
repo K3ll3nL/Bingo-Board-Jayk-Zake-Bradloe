@@ -12,5 +12,14 @@ export default {
       }
     },
   },
+  safelist: [
+    // BDSPRadar StatCard dynamic color lookup (COLOR_MAP)
+    'text-emerald-400',
+    'text-yellow-400',
+    'text-red-400',
+    'text-amber-400',
+    'text-pink-400',
+    'text-violet-400',
+  ],
   plugins: [],
 }

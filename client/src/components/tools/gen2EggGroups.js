@@ -39,15 +39,15 @@ export const EGG_GROUP_LABELS = {
 // Each entry: { id, name, groups: string[], gender }
 export const POKEMON_DATA = [
   // ── Gen 1 ──────────────────────────────────────────────────────────────────
-  { id: 1,   name: 'Bulbasaur',   groups: ['monster','grass'],         gender: 'normal' },
-  { id: 2,   name: 'Ivysaur',     groups: ['monster','grass'],         gender: 'normal' },
-  { id: 3,   name: 'Venusaur',    groups: ['monster','grass'],         gender: 'normal' },
-  { id: 4,   name: 'Charmander',  groups: ['monster','dragon'],        gender: 'normal' },
-  { id: 5,   name: 'Charmeleon',  groups: ['monster','dragon'],        gender: 'normal' },
-  { id: 6,   name: 'Charizard',   groups: ['monster','dragon'],        gender: 'normal' },
-  { id: 7,   name: 'Squirtle',    groups: ['monster','water1'],        gender: 'normal' },
-  { id: 8,   name: 'Wartortle',   groups: ['monster','water1'],        gender: 'normal' },
-  { id: 9,   name: 'Blastoise',   groups: ['monster','water1'],        gender: 'normal' },
+  { id: 1,   name: 'Bulbasaur',   groups: ['monster','grass'],         gender: 'normal', shinyAlwaysMale: true },
+  { id: 2,   name: 'Ivysaur',     groups: ['monster','grass'],         gender: 'normal', shinyAlwaysMale: true },
+  { id: 3,   name: 'Venusaur',    groups: ['monster','grass'],         gender: 'normal', shinyAlwaysMale: true },
+  { id: 4,   name: 'Charmander',  groups: ['monster','dragon'],        gender: 'normal', shinyAlwaysMale: true },
+  { id: 5,   name: 'Charmeleon',  groups: ['monster','dragon'],        gender: 'normal', shinyAlwaysMale: true },
+  { id: 6,   name: 'Charizard',   groups: ['monster','dragon'],        gender: 'normal', shinyAlwaysMale: true },
+  { id: 7,   name: 'Squirtle',    groups: ['monster','water1'],        gender: 'normal', shinyAlwaysMale: true },
+  { id: 8,   name: 'Wartortle',   groups: ['monster','water1'],        gender: 'normal', shinyAlwaysMale: true },
+  { id: 9,   name: 'Blastoise',   groups: ['monster','water1'],        gender: 'normal', shinyAlwaysMale: true },
   { id: 10,  name: 'Caterpie',    groups: ['bug'],                     gender: 'normal' },
   { id: 11,  name: 'Metapod',     groups: ['bug'],                     gender: 'normal' },
   { id: 12,  name: 'Butterfree',  groups: ['bug'],                     gender: 'normal' },
@@ -171,17 +171,17 @@ export const POKEMON_DATA = [
   { id: 130, name: 'Gyarados',    groups: ['water2','dragon'],         gender: 'normal' },
   { id: 131, name: 'Lapras',      groups: ['monster','water1'],        gender: 'normal' },
   { id: 132, name: 'Ditto',       groups: ['ditto'],                   gender: 'genderless' },
-  { id: 133, name: 'Eevee',       groups: ['field'],                   gender: 'normal' },
-  { id: 134, name: 'Vaporeon',    groups: ['field'],                   gender: 'normal' },
-  { id: 135, name: 'Jolteon',     groups: ['field'],                   gender: 'normal' },
-  { id: 136, name: 'Flareon',     groups: ['field'],                   gender: 'normal' },
+  { id: 133, name: 'Eevee',       groups: ['field'],                   gender: 'normal', shinyAlwaysMale: true },
+  { id: 134, name: 'Vaporeon',    groups: ['field'],                   gender: 'normal', shinyAlwaysMale: true },
+  { id: 135, name: 'Jolteon',     groups: ['field'],                   gender: 'normal', shinyAlwaysMale: true },
+  { id: 136, name: 'Flareon',     groups: ['field'],                   gender: 'normal', shinyAlwaysMale: true },
   { id: 137, name: 'Porygon',     groups: ['mineral'],                 gender: 'genderless' },
   { id: 138, name: 'Omanyte',     groups: ['water1','water3'],         gender: 'normal' },
   { id: 139, name: 'Omastar',     groups: ['water1','water3'],         gender: 'normal' },
   { id: 140, name: 'Kabuto',      groups: ['water1','water3'],         gender: 'normal' },
   { id: 141, name: 'Kabutops',    groups: ['water1','water3'],         gender: 'normal' },
-  { id: 142, name: 'Aerodactyl',  groups: ['flying'],                  gender: 'normal' },
-  { id: 143, name: 'Snorlax',     groups: ['monster'],                 gender: 'normal' },
+  { id: 142, name: 'Aerodactyl',  groups: ['flying'],                  gender: 'normal', shinyAlwaysMale: true },
+  { id: 143, name: 'Snorlax',     groups: ['monster'],                 gender: 'normal', shinyAlwaysMale: true },
   { id: 144, name: 'Articuno',    groups: ['undiscovered'],            gender: 'none' },
   { id: 145, name: 'Zapdos',      groups: ['undiscovered'],            gender: 'none' },
   { id: 146, name: 'Moltres',     groups: ['undiscovered'],            gender: 'none' },
@@ -192,15 +192,15 @@ export const POKEMON_DATA = [
   { id: 151, name: 'Mew',         groups: ['undiscovered'],            gender: 'none' },
 
   // ── Gen 2 ──────────────────────────────────────────────────────────────────
-  { id: 152, name: 'Chikorita',   groups: ['monster','grass'],         gender: 'normal' },
-  { id: 153, name: 'Bayleef',     groups: ['monster','grass'],         gender: 'normal' },
-  { id: 154, name: 'Meganium',    groups: ['monster','grass'],         gender: 'normal' },
-  { id: 155, name: 'Cyndaquil',   groups: ['field'],                   gender: 'normal' },
-  { id: 156, name: 'Quilava',     groups: ['field'],                   gender: 'normal' },
-  { id: 157, name: 'Typhlosion',  groups: ['field'],                   gender: 'normal' },
-  { id: 158, name: 'Totodile',    groups: ['monster','water1'],        gender: 'normal' },
-  { id: 159, name: 'Croconaw',    groups: ['monster','water1'],        gender: 'normal' },
-  { id: 160, name: 'Feraligatr',  groups: ['monster','water1'],        gender: 'normal' },
+  { id: 152, name: 'Chikorita',   groups: ['monster','grass'],         gender: 'normal', shinyAlwaysMale: true },
+  { id: 153, name: 'Bayleef',     groups: ['monster','grass'],         gender: 'normal', shinyAlwaysMale: true },
+  { id: 154, name: 'Meganium',    groups: ['monster','grass'],         gender: 'normal', shinyAlwaysMale: true },
+  { id: 155, name: 'Cyndaquil',   groups: ['field'],                   gender: 'normal', shinyAlwaysMale: true },
+  { id: 156, name: 'Quilava',     groups: ['field'],                   gender: 'normal', shinyAlwaysMale: true },
+  { id: 157, name: 'Typhlosion',  groups: ['field'],                   gender: 'normal', shinyAlwaysMale: true },
+  { id: 158, name: 'Totodile',    groups: ['monster','water1'],        gender: 'normal', shinyAlwaysMale: true },
+  { id: 159, name: 'Croconaw',    groups: ['monster','water1'],        gender: 'normal', shinyAlwaysMale: true },
+  { id: 160, name: 'Feraligatr',  groups: ['monster','water1'],        gender: 'normal', shinyAlwaysMale: true },
   { id: 161, name: 'Sentret',     groups: ['field'],                   gender: 'normal' },
   { id: 162, name: 'Furret',      groups: ['field'],                   gender: 'normal' },
   { id: 163, name: 'Hoothoot',    groups: ['flying'],                  gender: 'normal' },
@@ -219,9 +219,9 @@ export const POKEMON_DATA = [
   { id: 176, name: 'Togetic',     groups: ['flying','fairy'],          gender: 'normal' },
   { id: 177, name: 'Natu',        groups: ['flying'],                  gender: 'normal' },
   { id: 178, name: 'Xatu',        groups: ['flying'],                  gender: 'normal' },
-  { id: 179, name: 'Mareep',      groups: ['field','monster'],         gender: 'normal' },
-  { id: 180, name: 'Flaaffy',     groups: ['field','monster'],         gender: 'normal' },
-  { id: 181, name: 'Ampharos',    groups: ['field','monster'],         gender: 'normal' },
+  { id: 179, name: 'Mareep',      groups: ['field','monster'],         gender: 'normal', shinyAlwaysMale: true },
+  { id: 180, name: 'Flaaffy',     groups: ['field','monster'],         gender: 'normal', shinyAlwaysMale: true },
+  { id: 181, name: 'Ampharos',    groups: ['field','monster'],         gender: 'normal', shinyAlwaysMale: true },
   { id: 182, name: 'Bellossom',   groups: ['grass'],                   gender: 'normal' },
   { id: 183, name: 'Marill',      groups: ['water1','fairy'],          gender: 'normal' },
   { id: 184, name: 'Azumarill',   groups: ['water1','fairy'],          gender: 'normal' },
@@ -236,8 +236,8 @@ export const POKEMON_DATA = [
   { id: 193, name: 'Yanma',       groups: ['bug'],                     gender: 'normal' },
   { id: 194, name: 'Wooper',      groups: ['water1','field'],          gender: 'normal' },
   { id: 195, name: 'Quagsire',    groups: ['water1','field'],          gender: 'normal' },
-  { id: 196, name: 'Espeon',      groups: ['field'],                   gender: 'normal' },
-  { id: 197, name: 'Umbreon',     groups: ['field'],                   gender: 'normal' },
+  { id: 196, name: 'Espeon',      groups: ['field'],                   gender: 'normal', shinyAlwaysMale: true },
+  { id: 197, name: 'Umbreon',     groups: ['field'],                   gender: 'normal', shinyAlwaysMale: true },
   { id: 198, name: 'Murkrow',     groups: ['flying'],                  gender: 'normal' },
   { id: 199, name: 'Slowking',    groups: ['monster','water1'],        gender: 'normal' },
   { id: 200, name: 'Misdreavus',  groups: ['amorphous'],               gender: 'normal' },
@@ -268,8 +268,8 @@ export const POKEMON_DATA = [
   { id: 225, name: 'Delibird',    groups: ['flying','field'],          gender: 'normal' },
   { id: 226, name: 'Mantine',     groups: ['water1'],                  gender: 'normal' },
   { id: 227, name: 'Skarmory',    groups: ['flying'],                  gender: 'normal' },
-  { id: 228, name: 'Houndour',    groups: ['field'],                   gender: 'normal' },
-  { id: 229, name: 'Houndoom',    groups: ['field'],                   gender: 'normal' },
+  { id: 228, name: 'Houndour',    groups: ['field'],                   gender: 'normal', shinyAlwaysMale: true },
+  { id: 229, name: 'Houndoom',    groups: ['field'],                   gender: 'normal', shinyAlwaysMale: true },
   { id: 230, name: 'Kingdra',     groups: ['water1','dragon'],         gender: 'normal' },
   { id: 231, name: 'Phanpy',      groups: ['field'],                   gender: 'normal' },
   { id: 232, name: 'Donphan',     groups: ['field'],                   gender: 'normal' },
@@ -286,9 +286,9 @@ export const POKEMON_DATA = [
   { id: 243, name: 'Raikou',      groups: ['undiscovered'],            gender: 'none' },
   { id: 244, name: 'Entei',       groups: ['undiscovered'],            gender: 'none' },
   { id: 245, name: 'Suicune',     groups: ['undiscovered'],            gender: 'none' },
-  { id: 246, name: 'Larvitar',    groups: ['monster'],                 gender: 'normal' },
-  { id: 247, name: 'Pupitar',     groups: ['monster'],                 gender: 'normal' },
-  { id: 248, name: 'Tyranitar',   groups: ['monster'],                 gender: 'normal' },
+  { id: 246, name: 'Larvitar',    groups: ['monster'],                 gender: 'normal', shinyAlwaysMale: true },
+  { id: 247, name: 'Pupitar',     groups: ['monster'],                 gender: 'normal', shinyAlwaysMale: true },
+  { id: 248, name: 'Tyranitar',   groups: ['monster'],                 gender: 'normal', shinyAlwaysMale: true },
   { id: 249, name: 'Lugia',       groups: ['undiscovered'],            gender: 'none' },
   { id: 250, name: 'Ho-Oh',       groups: ['undiscovered'],            gender: 'none' },
   { id: 251, name: 'Celebi',      groups: ['undiscovered'],            gender: 'none' },
@@ -347,24 +347,27 @@ export function buildAdjacency() {
 /**
  * Find the shortest breeding chain from any owned shiny to the target.
  *
+ * Pokémon with shinyAlwaysMale:true are excluded as sources and intermediates
+ * (shiny ♀ is impossible for them), but they can still be the final target.
+ *
  * @param {number[]} ownedIds  – Pokémon IDs the user already has as shiny
  * @param {number}   targetId  – Desired Pokémon ID
  * @param {Object}   adj       – Adjacency map from buildAdjacency()
- * @returns {{ path: number[], sharedGroup: string|null }|null}
+ * @returns {{ path: number[] }|null}
  *   path: [sourceId, ...intermediates, targetId] — or [targetId] if already owned
- *   sharedGroup: the egg group connecting the last step (for display)
  */
 export function findShortestChain(ownedIds, targetId, adj) {
   const owned = new Set(ownedIds);
 
   // Already owned
-  if (owned.has(targetId)) return { path: [targetId], sharedGroup: null };
+  if (owned.has(targetId)) return { path: [targetId] };
 
   // Target can't breed — no path possible
   const target = POKEMON_BY_ID[targetId];
   if (!target || target.groups[0] === 'undiscovered') return null;
 
   // BFS — multi-source (start from all owned shinies at once)
+  // Skip shinyAlwaysMale as sources — their shiny is always male, can't pass DVs
   const queue = [];
   const prev = {}; // id → parent id (for path reconstruction)
   const visited = new Set();
@@ -372,6 +375,7 @@ export function findShortestChain(ownedIds, targetId, adj) {
   for (const id of ownedIds) {
     const p = POKEMON_BY_ID[id];
     if (!p || p.groups[0] === 'undiscovered') continue;
+    if (p.shinyAlwaysMale) continue;
     if (!adj[id]) continue;
     queue.push(id);
     visited.add(id);
@@ -395,6 +399,8 @@ export function findShortestChain(ownedIds, targetId, adj) {
         }
         return { path };
       }
+      // Skip shinyAlwaysMale as intermediates — only valid as the final target
+      if (POKEMON_BY_ID[neighbor]?.shinyAlwaysMale) continue;
       visited.add(neighbor);
       queue.push(neighbor);
     }

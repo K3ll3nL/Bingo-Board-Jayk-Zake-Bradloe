@@ -627,7 +627,8 @@ function TargetPowerTab({ fillings, condiments, playerCount = 1 }) {
 
   // ─── Search: pure client-side lookup in the static cache ─────────────────
   useEffect(() => {
-    if (!fillings.length || !condiments.length || !sandwichCache) return;
+    // sandwichCache.json not yet generated — skip search until it's ready
+    if (!fillings.length || !condiments.length || !sandwichCache || Object.keys(sandwichCache).length === 0) return;
 
     setSearching(true);
     setCustomResults([]);
@@ -896,8 +897,16 @@ function TargetPowerTab({ fillings, condiments, playerCount = 1 }) {
           )
         )}
 
-        {/* Build Your Own — minimal sandwich via combinatorial search */}
+        {/* Build Your Own — coming soon placeholder */}
         {resultsTab === 'custom' && (
+          <div className="rounded-xl border border-dashed border-gray-700 flex flex-col items-center justify-center py-16 text-gray-600 text-sm text-center gap-2">
+            <span className="text-2xl">🥪</span>
+            <span className="text-gray-400 font-medium">Custom sandwich finder coming soon</span>
+            <span className="text-xs text-gray-600">We're building a database of optimal recipes. Check the Presets tab in the meantime.</span>
+          </div>
+        )}
+        {/* Build Your Own — hidden until cache is ready */}
+        {resultsTab === 'custom' && false && (
           searching ? (
             <div className="flex items-center justify-center py-20 gap-3 text-gray-500 text-sm">
               <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">

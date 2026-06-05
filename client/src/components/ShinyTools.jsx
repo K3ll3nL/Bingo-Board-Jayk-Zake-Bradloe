@@ -150,8 +150,8 @@ export default function ShinyTools() {
                   return (
                     <button
                       key={tool.id}
-                      onClick={() => navigate(`/tools/${tool.id}`)}
-                      className="flex items-start gap-2.5 shrink-0 rounded-lg px-3 py-2.5 border transition-all duration-150 hover:brightness-110 active:scale-[0.98] text-left"
+                      onClick={() => tool.live && navigate(`/tools/${tool.id}`)}
+                      className={`flex items-start gap-2.5 shrink-0 rounded-lg px-3 py-2.5 border transition-all duration-150 text-left ${tool.live ? 'hover:brightness-110 active:scale-[0.98] cursor-pointer' : 'cursor-not-allowed opacity-60'}`}
                       style={{ backgroundColor: c.glow, borderColor: c.border, width: '280px' }}
                       title={tool.live ? tool.name : 'Coming soon'}
                     >

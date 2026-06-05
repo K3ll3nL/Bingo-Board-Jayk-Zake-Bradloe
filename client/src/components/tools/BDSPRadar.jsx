@@ -93,14 +93,14 @@ export default function BDSPRadar() {
 
   return (
     <div className="max-w-3xl mx-auto px-4 py-4 text-white">
-      <h1 className="text-2xl font-bold mb-1">BDSP Radar Breakdown</h1>
-      <p className="text-gray-400 text-sm mb-6">
+      <h1 className="text-2xl font-bold mb-0.5">BDSP Radar Breakdown</h1>
+      <p className="text-gray-400 text-sm mb-3">
         Brilliant Diamond / Shining Pearl — Poké Radar shiny stats.{' '}
         <span className="text-gray-500">Odds sourced from Serebii.</span>
       </p>
 
       {/* ── Inputs ── */}
-      <div className="bg-gray-800/60 border border-gray-700 rounded-xl p-5 mb-6 space-y-5">
+      <div className="bg-gray-800/60 border border-gray-700 rounded-xl p-4 mb-4 space-y-3">
         {/* Chain slider + number input */}
         <div>
           <div className="flex items-center justify-between mb-2">
@@ -206,7 +206,7 @@ export default function BDSPRadar() {
       </div>
 
       {/* ── Current odds hero ── */}
-      <div className="bg-indigo-950/50 border border-indigo-500/40 rounded-xl p-5 mb-6 text-center">
+      <div className="bg-indigo-950/50 border border-indigo-500/40 rounded-xl p-3 mb-4 text-center">
         <p className="text-gray-400 text-sm mb-1">
           Shiny odds at chain {stats.n >= 40 ? '40+' : stats.n}
         </p>
@@ -224,7 +224,7 @@ export default function BDSPRadar() {
       </div>
 
       {/* ── 4 stat cards ── */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
         {/* 1. Chance of reaching this chain */}
         <StatCard
           label="Chance of reaching this chain"
@@ -271,7 +271,7 @@ export default function BDSPRadar() {
       </div>
 
       {/* ── Combined time ── */}
-      <div className="mt-4 mb-6">
+      <div className="mb-4">
         <StatCard
           label="Combined: recover chain + get shiny"
           value={stats.n === 0 ? formatTime(stats.timeToShinyS) : formatTime(stats.timeTotalS)}
@@ -359,10 +359,10 @@ const COLOR_MAP = {
 
 function StatCard({ label, value, color, note }) {
   return (
-    <div className="bg-gray-800/60 border border-gray-700 rounded-xl p-4">
-      <p className="text-xs font-bold uppercase tracking-wider text-gray-500 mb-2">{label}</p>
+    <div className="bg-gray-800/60 border border-gray-700 rounded-xl p-3">
+      <p className="text-xs font-bold uppercase tracking-wider text-gray-500 mb-1">{label}</p>
       <p className={`text-2xl font-bold ${COLOR_MAP[color] ?? 'text-white'}`}>{value}</p>
-      {note && <p className="text-xs text-gray-500 mt-1.5 leading-snug">{note}</p>}
+      {note && <p className="text-xs text-gray-500 mt-1 leading-snug">{note}</p>}
     </div>
   );
 }

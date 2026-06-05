@@ -13,8 +13,10 @@ import {
 // Adjacency built once at module load
 const ADJ = buildAdjacency();
 
-// All breedable Pokémon for search (egg-group data side)
-const BREEDABLE = POKEMON_DATA.filter(p => p.groups[0] !== 'undiscovered');
+// Pokémon that can appear as owned shinies (excludes shinyAlwaysMale — their shiny is always ♂)
+const BREEDABLE_SOURCES = POKEMON_DATA.filter(p => p.groups[0] !== 'undiscovered' && !p.shinyAlwaysMale);
+// All breedable Pokémon for the target search (shinyAlwaysMale are valid targets)
+const BREEDABLE_TARGETS = POKEMON_DATA.filter(p => p.groups[0] !== 'undiscovered');
 
 // Egg group pill colours
 const GROUP_COLORS = {
@@ -45,7 +47,7 @@ function EggGroupPill({ group, small }) {
 }
 
 // ── Pokémon search dropdown ───────────────────────────────────────────────────
-function PokemonSearch({ placeholder, onSelect, excludeIds = [], clearOnSelect = false, pmMap }) {
+function PokemonSearch({ placeholder, onSelect, excludeIds = [], clearOnSelect = false, pmMap, sourceList }) {
   const [query, setQuery] = useState('');
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
@@ -53,10 +55,10 @@ function PokemonSearch({ placeholder, onSelect, excludeIds = [], clearOnSelect =
   const results = useMemo(() => {
     if (!query.trim()) return [];
     const q = query.toLowerCase();
-    return BREEDABLE
+    return sourceList
       .filter(p => !excludeIds.includes(p.id) && p.name.toLowerCase().includes(q))
       .slice(0, 10);
-  }, [query, excludeIds]);
+  }, [query, excludeIds, sourceList]);
 
   useEffect(() => {
     const handler = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
@@ -126,55 +128,79 @@ function DittoModal({ onClose, dittoPm }) {
 
         <div className="space-y-4 text-sm text-gray-300 leading-relaxed">
           <p>
-            A shiny Ditto is the ultimate shortcut. It can breed with almost any Pokémon
-            regardless of egg group, passing its shiny Special DV to every offspring.
+            A shiny Ditto bypasses egg groups entirely — it can breed with almost any Pokémon
+            and passes two shiny DVs to every offspring, raising shiny odds to <strong className="text-white">~1/64</strong>.
           </p>
 
+          <div className="bg-orange-500/10 border border-orange-500/30 rounded-lg px-3 py-2 text-orange-200 text-xs">
+            <strong>Requires:</strong> a Gen 1 cartridge (Red, Blue, or Yellow) <em>and</em> a
+            Gen 2 cartridge (Gold, Silver, or Crystal) with a Link Cable for trading.
+          </div>
+
           <div>
-            <h3 className="text-white font-semibold mb-1">How shininess works in Gen 2</h3>
+            <h3 className="text-white font-semibold mb-1">Why 1/64?</h3>
             <p>
-              A Pokémon is shiny if its DVs (the Gen 2 term for IVs) meet specific values:{' '}
-              <span className="text-pink-300">Defense = 10, Speed = 10, Special = 10</span>, and{' '}
-              <span className="text-pink-300">Attack</span> is one of <span className="text-pink-300">{'2, 6, 10,'}</span> or <span className="text-pink-300">{' 14'}</span>.
-              When a shiny female (or Ditto) breeds, the offspring inherits the mother's
-              Special DV, locking one of the four shiny requirements automatically.
-              This raises shiny odds from ~1/8192 to ~1/1024.
+              Shininess requires Defense = 10, Speed = 10, Special = 10, and Attack ∈ {'{2, 6, 10, 14}'}.
+              Breeding with a shiny Ditto passes <em>both</em> the Special DV and the Defense DV to
+              the offspring, leaving only Speed (1/16) and Attack (4/16) to chance — giving
+              1/16 × 1/4 = <span className="text-pink-300">1/64</span>.
             </p>
           </div>
 
           <div>
-            <h3 className="text-white font-semibold mb-1">The Transform trick</h3>
-            <p>
-              Wild Ditto uses Transform at the start of battle, copying your lead Pokémon's
-              DVs. If you catch a Ditto <em>after</em> it has transformed into a shiny Pokémon,
-              the caught Ditto retains those shiny DVs, giving you a functional shiny Ditto.
-            </p>
-            <ol className="list-decimal list-inside mt-2 space-y-1">
-              <li>Have a shiny Pokémon (or one confirmed to have shiny DVs).</li>
-              <li>Put it in the first slot of your party.</li>
+            <h3 className="text-white font-semibold mb-1">Step-by-step</h3>
+            <ol className="list-decimal list-inside space-y-1.5">
               <li>
-                Find a wild Ditto on {' '}
-                <span className="text-yellow-300">Route 34/35, National Park, or the Safari Zone.</span>
+                Use the <span className="text-yellow-300">Red Gyarados</span> from the Lake of Rage as your bait — it already has shiny DVs and every player has one.
               </li>
-              <li>Let Ditto use Transform. <span className="text-gray-400">(It always does this on turn 1.)</span></li>
-              <li>Catch the Ditto without letting it faint or flee.</li>
-              <li>The caught Ditto now has the same DVs as your shiny bait Pokémon.</li>
+              <li>
+                If it knows any Gen 2-exclusive moves, delete them at the{' '}
+                <span className="text-yellow-300">Move Deleter in Blackthorn City</span> first.
+              </li>
+              <li>
+                Trade Gyarados to your Gen 1 game via the <span className="text-yellow-300">Time Capsule</span>.{' '}
+                <span className="text-gray-400">(It will look normal in Gen 1 but keeps its shiny DVs.)</span>
+              </li>
+              <li>
+                In Gen 1, obtain <span className="text-yellow-300">TM31 (Mimic)</span> from the Copycat NPC in
+                Saffron City (trade her the Poké Doll from the Celadon Dept. Store). Teach it to Gyarados.
+              </li>
+              <li>
+                Find a wild Ditto in Gen 1 —{' '}
+                <span className="text-yellow-300">Route 15 or the Cinnabar Island basement</span> are good spots.
+              </li>
+              <li>
+                In battle, <strong className="text-white">use Mimic</strong> to copy Ditto's Transform.
+                Gyarados permanently learns Transform.
+              </li>
+              <li>
+                Now let Ditto use Transform on Gyarados. Ditto copies Gyarados — including the
+                Transform move. Then Ditto uses Transform <strong className="text-white">a second time</strong>.
+                This second Transform triggers the glitch that permanently locks Gyarados's shiny DVs
+                into the Ditto.
+              </li>
+              <li>
+                <strong className="text-white">Catch the Ditto</strong> — don't let it faint.
+              </li>
+              <li>
+                Trade it back to Gen 2. It will appear as a{' '}
+                <span className="text-fuchsia-300">bright blue shiny Ditto</span>.
+              </li>
             </ol>
           </div>
 
           <div>
             <h3 className="text-white font-semibold mb-1">Then breed freely</h3>
             <p>
-              Place this Ditto in the Day-Care with <em>any</em> breedable Pokémon.
-              All eggs will inherit the shiny Special DV, reducing the chain to a single
-              step regardless of egg groups. At ~1/1024 odds per egg, expect to hatch
-              around 500–1500 eggs on average.
+              Drop this Ditto in the Day-Care with <em>any</em> breedable Pokémon — egg groups
+              don't matter. At ~1/64 per egg, expect around 30–100 eggs on average, far better
+              than the 1/1024 from a standard shiny female parent.
             </p>
           </div>
 
           <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-lg px-3 py-2 text-yellow-200 text-xs">
-            <strong>Tip:</strong> Even with a shiny Ditto, the target species must be
-            breedable — legendaries and baby Pokémon can't be obtained this way.
+            <strong>Tip:</strong> Even with a shiny Ditto, the target must be breedable —
+            legendaries and baby Pokémon can't be obtained this way.
           </div>
         </div>
       </div>
@@ -363,6 +389,7 @@ export default function Gen2ShinyBreeding() {
             excludeIds={ownedIds}
             clearOnSelect
             pmMap={pmMap}
+            sourceList={BREEDABLE_SOURCES}
           />
           {ownedPokemon.length > 0 && (
             <div className="flex flex-wrap gap-1.5 mt-2">
@@ -385,6 +412,7 @@ export default function Gen2ShinyBreeding() {
             placeholder="Search for your target..."
             onSelect={p => setTargetId(p.id)}
             pmMap={pmMap}
+            sourceList={BREEDABLE_TARGETS}
           />
           {targetId && (
             <div className="flex items-center gap-2 mt-2">
@@ -514,6 +542,7 @@ export default function Gen2ShinyBreeding() {
                 <strong className="text-pink-300">Shiny odds at each step:</strong> ~1/1024 per egg
                 (Special DV inherited from shiny mother). Expect ~500–1500 eggs per step on average.
                 Each intermediate must be a shiny female before moving to the next step.
+                With a shiny Ditto (see above), odds jump to ~1/64 and egg groups don't matter.
               </div>
             </div>
           )}
