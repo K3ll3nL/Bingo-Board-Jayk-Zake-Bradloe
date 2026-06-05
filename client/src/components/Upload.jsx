@@ -34,7 +34,7 @@ const HistoricalUploadSection = () => {
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [game, setGame] = useState('');
   const [gameDropdownOpen, setGameDropdownOpen] = useState(false);
-  const [mediaUrl, setMediaUrl] = useState('');
+  const [mediaUrls, setMediaUrls] = useState(['']);
   const [mediaFile, setMediaFile] = useState(null);
   const [mediaFile2, setMediaFile2] = useState(null);
   const [sortBy, setSortBy] = useState('dex');
@@ -148,6 +148,8 @@ const HistoricalUploadSection = () => {
   useEffect(() => {
     if (isLockedRestricted && !isRestricted) {
       setIsRestricted(true);
+      setMediaFile(null);
+      setMediaFile2(null);
     }
     clearTimeout(lockedTooltipTimer.current);
     if (isLockedRestricted) {
@@ -181,8 +183,9 @@ const HistoricalUploadSection = () => {
     e.preventDefault();
     if (!selectedPokemon)    { setError('Please select a Pokemon'); return; }
     if (!game.trim())        { setError('Please select the game you hunted in'); return; }
-    if (isRestricted && !mediaUrl.trim()) { setError('Restricted submissions require a VOD or video link.'); return; }
-    if (!isRestricted && !mediaUrl.trim() && (!mediaFile || !mediaFile2)) {
+    const validLinks = mediaUrls.filter(u => u.trim());
+    if (isRestricted && validLinks.length === 0) { setError('Restricted submissions require a VOD or video link.'); return; }
+    if (!isRestricted && validLinks.length === 0 && (!mediaFile || !mediaFile2)) {
       setError('Please provide either both proof images or a video link');
       return;
     }
@@ -200,12 +203,10 @@ const HistoricalUploadSection = () => {
       formData.append('restricted_submission', isRestricted ? 'true' : 'false');
       formData.append('game', game.trim());
       formData.append('month_id', String(selectedPokeData.month_id));
-      if (isRestricted) {
-        formData.append('link', mediaUrl.trim());
-      } else {
-        if (mediaFile)           formData.append('file', mediaFile);
-        if (mediaFile2)          formData.append('file2', mediaFile2);
-        if (mediaUrl.trim())     formData.append('link', mediaUrl.trim());
+      validLinks.forEach(u => formData.append('link', u));
+      if (!isRestricted) {
+        if (mediaFile)  formData.append('file', mediaFile);
+        if (mediaFile2) formData.append('file2', mediaFile2);
       }
 
       const response = await fetch('/api/upload/historical-submission', {
@@ -220,7 +221,7 @@ const HistoricalUploadSection = () => {
       setSuccess(true);
       setSelectedPokemon('');
       setGame('');
-      setMediaUrl('');
+      setMediaUrls(['']);
       setMediaFile(null);
       setMediaFile2(null);
       setTimeout(() => { setSuccess(false); loadPokemon(); }, 3000);
@@ -415,26 +416,15 @@ const HistoricalUploadSection = () => {
         </div>
       </div>
 
-      {/* Video link + restricted button */}
+      {/* Video links + restricted button */}
       <div className="mb-6">
-        <div className="flex items-end gap-2">
-          <div className="flex-1">
-            <label className="block text-xs font-medium text-gray-300 mb-2">
-              {isRestricted || noImageProof
-                ? <><span>Video Link</span> <span className="text-red-400">*</span></>
-                : <span className="text-gray-400">Video Link <span className="text-gray-500">(optional)</span></span>
-              }
-            </label>
-            <input
-              type="url"
-              value={mediaUrl}
-              onChange={(e) => setMediaUrl(e.target.value)}
-              placeholder="Twitch clip, VOD, or YouTube link"
-              className="w-full p-3 bg-gray-700 text-white rounded-lg border border-gray-600 focus:border-purple-500 focus:outline-none"
-              disabled={submitting}
-            />
-          </div>
-
+        <div className="flex items-center justify-between mb-2">
+          <label className="block text-xs font-medium text-gray-300">
+            {isRestricted || noImageProof
+              ? <><span>Video Link(s)</span> <span className="text-red-400">*</span></>
+              : <span className="text-gray-400">Video Link(s) <span className="text-gray-500">(optional)</span></span>
+            }
+          </label>
           {restrictedEnabled && (
             <div
               className="relative flex-shrink-0"
@@ -461,7 +451,7 @@ const HistoricalUploadSection = () => {
                     setMediaFile2(null);
                   }
                 }}
-                className={`h-[46px] flex items-center gap-1.5 px-3 rounded-lg border transition-colors ${
+                className={`h-[34px] flex items-center gap-1.5 px-3 rounded-lg border transition-colors ${
                   !isRestrictedAvailable
                     ? 'border-gray-700 bg-gray-800 text-gray-600 cursor-not-allowed opacity-50'
                     : isLockedRestricted
@@ -498,6 +488,44 @@ const HistoricalUploadSection = () => {
             </div>
           )}
         </div>
+
+        {mediaUrls.map((url, i) => (
+          <div key={i} className="flex gap-2 mb-2">
+            <input
+              type="url"
+              value={url}
+              onChange={(e) => {
+                const next = [...mediaUrls];
+                next[i] = e.target.value;
+                setMediaUrls(next);
+              }}
+              placeholder="Twitch clip, VOD, or YouTube link"
+              className="flex-1 p-3 bg-gray-700 text-white rounded-lg border border-gray-600 focus:border-purple-500 focus:outline-none"
+              disabled={submitting}
+            />
+            {mediaUrls.length > 1 && (
+              <button
+                type="button"
+                onClick={() => setMediaUrls(prev => prev.filter((_, j) => j !== i))}
+                disabled={submitting}
+                className="px-2 text-gray-500 hover:text-red-400 transition-colors"
+                title="Remove link"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            )}
+          </div>
+        ))}
+        <button
+          type="button"
+          onClick={() => setMediaUrls(prev => [...prev, ''])}
+          disabled={submitting}
+          className="text-xs text-purple-400 hover:text-purple-300 transition-colors mt-1"
+        >
+          + Add another link
+        </button>
 
         {restrictedEnabled && isRestricted && activeChecklist.length > 0 && (
           <div className="mt-2 bg-gray-900 border border-gray-700 rounded-lg p-3 text-xs">
@@ -557,7 +585,7 @@ const HistoricalUploadSection = () => {
 
       <button
         type="submit"
-        disabled={submitting || !selectedPokemon || !game.trim() || (isRestricted || noImageProof ? !mediaUrl.trim() : (!mediaUrl.trim() && (!mediaFile || !mediaFile2)))}
+        disabled={submitting || !selectedPokemon || !game.trim() || (isRestricted || noImageProof ? !mediaUrls.some(u => u.trim()) : (!mediaUrls.some(u => u.trim()) && (!mediaFile || !mediaFile2)))}
         className="w-full py-3 bg-blue-500 text-white rounded-lg font-medium hover:bg-blue-600 disabled:bg-gray-600 disabled:cursor-not-allowed transition-colors"
       >
         {submitting ? 'Submitting...' : 'Submit Historical Catch'}
@@ -579,7 +607,7 @@ const Upload = () => {
   // game state stores the label string (human-readable, written to DB)
   const [game, setGame] = useState('');
   const [gameDropdownOpen, setGameDropdownOpen] = useState(false);
-  const [mediaUrl, setMediaUrl] = useState('');
+  const [mediaUrls, setMediaUrls] = useState(['']);
   const [mediaFile, setMediaFile] = useState(null);
   const [mediaFile2, setMediaFile2] = useState(null);
   const [sortBy, setSortBy] = useState('dex');
@@ -754,12 +782,10 @@ const Upload = () => {
 
   // Force restricted on when a standard entry exists for the selected pokemon
   useEffect(() => {
-    if (isLockedRestricted) {
-      if (!isRestricted) {
-        setIsRestricted(true);
-        setMediaFile(null);
-        setMediaFile2(null);
-      }
+    if (isLockedRestricted && !isRestricted) {
+      setIsRestricted(true);
+      setMediaFile(null);
+      setMediaFile2(null);
       clearTimeout(lockedTooltipTimer.current);
       setShowLockedTooltip(true);
       lockedTooltipTimer.current = setTimeout(() => setShowLockedTooltip(false), 3000);
@@ -803,8 +829,9 @@ const Upload = () => {
 
     if (!selectedPokemon) { setError('Please select a Pokemon'); return; }
     if (!game.trim())     { setError('Please select the game you hunted in'); return; }
-    if (isRestricted && !mediaUrl) { setError('Restricted submissions require a VOD or video link.'); return; }
-    if (!isRestricted && !mediaUrl.trim() && (!mediaFile || !mediaFile2)) { setError('Please provide either both proof images or a video link'); return; }
+    const validLinks = mediaUrls.filter(u => u.trim());
+    if (isRestricted && validLinks.length === 0) { setError('Restricted submissions require a VOD or video link.'); return; }
+    if (!isRestricted && validLinks.length === 0 && (!mediaFile || !mediaFile2)) { setError('Please provide either both proof images or a video link'); return; }
 
     const MAX_FILE_SIZE = 4 * 1024 * 1024;
     if (mediaFile && mediaFile.size > MAX_FILE_SIZE) {
@@ -829,12 +856,10 @@ const Upload = () => {
       formData.append('restricted_submission', isRestricted ? 'true' : 'false');
       formData.append('game', game.trim());
 
-      if (isRestricted) {
-        formData.append('url', mediaUrl);
-      } else {
-        formData.append('file', mediaFile);
-        formData.append('file2', mediaFile2);
-        if (mediaUrl.trim()) formData.append('link', mediaUrl.trim());
+      validLinks.forEach(u => formData.append('link', u));
+      if (!isRestricted) {
+        if (mediaFile)  formData.append('file', mediaFile);
+        if (mediaFile2) formData.append('file2', mediaFile2);
       }
 
       const response = await fetch('/api/upload/submission', {
@@ -851,7 +876,7 @@ const Upload = () => {
       setSuccess(true);
       setSelectedPokemon('');
       setGame('');
-      setMediaUrl('');
+      setMediaUrls(['']);
       setMediaFile(null);
       setMediaFile2(null);
       setIsRestricted(false);
@@ -1112,25 +1137,15 @@ const Upload = () => {
                 </div>
               </div>
 
-              {/* Video Link + Restricted Toggle */}
+              {/* Video Link(s) + Restricted Toggle */}
               <div className="mb-4 sm:mb-6">
-                <div className="flex items-end gap-2">
-                  <div className="flex-1">
-                    <label className="block text-xs font-medium text-gray-300 mb-2">
-                      {isRestricted || noImageProof
-                        ? <><span>Video Link</span> <span className="text-red-400">*</span></>
-                        : <span className="text-gray-400">Video Link <span className="text-gray-500">(optional)</span></span>
-                      }
-                    </label>
-                    <input
-                      type="url"
-                      value={mediaUrl}
-                      onChange={(e) => setMediaUrl(e.target.value)}
-                      placeholder="Twitch clip, VOD, or YouTube link"
-                      className="w-full p-3 bg-gray-700 text-white rounded-lg border border-gray-600 focus:border-purple-500 focus:outline-none"
-                      disabled={submitting}
-                    />
-                  </div>
+                <div className="flex items-center justify-between mb-2">
+                  <label className="block text-xs font-medium text-gray-300">
+                    {isRestricted || noImageProof
+                      ? <><span>Video Link(s)</span> <span className="text-red-400">*</span></>
+                      : <span className="text-gray-400">Video Link(s) <span className="text-gray-500">(optional)</span></span>
+                    }
+                  </label>
 
                   {restrictedEnabled && (
                     <div
@@ -1158,7 +1173,7 @@ const Upload = () => {
                             setMediaFile2(null);
                           }
                         }}
-                        className={`h-[46px] flex items-center gap-1.5 px-3 rounded-lg border transition-colors ${
+                        className={`h-[34px] flex items-center gap-1.5 px-3 rounded-lg border transition-colors ${
                           !isRestrictedAvailable
                             ? 'border-gray-700 bg-gray-800 text-gray-600 cursor-not-allowed opacity-50'
                             : isLockedRestricted
@@ -1195,6 +1210,44 @@ const Upload = () => {
                     </div>
                   )}
                 </div>
+
+                {mediaUrls.map((url, i) => (
+                  <div key={i} className="flex gap-2 mb-2">
+                    <input
+                      type="url"
+                      value={url}
+                      onChange={(e) => {
+                        const next = [...mediaUrls];
+                        next[i] = e.target.value;
+                        setMediaUrls(next);
+                      }}
+                      placeholder="Twitch clip, VOD, or YouTube link"
+                      className="flex-1 p-3 bg-gray-700 text-white rounded-lg border border-gray-600 focus:border-purple-500 focus:outline-none"
+                      disabled={submitting}
+                    />
+                    {mediaUrls.length > 1 && (
+                      <button
+                        type="button"
+                        onClick={() => setMediaUrls(prev => prev.filter((_, j) => j !== i))}
+                        disabled={submitting}
+                        className="px-2 text-gray-500 hover:text-red-400 transition-colors"
+                        title="Remove link"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                      </button>
+                    )}
+                  </div>
+                ))}
+                <button
+                  type="button"
+                  onClick={() => setMediaUrls(prev => [...prev, ''])}
+                  disabled={submitting}
+                  className="text-xs text-purple-400 hover:text-purple-300 transition-colors mt-1"
+                >
+                  + Add another link
+                </button>
 
                 {restrictedEnabled && isRestricted && activeChecklist.length > 0 && (
                   <div className="mt-2 bg-gray-900 border border-gray-700 rounded-lg p-3 text-xs">
@@ -1278,7 +1331,7 @@ const Upload = () => {
               {/* Submit */}
               <button
                 type="submit"
-                disabled={submitting || !selectedPokemon || !game.trim() || (isRestricted || noImageProof ? !mediaUrl : (!mediaUrl.trim() && (!mediaFile || !mediaFile2)))}
+                disabled={submitting || !selectedPokemon || !game.trim() || (isRestricted || noImageProof ? !mediaUrls.some(u => u.trim()) : (!mediaUrls.some(u => u.trim()) && (!mediaFile || !mediaFile2)))}
                 className="w-full py-3 bg-purple-500 text-white rounded-lg font-medium hover:bg-purple-600 disabled:bg-gray-600 disabled:cursor-not-allowed transition-colors"
               >
                 {submitting ? 'Submitting...' : 'Submit Catch'}

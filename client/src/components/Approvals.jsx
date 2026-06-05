@@ -408,51 +408,39 @@ const Approvals = () => {
 
           {/* Proof */}
           <div className="flex-shrink-0">
-            {approval.proof_url && approval.proof_url2 ? (
-              <div>
-                <div className="flex gap-2 items-start">
-                  <button onClick={() => setLightboxImage(approval.proof_url)} className="block">
-                    <img
-                      src={approval.proof_url}
-                      alt="Proof of Shiny"
-                      className="w-28 h-28 object-cover rounded border border-gray-600 hover:border-purple-500 transition-colors cursor-pointer"
-                    />
-                    <div className="text-xs text-gray-400 text-center mt-1">Proof of Shiny</div>
-                  </button>
-                  <button onClick={() => setLightboxImage(approval.proof_url2)} className="block">
-                    <img
-                      src={approval.proof_url2}
-                      alt="Proof of Date"
-                      className="w-28 h-28 object-cover rounded border border-gray-600 hover:border-purple-500 transition-colors cursor-pointer"
-                    />
-                    <div className="text-xs text-gray-400 text-center mt-1">Proof of Date</div>
-                  </button>
-                  {approval.proof_link && (
-                    <a
-                      href={approval.proof_link}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="self-center text-purple-400 hover:text-purple-300 underline text-sm"
-                    >
-                      View Video Link ↗
-                    </a>
-                  )}
-                </div>
-              </div>
-            ) : approval.proof_link ? (
-              <a
-                href={approval.proof_link}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-purple-400 hover:text-purple-300 underline text-sm"
-              >
-                View Video Link ↗
-              </a>
-            ) : approval.proof_url ? (
-              <button onClick={() => setLightboxImage(approval.proof_url)} className="text-purple-400 hover:text-purple-300 underline text-sm">
-                View Proof Link ↗
-              </button>
-            ) : null}
+            <div className="flex gap-2 items-start flex-wrap">
+              {approval.proof_url && (
+                <button onClick={() => setLightboxImage(approval.proof_url)} className="block">
+                  <img
+                    src={approval.proof_url}
+                    alt="Proof of Shiny"
+                    className="w-28 h-28 object-cover rounded border border-gray-600 hover:border-purple-500 transition-colors cursor-pointer"
+                  />
+                  <div className="text-xs text-gray-400 text-center mt-1">Proof of Shiny</div>
+                </button>
+              )}
+              {approval.proof_url2 && (
+                <button onClick={() => setLightboxImage(approval.proof_url2)} className="block">
+                  <img
+                    src={approval.proof_url2}
+                    alt="Proof of Date"
+                    className="w-28 h-28 object-cover rounded border border-gray-600 hover:border-purple-500 transition-colors cursor-pointer"
+                  />
+                  <div className="text-xs text-gray-400 text-center mt-1">Proof of Date</div>
+                </button>
+              )}
+              {(approval.proof_link ?? []).map((link, i) => (
+                <a
+                  key={i}
+                  href={link}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="self-center text-purple-400 hover:text-purple-300 underline text-sm"
+                >
+                  {(approval.proof_link?.length ?? 0) > 1 ? `Video ${i + 1} ↗` : 'View Video Link ↗'}
+                </a>
+              ))}
+            </div>
           </div>
 
           <div className="flex-1" />
@@ -504,7 +492,7 @@ const Approvals = () => {
               </>
             )}
 
-            {!approval.restricted_submission && approval.proof_link && (
+            {!approval.restricted_submission && approval.proof_link?.length > 0 && (
               <>
                 <button
                   onClick={() => togglePanel(approval.id, 'upgrade')}
@@ -751,7 +739,7 @@ const Approvals = () => {
                           </div>
 
                           {/* Proof thumbnails */}
-                          <div className="flex items-start gap-2 flex-shrink-0">
+                          <div className="flex items-start gap-2 flex-shrink-0 flex-wrap">
                             {record.proof_url && (
                               <button onClick={() => setLightboxImage(record.proof_url)} className="block">
                                 <img
@@ -770,19 +758,20 @@ const Approvals = () => {
                                 />
                               </button>
                             )}
-                            {!record.proof_url && !record.proof_url2 && (
-                              <span className="text-xs text-gray-600 italic">Images purged</span>
+                            {!record.proof_url && !record.proof_url2 && record.had_images && (
+                              <span className="text-xs text-gray-500 italic self-center">Images purged</span>
                             )}
-                            {record.proof_link && (
+                            {(record.proof_link ?? []).map((link, i) => (
                               <a
-                                href={record.proof_link}
+                                key={i}
+                                href={link}
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 className="text-purple-400 hover:text-purple-300 underline text-sm self-center"
                               >
-                                Video ↗
+                                {(record.proof_link?.length ?? 0) > 1 ? `Video ${i + 1} ↗` : 'Video ↗'}
                               </a>
-                            )}
+                            ))}
                           </div>
                         </div>
                       );

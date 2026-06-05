@@ -2255,13 +2255,16 @@ app.post('/api/upload/submission', uploadRateLimit, upload.fields([{ name: 'file
     
     const pokemon_id = req.body.pokemon_id;
     const game = req.body.game?.trim();
-    const url = req.body.url;   // required for restricted (video link)
-    const link = req.body.link; // optional supplemental link for normal submissions
     const restricted_submission = req.body.restricted_submission === 'true';
     const file = req.files?.file?.[0];
     const file2 = req.files?.file2?.[0];
+    // link may arrive as a single string or a string[] when multiple are submitted
+    const rawLink = req.body.link;
+    const proofLinks = Array.isArray(rawLink)
+      ? rawLink.map(u => u?.trim()).filter(Boolean)
+      : rawLink?.trim() ? [rawLink.trim()] : [];
 
-    console.log('Parsed values:', { pokemon_id, game, url, link, file: !!file, file2: !!file2 });
+    console.log('Parsed values:', { pokemon_id, game, proofLinks, file: !!file, file2: !!file2 });
 
     if (!pokemon_id) {
       return res.status(400).json({ error: 'Pokemon ID required' });
@@ -2273,10 +2276,10 @@ app.post('/api/upload/submission', uploadRateLimit, upload.fields([{ name: 'file
 
     // Restricted: requires video link, no images
     // Normal: requires both image files; link is supplemental (optional)
-    if (restricted_submission && !url) {
+    if (restricted_submission && proofLinks.length === 0) {
       return res.status(400).json({ error: 'Restricted submissions require a video link' });
     }
-    if (!restricted_submission && (!file || !file2) && !link) {
+    if (!restricted_submission && (!file || !file2) && proofLinks.length === 0) {
       return res.status(400).json({ error: 'Either both proof images or a video link is required' });
     }
     
@@ -2322,8 +2325,8 @@ app.post('/api/upload/submission', uploadRateLimit, upload.fields([{ name: 'file
     
     let proofUrl = null;
     let proofUrl2 = null;
-    // proof_link: the video link for restricted, or the optional supplemental link for normal
-    const proofLink = restricted_submission ? url : (link || null);
+    // proof_link: array of video links (required for restricted, optional for normal)
+    const proofLink = proofLinks.length > 0 ? proofLinks : null;
 
     // Upload both image files to R2 (normal submissions only)
     if (file && file2) {
@@ -2443,14 +2446,17 @@ app.post('/api/upload/historical-submission', uploadRateLimit, upload.fields([{ 
     const pokemon_id = req.body.pokemon_id;
     const game       = req.body.game?.trim();
     const month_id   = parseInt(req.body.month_id);
-    const link       = req.body.link;
     const file       = req.files?.file?.[0];
     const file2      = req.files?.file2?.[0];
+    const rawLink    = req.body.link;
+    const proofLinks = Array.isArray(rawLink)
+      ? rawLink.map(u => u?.trim()).filter(Boolean)
+      : rawLink?.trim() ? [rawLink.trim()] : [];
 
     if (!pokemon_id)        return res.status(400).json({ error: 'Pokemon ID required' });
     if (!game)              return res.status(400).json({ error: 'Game is required' });
     if (!month_id)          return res.status(400).json({ error: 'Month ID required' });
-    if ((!file || !file2) && !link) return res.status(400).json({ error: 'Either both proof images or a video link is required' });
+    if ((!file || !file2) && proofLinks.length === 0) return res.status(400).json({ error: 'Either both proof images or a video link is required' });
 
     // Validate month is in the past (not the current active month)
     const { data: activeMonth } = await supabase
@@ -2522,7 +2528,7 @@ app.post('/api/upload/historical-submission', uploadRateLimit, upload.fields([{ 
         month_id,
         proof_url: proofUrl,
         proof_url2: proofUrl2,
-        proof_link: link || null,
+        proof_link: proofLinks.length > 0 ? proofLinks : null,
         game,
         restricted_submission: false,
         historical: true,
@@ -2703,8 +2709,8 @@ app.post('/api/approvals/:id/approve', async (req, res) => {
       let historicalNote = `Approved by ${moderatorName}`;
       if (isDowngradedHistorical) historicalNote += ' (downgraded)';
       if (isUpgradedHistorical) historicalNote += ' (upgraded)';
-      if (approval.proof_link) {
-        historicalNote += `. Link was ${approval.proof_link}`;
+      if (approval.proof_link?.length) {
+        historicalNote += `. Links: ${approval.proof_link.join(', ')}`;
       }
 
       const { error: entryError } = await supabase.from('entries').insert({
@@ -2744,6 +2750,7 @@ app.post('/api/approvals/:id/approve', async (req, res) => {
           proof_url: approval.proof_url,
           proof_url2: approval.proof_url2,
           proof_link: approval.proof_link,
+          had_images: !!(approval.proof_url || approval.proof_url2),
           status: historicalStatus,
           moderator_id: moderatorId,
           created_at: approval.created_at,
@@ -2775,8 +2782,8 @@ app.post('/api/approvals/:id/approve', async (req, res) => {
     // Invalidate leaderboard cache immediately so the next request gets fresh data
     leaderboardCache.clear();
 
-    // Append proof_link to entry moderator_note (fire-and-forget)
-    if (approval.proof_link) {
+    // Append proof_link(s) to entry moderator_note (fire-and-forget)
+    if (approval.proof_link?.length) {
       (async () => {
         try {
           const { data: entry } = await supabase.from('entries')
@@ -2789,9 +2796,10 @@ app.post('/api/approvals/:id/approve', async (req, res) => {
             .limit(1)
             .single();
           if (entry) {
+            const linksText = approval.proof_link.join(', ');
             const newNote = entry.moderator_note
-              ? `${entry.moderator_note}. Link was ${approval.proof_link}`
-              : `Link was ${approval.proof_link}`;
+              ? `${entry.moderator_note}. Links: ${linksText}`
+              : `Links: ${linksText}`;
             await supabase.from('entries').update({ moderator_note: newNote }).eq('id', entry.id);
           }
         } catch (err) {
@@ -2818,6 +2826,7 @@ app.post('/api/approvals/:id/approve', async (req, res) => {
         proof_url: approval.proof_url,
         proof_url2: approval.proof_url2,
         proof_link: approval.proof_link,
+        had_images: !!(approval.proof_url || approval.proof_url2),
         status: approvalStatus || 'accepted',
         moderator_id: moderatorId,
         created_at: approval.created_at,
@@ -2922,6 +2931,7 @@ app.post('/api/approvals/:id/reject', async (req, res) => {
           proof_url: approval.proof_url,
           proof_url2: approval.proof_url2,
           proof_link: approval.proof_link,
+          had_images: !!(approval.proof_url || approval.proof_url2),
           status: historicalNotifStatus,
           moderator_id: moderatorId,
           created_at: approval.created_at,
@@ -2988,6 +2998,7 @@ app.post('/api/approvals/:id/reject', async (req, res) => {
         proof_url: approval.proof_url,
         proof_url2: approval.proof_url2,
         proof_link: approval.proof_link,
+        had_images: !!(approval.proof_url || approval.proof_url2),
         status: rpcStatus,
         moderator_id: moderatorId,
         created_at: approval.created_at,
@@ -3315,7 +3326,7 @@ app.get('/api/approvals/pending', async (req, res) => {
       created_at: approval.created_at,
       proof_url: approval.proof_url,
       proof_url2: approval.proof_url2,
-      proof_link: approval.proof_link || null,
+      proof_link: approval.proof_link ?? null,
       game: approval.game || null,
       user_id: approval.user_id,
       display_name: approval.users?.display_name || 'Unknown',
@@ -5377,6 +5388,176 @@ app.get('/api/overlay/leaderboard', async (req, res) => {
 
 // ── BADGE ENDPOINTS ──────────────────────────────────────────────────────────
 
+// ─── Sandwich engine (server-side computation) ────────────────────────────────
+
+const _sandwichIngredients = (() => {
+  const path = require('path');
+  const fs   = require('fs');
+  const fillings   = JSON.parse(fs.readFileSync(path.join(__dirname, 'data/fillings.json'),   'utf8'));
+  const condiments = JSON.parse(fs.readFileSync(path.join(__dirname, 'data/condiments.json'), 'utf8'));
+  return { fillings, condiments };
+})();
+
+// ── Core mechanics (mirrors sandwichSearch.worker.js) ──────────────────────
+const _SW = (() => {
+  const MP_NAMES  = ["Egg","Catch","Exp","Item","Raid","Sparkling","Title","Humungo","Teensy","Encounter"];
+  const TYPE_NAMES= ["Normal","Fighting","Flying","Poison","Ground","Rock","Bug","Ghost","Steel","Fire","Water","Grass","Electric","Psychic","Ice","Dragon","Dark","Fairy"];
+  const FLAVOR    = {Sweet:0,Salty:1,Sour:2,Bitter:3,Hot:4};
+  const MP        = Object.fromEntries(MP_NAMES.map((n,i)=>[n,i]));
+  const TYPE      = Object.fromEntries(TYPE_NAMES.map((n,i)=>[n,i]));
+  const N_FLAVOR=5, N_MP=10, N_TYPE=18;
+  const POWER_TO_MP = {Encounter:'Encounter',Egg:'Egg',Raid:'Raid',Catching:'Catch',Catch:'Catch',Exp:'Exp','Item Drop':'Item',Item:'Item',Humungo:'Humungo',Teensy:'Teensy',Title:'Title',Sparkling:'Sparkling'};
+  const TASTE_MAP = [[0,0,1,0,4],[9,9,9,2,9],[1,8,8,8,8],[3,2,3,3,3],[4,7,7,7,7]];
+  const FLAVOR_PROFILES = {Egg:[[0,1],[0,3]],Humungo:[[4,1],[4,3],[4,2]],Teensy:[[2,1],[2,3],[2,4]],Item:[[3,4],[3,2],[3,0]],Encounter:[[1,0],[1,4],[1,2]],Exp:[[3,1],[1,3]],Catch:[[0,2],[2,0]],Raid:[[0,4],[4,0]],Title:[[null,null]],Sparkling:[[null,null]]};
+  const LVL_GTE={1:0,2:180,3:380}, LVL_LT={1:180,2:380,3:Infinity};
+  const POWER_FULL = {Egg:"Egg Power",Catch:"Catching Power",Exp:"Exp. Point Power",Item:"Item Drop Power",Raid:"Raid Power",Sparkling:"Sparkling Power",Title:"Title Power",Humungo:"Humungo Power",Teensy:"Teensy Power",Encounter:"Encounter Power"};
+
+  function buildIndex(rawFillings, rawCondiments) {
+    function vectors(ing, isFilling) {
+      const scale=isFilling?(ing.pieces??1):1;
+      const fv=Array(N_FLAVOR).fill(0),tv=Array(N_TYPE).fill(0),mv=Array(N_MP).fill(0);
+      for(const{flavor,amount}of ing.tastes??[]){const i=FLAVOR[flavor];if(i!=null)fv[i]+=amount*scale;}
+      for(const{type,amount}of ing.types??[]){const i=TYPE[type];if(i!=null)tv[i]+=amount*scale;}
+      for(const{type:n,amount}of ing.powers??[]){const i=MP[POWER_TO_MP[n]??n];if(i!=null)mv[i]+=amount*scale;}
+      const isHerba=!isFilling&&(ing.name?.toLowerCase().includes('herba')??false);
+      if(isHerba){mv[MP.Title]+=10000;mv[MP.Sparkling]+=20000;}
+      return{fv,tv,mv,isHerba};
+    }
+    return{
+      fills: rawFillings.map((f,i)=>({...f,varIdx:i,isFilling:true,isHerba:false,...vectors(f,true)})),
+      conds: rawCondiments.map((c,i)=>({...c,varIdx:i,isFilling:false,...vectors(c,false)})),
+    };
+  }
+
+  function buildVec(fillings,condiments){
+    const fv=Array(N_FLAVOR).fill(0),tv=Array(N_TYPE).fill(0),mv=Array(N_MP).fill(0);
+    for(const f of fillings){const pcs=f.selectedPieces??((f.pieces??1)*(f._count??1));for(const{flavor,amount}of f.tastes??[]){const i=FLAVOR[flavor];if(i!=null)fv[i]+=amount*pcs;}for(const{type,amount}of f.types??[]){const i=TYPE[type];if(i!=null)tv[i]+=amount*pcs;}for(const{type:n,amount}of f.powers??[]){const i=MP[POWER_TO_MP[n]??n];if(i!=null)mv[i]+=amount*pcs;}}
+    for(const c of condiments){for(const{flavor,amount}of c.tastes??[]){const i=FLAVOR[flavor];if(i!=null)fv[i]+=amount;}for(const{type,amount}of c.types??[]){const i=TYPE[type];if(i!=null)tv[i]+=amount;}for(const{type:n,amount}of c.powers??[]){const i=MP[POWER_TO_MP[n]??n];if(i!=null)mv[i]+=amount;}}
+    const herba=condiments.filter(c=>c.isHerba).length;
+    if(herba>=1)mv[MP.Title]+=10000;if(herba>=2)mv[MP.Sparkling]+=20000;
+    for(let i=0;i<N_TYPE;i++)tv[i]+=20;
+    return{fv,tv,mv};
+  }
+
+  function evaluate(fv,tv,mv){
+    const rf=fv.map((a,i)=>({f:i,a})).sort((a,b)=>b.a-a.a||a.f-b.f);
+    let boosted=null;
+    if(rf[0]&&rf[0].a>0){const f1=rf[0].f,f2=(rf[1]&&rf[1].a>0)?rf[1].f:f1;boosted=TASTE_MAP[f1][f2];}
+    const adjMv=mv.map((v,i)=>i===boosted?v+100:v);
+    const rMP=adjMv.map((a,i)=>({mp:i,a})).sort((a,b)=>b.a-a.a||a.mp-b.mp);
+    const rT=tv.map((a,i)=>({t:i,a})).sort((a,b)=>b.a-a.a||a.t-b.t);
+    function cT(rt){const[A={t:0,a:0},,C={t:2,a:0}]=rt;const fa=A.a,sa=(rt[1]??{a:0}).a;if(fa>480)return[A,A,A];if(fa>280||(fa>105&&fa-sa>105))return[A,A,C];if(fa<=105&&fa-1.5*sa>=70)return[A,C,A];return[A,C,rt[1]??A];}
+    function cL(rt){const fa=(rt[0]??{a:0}).a,ta=(rt[2]??{a:0}).a;if(fa>=460)return[3,3,3];if(fa>=380)return ta>=380?[3,3,3]:[3,3,2];if(fa>280)return ta>=180?[2,2,2]:[2,2,1];if(fa>=180)return ta>=180?[2,2,1]:[2,1,1];return[1,1,1];}
+    const aT=cT(rT),aL=cL(rT);
+    return rMP.filter(mp=>mp.mp!==MP.Sparkling||mp.a>1000).slice(0,3).filter((mp,i)=>mp.a>0&&aT[i]).map((mp,i)=>({power:MP_NAMES[mp.mp],fullName:POWER_FULL[MP_NAMES[mp.mp]]||MP_NAMES[mp.mp],type:mp.mp===MP.Egg?null:TYPE_NAMES[aT[i].t],level:aL[i],score:mp.a}));
+  }
+
+  function powersMatch(powers,targets){return targets.every(tgt=>{const mp=POWER_TO_MP[tgt.power]||tgt.power;return powers.some(r=>r.power===mp&&(mp==='Egg'||!tgt.type||r.type===tgt.type)&&r.level>=(tgt.level||1));});}
+
+  function* combinations(arr,k){if(k===0){yield[];return;}for(let i=0;i<=arr.length-k;i++)for(const r of combinations(arr.slice(i+1),k-1))yield[arr[i],...r];}
+  function* combinationsWithRep(arr,k){const n=arr.length;if(n===0||k===0){if(k===0)yield[];return;}const idx=new Array(k).fill(0);while(true){yield idx.map(i=>arr[i]);let i=k-1;while(i>=0&&idx[i]===n-1)i--;if(i<0)return;const v=idx[i]+1;for(let j=i;j<k;j++)idx[j]=v;}}
+
+  function scoreFilling(f,f1,f2,tIdx,needLevel){let s=0;if(f1!==null){s+=(f.fv[f1]??0)*2;if(f2!==null)s+=(f.fv[f2]??0);for(let fl=0;fl<N_FLAVOR;fl++){if(fl!==f1&&fl!==f2)s-=(f.fv[fl]??0)*0.5;}}if(tIdx!==null){s+=(f.tv[tIdx]??0)*3;if(needLevel>1)s+=(f.tv[tIdx]??0)*2;}return s;}
+  function scoreCond(c,f1,f2,tIdx){let s=0;if(f1!==null){s+=(c.fv[f1]??0)*2;if(f2!==null)s+=(c.fv[f2]??0);for(let fl=0;fl<N_FLAVOR;fl++){if(fl!==f1&&fl!==f2)s-=(c.fv[fl]??0)*0.5;}}if(tIdx!==null)s+=(c.tv[tIdx]??0)*3;return s;}
+
+  function extractCooccurrences(results, primaryKey) {
+    const cooc = {};
+    for(const r of results){for(const p of r.powers){const k=`${p.power}:${p.type??'none'}:${p.level}`;if(k!==primaryKey)cooc[k]=(cooc[k]??0)+1;}}
+    return cooc;
+  }
+
+  function runConfig(fills,nonHerbaConds,herbaPool,config,targets,seen,results,MAX_TOTAL){
+    const{numHerba,f1,f2,targetTypeIdx,levelGte,levelLt}=config;
+    const maxFill=6,maxCond=4;
+    const needLevel=levelGte>=380?3:levelGte>=180?2:1;
+    const scoredFills=fills.map(f=>({...f,_score:scoreFilling(f,f1,f2,targetTypeIdx,needLevel)})).filter(f=>f._score>0).sort((a,b)=>b._score-a._score).slice(0,15);
+    const scoredConds=nonHerbaConds.map(c=>({...c,_score:scoreCond(c,f1,f2,targetTypeIdx)})).filter(c=>c._score>0).sort((a,b)=>b._score-a._score).slice(0,12);
+    const herbaCombos=numHerba===0?[[]]:numHerba===1?herbaPool.map(h=>[h]):[...combinations(herbaPool,2)];
+    for(const herbaCombo of herbaCombos){
+      if(herbaCombo.length<numHerba||results.length>=MAX_TOTAL)continue;
+      const usedCondSlots=maxCond-numHerba;
+      for(let total=1;total<=maxFill+usedCondSlots&&results.length<MAX_TOTAL;total++){
+        for(let nF=Math.min(maxFill,total);nF>=Math.max(1,total-usedCondSlots)&&results.length<MAX_TOTAL;nF--){
+          const nC=total-nF;
+          if(nC<(numHerba>=1?0:1)||nC>usedCondSlots)continue;
+          for(const fillCombo of combinationsWithRep(scoredFills,nF)){
+            if(results.length>=MAX_TOTAL)break;
+            const fillings=fillCombo.map(f=>({...f,selectedPieces:f.pieces??1,_count:1}));
+            const condSets=nC===0?[[]]:[...combinations(scoredConds,nC)];
+            for(const condCombo of condSets){
+              if(results.length>=MAX_TOTAL)break;
+              const allConds=[...herbaCombo,...condCombo];
+              const{fv,tv,mv}=buildVec(fillings,allConds);
+              if(targetTypeIdx!==null){const tv1=tv[targetTypeIdx];if(levelGte>0&&tv1<levelGte)continue;if(levelLt<Infinity&&tv1>=levelLt)continue;}
+              const powers=evaluate(fv,tv,mv);
+              if(!powersMatch(powers,targets))continue;
+              const key=[...fillings.map(f=>`${f.name}×${f.selectedPieces}`),...allConds.map(c=>c.name)].sort().join('|');
+              if(!seen.has(key)){seen.add(key);const totalPieces=fillings.reduce((s,f)=>s+(f.selectedPieces??f.pieces??1),0)+allConds.length;results.push({fillings:fillings.map(f=>({name:f.name,pieces:f.selectedPieces??f.pieces??1})),condiments:allConds.map(c=>c.name),powers,numHerba,totalPieces});}
+            }
+          }
+        }
+      }
+    }
+  }
+
+  function findSandwiches(targets) {
+    const normTargets=targets.map(t=>({...t,power:POWER_TO_MP[t.power]||t.power}));
+    const{fills,conds}=buildIndex(_sandwichIngredients.fillings, _sandwichIngredients.condiments);
+    const herbaPool=conds.filter(c=>c.isHerba),nonHerba=conds.filter(c=>!c.isHerba);
+    const hasSparkling=normTargets.some(t=>t.power==='Sparkling');
+    const hasTitle=normTargets.some(t=>t.power==='Title');
+    const hasLv3=normTargets.some(t=>t.level>=3);
+    const hasLv2=normTargets.some(t=>t.level>=2);
+    const herbaOptions=hasSparkling?[2]:hasLv3?[2,1]:hasTitle?[1]:hasLv2?[0,1]:[0];
+    const primary=normTargets.find(t=>t.power!=='Sparkling'&&t.power!=='Title')??normTargets[0];
+    const mpName=primary?.power??null;
+    const typeIdx=(primary?.type&&primary.power!=='Egg')?(TYPE[primary.type]??null):null;
+    const lv=primary?.level??1;
+    const seen=new Set(),results=[];
+    const MAX_TOTAL=200;
+    for(const numHerba of herbaOptions){
+      for(const[f1,f2]of(FLAVOR_PROFILES[mpName]??[[null,null]])){
+        if(results.length>=MAX_TOTAL)break;
+        runConfig(fills,nonHerba,herbaPool,{numHerba,f1,f2,targetTypeIdx:typeIdx,levelGte:LVL_GTE[lv]??0,levelLt:LVL_LT[lv]??Infinity},normTargets,seen,results,MAX_TOTAL);
+      }
+    }
+    results.sort((a,b)=>(a.totalPieces-b.totalPieces)||((a.fillings.length+a.condiments.length)-(b.fillings.length+b.condiments.length)));
+    return results;
+  }
+
+  return { findSandwiches, extractCooccurrences };
+})();
+
+// ─── Sandwich tool endpoints ──────────────────────────────────────────────────
+// Client uses the static /data/sandwichCache.json file for all lookups.
+// These endpoints exist only for the precompute script to write to Supabase.
+
+// GET /api/tools/sandwiches?targets=... (kept for compatibility / admin use)
+app.get('/api/tools/sandwiches', async (req, res) => {
+  const rawTargets = (req.query.targets || '').split(',').map(s => s.trim()).filter(Boolean);
+  if (!rawTargets.length) return res.status(400).json({ error: 'targets query param required' });
+  const { data, error } = await supabase
+    .from('sandwich_cache')
+    .select('target, results, cooccurrences, result_count')
+    .in('target', rawTargets);
+  if (error) return res.status(500).json({ error: error.message });
+  res.json({ rows: data || [], allCached: (data||[]).length === rawTargets.length });
+});
+
+// POST /api/tools/sandwiches — write from precompute script
+app.post('/api/tools/sandwiches', async (req, res) => {
+  const { target, results, cooccurrences } = req.body || {};
+  if (!target || !Array.isArray(results)) return res.status(400).json({ error: 'target and results required' });
+  const { error } = await supabase.from('sandwich_cache').upsert(
+    { target, results, cooccurrences: cooccurrences ?? {}, result_count: results.length, computed_at: new Date().toISOString() },
+    { onConflict: 'target' }
+  );
+  if (error) return res.status(500).json({ error: error.message });
+  res.json({ ok: true });
+});
+
+// ─── Badge endpoints ──────────────────────────────────────────────────────────
+
 // Get all badges with hint/description visibility resolved for the current user.
 // Unauthenticated users see the same view as a user with no earned badges.
 app.get('/api/badges', async (req, res) => {
@@ -6208,7 +6389,7 @@ app.get('/api/approvals/history', async (req, res) => {
 
     const { data: history, error } = await supabase
       .from('approval_history')
-      .select('id, user_id, pokemon_id, month_id, game, historical, restricted_submission, proof_url, proof_url2, proof_link, status, moderator_id, created_at, processed_at')
+      .select('id, user_id, pokemon_id, month_id, game, historical, restricted_submission, proof_url, proof_url2, proof_link, had_images, status, moderator_id, created_at, processed_at')
       .order('processed_at', { ascending: false })
       .range(offset, offset + limit - 1);
 
