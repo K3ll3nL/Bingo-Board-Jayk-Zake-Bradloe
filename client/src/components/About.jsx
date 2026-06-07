@@ -576,7 +576,7 @@ const About = () => {
         {isRestrictedEnabled(isModerator) && (
           <Section
             id="restricted"
-            title="Restricted Challenge"
+            title="Restricted Challenge (Optional)"
             icon={<LockIcon />}
             accentColor="#c0392b"
             headerBg="rgba(120,21,10,0.20)"

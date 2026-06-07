@@ -2443,9 +2443,10 @@ app.post('/api/upload/historical-submission', uploadRateLimit, upload.fields([{ 
     const userId = await getAuthenticatedUserId(req);
     if (!userId) return res.status(401).json({ error: 'Authentication required' });
 
-    const pokemon_id = req.body.pokemon_id;
-    const game       = req.body.game?.trim();
-    const month_id   = parseInt(req.body.month_id);
+    const pokemon_id    = req.body.pokemon_id;
+    const game          = req.body.game?.trim();
+    const month_id      = parseInt(req.body.month_id);
+    const isRestricted  = req.body.restricted_submission === 'true';
     const file       = req.files?.file?.[0];
     const file2      = req.files?.file2?.[0];
     const rawLink    = req.body.link;
@@ -2482,10 +2483,10 @@ app.post('/api/upload/historical-submission', uploadRateLimit, upload.fields([{ 
       return res.status(400).json({ error: 'That Pokemon was not in the pool for the selected month' });
     }
 
-    // Prevent duplicate: check existing entries and pending approvals for this user/pokemon/month
+    // Prevent duplicate: check existing entries and pending approvals for this user/pokemon/month/restriction type
     const [{ data: existingEntry }, { data: existingApproval }] = await Promise.all([
-      supabase.from('entries').select('id').eq('user_id', userId).eq('pokemon_id', parseInt(pokemon_id)).eq('month_id', month_id).single(),
-      supabase.from('approvals').select('id').eq('user_id', userId).eq('pokemon_id', parseInt(pokemon_id)).eq('month_id', month_id).single(),
+      supabase.from('entries').select('id').eq('user_id', userId).eq('pokemon_id', parseInt(pokemon_id)).eq('month_id', month_id).eq('restricted_submission', isRestricted).single(),
+      supabase.from('approvals').select('id').eq('user_id', userId).eq('pokemon_id', parseInt(pokemon_id)).eq('month_id', month_id).eq('restricted_submission', isRestricted).single(),
     ]);
 
     if (existingEntry)   return res.status(409).json({ error: 'You already have an approved entry for this Pokemon in that month' });
@@ -2530,7 +2531,7 @@ app.post('/api/upload/historical-submission', uploadRateLimit, upload.fields([{ 
         proof_url2: proofUrl2,
         proof_link: proofLinks.length > 0 ? proofLinks : null,
         game,
-        restricted_submission: false,
+        restricted_submission: isRestricted,
         historical: true,
       })
       .select()

@@ -20,6 +20,8 @@ export default {
     'text-amber-400',
     'text-pink-400',
     'text-violet-400',
+    // BDSPRadar range slider accent
+    'accent-indigo-500',
   ],
   plugins: [],
 }
