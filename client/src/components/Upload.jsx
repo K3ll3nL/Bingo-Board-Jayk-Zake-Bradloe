@@ -183,6 +183,10 @@ const HistoricalUploadSection = () => {
     e.preventDefault();
     if (!selectedPokemon)    { setError('Please select a Pokemon'); return; }
     if (!game.trim())        { setError('Please select the game you hunted in'); return; }
+    if (isRestricted && activeChecklist.length > 0 && !activeChecklist.every(item => !!checkedItems[item.id])) {
+      setError('Please confirm all checklist items before submitting.');
+      return;
+    }
     const validLinks = mediaUrls.filter(u => u.trim());
     if (isRestricted && validLinks.length === 0) { setError('Restricted submissions require a VOD or video link.'); return; }
     if (!isRestricted && validLinks.length === 0 && (!mediaFile || !mediaFile2)) {
@@ -585,7 +589,13 @@ const HistoricalUploadSection = () => {
 
       <button
         type="submit"
-        disabled={submitting || !selectedPokemon || !game.trim() || (isRestricted || noImageProof ? !mediaUrls.some(u => u.trim()) : (!mediaUrls.some(u => u.trim()) && (!mediaFile || !mediaFile2)))}
+        disabled={
+          submitting ||
+          !selectedPokemon ||
+          !game.trim() ||
+          (isRestricted && activeChecklist.length > 0 && !activeChecklist.every(item => !!checkedItems[item.id])) ||
+          (isRestricted || noImageProof ? !mediaUrls.some(u => u.trim()) : (!mediaUrls.some(u => u.trim()) && (!mediaFile || !mediaFile2)))
+        }
         className="w-full py-3 bg-blue-500 text-white rounded-lg font-medium hover:bg-blue-600 disabled:bg-gray-600 disabled:cursor-not-allowed transition-colors"
       >
         {submitting ? 'Submitting...' : 'Submit Historical Catch'}
@@ -829,6 +839,10 @@ const Upload = () => {
 
     if (!selectedPokemon) { setError('Please select a Pokemon'); return; }
     if (!game.trim())     { setError('Please select the game you hunted in'); return; }
+    if (isRestricted && activeChecklist.length > 0 && !activeChecklist.every(item => !!checkedItems[item.id])) {
+      setError('Please confirm all checklist items before submitting.');
+      return;
+    }
     const validLinks = mediaUrls.filter(u => u.trim());
     if (isRestricted && validLinks.length === 0) { setError('Restricted submissions require a VOD or video link.'); return; }
     if (!isRestricted && validLinks.length === 0 && (!mediaFile || !mediaFile2)) { setError('Please provide either both proof images or a video link'); return; }
@@ -1331,7 +1345,13 @@ const Upload = () => {
               {/* Submit */}
               <button
                 type="submit"
-                disabled={submitting || !selectedPokemon || !game.trim() || (isRestricted || noImageProof ? !mediaUrls.some(u => u.trim()) : (!mediaUrls.some(u => u.trim()) && (!mediaFile || !mediaFile2)))}
+                disabled={
+                  submitting ||
+                  !selectedPokemon ||
+                  !game.trim() ||
+                  (isRestricted && activeChecklist.length > 0 && !activeChecklist.every(item => !!checkedItems[item.id])) ||
+                  (isRestricted || noImageProof ? !mediaUrls.some(u => u.trim()) : (!mediaUrls.some(u => u.trim()) && (!mediaFile || !mediaFile2)))
+                }
                 className="w-full py-3 bg-purple-500 text-white rounded-lg font-medium hover:bg-purple-600 disabled:bg-gray-600 disabled:cursor-not-allowed transition-colors"
               >
                 {submitting ? 'Submitting...' : 'Submit Catch'}

@@ -3309,6 +3309,7 @@ app.get('/api/approvals/pending', async (req, res) => {
         )
       `)
       .eq('historical', historical)
+      .neq('user_id', userId)
       .order('created_at', { ascending: true });
     
     if (error) {
@@ -6397,7 +6398,10 @@ app.get('/api/approvals/history', async (req, res) => {
     if (error) throw error;
 
     // Batch-enrich with user and pokemon display info
-    const userIds = [...new Set((history || []).map(h => h.user_id).filter(Boolean))];
+    const userIds = [...new Set([
+      ...(history || []).map(h => h.user_id),
+      ...(history || []).map(h => h.moderator_id),
+    ].filter(Boolean))];
     const pokemonIds = [...new Set((history || []).map(h => h.pokemon_id).filter(Boolean))];
 
     const [usersRes, pokemonRes] = await Promise.all([
@@ -6411,6 +6415,7 @@ app.get('/api/approvals/history', async (req, res) => {
     const enriched = (history || []).map(h => ({
       ...h,
       display_name: userMap[h.user_id]?.display_name || 'Unknown',
+      moderator_name: userMap[h.moderator_id]?.display_name || null,
       pokemon_name: pokemonMap[h.pokemon_id]?.name || 'Unknown',
       national_dex_id: pokemonMap[h.pokemon_id]?.national_dex_id || null,
       pokemon: pokemonMap[h.pokemon_id] || null,

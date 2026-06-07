@@ -732,6 +732,7 @@ const Approvals = () => {
                               </span>
                               <span className="text-xs text-gray-500">
                                 Processed: {new Date(record.processed_at).toLocaleString()}
+                                {record.moderator_name && <> by <span className="text-gray-400">{record.moderator_name}</span></>}
                               </span>
                             </div>
 
