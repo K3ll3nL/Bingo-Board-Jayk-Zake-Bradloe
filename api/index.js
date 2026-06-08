@@ -3309,7 +3309,6 @@ app.get('/api/approvals/pending', async (req, res) => {
         )
       `)
       .eq('historical', historical)
-      .neq('user_id', userId)
       .order('created_at', { ascending: true });
     
     if (error) {

@@ -348,6 +348,7 @@ const Approvals = () => {
 
   // ── Shared row renderer for pending/historical approvals ─────────────────────
   const renderApprovalRow = (approval, isHistorical) => {
+    const isOwnSubmission = approval.user_id === user.id;
     const isBan = (approval.restricted_strikes || 0) >= 2;
     const panelOpen = expandedPanel?.id === approval.id;
     const panelAction = expandedPanel?.action;
@@ -446,6 +447,9 @@ const Approvals = () => {
           <div className="flex-1" />
 
           {/* Action Buttons */}
+          {isOwnSubmission ? (
+            <span className="text-xs text-gray-500 italic flex-shrink-0">Your submission</span>
+          ) : (
           <div className="flex items-center gap-2 flex-shrink-0">
             {approval.restricted_submission && (
               <>
@@ -537,6 +541,7 @@ const Approvals = () => {
               </svg>
             </button>
           </div>
+          )}
         </div>
 
         {/* Expanded Action Panel */}
