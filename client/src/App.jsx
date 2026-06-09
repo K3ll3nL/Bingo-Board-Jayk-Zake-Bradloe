@@ -29,6 +29,7 @@ import ShinyTools from './components/ShinyTools';
 import SVSandwichCalculator from './components/tools/SVSandwichCalculator';
 import BDSPRadar from './components/tools/BDSPRadar';
 import Gen2ShinyBreeding from './components/tools/Gen2ShinyBreeding';
+import DexNavCalculator from './components/tools/DexNavCalculator';
 import logoImage from './Icons/pokemon-bounty-board.png';
 
 
@@ -70,6 +71,7 @@ const AppLayout = () => {
   const handleBack = () => {
     // For nested routes, go up to the parent rather than relying on history.
     if (location.pathname.startsWith('/tools/')) { navigate('/tools'); return; }
+    if (location.pathname === '/tools') { navigate('/'); return; }
     // Otherwise go back in history, falling back to home if there's no history
     // (e.g. the user deep-linked or bookmarked the page directly).
     if (window.history.state?.idx > 0) navigate(-1);
@@ -346,6 +348,7 @@ function App() {
             <Route path="/tools/sv-sandwich" element={<SVSandwichCalculator />} />
             <Route path="/tools/bdsp-radar" element={<BDSPRadar />} />
             <Route path="/tools/gen2-breeding" element={<Gen2ShinyBreeding />} />
+            <Route path="/tools/dexnav" element={<DexNavCalculator />} />
             <Route path="/tools/:toolId" element={<ShinyTools />} />
             <Route path="*" element={<HomePage />} />
           </Route>

@@ -76,6 +76,7 @@ const TOOLS = [
     icon: '🔍',
     category: 'Chaining',
     gen: 'Gen 6',
+    live: true,
   },
   {
     id: 'chain-fishing',
