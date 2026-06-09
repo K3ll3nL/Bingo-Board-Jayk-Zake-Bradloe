@@ -203,26 +203,29 @@ export default function DexNavCalculator() {
 
   // ── Computed ─────────────────────────────────────────────────────────────
   const comp = useMemo(() => {
-    const currentP    = prob(searchLevel, chain, shinyCharm);
+    // `chain` = encounters completed. The NEXT encounter is chain+1.
+    // All probability display and projections use chain+1 as the reference point.
+    const nextChain = chain + 1;
+
+    const currentP  = prob(searchLevel, nextChain, shinyCharm);
     const { std, boost, e50, e100 } = oddsNums(searchLevel, shinyCharm);
     // Long-run per-encounter average (post-milestone, ignoring 50/100):
     //   1/5 encounters are mult-of-5 → guaranteed boost
     //   4/5 encounters → 96% standard + 4% random boost
-    // = 0.2/boost + (4/5)*(0.96/std + 0.04/boost)
-    // = 0.768/std + 0.232/boost
+    // = 0.2/boost + (4/5)*(0.96/std + 0.04/boost) = 0.768/std + 0.232/boost
     const effectiveP = 0.768 / std + 0.232 / boost;
 
-    // Next milestone: distance to chain 50 and chain 100 from current position
-    const distTo50  = Math.max(0, 50  - chain);
-    const distTo100 = Math.max(0, 100 - chain);
+    // Encounters until Step 50 / Step 100 land on the upcoming encounter (0 = next IS the milestone)
+    const distTo50  = Math.max(0, 50  - nextChain);
+    const distTo100 = Math.max(0, 100 - nextChain);
 
-    // Projected SL and odds AT each milestone (assuming all-on-target)
+    // Projected SL and odds AT each milestone (SL increases once per on-target encounter)
     const slAt50  = searchLevel + distTo50;
     const slAt100 = searchLevel + distTo100;
     const pAt50   = prob(slAt50,  50,  shinyCharm);
     const pAt100  = prob(slAt100, 100, shinyCharm);
 
-    // Graph range: show through enc100 milestone + 100 buffer, min 200
+    // Graph range: show through Step 100 + 100 buffer, min 200
     const graphMax = Math.min(1200,
       Math.max(200, distTo100 + 100, Math.ceil(1 / effectiveP * 1.5))
     );
@@ -230,12 +233,12 @@ export default function DexNavCalculator() {
     // Full range for milestone computation
     const fullMax = Math.min(20000, Math.max(graphMax, Math.ceil(1 / effectiveP * 5)));
 
-    // Build CDF points (SL increases on-target each step)
+    // Build CDF points — i=0 is the very next encounter (chain = nextChain)
     const points = [];
     let cumNotShiny = 1;
     for (let i = 0; i <= fullMax; i++) {
-      const c  = chainAt(chain, i, resetAt);
-      const sl = searchLevel + i;   // all-on-target projection
+      const c  = chainAt(nextChain, i, resetAt);
+      const sl = searchLevel + i;   // SL increases each on-target encounter
       const p  = prob(sl, c, shinyCharm);
       points.push({ enc: i, cdf: 1 - cumNotShiny, p, chain: c, sl });
       cumNotShiny *= (1 - p);
@@ -252,18 +255,15 @@ export default function DexNavCalculator() {
     const m90 = find(0.900);
     const m99 = find(0.990);
 
-    // True expected encounters: sum of survival probabilities S(i) = P(not yet found after i encounters).
-    // E[T] = sum_{i=0}^{inf} S(i)  where S(i) = prod_{j=0}^{i-1}(1 - p_j)
-    // This correctly accounts for SL increasing each encounter, enc50/enc100 spikes,
-    // the 4% random boost baked into every p_j, and the resetAt cycle.
-    // Run until survival is negligible (<1e-6) or a hard cap.
+    // True expected encounters: sum of survival function from the next encounter forward.
+    // E[T] = Σ S(i) where S(i) = P(not found in first i encounters from now).
     let expectedEnc = 0;
     {
       let survival = 1;
       const cap = Math.max(fullMax, Math.ceil(1 / effectiveP) * 15);
       for (let i = 0; i <= cap; i++) {
         expectedEnc += survival;
-        const c = chainAt(chain, i, resetAt);
+        const c = chainAt(nextChain, i, resetAt);
         const p = prob(searchLevel + i, c, shinyCharm);
         survival *= (1 - p);
         if (survival < 1e-6) break;
@@ -288,10 +288,11 @@ export default function DexNavCalculator() {
     expectedEnc,
   } = comp;
 
-  // Current chain encounter state
-  const atMilestone = chain === 50  ? 'enc50'
-                    : chain === 100 ? 'enc100'
-                    : (chain > 0 && chain % 5 === 0) ? 'boost'
+  // State of the NEXT (upcoming) encounter
+  const nextChain   = chain + 1;
+  const atMilestone = nextChain === 50  ? 'enc50'
+                    : nextChain === 100 ? 'enc100'
+                    : nextChain % 5 === 0 ? 'boost'
                     : null;
 
   return (
@@ -398,11 +399,11 @@ export default function DexNavCalculator() {
             {atMilestone === 'enc50'  && <p className="text-xs font-bold uppercase tracking-wider mb-1 text-emerald-400">★ Chain 50 — Bonus Encounter!</p>}
             {atMilestone === 'boost'  && <p className="text-xs font-bold uppercase tracking-wider mb-1 text-sky-400">✦ Chain {chain} — Every 5th Step Boost</p>}
             <p className="text-gray-400 text-sm">
-              {atMilestone === 'enc100' ? `chain 100 guaranteed best odds — SL ${searchLevel}` :
-               atMilestone === 'enc50'  ? `chain 50 guaranteed bonus — SL ${searchLevel}` :
-               atMilestone === 'boost'  ? `every 5th step gets a guaranteed odds boost — SL ${searchLevel}` :
-               chain === 0 ? `no chain — SL ${searchLevel}` :
-               `96% standard odds / 4% random boost per encounter — chain ${chain}, SL ${searchLevel}`}
+              {atMilestone === 'enc100' ? `next encounter is chain 100 — SL ${searchLevel}` :
+               atMilestone === 'enc50'  ? `next encounter is chain 50 — SL ${searchLevel}` :
+               atMilestone === 'boost'  ? `next encounter is chain ${nextChain} (every 5th step) — SL ${searchLevel}` :
+               chain === 0 ? `no chain yet — next is chain 1, SL ${searchLevel}` :
+               `next encounter is chain ${nextChain} — 96% standard / 4% random boost, SL ${searchLevel}`}
             </p>
             <p className={`text-4xl font-bold mt-0.5 ${
               atMilestone === 'enc100' ? 'text-yellow-300' :
@@ -469,11 +470,11 @@ export default function DexNavCalculator() {
           if (distTo50 === 0) {
             return (
               <StatCard
-                label="Step 50 Bonus ★ NOW"
+                label="Step 50 Bonus ★ NEXT"
                 value={fmtDenom(1 / pAt50)}
                 color="emerald"
                 sub={fmtPct(pAt50, 4)}
-                note={`SL ${slAt50} · best odds this chain step`}
+                note={`SL ${slAt50} · your next encounter`}
               />
             );
           }
@@ -503,11 +504,11 @@ export default function DexNavCalculator() {
           if (distTo100 === 0) {
             return (
               <StatCard
-                label="Step 100 Bonus ★ NOW"
+                label="Step 100 Bonus ★ NEXT"
                 value={fmtDenom(1 / pAt100)}
                 color="yellow"
                 sub={fmtPct(pAt100, 4)}
-                note={`SL ${slAt100} · best odds possible`}
+                note={`SL ${slAt100} · your next encounter`}
               />
             );
           }
