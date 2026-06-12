@@ -208,10 +208,8 @@ const HistoricalUploadSection = () => {
       formData.append('game', game.trim());
       formData.append('month_id', String(selectedPokeData.month_id));
       validLinks.forEach(u => formData.append('link', u));
-      if (!isRestricted) {
-        if (mediaFile)  formData.append('file', mediaFile);
-        if (mediaFile2) formData.append('file2', mediaFile2);
-      }
+      if (mediaFile)  formData.append('file', mediaFile);
+      if (mediaFile2) formData.append('file2', mediaFile2);
 
       const response = await fetch('/api/upload/historical-submission', {
         method: 'POST',
@@ -871,10 +869,8 @@ const Upload = () => {
       formData.append('game', game.trim());
 
       validLinks.forEach(u => formData.append('link', u));
-      if (!isRestricted) {
-        if (mediaFile)  formData.append('file', mediaFile);
-        if (mediaFile2) formData.append('file2', mediaFile2);
-      }
+      if (mediaFile)  formData.append('file', mediaFile);
+      if (mediaFile2) formData.append('file2', mediaFile2);
 
       const response = await fetch('/api/upload/submission', {
         method: 'POST',
