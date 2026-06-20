@@ -529,6 +529,7 @@ export default function SafariZone() {
     addLog('Caught!');
     setActive(false);
     setPrompt(null);
+    setPokemon(null);
   }
 
   function handleMissed() {
