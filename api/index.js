@@ -3076,6 +3076,38 @@ app.post('/api/user/sync-avatar', async (req, res) => {
   }
 });
 
+app.post('/api/user/accept-tos', async (req, res) => {
+  try {
+    const userId = await getAuthenticatedUserId(req);
+    if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+    const { error } = await supabase
+      .from('users')
+      .update({ tos_accepted_at: new Date().toISOString() })
+      .eq('id', userId);
+    if (error) return res.status(500).json({ error: error.message });
+    res.json({ ok: true });
+  } catch (error) {
+    console.error('Error accepting ToS:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+app.get('/api/user/tos-status', async (req, res) => {
+  try {
+    const userId = await getAuthenticatedUserId(req);
+    if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+    const { data } = await supabase
+      .from('users')
+      .select('tos_accepted_at')
+      .eq('id', userId)
+      .single();
+    res.json({ accepted: !!data?.tos_accepted_at });
+  } catch (error) {
+    console.error('Error checking ToS status:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 app.get('/api/user/is-moderator', async (req, res) => {
   try {
     const userId = await getAuthenticatedUserId(req);
