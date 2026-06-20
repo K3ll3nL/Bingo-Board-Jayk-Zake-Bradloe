@@ -410,6 +410,11 @@ const Approvals = () => {
           {/* Proof */}
           <div className="flex-shrink-0">
             <div className="flex gap-2 items-start flex-wrap">
+              {approval.caught_in_game && (
+                <div className="self-center text-xs text-blue-300 bg-blue-900/40 border border-blue-700 rounded px-2 py-1">
+                  Caught in: {approval.caught_in_game}
+                </div>
+              )}
               {approval.proof_url && (
                 <button onClick={() => setLightboxImage(approval.proof_url)} className="block">
                   <img
@@ -430,6 +435,24 @@ const Approvals = () => {
                   <div className="text-xs text-gray-400 text-center mt-1">Proof of Date</div>
                 </button>
               )}
+              {approval.proof_url3 && (
+                <button onClick={() => setLightboxImage(approval.proof_url3)} className="block">
+                  <img src={approval.proof_url3} alt="Evolution Screenshot" className="w-28 h-28 object-cover rounded border border-blue-700 hover:border-blue-500 transition-colors cursor-pointer" />
+                  <div className="text-xs text-blue-400 text-center mt-1">Evolution</div>
+                </button>
+              )}
+              {approval.proof_url4 && (
+                <button onClick={() => setLightboxImage(approval.proof_url4)} className="block">
+                  <img src={approval.proof_url4} alt="Evolved Summary" className="w-28 h-28 object-cover rounded border border-blue-700 hover:border-blue-500 transition-colors cursor-pointer" />
+                  <div className="text-xs text-blue-400 text-center mt-1">Evolved Summary</div>
+                </button>
+              )}
+              {(approval.extra_images ?? []).map((url, i) => (
+                <button key={i} onClick={() => setLightboxImage(url)} className="block">
+                  <img src={url} alt={`Extra image ${i + 1}`} className="w-28 h-28 object-cover rounded border border-gray-600 hover:border-purple-500 transition-colors cursor-pointer" />
+                  <div className="text-xs text-gray-400 text-center mt-1">Extra {i + 1}</div>
+                </button>
+              ))}
               {(approval.proof_link ?? []).map((link, i) => (
                 <a
                   key={i}
@@ -746,6 +769,11 @@ const Approvals = () => {
 
                           {/* Proof thumbnails */}
                           <div className="flex items-start gap-2 flex-shrink-0 flex-wrap">
+                            {record.caught_in_game && (
+                              <div className="self-center text-xs text-blue-300 bg-blue-900/40 border border-blue-700 rounded px-2 py-1">
+                                Caught in: {record.caught_in_game}
+                              </div>
+                            )}
                             {record.proof_url && (
                               <button onClick={() => setLightboxImage(record.proof_url)} className="block">
                                 <img
@@ -764,6 +792,21 @@ const Approvals = () => {
                                 />
                               </button>
                             )}
+                            {record.proof_url3 && (
+                              <button onClick={() => setLightboxImage(record.proof_url3)} className="block">
+                                <img src={record.proof_url3} alt="Evolution" className="w-20 h-20 object-cover rounded border border-blue-700 hover:border-blue-500 transition-colors cursor-pointer" />
+                              </button>
+                            )}
+                            {record.proof_url4 && (
+                              <button onClick={() => setLightboxImage(record.proof_url4)} className="block">
+                                <img src={record.proof_url4} alt="Evolved Summary" className="w-20 h-20 object-cover rounded border border-blue-700 hover:border-blue-500 transition-colors cursor-pointer" />
+                              </button>
+                            )}
+                            {(record.extra_images ?? []).map((url, i) => (
+                              <button key={i} onClick={() => setLightboxImage(url)} className="block">
+                                <img src={url} alt={`Extra ${i + 1}`} className="w-20 h-20 object-cover rounded border border-gray-600 hover:border-purple-500 transition-colors cursor-pointer" />
+                              </button>
+                            ))}
                             {!record.proof_url && !record.proof_url2 && record.had_images && (
                               <span className="text-xs text-gray-500 italic self-center">Images purged</span>
                             )}

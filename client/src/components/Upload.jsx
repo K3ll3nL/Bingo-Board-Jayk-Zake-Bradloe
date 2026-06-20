@@ -53,6 +53,12 @@ const HistoricalUploadSection = () => {
     }
     return result;
   });
+  const [caughtInDifferentGame, setCaughtInDifferentGame] = useState(false);
+  const [caughtInGame, setCaughtInGame] = useState('');
+  const [caughtInGameOpen, setCaughtInGameOpen] = useState(false);
+  const [evolutionFile, setEvolutionFile] = useState(null);
+  const [evolutionSummaryFile, setEvolutionSummaryFile] = useState(null);
+  const [extraFiles, setExtraFiles] = useState([]);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(false);
@@ -73,10 +79,11 @@ const HistoricalUploadSection = () => {
     const handleClickOutside = (e) => {
       if (dropdownOpen && !e.target.closest('.hist-pokemon-dropdown')) setDropdownOpen(false);
       if (gameDropdownOpen && !e.target.closest('.hist-game-dropdown')) setGameDropdownOpen(false);
+      if (caughtInGameOpen && !e.target.closest('.hist-caught-game-dropdown')) setCaughtInGameOpen(false);
     };
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [dropdownOpen, gameDropdownOpen]);
+  }, [dropdownOpen, gameDropdownOpen, caughtInGameOpen]);
 
   const loadPokemon = async () => {
     try {
@@ -183,6 +190,8 @@ const HistoricalUploadSection = () => {
     e.preventDefault();
     if (!selectedPokemon)    { setError('Please select a Pokemon'); return; }
     if (!game.trim())        { setError('Please select the game you hunted in'); return; }
+    if (caughtInDifferentGame && !caughtInGame) { setError('Please select the game you caught it in'); return; }
+    if (caughtInDifferentGame && (!evolutionFile || !evolutionSummaryFile)) { setError('Evolution screenshot and evolved summary are required when caught in a different game'); return; }
     if (isRestricted && activeChecklist.length > 0 && !activeChecklist.every(item => !!checkedItems[item.id])) {
       setError('Please confirm all checklist items before submitting.');
       return;
@@ -207,9 +216,13 @@ const HistoricalUploadSection = () => {
       formData.append('restricted_submission', isRestricted ? 'true' : 'false');
       formData.append('game', game.trim());
       formData.append('month_id', String(selectedPokeData.month_id));
+      if (caughtInDifferentGame && caughtInGame) formData.append('caught_in_game', caughtInGame);
       validLinks.forEach(u => formData.append('link', u));
       if (mediaFile)  formData.append('file', mediaFile);
       if (mediaFile2) formData.append('file2', mediaFile2);
+      if (caughtInDifferentGame && evolutionFile)        formData.append('evolutionFile', evolutionFile);
+      if (caughtInDifferentGame && evolutionSummaryFile) formData.append('evolutionSummaryFile', evolutionSummaryFile);
+      extraFiles.filter(Boolean).forEach(f => formData.append('extraFile', f));
 
       const response = await fetch('/api/upload/historical-submission', {
         method: 'POST',
@@ -223,6 +236,11 @@ const HistoricalUploadSection = () => {
       setSuccess(true);
       setSelectedPokemon('');
       setGame('');
+      setCaughtInDifferentGame(false);
+      setCaughtInGame('');
+      setEvolutionFile(null);
+      setEvolutionSummaryFile(null);
+      setExtraFiles([]);
       setMediaUrls(['']);
       setMediaFile(null);
       setMediaFile2(null);
@@ -416,6 +434,97 @@ const HistoricalUploadSection = () => {
             </div>
           )}
         </div>
+
+        {/* Caught in a different game — secondary option tucked under game selector */}
+        {!caughtInDifferentGame ? (
+          <button
+            type="button"
+            onClick={() => setCaughtInDifferentGame(true)}
+            disabled={submitting}
+            className="mt-2 text-xs text-gray-500 hover:text-gray-400 transition-colors"
+          >
+            Caught in a different game?
+          </button>
+        ) : (
+          <div className="mt-3 pt-3 border-t border-gray-700">
+            <div className="flex items-center justify-between mb-3">
+              <span className="text-xs font-medium text-gray-400">Caught in a different game</span>
+              <button
+                type="button"
+                onClick={() => { setCaughtInDifferentGame(false); setCaughtInGame(''); setEvolutionFile(null); setEvolutionSummaryFile(null); }}
+                disabled={submitting}
+                className="text-xs text-gray-500 hover:text-gray-400 transition-colors"
+              >
+                Remove ×
+              </button>
+            </div>
+            <div className="relative hist-caught-game-dropdown mb-3">
+              <button
+                type="button"
+                onClick={() => setCaughtInGameOpen(!caughtInGameOpen)}
+                disabled={submitting}
+                className="w-full p-3 bg-gray-700 text-white rounded-lg border border-gray-600 focus:border-purple-500 focus:outline-none flex items-center justify-between"
+              >
+                {caughtInGame ? (
+                  <div className="flex items-center gap-3 min-w-0">
+                    {(() => { const g = ALLOWED_GAMES.find(g => g.label === caughtInGame); return g ? (
+                      <div className="flex items-center gap-1 flex-shrink-0" style={{ width: '88px' }}>
+                        {(g.img_urls ?? []).slice(0, 2).map((url, i) => (
+                          <div key={i} className="flex items-center justify-center flex-shrink-0" style={{ width: '42px', height: '24px' }}>
+                            <img src={url} alt="" className="object-contain" style={{ maxHeight: '24px', maxWidth: '42px' }} />
+                          </div>
+                        ))}
+                      </div>
+                    ) : null; })()}
+                    <span className="text-sm truncate">{caughtInGame}</span>
+                  </div>
+                ) : <span className="text-gray-400">Select a game...</span>}
+                <svg className={`w-5 h-5 flex-shrink-0 ml-2 transition-transform ${caughtInGameOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                </svg>
+              </button>
+              {caughtInGameOpen && (
+                <div className="absolute z-20 w-full mt-1 bg-gray-700 border border-gray-600 rounded-lg shadow-lg max-h-60 overflow-y-auto">
+                  {ALLOWED_GAMES.filter(g => g.label !== game).map(g => (
+                    <button key={g.key} type="button" onClick={() => { setCaughtInGame(g.label); setCaughtInGameOpen(false); }}
+                      className={`w-full px-4 py-3 flex items-center gap-4 hover:bg-gray-600 transition-colors text-left ${caughtInGame === g.label ? 'bg-gray-600' : ''}`}>
+                      <div className="flex items-center gap-1 flex-shrink-0" style={{ width: '88px' }}>
+                        {(g.img_urls ?? []).slice(0, 2).map((url, i) => (
+                          <div key={i} className="flex items-center justify-center flex-shrink-0" style={{ width: '42px', height: '28px' }}>
+                            <img src={url} alt="" className="object-contain" style={{ maxHeight: '28px', maxWidth: '42px' }} />
+                          </div>
+                        ))}
+                      </div>
+                      <span className="text-white text-sm">{g.label}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs text-gray-400 mb-1.5">Evolution Screenshot <span className="text-red-400">*</span></label>
+                <input type="file" onChange={(e) => { if (e.target.files[0]) setEvolutionFile(e.target.files[0]); }} accept="image/*,video/*" className="hidden" id="hist-evo-file" disabled={submitting} />
+                <label htmlFor="hist-evo-file" className="block w-full p-4 border-2 border-dashed rounded-lg text-center cursor-pointer transition-colors border-gray-600 bg-gray-700 hover:border-purple-500">
+                  {evolutionFile
+                    ? <div className="text-white"><svg className="w-5 h-5 mx-auto mb-1 text-green-400" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" /></svg><p className="text-xs truncate">{evolutionFile.name}</p></div>
+                    : <div className="text-gray-500"><svg className="w-5 h-5 mx-auto mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" /></svg><p className="text-xs">Upload image</p></div>
+                  }
+                </label>
+              </div>
+              <div>
+                <label className="block text-xs text-gray-400 mb-1.5">Evolved Summary <span className="text-red-400">*</span></label>
+                <input type="file" onChange={(e) => { if (e.target.files[0]) setEvolutionSummaryFile(e.target.files[0]); }} accept="image/*,video/*" className="hidden" id="hist-evo-summary-file" disabled={submitting} />
+                <label htmlFor="hist-evo-summary-file" className="block w-full p-4 border-2 border-dashed rounded-lg text-center cursor-pointer transition-colors border-gray-600 bg-gray-700 hover:border-purple-500">
+                  {evolutionSummaryFile
+                    ? <div className="text-white"><svg className="w-5 h-5 mx-auto mb-1 text-green-400" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" /></svg><p className="text-xs truncate">{evolutionSummaryFile.name}</p></div>
+                    : <div className="text-gray-500"><svg className="w-5 h-5 mx-auto mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" /></svg><p className="text-xs">Upload image</p></div>
+                  }
+                </label>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Video links + restricted button */}
@@ -585,12 +694,71 @@ const HistoricalUploadSection = () => {
         </div>
       </div>
 
+      {/* Additional images */}
+      <div className="mb-4">
+        <label className="block text-xs font-medium text-gray-400 mb-2">Additional Images <span className="text-gray-500">(optional)</span></label>
+        <input
+          type="file"
+          multiple
+          accept="image/*,video/*"
+          className="hidden"
+          id="hist-extra-files"
+          disabled={submitting || extraFiles.length >= 6}
+          onChange={(e) => {
+            const incoming = Array.from(e.target.files);
+            setExtraFiles(prev => [...prev, ...incoming].slice(0, 6));
+            e.target.value = '';
+          }}
+        />
+        <label
+          htmlFor="hist-extra-files"
+          className={`block w-full p-4 border-2 border-dashed rounded-lg text-center transition-colors ${
+            extraFiles.length >= 6
+              ? 'border-gray-700 bg-gray-800/40 cursor-not-allowed'
+              : 'border-gray-600 bg-gray-700 hover:border-purple-500 cursor-pointer'
+          }`}
+        >
+          <svg className="w-6 h-6 mx-auto mb-1 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+          </svg>
+          {extraFiles.length >= 6
+            ? <p className="text-xs text-amber-400">Maximum 6 images reached</p>
+            : <p className="text-xs text-gray-400">Click to add images{extraFiles.length > 0 ? ` (${extraFiles.length}/6)` : ''}</p>
+          }
+        </label>
+        {extraFiles.length > 0 && (
+          <div className="mt-2 grid grid-cols-3 gap-2">
+            {extraFiles.map((f, i) => (
+              <div key={i} className="relative group rounded-lg overflow-hidden border border-gray-700 bg-gray-800 aspect-square">
+                {f.type.startsWith('image/') ? (
+                  <img src={URL.createObjectURL(f)} alt={f.name} className="w-full h-full object-cover" />
+                ) : (
+                  <div className="w-full h-full flex flex-col items-center justify-center gap-1 text-gray-500">
+                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.069A1 1 0 0121 8.82v6.36a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
+                    <span className="text-xs truncate px-1 w-full text-center">{f.name}</span>
+                  </div>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setExtraFiles(prev => prev.filter((_, j) => j !== i))}
+                  disabled={submitting}
+                  className="absolute top-1 right-1 w-5 h-5 rounded-full bg-black/70 text-gray-300 hover:text-red-400 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                >
+                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" /></svg>
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
       <button
         type="submit"
         disabled={
           submitting ||
           !selectedPokemon ||
           !game.trim() ||
+          (caughtInDifferentGame && (!caughtInGame || !evolutionFile || !evolutionSummaryFile)) ||
           (isRestricted && activeChecklist.length > 0 && !activeChecklist.every(item => !!checkedItems[item.id])) ||
           (isRestricted || noImageProof ? !mediaUrls.some(u => u.trim()) : (!mediaUrls.some(u => u.trim()) && (!mediaFile || !mediaFile2)))
         }
@@ -635,6 +803,12 @@ const Upload = () => {
     }
     return result;
   });
+  const [caughtInDifferentGame, setCaughtInDifferentGame] = useState(false);
+  const [caughtInGame, setCaughtInGame] = useState('');
+  const [caughtInGameOpen, setCaughtInGameOpen] = useState(false);
+  const [evolutionFile, setEvolutionFile] = useState(null);
+  const [evolutionSummaryFile, setEvolutionSummaryFile] = useState(null);
+  const [extraFiles, setExtraFiles] = useState([]);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(false);
@@ -676,10 +850,11 @@ const Upload = () => {
     const handleClickOutside = (e) => {
       if (dropdownOpen && !e.target.closest('.pokemon-dropdown')) setDropdownOpen(false);
       if (gameDropdownOpen && !e.target.closest('.game-dropdown')) setGameDropdownOpen(false);
+      if (caughtInGameOpen && !e.target.closest('.caught-game-dropdown')) setCaughtInGameOpen(false);
     };
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [dropdownOpen, gameDropdownOpen]);
+  }, [dropdownOpen, gameDropdownOpen, caughtInGameOpen]);
 
   const loadAvailablePokemon = async () => {
     try {
@@ -837,6 +1012,8 @@ const Upload = () => {
 
     if (!selectedPokemon) { setError('Please select a Pokemon'); return; }
     if (!game.trim())     { setError('Please select the game you hunted in'); return; }
+    if (caughtInDifferentGame && !caughtInGame) { setError('Please select the game you caught it in'); return; }
+    if (caughtInDifferentGame && (!evolutionFile || !evolutionSummaryFile)) { setError('Evolution screenshot and evolved summary are required when caught in a different game'); return; }
     if (isRestricted && activeChecklist.length > 0 && !activeChecklist.every(item => !!checkedItems[item.id])) {
       setError('Please confirm all checklist items before submitting.');
       return;
@@ -867,10 +1044,14 @@ const Upload = () => {
       formData.append('pokemon_id', selectedPokemon);
       formData.append('restricted_submission', isRestricted ? 'true' : 'false');
       formData.append('game', game.trim());
+      if (caughtInDifferentGame && caughtInGame) formData.append('caught_in_game', caughtInGame);
 
       validLinks.forEach(u => formData.append('link', u));
       if (mediaFile)  formData.append('file', mediaFile);
       if (mediaFile2) formData.append('file2', mediaFile2);
+      if (caughtInDifferentGame && evolutionFile)        formData.append('evolutionFile', evolutionFile);
+      if (caughtInDifferentGame && evolutionSummaryFile) formData.append('evolutionSummaryFile', evolutionSummaryFile);
+      extraFiles.filter(Boolean).forEach(f => formData.append('extraFile', f));
 
       const response = await fetch('/api/upload/submission', {
         method: 'POST',
@@ -886,6 +1067,11 @@ const Upload = () => {
       setSuccess(true);
       setSelectedPokemon('');
       setGame('');
+      setCaughtInDifferentGame(false);
+      setCaughtInGame('');
+      setEvolutionFile(null);
+      setEvolutionSummaryFile(null);
+      setExtraFiles([]);
       setMediaUrls(['']);
       setMediaFile(null);
       setMediaFile2(null);
@@ -1145,6 +1331,98 @@ const Upload = () => {
                     </div>
                   )}
                 </div>
+
+                {!caughtInDifferentGame ? (
+                  <button
+                    type="button"
+                    onClick={() => setCaughtInDifferentGame(true)}
+                    disabled={submitting}
+                    className="mt-2 text-xs text-gray-500 hover:text-gray-400 transition-colors"
+                  >
+                    Caught in a different game?
+                  </button>
+                ) : (
+                  <div className="mt-3 pt-3 border-t border-gray-700">
+                    <div className="flex items-center justify-between mb-3">
+                      <span className="text-xs font-medium text-gray-400">Caught in a different game</span>
+                      <button
+                        type="button"
+                        onClick={() => { setCaughtInDifferentGame(false); setCaughtInGame(''); setEvolutionFile(null); setEvolutionSummaryFile(null); }}
+                        disabled={submitting}
+                        className="text-xs text-gray-500 hover:text-gray-400 transition-colors"
+                      >
+                        Remove &times;
+                      </button>
+                    </div>
+                    <div className="relative caught-game-dropdown mb-3">
+                      <button
+                        type="button"
+                        onClick={() => setCaughtInGameOpen(!caughtInGameOpen)}
+                        disabled={submitting}
+                        className="w-full p-3 bg-gray-700 text-white rounded-lg border border-gray-600 focus:border-purple-500 focus:outline-none flex items-center justify-between"
+                      >
+                        {caughtInGame ? (
+                          <div className="flex items-center gap-3 min-w-0">
+                            {(() => { const g = ALLOWED_GAMES.find(g => g.label === caughtInGame); return g ? (
+                              <div className="flex items-center gap-1 flex-shrink-0" style={{ width: '88px' }}>
+                                {(g.img_urls ?? []).slice(0, 2).map((url, i) => (
+                                  <div key={i} className="flex items-center justify-center flex-shrink-0" style={{ width: '42px', height: '24px' }}>
+                                    <img src={url} alt="" className="object-contain" style={{ maxHeight: '24px', maxWidth: '42px' }} />
+                                  </div>
+                                ))}
+                              </div>
+                            ) : null; })()}
+                            <span className="text-sm truncate">{caughtInGame}</span>
+                          </div>
+                        ) : <span className="text-gray-400">Select a game...</span>}
+                        <svg className={`w-5 h-5 flex-shrink-0 ml-2 transition-transform ${caughtInGameOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                        </svg>
+                      </button>
+                      {caughtInGameOpen && (
+                        <div className="absolute z-20 w-full mt-1 bg-gray-700 border border-gray-600 rounded-lg shadow-lg max-h-72 overflow-y-auto">
+                          {ALLOWED_GAMES.filter(g => g.label !== game).map(g => (
+                            <button key={g.key} type="button" onClick={() => { setCaughtInGame(g.label); setCaughtInGameOpen(false); }}
+                              className={`w-full px-4 py-3 flex items-center gap-4 hover:bg-gray-600 transition-colors text-left ${caughtInGame === g.label ? 'bg-gray-600' : ''}`}>
+                              <div className="flex items-center gap-1 flex-shrink-0" style={{ width: '88px' }}>
+                                {(g.img_urls ?? []).slice(0, 2).map((url, i) => (
+                                  <div key={i} className="flex items-center justify-center flex-shrink-0" style={{ width: '42px', height: '28px' }}>
+                                    <img src={url} alt="" className="object-contain" style={{ maxHeight: '28px', maxWidth: '42px' }} />
+                                  </div>
+                                ))}
+                              </div>
+                              <span className="text-white text-sm">{g.label}</span>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-xs font-medium text-gray-300 mb-2">Evolution Screenshot <span className="text-red-400">*</span></label>
+                        <input type="file" onChange={(e) => { if (e.target.files[0]) setEvolutionFile(e.target.files[0]); }} accept="image/*,video/*" className="hidden" id="main-evo-file" disabled={submitting} />
+                        <label htmlFor="main-evo-file" className="block w-full p-4 sm:p-6 border-2 border-dashed rounded-lg text-center cursor-pointer transition-colors border-gray-600 bg-gray-700 hover:border-purple-500">
+                          {evolutionFile ? (
+                            <div className="text-white"><svg className="w-6 h-6 mx-auto mb-2 text-green-400" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" /></svg><p className="text-xs truncate">{evolutionFile.name}</p></div>
+                          ) : (
+                            <div className="text-gray-400"><svg className="w-6 h-6 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" /></svg><p className="text-xs">Upload image</p></div>
+                          )}
+                        </label>
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-gray-300 mb-2">Evolved Summary <span className="text-red-400">*</span></label>
+                        <input type="file" onChange={(e) => { if (e.target.files[0]) setEvolutionSummaryFile(e.target.files[0]); }} accept="image/*,video/*" className="hidden" id="main-evo-summary-file" disabled={submitting} />
+                        <label htmlFor="main-evo-summary-file" className="block w-full p-4 sm:p-6 border-2 border-dashed rounded-lg text-center cursor-pointer transition-colors border-gray-600 bg-gray-700 hover:border-purple-500">
+                          {evolutionSummaryFile ? (
+                            <div className="text-white"><svg className="w-6 h-6 mx-auto mb-2 text-green-400" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" /></svg><p className="text-xs truncate">{evolutionSummaryFile.name}</p></div>
+                          ) : (
+                            <div className="text-gray-400"><svg className="w-6 h-6 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" /></svg><p className="text-xs">Upload image</p></div>
+                          )}
+                        </label>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Video Link(s) + Restricted Toggle */}
@@ -1338,6 +1616,64 @@ const Upload = () => {
                 </div>
               </div>
 
+              {/* Additional Images */}
+              <div className="mb-4">
+                <label className="block text-xs font-medium text-gray-400 mb-2">Additional Images <span className="text-gray-500">(optional)</span></label>
+                <input
+                  type="file"
+                  multiple
+                  accept="image/*,video/*"
+                  className="hidden"
+                  id="main-extra-files"
+                  disabled={submitting || extraFiles.length >= 6}
+                  onChange={(e) => {
+                    const incoming = Array.from(e.target.files);
+                    setExtraFiles(prev => [...prev, ...incoming].slice(0, 6));
+                    e.target.value = '';
+                  }}
+                />
+                <label
+                  htmlFor="main-extra-files"
+                  className={`block w-full p-4 border-2 border-dashed rounded-lg text-center transition-colors ${
+                    extraFiles.length >= 6
+                      ? 'border-gray-700 bg-gray-800/40 cursor-not-allowed'
+                      : 'border-gray-600 bg-gray-700 hover:border-purple-500 cursor-pointer'
+                  }`}
+                >
+                  <svg className="w-6 h-6 mx-auto mb-1 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                  </svg>
+                  {extraFiles.length >= 6
+                    ? <p className="text-xs text-amber-400">Maximum 6 images reached</p>
+                    : <p className="text-xs text-gray-400">Click to add images{extraFiles.length > 0 ? ` (${extraFiles.length}/6)` : ''}</p>
+                  }
+                </label>
+                {extraFiles.length > 0 && (
+                  <div className="mt-2 grid grid-cols-3 gap-2">
+                    {extraFiles.map((f, i) => (
+                      <div key={i} className="relative group rounded-lg overflow-hidden border border-gray-700 bg-gray-800 aspect-square">
+                        {f.type.startsWith('image/') ? (
+                          <img src={URL.createObjectURL(f)} alt={f.name} className="w-full h-full object-cover" />
+                        ) : (
+                          <div className="w-full h-full flex flex-col items-center justify-center gap-1 text-gray-500">
+                            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.069A1 1 0 0121 8.82v6.36a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
+                            <span className="text-xs truncate px-1 w-full text-center">{f.name}</span>
+                          </div>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => setExtraFiles(prev => prev.filter((_, j) => j !== i))}
+                          disabled={submitting}
+                          className="absolute top-1 right-1 w-5 h-5 rounded-full bg-black/70 text-gray-300 hover:text-red-400 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                        >
+                          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" /></svg>
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
               {/* Submit */}
               <button
                 type="submit"
@@ -1345,6 +1681,7 @@ const Upload = () => {
                   submitting ||
                   !selectedPokemon ||
                   !game.trim() ||
+                  (caughtInDifferentGame && (!caughtInGame || !evolutionFile || !evolutionSummaryFile)) ||
                   (isRestricted && activeChecklist.length > 0 && !activeChecklist.every(item => !!checkedItems[item.id])) ||
                   (isRestricted || noImageProof ? !mediaUrls.some(u => u.trim()) : (!mediaUrls.some(u => u.trim()) && (!mediaFile || !mediaFile2)))
                 }
