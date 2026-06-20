@@ -33,7 +33,7 @@ function SpriteImg({ dex, style }) {
 
 const SAFARI_GAMES = [
   { id: 'gen1-rby',  label: 'Red / Blue / Yellow',       subtitle: 'Kanto Safari Zone', rockLabel: 'Rock', ballCount: 30, mechanic: 'gen1', img_urls: [`${R2G}/red.png`,      `${R2G}/blue.png`]       },
-  { id: 'gen3-frlg', label: 'FireRed / LeafGreen',        subtitle: 'Kanto Safari Zone', rockLabel: 'Rock', ballCount: 30, mechanic: 'gen1', img_urls: [`${R2G}/firered.png`,  `${R2G}/leafgreen.png`]  },
+  { id: 'gen3-frlg', label: 'FireRed / LeafGreen',        subtitle: 'Kanto Safari Zone', rockLabel: 'Rock', ballCount: 30, mechanic: 'frlg', img_urls: [`${R2G}/firered.png`,  `${R2G}/leafgreen.png`]  },
   { id: 'gen3-rse',  label: 'Ruby / Sapphire / Emerald',  subtitle: 'Hoenn Safari Zone', rockLabel: null,   ballCount: 30, mechanic: 'rse',  img_urls: [`${R2G}/ruby.png`,     `${R2G}/sapphire.png`]   },
   { id: 'gen4-dppt', label: 'Diamond / Pearl / Platinum', subtitle: 'Great Marsh',       rockLabel: 'Mud',  ballCount: 30, mechanic: 'gen4', img_urls: [`${R2G}/diamond.png`,  `${R2G}/pearl.png`]      },
   { id: 'gen4-hgss', label: 'HeartGold / SoulSilver',     subtitle: 'Johto Safari Zone', rockLabel: 'Rock', ballCount: 30, mechanic: 'gen4', img_urls: [`${R2G}/heartgold.png`,`${R2G}/soulsilver.png`] },
@@ -69,26 +69,27 @@ const SAFARI_POKEMON = {
     { name: 'Dragonair',  dex: 148, catchRate: 45,  baseSpeed: 70,  levels: [15]         },
   ],
   'gen3-frlg': [
-    { name: 'Nidoran♀',   dex: 29,  catchRate: 235, baseSpeed: 41,  levels: [22, 25]     },
-    { name: 'Nidoran♂',   dex: 32,  catchRate: 235, baseSpeed: 50,  levels: [22, 25]     },
-    { name: 'Nidorina',   dex: 30,  catchRate: 120, baseSpeed: 56,  levels: [30]         },
-    { name: 'Nidorino',   dex: 33,  catchRate: 120, baseSpeed: 65,  levels: [30]         },
-    { name: 'Paras',      dex: 46,  catchRate: 190, baseSpeed: 25,  levels: [22, 24]     },
-    { name: 'Parasect',   dex: 47,  catchRate: 75,  baseSpeed: 30,  levels: [30]         },
-    { name: 'Venonat',    dex: 48,  catchRate: 190, baseSpeed: 45,  levels: [22, 24]     },
-    { name: 'Venomoth',   dex: 49,  catchRate: 75,  baseSpeed: 70,  levels: [35]         },
-    { name: 'Exeggcute',  dex: 102, catchRate: 90,  baseSpeed: 40,  levels: [24, 26]     },
-    { name: 'Cubone',     dex: 104, catchRate: 190, baseSpeed: 35,  levels: [19, 22]     },
-    { name: 'Marowak',    dex: 105, catchRate: 75,  baseSpeed: 45,  levels: [28]         },
-    { name: 'Rhyhorn',    dex: 111, catchRate: 120, baseSpeed: 25,  levels: [20, 25, 30] },
-    { name: 'Chansey',    dex: 113, catchRate: 30,  baseSpeed: 50,  levels: [30]         },
-    { name: 'Tangela',    dex: 114, catchRate: 45,  baseSpeed: 60,  levels: [22, 24]     },
-    { name: 'Kangaskhan', dex: 115, catchRate: 45,  baseSpeed: 90,  levels: [25, 28]     },
-    { name: 'Scyther',    dex: 123, catchRate: 45,  baseSpeed: 105, levels: [25, 28]     },
-    { name: 'Pinsir',     dex: 127, catchRate: 45,  baseSpeed: 85,  levels: [25, 28]     },
-    { name: 'Tauros',     dex: 128, catchRate: 45,  baseSpeed: 110, levels: [25, 28]     },
-    { name: 'Dratini',    dex: 147, catchRate: 45,  baseSpeed: 50,  levels: [15, 20]     },
-    { name: 'Dragonair',  dex: 148, catchRate: 45,  baseSpeed: 70,  levels: [20]         },
+    // fleeRate = flee factor (1–20); flee prob = 5 * fleeRate %
+    { name: 'Nidoran♀',   dex: 29,  catchRate: 235, fleeRate: 3, levels: [22, 25]     },
+    { name: 'Nidoran♂',   dex: 32,  catchRate: 235, fleeRate: 3, levels: [22, 25]     },
+    { name: 'Nidorina',   dex: 30,  catchRate: 120, fleeRate: 5, levels: [30]         },
+    { name: 'Nidorino',   dex: 33,  catchRate: 120, fleeRate: 5, levels: [30]         },
+    { name: 'Paras',      dex: 46,  catchRate: 190, fleeRate: 3, levels: [22, 24]     },
+    { name: 'Parasect',   dex: 47,  catchRate: 75,  fleeRate: 5, levels: [30]         },
+    { name: 'Venonat',    dex: 48,  catchRate: 190, fleeRate: 3, levels: [22, 24]     },
+    { name: 'Venomoth',   dex: 49,  catchRate: 75,  fleeRate: 5, levels: [35]         },
+    { name: 'Exeggcute',  dex: 102, catchRate: 90,  fleeRate: 5, levels: [24, 26]     },
+    { name: 'Cubone',     dex: 104, catchRate: 190, fleeRate: 3, levels: [19, 22]     },
+    { name: 'Marowak',    dex: 105, catchRate: 75,  fleeRate: 5, levels: [28]         },
+    { name: 'Rhyhorn',    dex: 111, catchRate: 120, fleeRate: 5, levels: [20, 25, 30] },
+    { name: 'Chansey',    dex: 113, catchRate: 30,  fleeRate: 9, levels: [30]         },
+    { name: 'Tangela',    dex: 114, catchRate: 45,  fleeRate: 9, levels: [22, 24]     },
+    { name: 'Kangaskhan', dex: 115, catchRate: 45,  fleeRate: 9, levels: [25, 28]     },
+    { name: 'Scyther',    dex: 123, catchRate: 45,  fleeRate: 9, levels: [25, 28]     },
+    { name: 'Pinsir',     dex: 127, catchRate: 45,  fleeRate: 9, levels: [25, 28]     },
+    { name: 'Tauros',     dex: 128, catchRate: 45,  fleeRate: 9, levels: [25, 28]     },
+    { name: 'Dratini',    dex: 147, catchRate: 45,  fleeRate: 7, levels: [15, 20]     },
+    { name: 'Dragonair',  dex: 148, catchRate: 45,  fleeRate: 9, levels: [20]         },
   ],
   'gen3-rse': [
     { name: 'Nidoran♀',  dex: 29  }, { name: 'Nidoran♂',   dex: 32  },
@@ -173,12 +174,34 @@ function gen4Catch(catchRate, catchStage) {
   return Math.pow(Math.min(b, 65535) / 65536, 4);
 }
 
+// FRLG uses a catch-factor system (not raw catchRate/256).
+// catchFactor = floor(catchRate / 12.75); bait: max(3, floor/2); rock: min(20, *2)
+// a = floor(catchFactor * 51 / 4), then standard Gen 3 shake formula.
+function frlgCatch(catchFactor) {
+  const a = Math.floor(catchFactor * 51 / 4);
+  if (a <= 0) return 0;
+  if (a >= 255) return 1;
+  const b = Math.floor(1048560 / Math.floor(Math.sqrt(Math.floor(Math.sqrt(Math.floor(16711680 / a))))));
+  return Math.pow(Math.min(b, 65535) / 65536, 4);
+}
+
+// FRLG flee: each species has a flee factor (1–20); prob = 5 * factor %.
+// Bait: max(1, floor(factor/4)); rock: min(20, factor*2).
+function frlgFlee(fleeFactor) {
+  return Math.min(1, (fleeFactor * 5) / 100);
+}
+
+function initCatchFactor(catchRate) {
+  return Math.max(1, Math.floor(catchRate / 12.75));
+}
+
+// Cumulative catch probability over N balls.
+// Order: throw ball (catch check) → flee check on miss. Both Gen 1 and FRLG work this way.
 function cumCatch(catchP, fleeP, balls) {
   let total = 0, here = 1;
   for (let i = 0; i < balls; i++) {
-    const s = here * (1 - fleeP);
-    total += s * catchP;
-    here = s * (1 - catchP);
+    total += here * catchP;
+    here = here * (1 - catchP) * (1 - fleeP);
     if (here < 0.0001) break;
   }
   return Math.min(1, total);
@@ -282,94 +305,26 @@ function GameDropdown({ value, onChange }) {
   );
 }
 
-// ─── Pokémon dropdown ─────────────────────────────────────────────────────────
+// ─── Pokémon grid ─────────────────────────────────────────────────────────────
 
-function PokemonDropdown({ options, value, onChange, mechanic }) {
-  const [open, setOpen] = useState(false);
-  const [q, setQ] = useState('');
-  const ref = useRef(null);
-  const inputRef = useRef(null);
-  useOutsideClick(ref, () => setOpen(false));
-
-  useEffect(() => { if (open) setTimeout(() => inputRef.current?.focus(), 50); }, [open]);
-
-  const filtered = useMemo(() =>
-    q ? options.filter(p => p.name.toLowerCase().includes(q.toLowerCase())) : options,
-    [options, q]);
-
-  function pick(p) { onChange(p); setOpen(false); setQ(''); }
-
+function PokemonGrid({ options, value, onChange }) {
   return (
-    <div ref={ref} style={{ position: 'relative' }}>
-      <button type="button" onClick={() => { setOpen(o => !o); setQ(''); }}
-        style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-          gap: 12, background: '#1f2937', border: '1px solid #374151', borderRadius: 12,
-          padding: '10px 14px', cursor: 'pointer', transition: 'border-color 0.15s' }}
-        onMouseEnter={e => e.currentTarget.style.borderColor = '#4b5563'}
-        onMouseLeave={e => e.currentTarget.style.borderColor = open ? '#10b981' : '#374151'}>
-        {value ? (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
-            <div style={{ width: 40, height: 40, display: 'flex', alignItems: 'center',
-              justifyContent: 'center', flexShrink: 0, background: 'rgba(0,0,0,0.2)', borderRadius: 8 }}>
-              <SpriteImg key={value.dex} dex={value.dex} style={{ width: 36, height: 36, objectFit: 'contain' }} />
-            </div>
-            <div>
-              <p style={{ color: '#fff', fontWeight: 700, fontSize: 14, margin: 0, lineHeight: 1.2 }}>{value.name}</p>
-              <p style={{ color: '#9ca3af', fontSize: 12, margin: 0 }}>
-                {mechanic === 'gen1'
-                  ? `Lv ${value.levels?.join(', ') ?? '?'} · Speed ${value.baseSpeed}`
-                  : `Lv ${value.levels?.join(', ') ?? '?'} · Escape ${value.escapeRate}`}
-              </p>
-            </div>
-          </div>
-        ) : (
-          <span style={{ color: '#6b7280', fontSize: 14 }}>Choose a Pokémon...</span>
-        )}
-        <svg style={{ width: 16, height: 16, color: '#6b7280', flexShrink: 0,
-          transform: open ? 'rotate(180deg)' : 'none', transition: 'transform 0.15s' }}
-          fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-        </svg>
-      </button>
-
-      {open && (
-        <div style={{ position: 'absolute', left: 0, right: 0, top: '100%', marginTop: 4,
-          background: '#1f2937', border: '1px solid #374151', borderRadius: 12,
-          boxShadow: '0 20px 40px rgba(0,0,0,0.5)', zIndex: 50, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-          <div style={{ padding: 8, borderBottom: '1px solid rgba(55,65,81,0.6)' }}>
-            <input ref={inputRef} value={q} onChange={e => setQ(e.target.value)}
-              placeholder="Search..."
-              style={{ width: '100%', background: '#111827', border: '1px solid #374151', borderRadius: 8,
-                padding: '8px 12px', fontSize: 13, color: '#fff', outline: 'none', boxSizing: 'border-box' }}
-              onKeyDown={e => {
-                if (e.key === 'Enter' && filtered[0]) pick(filtered[0]);
-                if (e.key === 'Escape') setOpen(false);
-              }} />
-          </div>
-          <div style={{ overflowY: 'auto', maxHeight: 220 }}>
-            {filtered.map(p => (
-              <button key={p.dex} type="button" onClick={() => pick(p)}
-                style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 10,
-                  padding: '8px 14px', background: value?.dex === p.dex ? '#374151' : 'transparent',
-                  border: 'none', cursor: 'pointer', textAlign: 'left', transition: 'background 0.1s' }}
-                onMouseEnter={e => { if (value?.dex !== p.dex) e.currentTarget.style.background = 'rgba(55,65,81,0.6)'; }}
-                onMouseLeave={e => { if (value?.dex !== p.dex) e.currentTarget.style.background = 'transparent'; }}>
-                <div style={{ width: 32, height: 32, display: 'flex', alignItems: 'center',
-                  justifyContent: 'center', flexShrink: 0 }}>
-                  <SpriteImg dex={p.dex} style={{ width: 32, height: 32, objectFit: 'contain' }} />
-                </div>
-                <span style={{ color: '#e5e7eb', fontSize: 13, flex: 1 }}>{p.name}</span>
-                <span style={{ color: '#6b7280', fontSize: 12 }}>
-                  {p.levels ? `Lv ${p.levels.join('/')}` : ''}
-                </span>
-              </button>
-            ))}
-            {filtered.length === 0 && (
-              <p className="text-center text-gray-500 text-sm py-4">No results</p>
-            )}
-          </div>
-        </div>
-      )}
+    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 12 }}>
+      {options.map(p => {
+        const sel = value?.dex === p.dex;
+        return (
+          <button key={p.dex} type="button" title={p.name} onClick={() => onChange(p)}
+            style={{ width: 54, height: 54, display: 'flex', alignItems: 'center',
+              justifyContent: 'center', padding: 0, cursor: 'pointer',
+              background: sel ? 'rgba(5,150,105,0.2)' : '#1f2937',
+              border: `2px solid ${sel ? '#10b981' : '#374151'}`,
+              borderRadius: 10, transition: 'all 0.1s' }}
+            onMouseEnter={e => { if (!sel) e.currentTarget.style.borderColor = '#4b5563'; }}
+            onMouseLeave={e => { if (!sel) e.currentTarget.style.borderColor = sel ? '#10b981' : '#374151'; }}>
+            <SpriteImg dex={p.dex} style={{ width: 46, height: 46, objectFit: 'contain' }} />
+          </button>
+        );
+      })}
     </div>
   );
 }
@@ -418,15 +373,6 @@ export default function SafariZone() {
   const [pokemon, setPokemon] = useState(null);
   const [level,   setLevel]   = useState(25);
 
-  const [modRate,    setModRate]    = useState(45);
-  const [encState,   setEncState]   = useState('neutral'); // 'neutral' | 'angry' | 'eating'
-  const [catchStage, setCatchStage] = useState(0);
-  const [fleeStage,  setFleeStage]  = useState(0);
-  const [ballsLeft,  setBallsLeft]  = useState(30);
-  const [active,     setActive]     = useState(false);
-  const [log,        setLog]        = useState([]);
-  const [prompt,     setPrompt]     = useState(null); // null | 'ball' | 'still-active'
-
   // RSE interactive state
   const [rseEscapeFactor, setRseEscapeFactor] = useState(3);
   const [rseBalls,        setRseBalls]        = useState(30);
@@ -436,158 +382,98 @@ export default function SafariZone() {
 
   const game     = SAFARI_GAMES.find(g => g.id === gameId);
   const mechanic = game?.mechanic;
+  const balls    = game?.ballCount ?? 30;
 
-  // ── Probabilities ──────────────────────────────────────────────────────────
+  // ── Probabilities (always from neutral/base state) ─────────────────────────
 
   const catchP = useMemo(() => {
-    if (!active || !pokemon) return 0;
-    if (mechanic === 'gen1') return gen1Catch(modRate);
-    if (mechanic === 'gen4') return gen4Catch(pokemon.catchRate ?? 45, catchStage);
+    if (!pokemon) return 0;
+    if (mechanic === 'gen1') return gen1Catch(pokemon.catchRate);
+    if (mechanic === 'frlg') return frlgCatch(initCatchFactor(pokemon.catchRate ?? 45));
+    if (mechanic === 'gen4') return gen4Catch(pokemon.catchRate ?? 45, 0);
     return 0;
-  }, [mechanic, active, modRate, pokemon, catchStage]);
+  }, [mechanic, pokemon]);
 
   const fleeP = useMemo(() => {
-    if (!active || !pokemon) return 0;
-    if (mechanic === 'gen1') return gen1Flee(pokemon.baseSpeed ?? 60, level, encState);
-    if (mechanic === 'gen4') return gen4Flee(pokemon.escapeRate ?? 90, fleeStage);
+    if (!pokemon) return 0;
+    if (mechanic === 'gen1') return gen1Flee(pokemon.baseSpeed ?? 60, level, 'neutral');
+    if (mechanic === 'frlg') return frlgFlee(pokemon.fleeRate ?? 3);
+    if (mechanic === 'gen4') return gen4Flee(pokemon.escapeRate ?? 90, 0);
     return 0;
-  }, [mechanic, active, pokemon, level, encState, fleeStage]);
+  }, [mechanic, pokemon, level]);
 
   const totalP = useMemo(() =>
-    active ? cumCatch(catchP, fleeP, ballsLeft) : 0,
-    [catchP, fleeP, ballsLeft, active]);
+    pokemon ? cumCatch(catchP, fleeP, balls) : 0,
+    [catchP, fleeP, balls, pokemon]);
 
   const baitProj = useMemo(() => {
-    if (!active || !pokemon) return null;
+    if (!pokemon) return null;
     if (mechanic === 'gen1') return {
-      c: gen1Catch(Math.max(1, Math.floor(modRate / 2))),
+      c: gen1Catch(Math.max(1, Math.floor(pokemon.catchRate / 2))),
       f: gen1Flee(pokemon.baseSpeed, level, 'eating'),
     };
-    // Bait: flee certain −1 stage, catch −1 stage (90% chance) — shows expected outcome
+    if (mechanic === 'frlg') {
+      const cf = initCatchFactor(pokemon.catchRate ?? 45);
+      return {
+        c: frlgCatch(Math.max(3, Math.floor(cf / 2))),
+        f: frlgFlee(Math.max(1, Math.floor((pokemon.fleeRate ?? 3) / 4))),
+      };
+    }
     if (mechanic === 'gen4') return {
-      c: gen4Catch(pokemon.catchRate, catchStage - 1),
-      f: gen4Flee(pokemon.escapeRate, fleeStage - 1),
+      c: gen4Catch(pokemon.catchRate, -1),
+      f: gen4Flee(pokemon.escapeRate, -1),
     };
     return null;
-  }, [mechanic, active, modRate, pokemon, level, catchStage, fleeStage]);
+  }, [mechanic, pokemon, level]);
 
   const rockProj = useMemo(() => {
-    if (!active || !pokemon) return null;
+    if (!pokemon) return null;
     if (mechanic === 'gen1') return {
-      c: gen1Catch(Math.min(255, modRate * 2)),
+      c: gen1Catch(Math.min(255, pokemon.catchRate * 2)),
       f: gen1Flee(pokemon.baseSpeed, level, 'angry'),
     };
-    // Mud/Rock: catch certain +1 stage, flee +1 stage (90% chance) — shows expected outcome
+    if (mechanic === 'frlg') {
+      const cf = initCatchFactor(pokemon.catchRate ?? 45);
+      return {
+        c: frlgCatch(Math.min(20, cf * 2)),
+        f: frlgFlee(Math.min(20, (pokemon.fleeRate ?? 3) * 2)),
+      };
+    }
     if (mechanic === 'gen4') return {
-      c: gen4Catch(pokemon.catchRate, catchStage + 1),
-      f: gen4Flee(pokemon.escapeRate, fleeStage + 1),
+      c: gen4Catch(pokemon.catchRate, 1),
+      f: gen4Flee(pokemon.escapeRate, 1),
     };
     return null;
-  }, [mechanic, active, modRate, pokemon, level, catchStage, fleeStage]);
+  }, [mechanic, pokemon, level]);
 
   const rec = useMemo(() => {
-    if (!active) return 'ball';
+    if (!pokemon) return null;
     if (mechanic === 'gen1') {
-      // Rock only when speed is low AND catch rate is poor AND still neutral
-      const spd = actualSpeed(pokemon?.baseSpeed ?? 60, level);
-      if (spd <= 25 && modRate < 128 && encState === 'neutral') return 'rock';
+      const spd = actualSpeed(pokemon.baseSpeed ?? 60, level);
+      if (spd <= 25 && pokemon.catchRate < 128) return 'rock';
+    }
+    if (mechanic === 'frlg') {
+      const cf = initCatchFactor(pokemon.catchRate ?? 45);
+      if (cf < 3) return 'bait';
+      if (catchP < 0.12 && cf < 10) return 'rock';
     }
     if (mechanic === 'gen4') {
-      // Mud raises catch (certain) — worthwhile for very low catch rate, first 1-2 throws
-      if (catchP < 0.12 && catchStage < 2) return 'rock';
+      if (catchP < 0.12) return 'rock';
     }
     return 'ball';
-  }, [active, mechanic, pokemon, level, modRate, encState, catchP, catchStage]);
+  }, [mechanic, pokemon, level, catchP]);
 
-  // ── Auto-start ─────────────────────────────────────────────────────────────
+  // ── Reset level on pokemon change ──────────────────────────────────────────
 
   useEffect(() => {
-    if (!game || mechanic === 'rse' || mechanic === 'friend') { setActive(false); return; }
-    if (!pokemon) { setActive(false); return; }
-    setModRate(pokemon.catchRate ?? 45);
-    setEncState('neutral');
-    setCatchStage(0); setFleeStage(0);
-    setBallsLeft(game.ballCount ?? 30);
-    setLevel(pokemon.levels?.[0] ?? 25);
-    setLog([]); setPrompt(null);
-    setActive(true);
+    if (pokemon) setLevel(pokemon.levels?.[0] ?? 25);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pokemon?.dex, gameId]);
 
   // ── Handlers ───────────────────────────────────────────────────────────────
 
-  function addLog(msg) { setLog(p => [msg, ...p].slice(0, 10)); }
-
-  function handleBall() {
-    if (ballsLeft <= 0) return;
-    setBallsLeft(p => p - 1);
-    setPrompt('ball');
-    addLog(`Ball thrown — ${pct(catchP)} catch · ${pct(fleeP)} flee`);
-  }
-
-  function handleCaught() {
-    addLog('Caught!');
-    setActive(false);
-    setPrompt(null);
-    setPokemon(null);
-  }
-
-  function handleMissed() {
-    setPrompt(null);
-    // Gen 1: after a miss, check if the effect is still active
-    if (mechanic === 'gen1' && encState !== 'neutral') {
-      setPrompt('still-active');
-    }
-  }
-
-  function handleStillActive(still) {
-    if (!still) {
-      if (encState === 'angry') {
-        // Rock wears off — catch rate resets to base
-        setModRate(pokemon.catchRate);
-        addLog('Anger wore off — catch rate reset');
-      } else {
-        // Bait wears off — catch rate stays halved permanently
-        addLog('Eating wore off — catch rate stays halved');
-      }
-      setEncState('neutral');
-    }
-    setPrompt(null);
-  }
-
-  function handleBait() {
-    if (mechanic === 'gen1') {
-      const r = Math.max(1, Math.floor(modRate / 2));
-      setModRate(r);
-      setEncState('eating');
-      addLog(`Bait → catch rate ${r} (${pct(gen1Catch(r))})`);
-    } else if (mechanic === 'gen4') {
-      // Bait: flee certain −1 stage, catch −1 stage (90% chance)
-      setCatchStage(p => Math.max(-6, p - 1));
-      setFleeStage(p => Math.max(-6, p - 1));
-      addLog('Bait → flee −1 stage · catch −1 stage (90% chance)');
-    }
-  }
-
-  function handleRock() {
-    const label = game?.rockLabel ?? 'Rock';
-    if (mechanic === 'gen1') {
-      const r = Math.min(255, modRate * 2);
-      setModRate(r);
-      setEncState('angry');
-      addLog(`${label} → catch rate ${r} (${pct(gen1Catch(r))})`);
-    } else if (mechanic === 'gen4') {
-      // Mud/Rock: catch certain +1 stage, flee +1 stage (90% chance)
-      setCatchStage(p => Math.min(6, p + 1));
-      setFleeStage(p => Math.min(6, p + 1));
-      addLog(`${label} → catch +1 stage · flee +1 stage (90% chance)`);
-    }
-  }
-
-  function handleFled() { addLog('Pokémon fled'); setActive(false); setPokemon(null); }
-
   function handleGameChange(id) {
-    setGameId(id); setPokemon(null); setActive(false); setEncState('neutral');
+    setGameId(id); setPokemon(null);
     setRseEscapeFactor(3); setRseBalls(30); setShinyCount(0);
   }
 
@@ -595,13 +481,6 @@ export default function SafariZone() {
   const hasRock   = game && mechanic !== 'rse' && mechanic !== 'friend' && game.rockLabel;
   const pokeList  = gameId ? (SAFARI_POKEMON[gameId] ?? []) : [];
   const spd       = mechanic === 'gen1' && pokemon ? actualSpeed(pokemon.baseSpeed, level) : null;
-
-  // State pill colors
-  const statePill = encState === 'angry'
-    ? { bg: 'rgba(249,115,22,0.15)', border: 'rgba(249,115,22,0.4)', color: '#fb923c', label: 'Angry' }
-    : encState === 'eating'
-    ? { bg: 'rgba(59,130,246,0.15)', border: 'rgba(59,130,246,0.4)', color: '#60a5fa', label: 'Eating' }
-    : { bg: 'rgba(107,114,128,0.15)', border: 'rgba(107,114,128,0.3)', color: '#9ca3af', label: 'Neutral' };
 
   // ── Render ─────────────────────────────────────────────────────────────────
 
@@ -702,306 +581,147 @@ export default function SafariZone() {
       {/* ── Pokemon + level ───────────────────────────────────────────────── */}
       {game && mechanic !== 'rse' && mechanic !== 'friend' && (
         <div className="mt-3">
-          <PokemonDropdown options={pokeList} value={pokemon} onChange={setPokemon} mechanic={mechanic} />
-          {(mechanic === 'gen1' || mechanic === 'gen4') && pokemon?.levels && (
+          <PokemonGrid options={pokeList} value={pokemon} onChange={setPokemon} />
+          {mechanic === 'gen1' && pokemon?.levels && (
             <div className="flex items-center gap-2.5 mt-2.5 px-0.5 flex-wrap">
               <span className="text-xs text-gray-500 shrink-0">Encounter level</span>
               <div className="flex gap-1.5 flex-wrap">
                 {pokemon.levels.map(lv => (
-                  <button key={lv} type="button"
-                    onClick={mechanic === 'gen1' ? () => setLevel(lv) : undefined}
+                  <button key={lv} type="button" onClick={() => setLevel(lv)}
                     style={{ padding: '4px 14px', borderRadius: 99, fontSize: 13, fontWeight: 700,
-                      cursor: mechanic === 'gen1' ? 'pointer' : 'default',
-                      border: '1px solid', transition: 'all 0.1s',
-                      background: mechanic === 'gen1' && level === lv ? '#059669' : 'transparent',
-                      borderColor: mechanic === 'gen1' && level === lv ? '#059669' : '#374151',
-                      color: mechanic === 'gen1' && level === lv ? '#fff' : '#9ca3af' }}>
+                      cursor: 'pointer', border: '1px solid', transition: 'all 0.1s',
+                      background: level === lv ? '#059669' : 'transparent',
+                      borderColor: level === lv ? '#059669' : '#374151',
+                      color: level === lv ? '#fff' : '#9ca3af' }}>
                     {lv}
                   </button>
                 ))}
               </div>
-              {mechanic === 'gen1' && spd != null && (
-                <span className="text-xs text-gray-600 shrink-0">~{spd} spd</span>
-              )}
-              {mechanic === 'gen4' && (
-                <span className="text-xs text-gray-600 shrink-0">level doesn't affect odds</span>
-              )}
+              {spd != null && <span className="text-xs text-gray-600 shrink-0">~{spd} spd</span>}
             </div>
           )}
         </div>
       )}
 
       {/* ── Encounter card ────────────────────────────────────────────────── */}
-      {active && (
-        <div className="mt-5 bg-gray-900 border border-gray-800 rounded-2xl overflow-hidden shadow-2xl">
+      {pokemon && mechanic !== 'rse' && mechanic !== 'friend' && (() => {
+        const rows = [
+          { key: 'ball', label: 'Neutral', c: catchP, f: fleeP, total: totalP },
+          ...(baitProj ? [{ key: 'bait', label: 'After bait', c: baitProj.c, f: baitProj.f, total: cumCatch(baitProj.c, baitProj.f, balls) }] : []),
+          ...(hasRock && rockProj ? [{ key: 'rock', label: `After ${rockLabel.toLowerCase()}`, c: rockProj.c, f: rockProj.f, total: cumCatch(rockProj.c, rockProj.f, balls) }] : []),
+        ];
+        const bestTotal = Math.max(...rows.map(r => r.total));
+        return (
+          <div className="mt-5 bg-gray-900 border border-gray-800 rounded-2xl overflow-hidden shadow-2xl">
 
-          {/* Identity */}
-          <div className="flex items-center gap-4 p-5 pb-4 bg-gray-800/60 border-b border-gray-800">
-            <div className="w-[72px] h-[72px] flex items-center justify-center bg-black/30 rounded-[14px] shrink-0">
-              {pokemon?.dex && <SpriteImg key={pokemon.dex} dex={pokemon.dex} style={{ width: 64, height: 64, objectFit: 'contain', imageRendering: 'pixelated' }} />}
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-xl font-extrabold text-white mb-1.5 leading-none">
-                {pokemon?.name}
-              </p>
-              <div className="flex flex-wrap gap-1.5">
-                <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full"
-                  style={{ background: statePill.bg, border: `1px solid ${statePill.border}`, color: statePill.color }}>
-                  {statePill.label}
-                </span>
-                {mechanic === 'gen4' && catchStage !== 0 && (
-                  <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full"
-                    style={{
-                      background: catchStage > 0 ? 'rgba(52,211,153,0.1)' : 'rgba(248,113,113,0.1)',
-                      border: `1px solid ${catchStage > 0 ? 'rgba(52,211,153,0.3)' : 'rgba(248,113,113,0.3)'}`,
-                      color: catchStage > 0 ? '#34d399' : '#f87171',
-                    }}>
-                    Catch {catchStage > 0 ? '+' : ''}{catchStage}
-                  </span>
-                )}
-                {mechanic === 'gen4' && fleeStage !== 0 && (
-                  <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full"
-                    style={{
-                      background: fleeStage < 0 ? 'rgba(52,211,153,0.1)' : 'rgba(248,113,113,0.1)',
-                      border: `1px solid ${fleeStage < 0 ? 'rgba(52,211,153,0.3)' : 'rgba(248,113,113,0.3)'}`,
-                      color: fleeStage < 0 ? '#34d399' : '#f87171',
-                    }}>
-                    Flee {fleeStage > 0 ? '+' : ''}{fleeStage}
-                  </span>
-                )}
+            {/* Identity */}
+            <div className="flex items-center gap-4 p-4 bg-gray-800/60 border-b border-gray-800">
+              <div className="w-14 h-14 flex items-center justify-center bg-black/30 rounded-xl shrink-0">
+                <SpriteImg key={pokemon.dex} dex={pokemon.dex} style={{ width: 52, height: 52, objectFit: 'contain', imageRendering: 'pixelated' }} />
               </div>
-            </div>
-            <div className="text-center shrink-0">
-              <p className="text-[34px] font-black leading-none tabular-nums text-white">
-                {ballsLeft}
-              </p>
-              <p className="text-[11px] text-gray-600 mt-0.5 uppercase tracking-[0.08em]">balls</p>
-            </div>
-          </div>
-
-          {/* Stats */}
-          <div className="grid grid-cols-2 border-b border-gray-800">
-            {[
-              { label: 'Catch / ball', v: catchP, color: catchColor(catchP) },
-              { label: 'Flee / turn',  v: fleeP,  color: fleeColor(fleeP)   },
-            ].map(({ label, v, color }, i) => (
-              <div key={i} className={`text-center py-5 px-4${i === 0 ? ' border-r border-gray-800' : ''}`}>
-                <p className="text-[11px] uppercase tracking-widest text-gray-600 mb-1.5">{label}</p>
-                <p className="text-[38px] font-black leading-none tabular-nums" style={{ color }}>{pct(v)}</p>
-              </div>
-            ))}
-          </div>
-
-          {/* Est. total strip */}
-          <div className="text-center py-2 px-4 border-b border-gray-800 bg-black/20">
-            <span className="text-xs text-gray-600">
-              Est. catch with {ballsLeft} ball{ballsLeft !== 1 ? 's' : ''}:{' '}
-              <span className="font-bold" style={{ color: catchColor(totalP) }}>{pct(totalP)}</span>
-            </span>
-          </div>
-
-          {/* Actions / prompts */}
-          <div className="p-4">
-
-            {prompt === 'ball' ? (
               <div>
-                <p className="text-gray-400 text-sm text-center mb-3">
-                  Did the ball catch it?
+                <p className="text-lg font-extrabold text-white leading-none mb-0.5">{pokemon.name}</p>
+                <p className="text-xs text-gray-500">
+                  {mechanic === 'gen1' && `Base speed ${pokemon.baseSpeed}`}
+                  {mechanic === 'frlg' && `Catch factor ${initCatchFactor(pokemon.catchRate)} · Flee factor ${pokemon.fleeRate}`}
+                  {mechanic === 'gen4' && `Catch rate ${pokemon.catchRate} · Escape rate ${pokemon.escapeRate}`}
                 </p>
-                <div className="grid grid-cols-2 gap-2.5">
-                  <button onClick={handleCaught}
-                    style={{ padding: '16px 0', borderRadius: 12, background: '#059669',
-                      border: 'none', color: '#fff', fontSize: 16, fontWeight: 700,
-                      cursor: 'pointer', transition: 'background 0.15s' }}
-                    onMouseEnter={e => e.currentTarget.style.background = '#10b981'}
-                    onMouseLeave={e => e.currentTarget.style.background = '#059669'}>
-                    Caught! ✓
-                  </button>
-                  <button onClick={handleMissed}
-                    style={{ padding: '16px 0', borderRadius: 12, background: '#374151',
-                      border: 'none', color: '#fff', fontSize: 16, fontWeight: 700,
-                      cursor: 'pointer', transition: 'background 0.15s' }}
-                    onMouseEnter={e => e.currentTarget.style.background = '#4b5563'}
-                    onMouseLeave={e => e.currentTarget.style.background = '#374151'}>
-                    Broke free
-                  </button>
-                </div>
               </div>
-            ) : prompt === 'still-active' ? (
-              <div>
-                <p className="text-gray-400 text-sm text-center mb-3">
-                  Is the Pokémon still{' '}
-                  <span className="font-bold" style={{ color: encState === 'angry' ? '#fb923c' : '#60a5fa' }}>
-                    {encState}
-                  </span>?
-                </p>
-                <div className="grid grid-cols-2 gap-2.5">
-                  <button onClick={() => handleStillActive(true)}
-                    style={{ padding: '16px 0', borderRadius: 12, background: '#374151',
-                      border: 'none', color: '#fff', fontSize: 15, fontWeight: 700,
-                      cursor: 'pointer', transition: 'background 0.15s' }}
-                    onMouseEnter={e => e.currentTarget.style.background = '#4b5563'}
-                    onMouseLeave={e => e.currentTarget.style.background = '#374151'}>
-                    Still {encState}
-                  </button>
-                  <button onClick={() => handleStillActive(false)}
-                    style={{ padding: '16px 0', borderRadius: 12, background: '#1f2937',
-                      border: '1px solid #374151', color: '#9ca3af', fontSize: 15, fontWeight: 700,
-                      cursor: 'pointer', transition: 'background 0.15s' }}
-                    onMouseEnter={e => e.currentTarget.style.background = '#374151'}
-                    onMouseLeave={e => e.currentTarget.style.background = '#1f2937'}>
-                    Wore off
-                  </button>
+            </div>
+
+            {/* Comparison table */}
+            <div className="grid px-4 py-1.5 border-b border-gray-800/60 bg-gray-950/40"
+              style={{ gridTemplateColumns: '100px 1fr 1fr 1fr' }}>
+              <span />
+              <span className="text-[10px] uppercase tracking-widest text-gray-600 text-center">Catch/ball</span>
+              <span className="text-[10px] uppercase tracking-widest text-gray-600 text-center">Flee/turn</span>
+              <span className="text-[10px] uppercase tracking-widest text-gray-600 text-center">Est. {balls} balls</span>
+            </div>
+            {rows.map(row => {
+              const isBest = row.total >= bestTotal - 0.0001;
+              const isBaseline = row.key === 'ball';
+              return (
+                <div key={row.key} className="grid items-center px-4 py-3 border-b border-gray-800/50 last:border-b-0"
+                  style={{ gridTemplateColumns: '100px 1fr 1fr 1fr', background: isBest ? 'rgba(5,150,105,0.08)' : 'transparent' }}>
+                  <span style={{ fontSize: 12, fontWeight: 700, color: isBest ? '#34d399' : '#6b7280' }}>
+                    {isBest ? '✓ ' : ''}{row.label}
+                  </span>
+                  <span style={{ textAlign: 'center', fontSize: 14, fontWeight: 700, color: catchColor(row.c) }}>
+                    {pct(row.c)}
+                    {!isBaseline && Math.abs(row.c - catchP) > 0.0001 && (
+                      <span style={{ fontSize: 10, color: row.c > catchP ? '#34d399' : '#f87171', marginLeft: 2 }}>
+                        {row.c > catchP ? '↑' : '↓'}
+                      </span>
+                    )}
+                  </span>
+                  <span style={{ textAlign: 'center', fontSize: 14, fontWeight: 700, color: fleeColor(row.f) }}>
+                    {pct(row.f)}
+                    {!isBaseline && Math.abs(row.f - fleeP) > 0.0001 && (
+                      <span style={{ fontSize: 10, color: row.f < fleeP ? '#34d399' : '#f87171', marginLeft: 2 }}>
+                        {row.f < fleeP ? '↓' : '↑'}
+                      </span>
+                    )}
+                  </span>
+                  <span style={{ textAlign: 'center', fontSize: 14, fontWeight: 800, color: catchColor(row.total) }}>
+                    {pct(row.total)}
+                  </span>
                 </div>
-              </div>
-            ) : (
-              <div className="flex flex-col gap-2.5">
+              );
+            })}
 
-                {/* Primary action — Ball (or rock if rec) */}
-                {rec === 'ball' ? (
-                  <button onClick={handleBall} disabled={ballsLeft <= 0}
-                    style={{ width: '100%', padding: '16px 20px', borderRadius: 14,
-                      background: ballsLeft <= 0 ? '#374151' : '#059669',
-                      border: 'none', cursor: ballsLeft <= 0 ? 'not-allowed' : 'pointer',
-                      display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                      transition: 'background 0.15s', opacity: ballsLeft <= 0 ? 0.5 : 1 }}
-                    onMouseEnter={e => { if (ballsLeft > 0) e.currentTarget.style.background = '#10b981'; }}
-                    onMouseLeave={e => { if (ballsLeft > 0) e.currentTarget.style.background = '#059669'; }}>
-                    <div style={{ textAlign: 'left' }}>
-                      <p style={{ color: '#fff', fontSize: 16, fontWeight: 800, margin: 0 }}>Throw Ball</p>
-                      <p style={{ color: 'rgba(255,255,255,0.7)', fontSize: 12, margin: '2px 0 0' }}>
-                        {pct(catchP)} catch · {pct(fleeP)} flee
-                      </p>
-                    </div>
-                    <span style={{ color: '#6ee7b7', fontSize: 11, fontWeight: 700,
-                      textTransform: 'uppercase', letterSpacing: '0.1em',
-                      background: 'rgba(0,0,0,0.2)', padding: '4px 10px', borderRadius: 99 }}>
-                      ✓ Best
-                    </span>
-                  </button>
-                ) : (
-                  <button onClick={handleBall} disabled={ballsLeft <= 0}
-                    style={{ width: '100%', padding: '14px 20px', borderRadius: 14,
-                      background: '#1f2937', border: '1px solid #374151', cursor: ballsLeft <= 0 ? 'not-allowed' : 'pointer',
-                      display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                      transition: 'background 0.15s', opacity: ballsLeft <= 0 ? 0.5 : 1 }}
-                    onMouseEnter={e => { if (ballsLeft > 0) e.currentTarget.style.background = '#374151'; }}
-                    onMouseLeave={e => { if (ballsLeft > 0) e.currentTarget.style.background = '#1f2937'; }}>
-                    <span style={{ color: '#e5e7eb', fontSize: 15, fontWeight: 700 }}>Throw Ball</span>
-                    <span style={{ color: '#9ca3af', fontSize: 13 }}>{pct(catchP)} catch · {pct(fleeP)} flee</span>
-                  </button>
-                )}
-
-                {/* Secondary actions — Bait + Rock/Mud */}
-                <div style={{ display: 'grid', gridTemplateColumns: hasRock ? '1fr 1fr' : '1fr', gap: 10 }}>
-                  {/* Bait */}
-                  {(() => {
-                    const isRec = rec === 'bait';
-                    const proj  = baitProj;
-                    const catchBetter = proj ? proj.c > catchP : false;
-                    const fleeBetter  = proj ? proj.f < fleeP  : false;
-                    return (
-                      <button onClick={handleBait}
-                        style={{ padding: '14px 14px', borderRadius: 14, textAlign: 'left', cursor: 'pointer',
-                          background: isRec ? 'rgba(5,150,105,0.12)' : '#1f2937',
-                          border: `1px solid ${isRec ? 'rgba(16,185,129,0.4)' : '#374151'}`,
-                          transition: 'background 0.15s' }}
-                        onMouseEnter={e => e.currentTarget.style.background = isRec ? 'rgba(5,150,105,0.2)' : '#374151'}
-                        onMouseLeave={e => e.currentTarget.style.background = isRec ? 'rgba(5,150,105,0.12)' : '#1f2937'}>
-                        <p style={{ margin: '0 0 8px', fontSize: 14, fontWeight: 700,
-                          color: isRec ? '#34d399' : '#e5e7eb' }}>
-                          {isRec && '✓ '}Bait
-                        </p>
-                        {proj && (
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-                            <span style={{ fontSize: 12, color: catchBetter ? '#34d399' : '#f87171' }}>
-                              Catch {pct(proj.c)} {catchBetter ? '↑' : '↓'}
-                            </span>
-                            <span style={{ fontSize: 12, color: fleeBetter ? '#34d399' : '#f87171' }}>
-                              Flee {pct(proj.f)} {fleeBetter ? '↓' : '↑'}
-                            </span>
-                          </div>
-                        )}
-                        {mechanic === 'gen4' && (
-                          <p style={{ color: '#4b5563', fontSize: 11, margin: '6px 0 0' }}>
-                            Flee −1 (certain) · Catch −1 (90%)
-                          </p>
-                        )}
-                      </button>
-                    );
-                  })()}
-
-                  {/* Rock / Mud */}
-                  {hasRock && (() => {
-                    const isRec = rec === 'rock';
-                    const proj  = rockProj;
-                    const catchBetter = proj ? proj.c > catchP : false;
-                    const fleeBetter  = proj ? proj.f < fleeP  : false;
-                    return (
-                      <button onClick={handleRock}
-                        style={{ padding: isRec ? '14px 20px' : '14px 14px', borderRadius: 14, textAlign: 'left',
-                          cursor: 'pointer',
-                          background: isRec ? '#059669' : '#1f2937',
-                          border: `1px solid ${isRec ? '#059669' : '#374151'}`,
-                          transition: 'background 0.15s' }}
-                        onMouseEnter={e => e.currentTarget.style.background = isRec ? '#10b981' : '#374151'}
-                        onMouseLeave={e => e.currentTarget.style.background = isRec ? '#059669' : '#1f2937'}>
-                        <p style={{ margin: '0 0 8px', fontSize: 14, fontWeight: 700,
-                          color: isRec ? '#fff' : '#e5e7eb' }}>
-                          {isRec && '✓ '}{rockLabel}
-                        </p>
-                        {proj && !isRec && (
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-                            <span style={{ fontSize: 12, color: catchBetter ? '#34d399' : '#f87171' }}>
-                              Catch {pct(proj.c)} {catchBetter ? '↑' : '↓'}
-                            </span>
-                            <span style={{ fontSize: 12, color: fleeBetter ? '#34d399' : '#f87171' }}>
-                              Flee {pct(proj.f)} {fleeBetter ? '↓' : '↑'}
-                            </span>
-                          </div>
-                        )}
-                        {isRec && proj && (
-                          <p style={{ color: 'rgba(255,255,255,0.7)', fontSize: 12, margin: 0 }}>
-                            {pct(proj.c)} catch · {pct(proj.f)} flee
-                          </p>
-                        )}
-                        {mechanic === 'gen4' && (
-                          <p style={{ color: isRec ? 'rgba(255,255,255,0.5)' : '#4b5563', fontSize: 11, margin: '6px 0 0' }}>
-                            Catch +1 (certain) · Flee +1 (90%)
-                          </p>
-                        )}
-                      </button>
-                    );
-                  })()}
-                </div>
-
-                {/* Fled */}
-                <button onClick={handleFled}
-                  className="w-full py-2.5 rounded-xl border border-gray-700 text-gray-500 text-sm transition-all hover:border-red-400/40 hover:text-red-400 hover:bg-red-400/5">
-                  Pokémon fled
-                </button>
-
-                {/* Gen 1 bait warning */}
-                {mechanic === 'gen1' && encState === 'eating' && (
-                  <p className="text-xs text-center text-yellow-600 mt-1">
-                    Note: Catch rate stays halved even after bait wears off.
+            {/* Throw sequence */}
+            {(() => {
+              const CHIP = {
+                ball: { label: 'Ball', bg: '#1f2937', border: '#374151', color: '#6b7280' },
+                bait: { label: 'Bait', bg: 'rgba(5,150,105,0.18)', border: 'rgba(52,211,153,0.3)', color: '#34d399' },
+                rock: { label: rockLabel, bg: 'rgba(249,115,22,0.12)', border: 'rgba(251,146,60,0.28)', color: '#fb923c' },
+              };
+              const seq = [];
+              if (rec === 'ball') {
+                for (let i = 0; i < balls; i++) seq.push('ball');
+              } else if (rec === 'bait') {
+                let rem = balls;
+                while (rem > 0) {
+                  seq.push('bait');
+                  for (let i = 0; i < 3 && rem > 0; i++) { seq.push('ball'); rem--; }
+                }
+              } else if (rec === 'rock') {
+                const n = mechanic === 'gen4' ? 2 : 1;
+                for (let i = 0; i < n; i++) seq.push('rock');
+                for (let i = 0; i < balls; i++) seq.push('ball');
+              }
+              return (
+                <div className="px-4 py-3 border-t border-gray-800">
+                  <p className="text-[10px] uppercase tracking-widest text-gray-600 mb-2">
+                    Throw sequence · {balls} balls
                   </p>
-                )}
-              </div>
-            )}
-
-            {/* Log */}
-            {log.length > 0 && (
-              <div className="mt-3.5 pt-3 border-t border-gray-800">
-                {log.map((msg, i) => (
-                  <p key={i} className="text-xs leading-tight mb-0.5"
-                    style={{ color: i === 0 ? '#6b7280' : '#374151' }}>{msg}</p>
-                ))}
-              </div>
-            )}
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3 }}>
+                    {seq.map((type, i) => {
+                      const c = CHIP[type];
+                      return (
+                        <span key={i} style={{ fontSize: 10, fontWeight: 700,
+                          padding: '3px 7px', borderRadius: 5,
+                          background: c.bg, border: `1px solid ${c.border}`, color: c.color }}>
+                          {c.label}
+                        </span>
+                      );
+                    })}
+                  </div>
+                  {rec === 'bait' && (
+                    <p className="text-[10px] text-gray-600 mt-2">Re-throw bait whenever eating wears off</p>
+                  )}
+                  {rec === 'rock' && mechanic === 'gen1' && (
+                    <p className="text-[10px] text-gray-600 mt-2">Anger also raises flee — throw balls each turn after</p>
+                  )}
+                  {rec === 'rock' && mechanic === 'gen4' && (
+                    <p className="text-[10px] text-gray-600 mt-2">Two {rockLabel.toLowerCase()}s to stack catch rate before throwing balls</p>
+                  )}
+                </div>
+              );
+            })()}
           </div>
-        </div>
-      )}
+        );
+      })()}
     </div>
   );
 }
