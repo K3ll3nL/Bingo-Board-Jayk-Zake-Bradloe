@@ -457,7 +457,7 @@ export default function DexNavCalculator() {
       </div>
 
       {/* ── Stats grid ── */}
-      <div className="grid grid-cols-3 gap-3 mb-4">
+      {showNerdStats && <div className="grid grid-cols-3 gap-3 mb-4">
         {(() => {
           // enc50 is unreachable if the chain resets before reaching 50
           const enc50Reachable = resetAt <= 0 || resetAt >= 50;
@@ -533,7 +533,7 @@ export default function DexNavCalculator() {
           sub={secsPerEnc ? `≈ ${fmtTime(expectedEnc * secsPerEnc)}` : undefined}
           note="projected from now · SL growth + milestones + 4% boost included"
         />
-      </div>
+      </div>}
 
       {/* ── Graph ── */}
       {showNerdStats && <div className="bg-gray-800/60 border border-gray-700 rounded-xl overflow-hidden mb-4">
@@ -572,7 +572,7 @@ export default function DexNavCalculator() {
       </div>}
 
       {/* ── Milestones table ── */}
-      <div className="bg-gray-800/60 border border-gray-700 rounded-xl overflow-hidden mb-4">
+      {showNerdStats && <div className="bg-gray-800/60 border border-gray-700 rounded-xl overflow-hidden mb-4">
         <div className="px-4 py-3 border-b border-gray-700">
           <h2 className="text-sm font-bold text-gray-300">Probability Milestones</h2>
           <p className="text-xs text-gray-500 mt-0.5">
@@ -615,7 +615,7 @@ export default function DexNavCalculator() {
             </tbody>
           </table>
         </div>
-      </div>
+      </div>}
 
       {/* ── SL reference table ── */}
       <SLReferenceTable shinyCharm={shinyCharm} currentSL={searchLevel} />
