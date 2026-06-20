@@ -35,7 +35,7 @@ function formatTime(secs) {
 }
 
 function formatPct(p) {
-  if (p >= 99.995) return '≈100%';
+  if (p >= 99.995) return '100%';
   if (p < 0.0005) return '<0.001%';
   if (p >= 10) return `${p.toFixed(1)}%`;
   if (p >= 1) return `${p.toFixed(2)}%`;
@@ -46,12 +46,62 @@ const KEY_CHAINS = Array.from({ length: 41 }, (_, i) => i);
 const BASE_ODDS = 4096;
 const MAX_IMPROVEMENT = BASE_ODDS / 99; // ~41.4×
 
+// ── CounterBox ────────────────────────────────────────────────────────────────
+function CounterBox({ label, sublabel, value, onChange, color = 'indigo' }) {
+  const COLOR_TEXT = {
+    indigo: 'text-indigo-400', emerald: 'text-emerald-400', amber: 'text-amber-400',
+    violet: 'text-violet-400',
+  };
+  const [raw, setRaw] = React.useState(String(value));
+
+  React.useEffect(() => {
+    const n = parseInt(raw, 10);
+    if (isNaN(n) || n !== value) setRaw(String(value));
+  }, [value]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  return (
+    <div className="bg-gray-900/60 rounded-xl p-3 flex flex-col gap-1.5">
+      <div>
+        <p className="text-xs font-bold uppercase tracking-wider text-gray-500">{label}</p>
+        {sublabel && <p className="text-[10px] text-gray-600 leading-tight">{sublabel}</p>}
+      </div>
+      <div className="flex items-center gap-1.5">
+        <button
+          onClick={() => onChange(Math.max(0, value - 1))}
+          className="w-8 h-8 flex items-center justify-center rounded-lg bg-gray-700 hover:bg-gray-600 text-gray-300 text-lg font-bold transition-colors shrink-0"
+        >−</button>
+        <input
+          type="text"
+          inputMode="numeric"
+          value={raw}
+          onChange={e => {
+            const s = e.target.value.replace(/[^0-9]/g, '');
+            setRaw(s);
+            if (s !== '') onChange(parseInt(s, 10));
+          }}
+          onBlur={() => {
+            const n = parseInt(raw, 10);
+            const v = isNaN(n) ? 0 : Math.max(0, Math.min(40, n));
+            onChange(v);
+            setRaw(String(v));
+          }}
+          className={`flex-1 min-w-0 bg-transparent text-3xl font-bold text-center focus:outline-none ${COLOR_TEXT[color] ?? 'text-white'}`}
+        />
+        <button
+          onClick={() => onChange(Math.min(40, value + 1))}
+          className="w-8 h-8 flex items-center justify-center rounded-lg bg-gray-700 hover:bg-gray-600 text-gray-300 text-lg font-bold transition-colors shrink-0"
+        >+</button>
+      </div>
+    </div>
+  );
+}
+
 export default function BDSPRadar() {
-  const [chain, setChain] = useState(20);
+  const [chain, setChain] = useState(0);
   const [encRateStr, setEncRateStr] = useState('');
   const [secsStr, setSecsStr] = useState('20');
-  const [showAdvanced, setShowAdvanced] = useState(false);
   const [contRateStr, setContRateStr] = useState('93');
+  const [showNerdStats, setShowNerdStats] = useState(false);
 
   // Sanitised numeric values
   const secsPerEnc = Math.max(1, parseFloat(secsStr) || 20);
@@ -86,204 +136,168 @@ export default function BDSPRadar() {
     return { n, odds, chanceThisFar, chanceToForty, encToShiny, timeToShinyS, encToRecover, timeToRecoverS, timeTotalS };
   }, [chain, contRate, encRate, secsPerEnc]);
 
-  function handleChainInput(val) {
-    const n = Math.max(0, Math.min(40, parseInt(val, 10) || 0));
-    setChain(n);
-  }
-
   return (
     <div className="max-w-3xl mx-auto px-4 py-4 text-white">
-      <h1 className="text-2xl font-bold mb-0.5">BDSP Radar Breakdown</h1>
-      <p className="text-gray-400 text-sm mb-3">
-        Brilliant Diamond / Shining Pearl — Poké Radar shiny stats.{' '}
+      <div className="flex items-start justify-between mb-0.5">
+        <h1 className="text-2xl font-bold">BDSP Radar Breakdown</h1>
+        <button
+          onClick={() => setShowNerdStats(v => !v)}
+          className={`mt-1 px-2.5 py-1 rounded-lg text-xs font-semibold border transition-colors ${
+            showNerdStats
+              ? 'bg-indigo-600/20 border-indigo-500/50 text-indigo-400'
+              : 'bg-gray-800 border-gray-700 text-gray-500 hover:text-gray-300 hover:border-gray-500'
+          }`}
+        >
+          Stats for nerds
+        </button>
+      </div>
+      <p className="text-gray-400 text-sm mb-4">
+        Brilliant Diamond / Shining Pearl - Poké Radar shiny stats.{' '}
         <span className="text-gray-500">Odds sourced from Serebii.</span>
       </p>
 
-      {/* ── Inputs ── */}
-      <div className="bg-gray-800/60 border border-gray-700 rounded-xl p-4 mb-4 space-y-3">
-        {/* Chain slider + number input */}
-        <div>
-          <div className="flex items-center justify-between mb-2">
-            <label className="text-sm font-semibold text-gray-300">Chain Length</label>
-            <div className="flex items-center gap-1">
-              <button
-                onClick={() => setChain(c => Math.max(0, c - 1))}
-                className="w-7 h-7 flex items-center justify-center rounded-md bg-gray-700 hover:bg-gray-600 text-gray-300 text-base leading-none transition-colors"
-              >−</button>
-              <input
-                type="number"
-                min={0} max={40}
-                value={chain}
-                onChange={e => handleChainInput(e.target.value)}
-                className="w-14 bg-gray-900 border border-gray-600 rounded-lg px-2 py-1 text-sm text-white text-center focus:outline-none focus:border-indigo-500"
-              />
-              <button
-                onClick={() => setChain(c => Math.min(40, c + 1))}
-                className="w-7 h-7 flex items-center justify-center rounded-md bg-gray-700 hover:bg-gray-600 text-gray-300 text-base leading-none transition-colors"
-              >+</button>
-            </div>
-          </div>
-          <input
-            type="range"
-            min={0} max={40} step={1}
+      {/* ── Tracker + Live Odds + Settings ── */}
+      <div className="bg-gray-800/60 border border-gray-700 rounded-xl p-4 mb-4">
+        <div className="flex flex-col gap-3">
+          <CounterBox
+            label="Chain Length"
+            sublabel="consecutive radar patches · resets on chain break"
             value={chain}
-            onChange={e => setChain(Number(e.target.value))}
-            className="w-full accent-indigo-500"
+            onChange={v => setChain(Math.max(0, Math.min(40, v)))}
+            color="indigo"
           />
-          <div className="flex justify-between text-xs text-gray-600 mt-1 select-none">
-            <span>0</span><span>10</span><span>20</span><span>30</span><span>40</span>
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              onClick={() => setChain(c => Math.min(40, c + 1))}
+              className="flex flex-col items-center justify-center gap-0.5 py-3 px-2 rounded-xl bg-emerald-600/20 border border-emerald-600/40 hover:bg-emerald-600/30 transition-colors active:scale-95"
+            >
+              <span className="text-lg leading-none">🎯</span>
+              <span className="text-sm font-bold text-emerald-300">Patch Found</span>
+              <span className="text-[10px] text-emerald-600 font-mono">chain +1</span>
+            </button>
+            <button
+              onClick={() => setChain(0)}
+              className="flex flex-col items-center justify-center gap-0.5 py-3 px-2 rounded-xl bg-gray-700/40 border border-gray-600/60 hover:bg-gray-700/70 transition-colors active:scale-95"
+            >
+              <span className="text-lg leading-none">↩</span>
+              <span className="text-sm font-bold text-gray-300">Reset Chain</span>
+              <span className="text-[10px] text-gray-600 font-mono">chain → 0</span>
+            </button>
           </div>
         </div>
 
-        {/* Optional: encounter rate + seconds */}
-        <div className="grid grid-cols-2 gap-4">
+        {/* Settings row */}
+        {showNerdStats && <div className="border-t border-gray-700 mt-4 pt-3 flex flex-wrap gap-x-5 gap-y-3 items-end">
           <div>
-            <label className="text-sm font-semibold text-gray-300 mb-1 block">
-              Encounter Rate{' '}
-              <span className="text-gray-500 font-normal text-xs">optional</span>
-            </label>
-            <div className="flex items-center gap-2">
+            <label className="text-xs font-semibold text-gray-500 block mb-1">Encounter Rate</label>
+            <div className="flex items-center gap-1.5">
               <input
-                type="number"
-                min={1} max={100}
-                value={encRateStr}
-                onChange={e => setEncRateStr(e.target.value)}
+                type="number" min={1} max={100}
+                value={encRateStr} onChange={e => setEncRateStr(e.target.value)}
                 placeholder="100"
-                className="w-full bg-gray-900 border border-gray-600 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500"
+                className="w-20 bg-gray-900 border border-gray-600 rounded-lg px-2 py-1.5 text-sm text-white focus:outline-none focus:border-indigo-500"
               />
-              <span className="text-gray-400 text-sm shrink-0">%</span>
+              <span className="text-gray-500 text-sm">%</span>
             </div>
-            <p className="text-xs text-gray-500 mt-1">How often the target appears in the area</p>
           </div>
           <div>
-            <label className="text-sm font-semibold text-gray-300 mb-1 block">
-              Seconds / Encounter{' '}
-              <span className="text-gray-500 font-normal text-xs">optional</span>
-            </label>
-            <div className="flex items-center gap-2">
+            <label className="text-xs font-semibold text-gray-500 block mb-1">Sec / Encounter</label>
+            <div className="flex items-center gap-1.5">
               <input
-                type="number"
-                min={1} max={300}
-                value={secsStr}
-                onChange={e => setSecsStr(e.target.value)}
-                className="w-full bg-gray-900 border border-gray-600 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500"
+                type="number" min={1} max={300}
+                value={secsStr} onChange={e => setSecsStr(e.target.value)}
+                className="w-20 bg-gray-900 border border-gray-600 rounded-lg px-2 py-1.5 text-sm text-white focus:outline-none focus:border-indigo-500"
               />
-              <span className="text-gray-400 text-sm shrink-0">s</span>
+              <span className="text-gray-500 text-sm">s</span>
             </div>
-            <p className="text-xs text-gray-500 mt-1">Avg time per chain step</p>
           </div>
-        </div>
-
-        {/* Advanced */}
-        <div>
-          <button
-            onClick={() => setShowAdvanced(v => !v)}
-            className="text-xs text-gray-500 hover:text-gray-300 transition-colors flex items-center gap-1"
-          >
-            <span>{showAdvanced ? '▾' : '▸'}</span> Advanced
-          </button>
-          {showAdvanced && (
-            <div className="mt-3 max-w-xs">
-              <label className="text-sm font-semibold text-gray-300 mb-1 block">
-                Continuation Rate
-              </label>
-              <div className="flex items-center gap-2">
-                <input
-                  type="number"
-                  min={50} max={99}
-                  value={contRateStr}
-                  onChange={e => setContRateStr(e.target.value)}
-                  className="w-24 bg-gray-900 border border-gray-600 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500"
-                />
-                <span className="text-gray-400 text-sm">%</span>
-              </div>
-              <p className="text-xs text-gray-500 mt-1">
-                Chance of not breaking the chain each step. Default (93%) assumes optimal play — always picking the furthest patches with Repels active.
-              </p>
+          <div>
+            <label className="text-xs font-semibold text-gray-500 block mb-1">
+              Cont. Rate <span className="text-gray-600 font-normal">(adv)</span>
+            </label>
+            <div className="flex items-center gap-1.5">
+              <input
+                type="number" min={50} max={99}
+                value={contRateStr} onChange={e => setContRateStr(e.target.value)}
+                className="w-20 bg-gray-900 border border-gray-600 rounded-lg px-2 py-1.5 text-sm text-white focus:outline-none focus:border-indigo-500"
+              />
+              <span className="text-gray-500 text-sm">%</span>
             </div>
-          )}
-        </div>
+          </div>
+        </div>}
       </div>
 
-      {/* ── Current odds hero ── */}
-      <div className="bg-indigo-950/50 border border-indigo-500/40 rounded-xl p-3 mb-4 text-center">
-        <p className="text-gray-400 text-sm mb-1">
+      {/* ── Current odds ── */}
+      <div className="bg-indigo-950/50 border border-indigo-500/40 rounded-xl p-4 mb-4 text-center">
+        <p className="text-gray-400 text-xs mb-1">
           Shiny odds at chain {stats.n >= 40 ? '40+' : stats.n}
         </p>
         <p className="text-4xl font-bold text-indigo-300">
           1 in {stats.odds.toLocaleString()}
         </p>
-        <p className="text-gray-400 text-sm mt-1">
+        <p className="text-gray-500 text-sm mt-1">
           {(100 / stats.odds).toFixed(4)}% per patch
           {stats.n > 0 && (
             <span className="ml-2 text-indigo-400 font-semibold">
-              ({(BASE_ODDS / stats.odds).toFixed(1)}× base)
+              · {(BASE_ODDS / stats.odds).toFixed(1)}× base rate
             </span>
           )}
         </p>
       </div>
 
-      {/* ── 4 stat cards ── */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
-        {/* 1. Chance of reaching this chain */}
-        <StatCard
-          label="Chance of reaching this chain"
-          value={formatPct(stats.chanceThisFar)}
-          color="emerald"
-          note={
-            stats.n === 0
-              ? 'Every run starts here.'
-              : `${parseFloat(contRateStr) || 93}% success/step — ${formatPct(stats.chanceThisFar)} of chains reach ${stats.n}`
-          }
-        />
-
-        {/* 2. Chance of reaching chain 40 */}
-        <StatCard
-          label="Chance of reaching chain 40"
-          value={formatPct(stats.chanceToForty)}
-          color={stats.chanceToForty > 50 ? 'emerald' : stats.chanceToForty > 10 ? 'yellow' : 'red'}
-          note={
-            stats.n >= 40
-              ? "You're already there!"
-              : `${40 - stats.n} more step${40 - stats.n !== 1 ? 's' : ''} at ${parseFloat(contRateStr) || 93}% each`
-          }
-        />
-
-        {/* 3. Time to recover this chain */}
-        <StatCard
-          label="Expected time to recover this chain"
-          value={stats.n === 0 ? '—' : formatTime(stats.timeToRecoverS)}
-          color="amber"
-          note={
-            stats.n === 0
-              ? 'Nothing to recover from chain 0.'
-              : `~${Math.round(stats.encToRecover).toLocaleString()} encounters${encRateStr && parseFloat(encRateStr) < 100 ? ` (incl. finding ${encRateStr}% target)` : ''}`
-          }
-        />
-
-        {/* 4. Time to get a shiny at current rate */}
-        <StatCard
-          label="Expected time for a shiny at this rate"
-          value={formatTime(stats.timeToShinyS)}
-          color="pink"
-          note={`1 in ${stats.odds.toLocaleString()} per patch × 4 patches/radar → avg ${Math.round(stats.encToShiny).toLocaleString()} radars`}
-        />
-      </div>
-
-      {/* ── Combined time ── */}
-      <div className="mb-4">
+      {/* ── Stats ── */}
+      {showNerdStats && <div className="bg-gray-800/60 border border-gray-700 rounded-xl p-4 mb-4">
+        <p className="text-xs font-bold uppercase tracking-wider text-gray-500 mb-3">Statistics</p>
+        <div className="grid grid-cols-2 gap-3 mb-3">
+          <StatCard
+            label="Chance of reaching this chain"
+            value={formatPct(stats.chanceThisFar)}
+            color="emerald"
+            note={
+              stats.n === 0
+                ? 'Every run starts here.'
+                : `${parseFloat(contRateStr) || 93}% success/step - ${formatPct(stats.chanceThisFar)} of chains reach ${stats.n}`
+            }
+          />
+          <StatCard
+            label="Chance of reaching chain 40"
+            value={formatPct(stats.chanceToForty)}
+            color={stats.chanceToForty > 50 ? 'emerald' : stats.chanceToForty > 10 ? 'yellow' : 'red'}
+            note={
+              stats.n >= 40
+                ? "You're already there!"
+                : `${40 - stats.n} more step${40 - stats.n !== 1 ? 's' : ''} at ${parseFloat(contRateStr) || 93}% each`
+            }
+          />
+          <StatCard
+            label="Expected time to recover this chain"
+            value={stats.n === 0 ? '-' : formatTime(stats.timeToRecoverS)}
+            color="amber"
+            note={
+              stats.n === 0
+                ? 'Nothing to recover from chain 0.'
+                : `~${Math.round(stats.encToRecover).toLocaleString()} encounters${encRateStr && parseFloat(encRateStr) < 100 ? ` (incl. finding ${encRateStr}% target)` : ''}`
+            }
+          />
+          <StatCard
+            label="Expected time for a shiny at this rate"
+            value={formatTime(stats.timeToShinyS)}
+            color="pink"
+            note={`1 in ${stats.odds.toLocaleString()} per patch × 4 patches/radar → avg ${Math.round(stats.encToShiny).toLocaleString()} radars`}
+          />
+        </div>
         <StatCard
           label="Combined: recover chain + get shiny"
           value={stats.n === 0 ? formatTime(stats.timeToShinyS) : formatTime(stats.timeTotalS)}
           color="violet"
         />
-      </div>
+      </div>}
 
       {/* ── Odds reference table ── */}
       <div className="bg-gray-800/60 border border-gray-700 rounded-xl overflow-hidden">
         <div className="px-4 py-3 border-b border-gray-700">
           <h2 className="text-sm font-bold text-gray-300">Shiny Odds Reference</h2>
-          <p className="text-xs text-gray-500 mt-0.5">Key chain milestones — note the big jumps near chain 36+</p>
+          <p className="text-xs text-gray-500 mt-0.5">Key chain milestones - note the big jumps near chain 36+</p>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">

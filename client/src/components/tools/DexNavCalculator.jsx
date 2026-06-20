@@ -184,6 +184,7 @@ export default function DexNavCalculator() {
   const [resetAtStr, setResetAtStr]     = useState('');
   const [secsStr, setSecsStr]           = useState('');
   const [graphMode, setGraphMode]       = useState('cdf');
+  const [showNerdStats, setShowNerdStats] = useState(false);
 
   const resetAt    = resetAtStr ? Math.max(1, parseInt(resetAtStr)  || 0) : 0;
   const secsPerEnc = secsStr    ? Math.max(1, parseFloat(secsStr)   || 10) : null;
@@ -297,7 +298,19 @@ export default function DexNavCalculator() {
 
   return (
     <div className="max-w-3xl mx-auto px-4 py-4 text-white">
-      <h1 className="text-2xl font-bold mb-0.5">DexNav Shiny Calculator</h1>
+      <div className="flex items-start justify-between mb-0.5">
+        <h1 className="text-2xl font-bold">DexNav Shiny Calculator</h1>
+        <button
+          onClick={() => setShowNerdStats(v => !v)}
+          className={`mt-1 px-2.5 py-1 rounded-lg text-xs font-semibold border transition-colors ${
+            showNerdStats
+              ? 'bg-indigo-600/20 border-indigo-500/50 text-indigo-400'
+              : 'bg-gray-800 border-gray-700 text-gray-500 hover:text-gray-300 hover:border-gray-500'
+          }`}
+        >
+          Stats for nerds
+        </button>
+      </div>
       <p className="text-gray-400 text-sm mb-4">
         Omega Ruby / Alpha Sapphire · odds sourced from{' '}
         <a href="https://www.serebii.net/omegarubyalphasapphire/dexnav.shtml"
@@ -307,46 +320,21 @@ export default function DexNavCalculator() {
         {' '}· SL = total encounters with this species
       </p>
 
-      {/* ── Settings ── */}
-      <div className="bg-gray-800/60 border border-gray-700 rounded-xl p-3 mb-4">
-        <div className="flex flex-wrap gap-3 items-end">
-          <div className="shrink-0">
-            <p className="text-xs font-semibold text-gray-400 mb-1.5">Shiny Charm</p>
-            <button
-              onClick={() => setShinyCharm(v => !v)}
-              className={`px-3 py-1.5 rounded-lg border text-sm font-semibold transition-all ${
-                shinyCharm
-                  ? 'bg-indigo-600/30 border-indigo-500 text-indigo-300'
-                  : 'bg-gray-700/40 border-gray-600 text-gray-400 hover:border-gray-500'
-              }`}
-            >
-              {shinyCharm ? '✦ Active' : 'None'}
-            </button>
-          </div>
-          <div className="w-36">
-            <p className="text-xs font-semibold text-gray-400 mb-1.5">
-              Reset chain after <span className="text-gray-600 font-normal">(optional)</span>
-            </p>
-            <input type="number" min={1} value={resetAtStr}
-              onChange={e => setResetAtStr(e.target.value)} placeholder="no reset"
-              className="w-full bg-gray-900 border border-gray-600 rounded-lg px-2.5 py-1.5 text-sm text-white focus:outline-none focus:border-indigo-500"
-            />
-          </div>
-          <div className="w-36">
-            <p className="text-xs font-semibold text-gray-400 mb-1.5">
-              Sec / encounter <span className="text-gray-600 font-normal">(optional)</span>
-            </p>
-            <input type="number" min={1} max={300} value={secsStr}
-              onChange={e => setSecsStr(e.target.value)} placeholder="—"
-              className="w-full bg-gray-900 border border-gray-600 rounded-lg px-2.5 py-1.5 text-sm text-white focus:outline-none focus:border-indigo-500"
-            />
-          </div>
-        </div>
-      </div>
-
       {/* ── Live Tracker ── */}
       <div className="bg-gray-800/60 border border-gray-700 rounded-xl p-4 mb-4">
-        <p className="text-xs font-bold uppercase tracking-wider text-gray-500 mb-3">Live Tracker</p>
+        <div className="flex items-center justify-between mb-3">
+          <p className="text-xs font-bold uppercase tracking-wider text-gray-500">Live Tracker</p>
+          <button
+            onClick={() => setShinyCharm(v => !v)}
+            className={`px-2.5 py-1 rounded-lg border text-xs font-semibold transition-all ${
+              shinyCharm
+                ? 'bg-indigo-600/30 border-indigo-500 text-indigo-300'
+                : 'bg-gray-700/40 border-gray-600 text-gray-400 hover:border-gray-500'
+            }`}
+          >
+            {shinyCharm ? '✦ Shiny Charm' : 'Shiny Charm: Off'}
+          </button>
+        </div>
         <div className="grid grid-cols-2 gap-3 mb-3">
           <CounterBox
             label="Chain"
@@ -383,6 +371,28 @@ export default function DexNavCalculator() {
             <span className="text-[10px] text-gray-600 font-mono">SL unchanged</span>
           </button>
         </div>
+        {showNerdStats && (
+          <div className="border-t border-gray-700 mt-4 pt-3 flex flex-wrap gap-x-5 gap-y-3 items-end">
+            <div>
+              <label className="text-xs font-semibold text-gray-500 block mb-1">
+                Reset chain after <span className="text-gray-600 font-normal">(optional)</span>
+              </label>
+              <input type="number" min={1} value={resetAtStr}
+                onChange={e => setResetAtStr(e.target.value)} placeholder="no reset"
+                className="w-32 bg-gray-900 border border-gray-600 rounded-lg px-2 py-1.5 text-sm text-white focus:outline-none focus:border-indigo-500"
+              />
+            </div>
+            <div>
+              <label className="text-xs font-semibold text-gray-500 block mb-1">
+                Sec / encounter <span className="text-gray-600 font-normal">(optional)</span>
+              </label>
+              <input type="number" min={1} max={300} value={secsStr}
+                onChange={e => setSecsStr(e.target.value)} placeholder="—"
+                className="w-32 bg-gray-900 border border-gray-600 rounded-lg px-2 py-1.5 text-sm text-white focus:outline-none focus:border-indigo-500"
+              />
+            </div>
+          </div>
+        )}
       </div>
 
       {/* ── Hero ── */}
@@ -392,7 +402,7 @@ export default function DexNavCalculator() {
         atMilestone === 'boost'  ? 'bg-sky-950/40 border-sky-500/40' :
                                    'bg-indigo-950/50 border-indigo-500/40'
       }`}>
-        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           {/* Left: odds */}
           <div>
             {atMilestone === 'enc100' && <p className="text-xs font-bold uppercase tracking-wider mb-1 text-yellow-400">★ Chain 100 — Best Odds!</p>}
@@ -405,7 +415,7 @@ export default function DexNavCalculator() {
                chain === 0 ? `no chain yet — next is chain 1, SL ${searchLevel}` :
                `next encounter is chain ${nextChain} — 96% standard / 4% random boost, SL ${searchLevel}`}
             </p>
-            <p className={`text-4xl font-bold mt-0.5 ${
+            <p className={`text-6xl font-bold mt-0.5 ${
               atMilestone === 'enc100' ? 'text-yellow-300' :
               atMilestone === 'enc50'  ? 'text-emerald-300' :
               atMilestone === 'boost'  ? 'text-sky-300' :
@@ -418,12 +428,6 @@ export default function DexNavCalculator() {
                 ? `${fmtPct(currentP, 4)} this encounter`
                 : `${fmtPct(1/std, 4)} standard · ${fmtPct(1/boost, 4)} if boost triggers`}
             </p>
-            {atMilestone !== 'enc100' && (
-              <div className="flex gap-3 mt-2 text-xs text-gray-500">
-                {distTo50 > 0 && <span>Chain 50 → <span className="text-emerald-400 font-semibold">{fmtDenom(1/pAt50)}</span></span>}
-                {distTo100 > 0 && <span>Chain 100 → <span className="text-yellow-400 font-semibold">{fmtDenom(1/pAt100)}</span></span>}
-              </div>
-            )}
           </div>
 
           {/* Right: all 4 column odds for current SL */}
@@ -532,7 +536,7 @@ export default function DexNavCalculator() {
       </div>
 
       {/* ── Graph ── */}
-      <div className="bg-gray-800/60 border border-gray-700 rounded-xl overflow-hidden mb-4">
+      {showNerdStats && <div className="bg-gray-800/60 border border-gray-700 rounded-xl overflow-hidden mb-4">
         <div className="px-4 py-3 border-b border-gray-700 flex items-center justify-between">
           <div>
             <h2 className="text-sm font-bold text-gray-300">
@@ -565,7 +569,7 @@ export default function DexNavCalculator() {
             m50={m50} m63={m63} m90={m90}
           />
         </div>
-      </div>
+      </div>}
 
       {/* ── Milestones table ── */}
       <div className="bg-gray-800/60 border border-gray-700 rounded-xl overflow-hidden mb-4">
