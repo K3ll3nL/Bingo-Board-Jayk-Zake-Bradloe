@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
+
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -982,8 +982,6 @@ function TargetPowerTab({ fillings, condiments, playerCount = 1 }) {
 // ─── Main component ───────────────────────────────────────────────────────────
 
 export default function SVSandwichCalculator() {
-  const navigate = useNavigate();
-
   const [pageMode, setPageMode] = useState('builder'); // 'builder' | 'target'
   const [playerCount, setPlayerCount] = useState(1); // 1–4
 
@@ -1069,18 +1067,9 @@ export default function SVSandwichCalculator() {
   return (
     <div className="max-w-6xl mx-auto px-4 py-8">
       {/* Page header */}
-      <div className="flex items-center gap-3 mb-5">
-        <button
-          onClick={() => navigate('/tools')}
-          className="text-gray-400 hover:text-white text-sm flex items-center gap-1 transition-colors"
-        >
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-          </svg>
-          Tools
-        </button>
-        <div className="h-4 w-px bg-gray-600" />
-        <h1 className="text-xl font-bold text-white">🥪 S/V Sandwich Calculator</h1>
+      <div className="mb-4">
+        <h1 className="text-2xl font-bold text-white mb-1">S/V Sandwich Calculator</h1>
+        <p className="text-gray-400 text-sm">Find sandwich recipes for Encounter, Egg, and other meal powers.</p>
       </div>
 
       {/* Top-level tabs + player count */}

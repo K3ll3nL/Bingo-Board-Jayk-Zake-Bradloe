@@ -6,6 +6,7 @@ const CATEGORY_COLORS = {
   Breeding:    { border: '#ec4899', tag: 'bg-pink-500/20 text-pink-300',    glow: 'rgba(236,72,153,0.12)' },
   Encounter:   { border: '#10b981', tag: 'bg-emerald-500/20 text-emerald-300', glow: 'rgba(16,185,129,0.12)' },
   Calculators: { border: '#f59e0b', tag: 'bg-amber-500/20 text-amber-300',  glow: 'rgba(245,158,11,0.12)' },
+  Advisor:     { border: '#06b6d4', tag: 'bg-cyan-500/20 text-cyan-300',    glow: 'rgba(6,182,212,0.12)' },
 };
 
 const GEN_GROUPS = ['Universal', 'Gen 9', 'Gen 8', 'Gen 7', 'Gen 6', 'Gen 4', 'Gen 2', 'Gen 1'];
@@ -18,6 +19,15 @@ const TOOLS = [
     icon: '⚾',
     category: 'Calculators',
     gen: 'Universal',
+  },
+  {
+    id: 'safari-zone',
+    name: 'Safari Zone Advisor',
+    description: 'Real-time bait/rock advisor with projected catch and flee rates for every safari zone.',
+    icon: '🦁',
+    category: 'Advisor',
+    gen: 'Universal',
+    live: true,
   },
   {
     id: 'home-value',
