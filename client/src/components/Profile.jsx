@@ -7,7 +7,7 @@ import BadgeCase from './BadgeCase';
 import BingoGrid from './BingoGrid';
 import AchievementIcon from './AchievementIcon';
 import restrictedIcon from '../Icons/restricted-icon.png';
-import shinyDexUrl from '../Icons/ShinyDexSVG.svg';
+import shinyDexUrl from '../Icons/ShinyDex Logo.png';
 import PageBackground from './PageBackground';
 import PageHeader from './PageHeader';
 import { getAuthHeaders } from '../services/api';
@@ -123,19 +123,19 @@ const GameNav = ({ tab, setTab, accentColor }) => (
 
 // ── Mobile top tab strip ──────────────────────────────────────
 const MobileTabStrip = ({ tab, setTab, accentColor }) => (
-  <div className="lg:hidden flex gap-1 mt-3">
+  <div className="lg:hidden flex gap-1 overflow-x-auto scrollbar-hide pb-0.5 mt-3">
     {TABS.map(({ id, label, Icon }) => {
       const active = tab === id;
       return (
         <button key={id} onClick={() => setTab(id)}
-          className="flex-1 flex items-center justify-center gap-1 sm:gap-1.5 px-1 sm:px-3 py-2 rounded-lg text-[10px] sm:text-sm font-medium transition-all min-w-0"
+          className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-all shrink-0"
           style={{
             color: active ? '#fff' : 'rgba(255,255,255,0.45)',
             background: active ? accentColor + '30' : 'rgba(255,255,255,0.04)',
             border: `1px solid ${active ? accentColor + '60' : 'transparent'}`,
           }}>
-          <span className="shrink-0" style={{ color: active ? accentColor : 'rgba(255,255,255,0.3)' }}><Icon /></span>
-          <span className="truncate">{label}</span>
+          <span style={{ color: active ? accentColor : 'rgba(255,255,255,0.3)' }}><Icon /></span>
+          {label}
         </button>
       );
     })}
@@ -147,22 +147,22 @@ const OverviewTab = ({ profile, accentColor, onPokemonClick }) => {
   const { stats, monthlyData, recentCatches = [] } = profile;
 
   const AchievementBlock = ({ items, label, restricted }) => (
-    <div className="rounded-xl p-4 sm:p-3 border flex flex-col"
+    <div className="rounded-xl p-4 border flex flex-col"
       style={{
         background: CARD.bg,
         borderColor: restricted ? 'rgba(120,40,30,0.4)' : CARD.border,
       }}>
-      <div className="flex items-center gap-1.5 mb-3 sm:mb-2">
+      <div className="flex items-center gap-1.5 mb-4">
         {restricted && <img src={restrictedIcon} alt="" className="w-3.5 h-3.5 object-contain" />}
         <p className="text-sm font-semibold uppercase tracking-wide" style={{ color: restricted ? '#e07060' : 'rgba(255,255,255,0.35)' }}>{label}</p>
       </div>
-      <div className="grid grid-cols-4 gap-1 flex-1">
+      <div className="grid grid-cols-4 gap-2 flex-1">
         {items.map(({ type, count }) => (
-          <div key={type} className="flex flex-col items-center gap-1 sm:gap-2">
+          <div key={type} className="flex flex-col items-center gap-2">
             <AchievementIcon type={type} color={restricted ? undefined : accentColor} restricted={restricted}
-              containerClassName="w-8 h-8 sm:w-14 sm:h-14 rounded-md sm:rounded-xl"
-              svgClassName={type === 'blackout' ? 'w-5 h-5 sm:w-8 sm:h-8' : 'w-4 h-4 sm:w-7 sm:h-7'} />
-            <span className="text-lg sm:text-2xl font-black text-white leading-none">{count || 0}</span>
+              containerClassName="w-14 h-14 rounded-xl"
+              svgClassName={type === 'blackout' ? 'w-8 h-8' : 'w-7 h-7'} />
+            <span className="text-2xl font-black text-white leading-none">{count || 0}</span>
           </div>
         ))}
       </div>
@@ -172,7 +172,7 @@ const OverviewTab = ({ profile, accentColor, onPokemonClick }) => {
   return (
     <div className="space-y-3">
       {/* Achievement summary */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+      <div className="grid grid-cols-2 gap-3">
         <AchievementBlock label="Bonus Bounties" restricted={false} items={[
           { type: 'row', count: stats.totalBingos },
           { type: 'column', count: stats.totalBingos },
@@ -193,14 +193,14 @@ const OverviewTab = ({ profile, accentColor, onPokemonClick }) => {
         {recentCatches.length === 0 ? (
           <div className="flex items-center justify-center h-20 text-gray-600 text-sm">No catches yet</div>
         ) : (
-          <div className="grid grid-cols-4 sm:grid-cols-8 gap-2">
+          <div className="grid grid-cols-8 gap-2">
             {recentCatches.map((pokemon, i) => (
               <div key={i} onClick={() => onPokemonClick(pokemon)}
                 className="relative rounded-lg overflow-hidden cursor-pointer group border-2 transition-colors"
                 style={{ aspectRatio: '1', background: CARD.inner, borderColor: pokemon.restricted ? '#3b82f6' : 'transparent' }}>
                 <PokemonImage pokemon={pokemon} className="w-full h-full" disableCycling />
                 {pokemon.restricted && (
-                  <img src={restrictedIcon} alt="" className="absolute top-0.5 right-0.5 w-3 h-3 sm:w-4 sm:h-4 object-contain" />
+                  <img src={restrictedIcon} alt="" className="absolute top-1 right-1 w-5 h-5 object-contain" />
                 )}
                 <div className="absolute inset-x-0 bottom-0 bg-black/70 text-white text-[9px] text-center py-0.5 opacity-0 group-hover:opacity-100 transition-opacity truncate px-0.5 leading-tight">
                   {pokemon.display_name || pokemon.name}
@@ -480,7 +480,7 @@ const HistoryTab = ({ userId, monthlyData, stats, onPokemonClick, accentColor })
               <div className="w-7 h-7 rounded-full border-2 border-gray-700 border-t-purple-500 animate-spin" />
             </div>
           ) : hasData ? (
-            <BingoGrid board={displayBoard} onCellClick={cell => onPokemonClick({ ...cell, _monthId: selectedMonthId })} />
+            <BingoGrid board={displayBoard} onCellClick={onPokemonClick} large />
           ) : (
             <div className="py-16 text-center text-gray-600 text-sm">No board data for this month</div>
           )}
@@ -613,12 +613,6 @@ const Profile = () => {
   const [socialForm, setSocialForm] = useState({ twitch_url: '', youtube_url: '', shinydex_url: '' });
   const [socialSaving, setSocialSaving] = useState(false);
   const badgesAnimationPlayed = useRef(false);
-  const badgesEverVisited = useRef(false);
-  const overviewEverVisited = useRef(false);
-  const historyEverVisited = useRef(false);
-  if (tab === 'badges') badgesEverVisited.current = true;
-  if (tab === 'overview') overviewEverVisited.current = true;
-  if (tab === 'history') historyEverVisited.current = true;
 
   useEffect(() => {
     if (!profileUserId) { setLoading(false); return; }
@@ -686,10 +680,9 @@ const Profile = () => {
   const caughtPct = stats.totalPokemon > 0 ? Math.round((stats.totalCaught / stats.totalPokemon) * 100) : 0;
 
   return (
-    <div className="min-h-screen" style={{ isolation: 'isolate', position: 'relative' }}>
+    <div className="min-h-screen" style={{ background: '#0d0f14' }}>
       <PageBackground />
       <PageHeader title={`${profile.user.display_name}'s Profile`} />
-
 
       <div className="max-w-7xl mx-auto px-6 py-4">
 
@@ -697,62 +690,40 @@ const Profile = () => {
         <div className="rounded-2xl shadow-2xl overflow-hidden border" style={{ background: CARD.hero, borderColor: CARD.border }}>
           {/* Accent top bar with glow */}
           <div className="h-1.5" style={{ backgroundColor: accentColor, boxShadow: `0 0 20px ${accentColor}80` }} />
-          <div className="px-4 sm:px-6 py-4">
-            {/* Top row: avatar + identity */}
-            <div className="flex items-center gap-4">
+          <div className="px-6 py-4 flex items-center gap-5">
 
-              {/* Avatar */}
-              <div className="relative shrink-0">
-                <div className="absolute inset-0 rounded-full blur-lg opacity-40" style={{ backgroundColor: accentColor, margin: '-6px' }} />
-                {profile.user.avatar_url
-                  ? <img src={profile.user.avatar_url} alt="Avatar"
-                      className="relative w-16 h-16 sm:w-20 sm:h-20 rounded-full shadow-2xl"
-                      style={{ outline: `3px solid ${accentColor}`, outlineOffset: '2px' }} />
-                  : <div className="relative w-16 h-16 sm:w-20 sm:h-20 rounded-full flex items-center justify-center text-3xl text-gray-400"
-                      style={{ background: CARD.inner, outline: `3px solid ${accentColor}`, outlineOffset: '2px' }}>?</div>}
-              </div>
-
-              {/* Identity */}
-              <div className="flex-1 min-w-0">
-                <h1 className="text-xl sm:text-2xl font-extrabold text-white leading-tight truncate">
-                  {profile.user.display_name}
-                </h1>
-                <p className="text-xs sm:text-sm mt-0.5" style={{ color: accentColor }}>@{profile.user.username}</p>
-                <p className="hidden sm:block text-sm text-gray-500 mt-0.5">
-                  Joined {new Date(profile.user.created_at).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
-                </p>
-              </div>
-
-              {/* Stats — desktop inline (3 stats, large and readable) */}
-              <div className="hidden sm:flex shrink-0 items-center border-l pl-5" style={{ borderColor: CARD.border }}>
-                {[
-                  { label: 'Rank', value: stats.overallRank > 0 ? `#${stats.overallRank}` : '—' },
-                  { label: 'Points', value: stats.totalPoints || 0 },
-                  { label: 'Shinies', value: stats.totalShinies || 0 },
-                ].map(({ label, value }, i) => (
-                  <div key={label} className={`text-center px-5 ${i > 0 ? 'border-l' : ''}`} style={{ borderColor: CARD.border }}>
-                    <div className="text-xs uppercase tracking-widest mb-0.5" style={{ color: 'rgba(255,255,255,0.35)' }}>{label}</div>
-                    <div className="text-2xl font-extrabold leading-none" style={{ color: accentColor }}>{value}</div>
-                  </div>
-                ))}
-              </div>
-
+            {/* Avatar */}
+            <div className="relative shrink-0">
+              <div className="absolute inset-0 rounded-full blur-lg opacity-40" style={{ backgroundColor: accentColor, margin: '-6px' }} />
+              {profile.user.avatar_url
+                ? <img src={profile.user.avatar_url} alt="Avatar"
+                    className="relative w-20 h-20 rounded-full shadow-2xl"
+                    style={{ outline: `3px solid ${accentColor}`, outlineOffset: '2px' }} />
+                : <div className="relative w-20 h-20 rounded-full flex items-center justify-center text-3xl text-gray-400"
+                    style={{ background: CARD.inner, outline: `3px solid ${accentColor}`, outlineOffset: '2px' }}>?</div>}
             </div>
 
-            {/* Stats grid — mobile only, below avatar row */}
-            <div className="sm:hidden mt-3 pt-3 border-t grid grid-cols-3 gap-0" style={{ borderColor: CARD.border }}>
+            {/* Identity */}
+            <div className="flex-1 min-w-0">
+              <h1 className="text-2xl font-extrabold text-white leading-tight truncate">
+                {profile.user.display_name}
+              </h1>
+              <p className="text-sm" style={{ color: accentColor }}>@{profile.user.username}</p>
+              <p className="text-sm text-gray-500 mt-0.5">
+                Joined {new Date(profile.user.created_at).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
+              </p>
+            </div>
+
+            {/* Stat values — right side */}
+            <div className="shrink-0 flex items-center gap-px border-l pl-5" style={{ borderColor: CARD.border }}>
               {[
                 { label: 'Rank', value: stats.overallRank > 0 ? `#${stats.overallRank}` : '—' },
-                { label: 'Best Rank', value: stats.bestRankedMonth ? `#${stats.bestRankedMonth.rank}` : '—' },
-                { label: 'Shinies', value: stats.totalShinies || 0 },
                 { label: 'Points', value: stats.totalPoints || 0 },
-                { label: 'Avg Pts', value: stats.avgPointsPerMonth || 0 },
-                { label: 'Months', value: stats.monthsParticipated || 0 },
+                { label: 'Shinies', value: stats.totalShinies || 0 },
               ].map(({ label, value }, i) => (
-                <div key={label} className={`text-center py-1 ${i % 3 !== 0 ? 'border-l' : ''} ${i >= 3 ? 'border-t mt-2 pt-2' : ''}`}
-                  style={{ borderColor: CARD.border }}>
-                  <div className="text-[9px] uppercase tracking-widest mb-0.5" style={{ color: 'rgba(255,255,255,0.35)' }}>{label}</div>
-                  <div className="text-base font-extrabold leading-none" style={{ color: accentColor }}>{value}</div>
+                <div key={label} className={`text-center px-5 ${i > 0 ? 'border-l' : ''}`} style={{ borderColor: CARD.border }}>
+                  <div className="text-xs uppercase tracking-widest mb-0.5" style={{ color: 'rgba(255,255,255,0.35)' }}>{label}</div>
+                  <div className="text-2xl font-extrabold leading-none" style={{ color: accentColor }}>{value}</div>
                 </div>
               ))}
             </div>
@@ -786,10 +757,8 @@ const Profile = () => {
                 {profile.user.shinydex_url && (
                   <a href={profile.user.shinydex_url} target="_blank" rel="noopener noreferrer"
                     className="flex justify-center items-center gap-2 px-3 py-2 rounded-lg text-sm font-semibold transition-all hover:opacity-80"
-                    style={{ backgroundColor: 'rgba(234,179,8,0.1)', border: '1px solid rgba(234,179,8,0.22)', color: '#eab308' }}>
-                    <img src={shinyDexUrl} alt="" className="w-4 h-4 object-contain"
-                      style={{ filter: 'brightness(0) saturate(100%) invert(80%) sepia(60%) saturate(600%) hue-rotate(5deg)' }} />
-                    ShinyDex
+                    style={{ backgroundColor: 'rgba(234,179,8,0.1)', border: '1px solid rgba(234,179,8,0.22)'}}>
+                    <img src={shinyDexUrl} alt="" className="w-18 h-5 object-contain"/>
                   </a>
                 )}
                 {isOwnProfile && (
@@ -869,10 +838,10 @@ const Profile = () => {
 
           {/* Content */}
           <div className="flex-1 min-w-0">
-            {overviewEverVisited.current && <div style={{ display: tab === 'overview' ? undefined : 'none' }}>
+            {tab === 'overview' && (
               <OverviewTab profile={profile} accentColor={accentColor} onPokemonClick={setSelectedPokemon} />
-            </div>}
-            {badgesEverVisited.current && <div style={{ display: tab === 'badges' ? undefined : 'none' }}>
+            )}
+            {tab === 'badges' && (
               <BadgesTab
                 userId={profileUserId}
                 isOwnProfile={isOwnProfile}
@@ -880,19 +849,19 @@ const Profile = () => {
                 playAnimation={!badgesAnimationPlayed.current}
                 onAnimationPlayed={() => { badgesAnimationPlayed.current = true; }}
               />
-            </div>}
+            )}
             {tab === 'pokedex' && (
               <PokedexTab stats={stats} accentColor={accentColor} />
             )}
-            {historyEverVisited.current && <div style={{ display: tab === 'history' ? undefined : 'none' }}>
+            {tab === 'history' && (
               <HistoryTab userId={profileUserId} monthlyData={monthlyData} stats={stats} onPokemonClick={setSelectedPokemon} accentColor={accentColor} />
-            </div>}
+            )}
           </div>
         </div>
       </div>
 
       {selectedPokemon && (
-        <PokemonModal pokemon={selectedPokemon} onClose={() => setSelectedPokemon(null)} monthId={selectedPokemon?._monthId ?? null} />
+        <PokemonModal pokemon={selectedPokemon} onClose={() => setSelectedPokemon(null)} />
       )}
     </div>
   );

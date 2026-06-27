@@ -2371,11 +2371,8 @@ app.post('/api/upload/submission', uploadRateLimit, upload.fields([{ name: 'file
     const pokemon_id = req.body.pokemon_id;
     const game = req.body.game?.trim();
     const restricted_submission = req.body.restricted_submission === 'true';
-<<<<<<< Updated upstream
-=======
     const caught_in_game = req.body.caught_in_game?.trim() || null;
     const note = req.body.note?.trim() || null;
->>>>>>> Stashed changes
     const file = req.files?.file?.[0];
     const file2 = req.files?.file2?.[0];
     // link may arrive as a single string or a string[] when multiple are submitted
@@ -2568,11 +2565,8 @@ app.post('/api/upload/historical-submission', uploadRateLimit, upload.fields([{ 
     const game          = req.body.game?.trim();
     const month_id      = parseInt(req.body.month_id);
     const isRestricted  = req.body.restricted_submission === 'true';
-<<<<<<< Updated upstream
-=======
     const caught_in_game = req.body.caught_in_game?.trim() || null;
     const note          = req.body.note?.trim() || null;
->>>>>>> Stashed changes
     const file       = req.files?.file?.[0];
     const file2      = req.files?.file2?.[0];
     const rawLink    = req.body.link;

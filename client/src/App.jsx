@@ -390,13 +390,12 @@ const AppLayout = () => {
 
       {/* ── Single adaptive header — full viewport width ── */}
       <header className="sticky top-0 z-50 shadow-md" style={{ background: '#13151a', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
-        <div className={`px-4 sm:px-6 ${isHome ? 'py-2 md:py-4' : 'py-2'}`}>
+        <div className={`px-4 sm:px-6 py-2 md:py-4'}`}>
           {isHome ? (
             /* Home: logo left | nav flows naturally after logo | actions right */
             <div className="flex items-center">
               {/* Both images always in DOM so logoImage is pre-decoded before returning home */}
               <img src={logoImage} alt="Pokemon Bounty Board" className="h-10 sm:h-14 object-contain cursor-pointer shrink-0" onClick={() => navigate('/')} />
-              <img src={logoIcon} alt="" className="hidden" aria-hidden="true" />
               <nav className="hidden sm:flex items-center gap-0.5 ml-6">
                 <button onClick={() => navigate('/about')} className="px-3 py-1.5 text-sm text-gray-300 hover:text-white hover:bg-gray-700 rounded-lg transition-colors">How to Play</button>
                 <button onClick={() => navigate('/pokedex')} className="px-3 py-1.5 text-sm text-gray-300 hover:text-white hover:bg-gray-700 rounded-lg transition-colors">Pokédex</button>
@@ -412,17 +411,16 @@ const AppLayout = () => {
             </div>
           ) : (
             /* Sub-page: icon (home) | title | actions */
-            <div className="flex items-center gap-3 min-h-[40px]">
+            <div className="flex items-center">
               {/* Hidden preload so logoImage is decoded before the user returns home */}
-              <img src={logoImage} alt="" className="hidden" aria-hidden="true" />
               <img
-                src={logoIcon}
+                src={logoImage}
                 alt="Home"
-                className="h-7 w-7 object-contain cursor-pointer shrink-0 opacity-70 hover:opacity-100 transition-opacity"
+                className="h-10 sm:h-14 object-contain cursor-pointer shrink-0"
                 onClick={() => navigate('/')}
                 title="Home"
               />
-              <div className="w-px h-5 bg-gray-600 shrink-0" />
+              <div className="w-pw h-5 pad-0.5 ml-6 bg-gray-600" />
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2">
                   <h1 className="text-lg font-bold text-white truncate">{pageMeta.title}</h1>
