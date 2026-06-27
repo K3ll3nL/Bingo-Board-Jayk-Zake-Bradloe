@@ -1,11 +1,6 @@
 import React from 'react';
-<<<<<<< Updated upstream
-import { BrowserRouter as Router, Routes, Route, Outlet, useNavigate, useLocation } from 'react-router-dom';
-import { AuthProvider, useAuth } from './contexts/AuthContext';
-=======
 import { BrowserRouter as Router, Routes, Route, Outlet, Navigate, useNavigate, useLocation } from 'react-router-dom';
 import { AuthProvider, useAuth, supabase } from './contexts/AuthContext';
->>>>>>> Stashed changes
 import { PageTitleContext } from './contexts/PageTitleContext';
 import BingoBoard from './components/BingoBoard';
 import Leaderboard from './components/Leaderboard';
@@ -465,8 +460,6 @@ const AppLayout = () => {
       {/* Page content */}
       <Outlet />
 
-<<<<<<< Updated upstream
-=======
       {/* Footer */}
       <footer className="mt-12 border-t border-gray-700 py-6 text-center text-xs text-gray-500">
         <div className="max-w-7xl mx-auto px-4">
@@ -485,7 +478,6 @@ const AppLayout = () => {
         </div>
       </footer>
 
->>>>>>> Stashed changes
       <FeedbackModal isOpen={feedbackOpen} onClose={() => setFeedbackOpen(false)} />
       <BannerManagerModal isOpen={bannerManagerOpen} onClose={() => setBannerManagerOpen(false)} />
     </div>
@@ -522,8 +514,6 @@ const HomePage = () => {
   );
 };
 
-<<<<<<< Updated upstream
-=======
 // Consent gate: shown to any logged-in user who hasn't accepted the ToS yet.
 // Bypassed in localhost dev (no real auth).
 const ConsentGate = ({ children }) => {
@@ -563,7 +553,6 @@ const ConsentGate = ({ children }) => {
   );
 };
 
->>>>>>> Stashed changes
 function App() {
   const [pageMeta, setPageMeta] = React.useState({ title: '', badge: null, subtitle: null, completion: null });
 

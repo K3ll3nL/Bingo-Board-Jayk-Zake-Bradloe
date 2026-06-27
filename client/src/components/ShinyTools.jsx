@@ -4,18 +4,11 @@ import PageBackground from './PageBackground';
 import PageHeader from './PageHeader';
 
 const CATEGORY_COLORS = {
-<<<<<<< Updated upstream
-  Chaining:    { border: '#6366f1', tag: 'bg-indigo-500/20 text-indigo-300', glow: 'rgba(99,102,241,0.12)' },
-  Breeding:    { border: '#ec4899', tag: 'bg-pink-500/20 text-pink-300',    glow: 'rgba(236,72,153,0.12)' },
-  Encounter:   { border: '#10b981', tag: 'bg-emerald-500/20 text-emerald-300', glow: 'rgba(16,185,129,0.12)' },
-  Calculators: { border: '#f59e0b', tag: 'bg-amber-500/20 text-amber-300',  glow: 'rgba(245,158,11,0.12)' },
-=======
   Chaining:    { border: '#6366f1', tag: 'bg-indigo-500/20 text-indigo-300 border-indigo-500/30',    glow: 'rgba(99,102,241,0.08)',  hex: '#6366f1' },
   Breeding:    { border: '#ec4899', tag: 'bg-pink-500/20 text-pink-300 border-pink-500/30',          glow: 'rgba(236,72,153,0.08)',  hex: '#ec4899' },
   Encounter:   { border: '#10b981', tag: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30', glow: 'rgba(16,185,129,0.08)', hex: '#10b981' },
   Calculators: { border: '#f59e0b', tag: 'bg-amber-500/20 text-amber-300 border-amber-500/30',       glow: 'rgba(245,158,11,0.08)', hex: '#f59e0b' },
   Advisor:     { border: '#06b6d4', tag: 'bg-cyan-500/20 text-cyan-300 border-cyan-500/30',          glow: 'rgba(6,182,212,0.08)',  hex: '#06b6d4' },
->>>>>>> Stashed changes
 };
 
 const GEN_GROUPS = ['Universal', 'Gen 9', 'Gen 8', 'Gen 7', 'Gen 6', 'Gen 4', 'Gen 2', 'Gen 1'];

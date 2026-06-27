@@ -51,8 +51,6 @@ const HistoricalUploadSection = () => {
     }
     return result;
   });
-<<<<<<< Updated upstream
-=======
   const [caughtInDifferentGame, setCaughtInDifferentGame] = useState(false);
   const [caughtInGame, setCaughtInGame] = useState('');
   const [caughtInGameOpen, setCaughtInGameOpen] = useState(false);
@@ -60,7 +58,6 @@ const HistoricalUploadSection = () => {
   const [evolutionSummaryFile, setEvolutionSummaryFile] = useState(null);
   const [extraFiles, setExtraFiles] = useState([]);
   const [note, setNote] = useState('');
->>>>>>> Stashed changes
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(false);
@@ -216,19 +213,12 @@ const HistoricalUploadSection = () => {
       formData.append('game', game.trim());
       formData.append('month_id', String(selectedPokeData.month_id));
       validLinks.forEach(u => formData.append('link', u));
-<<<<<<< Updated upstream
-      if (!isRestricted) {
-        if (mediaFile)  formData.append('file', mediaFile);
-        if (mediaFile2) formData.append('file2', mediaFile2);
-      }
-=======
       if (mediaFile)  formData.append('file', mediaFile);
       if (mediaFile2) formData.append('file2', mediaFile2);
       if (caughtInDifferentGame && evolutionFile)        formData.append('evolutionFile', evolutionFile);
       if (caughtInDifferentGame && evolutionSummaryFile) formData.append('evolutionSummaryFile', evolutionSummaryFile);
       extraFiles.filter(Boolean).forEach(f => formData.append('extraFile', f));
       if (note.trim()) formData.append('note', note.trim());
->>>>>>> Stashed changes
 
       const response = await fetch('/api/upload/historical-submission', {
         method: 'POST',
@@ -605,8 +595,6 @@ const HistoricalUploadSection = () => {
         </div>
       </div>
 
-<<<<<<< Updated upstream
-=======
       {/* Additional images */}
       <div className="mb-4">
         <label className="block text-xs font-medium text-gray-400 mb-2">Additional Images <span className="text-gray-500">(optional)</span></label>
@@ -678,7 +666,6 @@ const HistoricalUploadSection = () => {
         />
       </div>
 
->>>>>>> Stashed changes
       <button
         type="submit"
         disabled={
@@ -729,8 +716,6 @@ const Upload = () => {
     }
     return result;
   });
-<<<<<<< Updated upstream
-=======
   const [caughtInDifferentGame, setCaughtInDifferentGame] = useState(false);
   const [caughtInGame, setCaughtInGame] = useState('');
   const [caughtInGameOpen, setCaughtInGameOpen] = useState(false);
@@ -738,7 +723,6 @@ const Upload = () => {
   const [evolutionSummaryFile, setEvolutionSummaryFile] = useState(null);
   const [extraFiles, setExtraFiles] = useState([]);
   const [note, setNote] = useState('');
->>>>>>> Stashed changes
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(false);
@@ -973,19 +957,12 @@ const Upload = () => {
       formData.append('game', game.trim());
 
       validLinks.forEach(u => formData.append('link', u));
-<<<<<<< Updated upstream
-      if (!isRestricted) {
-        if (mediaFile)  formData.append('file', mediaFile);
-        if (mediaFile2) formData.append('file2', mediaFile2);
-      }
-=======
       if (mediaFile)  formData.append('file', mediaFile);
       if (mediaFile2) formData.append('file2', mediaFile2);
       if (caughtInDifferentGame && evolutionFile)        formData.append('evolutionFile', evolutionFile);
       if (caughtInDifferentGame && evolutionSummaryFile) formData.append('evolutionSummaryFile', evolutionSummaryFile);
       extraFiles.filter(Boolean).forEach(f => formData.append('extraFile', f));
       if (note.trim()) formData.append('note', note.trim());
->>>>>>> Stashed changes
 
       const response = await fetch('/api/upload/submission', {
         method: 'POST',
@@ -1261,8 +1238,6 @@ const Upload = () => {
                     </div>
                   )}
                 </div>
-<<<<<<< Updated upstream
-=======
 
                 {!caughtInDifferentGame ? (
                   <button
@@ -1355,7 +1330,6 @@ const Upload = () => {
                     </div>
                   </div>
                 )}
->>>>>>> Stashed changes
               </div>
 
               {/* Video Link(s) + Restricted Toggle */}
@@ -1549,8 +1523,6 @@ const Upload = () => {
                 </div>
               </div>
 
-<<<<<<< Updated upstream
-=======
               {/* Additional Images */}
               <div className="mb-4">
                 <label className="block text-xs font-medium text-gray-400 mb-2">Additional Images <span className="text-gray-500">(optional)</span></label>
@@ -1622,7 +1594,6 @@ const Upload = () => {
                 />
               </div>
 
->>>>>>> Stashed changes
               {/* Submit */}
               <button
                 type="submit"
