@@ -2,7 +2,6 @@ import React from 'react';
 import restrictedIcon from '../Icons/restricted-icon.png';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import { isRestrictedEnabled } from '../featureFlags';
 import PageBackground from './PageBackground';
 import PageHeader from './PageHeader';
 
@@ -11,7 +10,7 @@ const Section = ({ id, title, icon, accentColor = '#9147ff', headerBg = 'rgba(14
   <section
     id={id}
     className="rounded-xl shadow-xl overflow-hidden border border-gray-600"
-    style={{ backgroundColor: '#35373b' }}
+    style={{ background: 'linear-gradient(160deg, #1a1c23 0%, #1f2128 100%)' }}
   >
     <div
       className="px-6 py-4 border-b flex items-center gap-3"
@@ -86,7 +85,7 @@ const ExceptionCard = ({ game, open, onToggle, divider, children }) => (
     {open && (
       <div
         className="px-4 pl-8 py-3 border-t border-gray-600 text-gray-300 text-sm leading-relaxed"
-        style={{ backgroundColor: 'rgba(42,44,48,0.4)' }}
+        style={{ backgroundColor: 'rgba(13,15,20,0.4)' }}
       >
         {children}
       </div>
@@ -112,11 +111,11 @@ const EXCEPTIONS = [
             the TID/username as well as the shiny indicator and model.
           </p>
           <div className="flex gap-3">
-            <figure className="flex-1 rounded-lg overflow-hidden cursor-zoom-in" style={{ backgroundColor: '#2a2c30' }} onClick={() => openLightbox(svImages, 0)}>
+            <figure className="flex-1 rounded-lg overflow-hidden cursor-zoom-in" style={{ background: 'linear-gradient(160deg, #13151a 0%, #181a21 100%)' }} onClick={() => openLightbox(svImages, 0)}>
               <img src={svImages[0]} alt="Summary screen" className="w-full object-contain" loading="lazy" />
               <figcaption className="text-center text-gray-500 text-[9px] py-2 px-3">Correct image 1 for SV</figcaption>
             </figure>
-            <figure className="flex-1 rounded-lg overflow-hidden cursor-zoom-in" style={{ backgroundColor: '#2a2c30' }} onClick={() => openLightbox(svImages, 1)}>
+            <figure className="flex-1 rounded-lg overflow-hidden cursor-zoom-in" style={{ background: 'linear-gradient(160deg, #13151a 0%, #181a21 100%)' }} onClick={() => openLightbox(svImages, 1)}>
               <img src={svImages[1]} alt="Summary screen" className="w-full object-contain" loading="lazy" />
               <figcaption className="text-center text-gray-500 text-[9px] py-2 px-3">Correct image 2 for SV</figcaption>
             </figure>
@@ -140,8 +139,8 @@ const ExceptionsBlock = ({ openLightbox, exceptions = EXCEPTIONS, title = 'Excep
         {title}
       </h3>
       <div
-        className="rounded-lg overflow-hidden border border-gray-600"
-        style={{ backgroundColor: 'rgba(42,44,48,0.6)' }}
+        className="rounded-lg overflow-hidden border border-gray-500"
+        style={{ backgroundColor: 'rgba(26,28,35,0.8)' }}
       >
         {exceptions.map((ex, i) => (
           <ExceptionCard
@@ -162,7 +161,7 @@ const ExceptionsBlock = ({ openLightbox, exceptions = EXCEPTIONS, title = 'Excep
 const RulesBlock = ({ rules, exceptions = [], title, exceptionsTitle = 'Exceptions', openLightbox }) => (
   <div className="mb-5">
     {title && <h3 className="text-white font-semibold text-sm mb-3">{title}</h3>}
-    <div className="space-y-0 rounded-lg overflow-hidden border border-gray-600" style={{ backgroundColor: 'rgba(42,44,48,0.6)' }}>
+    <div className="space-y-0 rounded-lg overflow-hidden border border-gray-600" style={{ backgroundColor: 'rgba(13,15,20,0.6)' }}>
       {rules.map((rule, i) => (
         <div key={rule.key} className={`px-4 py-3 flex gap-4 ${i > 0 ? 'border-t border-gray-700/60' : ''}`}>
           <span className="text-gray-400 text-xs font-semibold uppercase tracking-wide w-36 flex-shrink-0 pt-0.5">{rule.game}</span>
@@ -173,7 +172,7 @@ const RulesBlock = ({ rules, exceptions = [], title, exceptionsTitle = 'Exceptio
     {exceptions.length > 0 && (
       <div className="mt-3">
         <h4 className="text-gray-400 text-xs font-semibold uppercase tracking-wide mb-2">{exceptionsTitle}</h4>
-        <div className="space-y-0 rounded-lg overflow-hidden border border-gray-600" style={{ backgroundColor: 'rgba(42,44,48,0.6)' }}>
+        <div className="space-y-0 rounded-lg overflow-hidden border border-gray-600" style={{ backgroundColor: 'rgba(13,15,20,0.6)' }}>
           {exceptions.map((ex, i) => (
             <div key={ex.key} className={`px-4 py-3 flex gap-4 ${i > 0 ? 'border-t border-gray-700/60' : ''}`}>
               <span className="text-gray-400 text-xs font-semibold uppercase tracking-wide w-36 flex-shrink-0 pt-0.5">{ex.game}</span>
@@ -302,7 +301,6 @@ const RESTRICTED_EXCEPTIONS = [
 const About = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { isModerator } = useAuth();
   const [lightbox, setLightbox] = React.useState(null); // { images: [], index: number }
   const openLightbox = (images, index = 0) => setLightbox({ images, index });
   const closeLightbox = () => setLightbox(null);
@@ -359,7 +357,7 @@ const About = () => {
           </p>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <figure className="rounded-lg overflow-hidden" style={{ backgroundColor: '#2a2c30' }}>
+            <figure className="rounded-lg overflow-hidden" style={{ background: 'linear-gradient(160deg, #13151a 0%, #181a21 100%)' }}>
               <img
                 src="https://pub-583ae6cd5f8b4b58b0ee7053ea1d4b0b.r2.dev/assets/gif_website_1.gif"
                 alt="Clicking a Pokémon tile to submit"
@@ -371,7 +369,7 @@ const About = () => {
               </figcaption>
             </figure>
 
-            <figure className="rounded-lg overflow-hidden" style={{ backgroundColor: '#2a2c30' }}>
+            <figure className="rounded-lg overflow-hidden" style={{ background: 'linear-gradient(160deg, #13151a 0%, #181a21 100%)' }}>
               <img
                 src="https://pub-583ae6cd5f8b4b58b0ee7053ea1d4b0b.r2.dev/assets/gif_website_2.gif"
                 alt="Using the Upload option from the profile menu"
@@ -389,14 +387,14 @@ const About = () => {
         <Section
           title="Rules for Submission"
           icon={<WarningIcon />}
-          accentColor="#d30808d9"
-          headerBg="rgba(211, 8, 8, 0.2)"
+          accentColor="#f59e0b"
+          headerBg="rgba(245, 158, 11, 0.12)"
         >
           <p className="text-gray-300 leading-relaxed mb-5">
             Breaking these rules may result in your submission being rejected and your account being flagged for review. Repeat or severe offenses can lead to a ban.
           </p>
 
-          <div className="rounded-lg overflow-hidden border mb-5" style={{ borderColor: 'rgba(211,8,8,0.35)' }}>
+          <div className="rounded-lg overflow-hidden border mb-5" style={{ borderColor: 'rgba(245,158,11,0.35)' }}>
             {[
               {
                 label: 'No Code Editing',
@@ -411,9 +409,9 @@ const About = () => {
                 key={label}
                 className="flex gap-3 px-4 py-3.5"
                 style={{
-                  backgroundColor: 'rgba(211,8,8,0.06)',
-                  borderTop: i > 0 ? '1px solid rgba(211,8,8,0.2)' : undefined,
-                  borderLeft: '3px solid rgba(211,8,8,0.7)',
+                  backgroundColor: 'rgba(245,158,11,0.05)',
+                  borderTop: i > 0 ? '1px solid rgba(245,158,11,0.2)' : undefined,
+                  borderLeft: '3px solid rgba(245,158,11,0.7)',
                 }}
               >
                 <div>
@@ -438,7 +436,7 @@ const About = () => {
 
           {/* Required screenshots */}
           <div className="rounded-lg overflow-hidden border border-gray-600 mb-5">
-            <div className="flex gap-4 items-center px-4 py-3.5" style={{ backgroundColor: 'rgba(42,44,48,0.6)' }}>
+            <div className="flex gap-4 items-center px-4 py-3.5" style={{ backgroundColor: 'rgba(13,15,20,0.6)' }}>
               <span className="flex-shrink-0 w-6 h-6 rounded-full text-white text-xs font-bold flex items-center justify-center" style={{ backgroundColor: '#3b82f6' }}>1</span>
               <div className="flex flex-col sm:flex-row gap-4 sm:items-center w-full">
                 <div className="flex-1">
@@ -448,7 +446,7 @@ const About = () => {
                   view, Dynamax Adventure results page, etc.
                 </p>
                 </div>
-                <figure className="sm:flex-shrink-0 rounded-lg overflow-hidden cursor-zoom-in" style={{ backgroundColor: '#2a2c30', width: '170px', maxWidth: '100%' }} onClick={() => setLightboxImage('https://pub-583ae6cd5f8b4b58b0ee7053ea1d4b0b.r2.dev/assets/correct_img1.png')}>
+                <figure className="sm:flex-shrink-0 rounded-lg overflow-hidden cursor-zoom-in" style={{ background: 'linear-gradient(160deg, #13151a 0%, #181a21 100%)', width: '170px', maxWidth: '100%' }} onClick={() => setLightboxImage('https://pub-583ae6cd5f8b4b58b0ee7053ea1d4b0b.r2.dev/assets/correct_img1.png')}>
                   <img
                     src="https://pub-583ae6cd5f8b4b58b0ee7053ea1d4b0b.r2.dev/assets/correct_img1.png"
                     alt="The Pokémon encountered in the wild"
@@ -461,7 +459,7 @@ const About = () => {
                 </figure>
               </div>
             </div>
-            <div className="border-t border-gray-600 flex gap-4 items-center px-4 py-3.5" style={{ backgroundColor: 'rgba(42,44,48,0.6)' }}>
+            <div className="border-t border-gray-600 flex gap-4 items-center px-4 py-3.5" style={{ backgroundColor: 'rgba(13,15,20,0.6)' }}>
               <span className="flex-shrink-0 w-6 h-6 rounded-full text-white text-xs font-bold flex items-center justify-center" style={{ backgroundColor: '#3b82f6' }}>2</span>
               <div className="flex flex-col sm:flex-row gap-4 sm:items-center w-full">
                 <div className="flex-1">
@@ -470,7 +468,7 @@ const About = () => {
                   A screenshot showing the in-game or system date on which the Pokémon was caught.
                 </p>
                 </div>
-                <figure className="sm:flex-shrink-0 rounded-lg overflow-hidden cursor-zoom-in" style={{ backgroundColor: '#2a2c30', width: '170px', maxWidth: '100%' }} onClick={() => setLightboxImage('https://pub-583ae6cd5f8b4b58b0ee7053ea1d4b0b.r2.dev/assets/correct_img2.png')}>
+                <figure className="sm:flex-shrink-0 rounded-lg overflow-hidden cursor-zoom-in" style={{ background: 'linear-gradient(160deg, #13151a 0%, #181a21 100%)', width: '170px', maxWidth: '100%' }} onClick={() => setLightboxImage('https://pub-583ae6cd5f8b4b58b0ee7053ea1d4b0b.r2.dev/assets/correct_img2.png')}>
                   <img
                     src="https://pub-583ae6cd5f8b4b58b0ee7053ea1d4b0b.r2.dev/assets/correct_img2.png"
                     alt="Date proof screen"
@@ -509,9 +507,7 @@ const About = () => {
                 <tr style={{ backgroundColor: 'rgba(245,158,11,0.12)' }}>
                   <th className="text-left px-4 py-2.5 text-gray-300 font-semibold">Bounty</th>
                   <th className="text-center px-4 py-2.5 text-gray-300 font-semibold">Points</th>
-                  {isRestrictedEnabled(isModerator) && (
-                    <th className="text-center px-4 py-2.5 text-gray-300 font-semibold">Restricted</th>
-                  )}
+                  <th className="text-center px-4 py-2.5 text-gray-300 font-semibold">Restricted</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-700">
@@ -527,12 +523,10 @@ const About = () => {
                       <span className="text-yellow-400 font-bold">{std}</span>
                       <span className="text-gray-500 text-xs ml-1">pts</span>
                     </td>
-                    {isRestrictedEnabled(isModerator) && (
-                      <td className="px-4 py-2.5 text-center">
-                        <span className="text-red-400 font-bold">+{res}</span>
-                        <span className="text-gray-500 text-xs ml-1">pts</span>
-                      </td>
-                    )}
+                    <td className="px-4 py-2.5 text-center">
+                      <span className="text-red-400 font-bold">+{res}</span>
+                      <span className="text-gray-500 text-xs ml-1">pts</span>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -547,7 +541,7 @@ const About = () => {
               { src: 'bingo_board3.png', caption: 'X'               },
               { src: 'bingo_board4.png', caption: 'Blackout'        },
             ].map(({ src, caption }) => (
-              <figure key={src} className="rounded-lg overflow-hidden" style={{ backgroundColor: '#2a2c30' }}>
+              <figure key={src} className="rounded-lg overflow-hidden" style={{ background: 'linear-gradient(160deg, #13151a 0%, #181a21 100%)' }}>
                 <img
                   src={`https://pub-583ae6cd5f8b4b58b0ee7053ea1d4b0b.r2.dev/assets/${src}`}
                   alt={caption}
@@ -573,8 +567,7 @@ const About = () => {
         </Section>
 
         {/* ── Restricted Challenge ──────────────────────────────────────── */}
-        {isRestrictedEnabled(isModerator) && (
-          <Section
+        <Section
             id="restricted"
             title="Restricted Challenge (Optional)"
             icon={<LockIcon />}
@@ -650,8 +643,7 @@ const About = () => {
               exceptionsTitle="Exceptions"
               openLightbox={openLightbox}
             />
-          </Section>
-        )}
+        </Section>
 
       </div>
 

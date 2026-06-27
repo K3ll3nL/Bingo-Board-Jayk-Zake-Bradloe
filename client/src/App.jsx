@@ -1,6 +1,11 @@
 import React from 'react';
+<<<<<<< Updated upstream
 import { BrowserRouter as Router, Routes, Route, Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
+=======
+import { BrowserRouter as Router, Routes, Route, Outlet, Navigate, useNavigate, useLocation } from 'react-router-dom';
+import { AuthProvider, useAuth, supabase } from './contexts/AuthContext';
+>>>>>>> Stashed changes
 import { PageTitleContext } from './contexts/PageTitleContext';
 import BingoBoard from './components/BingoBoard';
 import Leaderboard from './components/Leaderboard';
@@ -31,7 +36,15 @@ import BDSPRadar from './components/tools/BDSPRadar';
 import Gen2ShinyBreeding from './components/tools/Gen2ShinyBreeding';
 import DexNavCalculator from './components/tools/DexNavCalculator';
 import logoImage from './Icons/pokemon-bounty-board.png';
+import logoIcon from './Icons/logo-mobile.png';
 
+
+// Scroll to top on every route change
+const ScrollToTop = () => {
+  const { pathname } = useLocation();
+  React.useEffect(() => { window.scrollTo(0, 0); }, [pathname]);
+  return null;
+};
 
 // Shared layout: single adaptive header + page content via <Outlet />
 const AppLayout = () => {
@@ -40,11 +53,15 @@ const AppLayout = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const [menuOpen, setMenuOpen] = React.useState(false);
+  const [drawerOpen, setDrawerOpen] = React.useState(false);
   const [feedbackOpen, setFeedbackOpen] = React.useState(false);
   const [bannerManagerOpen, setBannerManagerOpen] = React.useState(false);
   const menuRef = React.useRef(null);
 
   const isHome = location.pathname === '/';
+
+  // Close drawer on route change
+  React.useEffect(() => { setDrawerOpen(false); }, [location.pathname]);
 
   React.useEffect(() => {
     const handleClickOutside = (e) => {
@@ -78,118 +95,131 @@ const AppLayout = () => {
     else navigate('/');
   };
 
-  // User avatar / dropdown — identical on home and sub-pages
+  // User avatar / dropdown — desktop only (mobile uses slide-out drawer)
+  const displayName = user?.user_metadata?.custom_claims?.global_name || user?.user_metadata?.full_name || user?.user_metadata?.username || 'User';
+  const avatarUrl = user?.user_metadata?.avatar_url;
+
   const userMenu = loading ? (
-    <div className="w-10 h-10 rounded-full bg-gray-600 animate-pulse" />
+    <div className="w-9 h-9 rounded-full bg-gray-600 animate-pulse" />
   ) : user ? (
     <div className="relative" ref={menuRef}>
-      <div className="flex items-center gap-3 cursor-pointer" onClick={() => setMenuOpen(o => !o)}>
-        <div className="text-right hidden sm:block">
-          <p className="text-sm font-medium text-white">
-            {user.user_metadata?.custom_claims?.global_name || user.user_metadata?.full_name || user.user_metadata?.username || 'User'}
-          </p>
-        </div>
-        {user.user_metadata?.avatar_url && (
-          <img
-            src={user.user_metadata.avatar_url}
-            alt="Profile"
-            className={`w-10 h-10 rounded-full ring-2 transition-all ${menuOpen ? 'ring-purple-400' : 'ring-transparent'}`}
-          />
+      {/* Avatar trigger — icon fallback when no avatar */}
+      <button
+        onClick={() => setMenuOpen(o => !o)}
+        className={`flex items-center justify-center w-9 h-9 rounded-full ring-2 transition-all overflow-hidden ${menuOpen ? 'ring-purple-400' : 'ring-gray-600 hover:ring-gray-400'}`}
+        style={{ backgroundColor: '#4b5563' }}
+        aria-label="Account menu"
+      >
+        {avatarUrl ? (
+          <img src={avatarUrl} alt={displayName} className="w-full h-full object-cover" />
+        ) : (
+          <svg className="w-5 h-5 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+          </svg>
         )}
-        {/* Hamburger icon — mobile only */}
-        <div className="sm:hidden flex flex-col justify-center gap-1.5 w-10 h-10 items-center">
-          <span className={`block h-0.5 w-6 bg-white transition-all duration-200 ${menuOpen ? 'rotate-45 translate-y-2' : ''}`} />
-          <span className={`block h-0.5 w-6 bg-white transition-all duration-200 ${menuOpen ? 'opacity-0' : ''}`} />
-          <span className={`block h-0.5 w-6 bg-white transition-all duration-200 ${menuOpen ? '-rotate-45 -translate-y-2' : ''}`} />
-        </div>
-      </div>
+      </button>
 
-      {/* Dropdown Menu */}
-      <div className={`absolute right-0 mt-2 w-48 rounded-lg shadow-lg transition-all duration-200 z-50 overflow-y-auto max-h-[80vh] ${menuOpen ? 'opacity-100 visible' : 'opacity-0 invisible'}`} style={{ backgroundColor: '#35373b' }}>
-        <div className="py-2">
-          <button onClick={() => { navigate('/profile'); setMenuOpen(false); }} className="w-full px-4 py-2 text-left text-sm text-gray-200 hover:bg-gray-700 flex items-center gap-2">
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
-            Profile
-          </button>
-          <button onClick={() => { navigate('/pokedex'); setMenuOpen(false); }} className="w-full px-4 py-2 text-left text-sm text-gray-200 hover:bg-gray-700 flex items-center gap-2">
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" /></svg>
-            Pokedex
-          </button>
-          <button onClick={() => { navigate('/upload'); setMenuOpen(false); }} className="w-full px-4 py-2 text-left text-sm text-gray-200 hover:bg-gray-700 flex items-center gap-2">
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" /></svg>
-            Upload
-          </button>
-          <button onClick={() => { navigate('/history'); setMenuOpen(false); }} className="w-full px-4 py-2 text-left text-sm text-gray-200 hover:bg-gray-700 flex items-center gap-2">
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-            Notifications
-          </button>
-          <div className="border-t border-gray-600 my-1" />
-            <button onClick={() => { navigate('/tools'); setMenuOpen(false); }} className="w-full px-4 py-2 text-left text-sm text-yellow-300 hover:bg-gray-700 flex items-center gap-2">
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 3l14 9-14 9V3z" /></svg>
-              Shiny Tools
+      {/* Desktop dropdown */}
+      <div
+        className={`absolute right-0 mt-2 w-64 rounded-xl shadow-2xl border border-gray-600/60 transition-all duration-150 z-50 overflow-hidden ${menuOpen ? 'opacity-100 visible translate-y-0' : 'opacity-0 invisible -translate-y-1'}`}
+        style={{ background: 'linear-gradient(160deg, #13151a 0%, #181a21 100%)' }}
+      >
+        {/* User info header */}
+        <div className="px-4 py-3 border-b border-gray-700 flex items-center gap-3">
+          <div className="w-9 h-9 rounded-full overflow-hidden shrink-0 flex items-center justify-center" style={{ backgroundColor: '#4b5563' }}>
+            {avatarUrl ? (
+              <img src={avatarUrl} alt={displayName} className="w-full h-full object-cover" />
+            ) : (
+              <svg className="w-5 h-5 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+              </svg>
+            )}
+          </div>
+          <div className="min-w-0">
+            <p className="text-sm font-semibold text-white truncate">{displayName}</p>
+            <button onClick={() => { navigate('/profile'); setMenuOpen(false); }} className="text-xs text-purple-400 hover:text-purple-300 transition-colors">View Profile</button>
+          </div>
+        </div>
+
+        <div className="py-1.5 overflow-y-auto max-h-[70vh]">
+          {/* My Account */}
+          <div className="px-3 pt-1.5 pb-0.5 text-[10px] font-bold uppercase tracking-wider text-gray-500">My Account</div>
+          {[
+            { label: 'Upload', path: '/upload', icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" /> },
+            { label: 'Notifications', path: '/history', icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" /> },
+            { label: 'Pokédex', path: '/pokedex', icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" /> },
+          ].map(({ label, path, icon }) => (
+            <button key={path} onClick={() => { navigate(path); setMenuOpen(false); }}
+              className="w-full px-3 py-2 text-left text-sm text-gray-200 hover:bg-gray-700/60 flex items-center gap-2.5 transition-colors">
+              <svg className="w-4 h-4 shrink-0 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">{icon}</svg>
+              {label}
             </button>
-          {isPro && (
+          ))}
+
+          {(isPro || isModerator) && (
             <>
-              <div className="border-t border-gray-600 my-1" />
-              <button onClick={() => { navigate('/pro'); setMenuOpen(false); }} className="w-full px-4 py-2 text-left text-sm text-purple-300 hover:bg-gray-700 flex items-center gap-2">
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.069A1 1 0 0121 8.882v6.236a1 1 0 01-1.447.894L15 14M3 8a2 2 0 012-2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V8z" /></svg>
-                Stream Overlays
-              </button>
+              <div className="border-t border-gray-700 my-1.5" />
+              <div className="px-3 py-0.5 text-[10px] font-bold uppercase tracking-wider text-gray-500">Pro</div>
+              {isPro && (
+                <button onClick={() => { navigate('/overlays'); setMenuOpen(false); }}
+                  className="w-full px-3 py-2 text-left text-sm text-purple-300 hover:bg-gray-700/60 flex items-center gap-2.5 transition-colors">
+                  <svg className="w-4 h-4 shrink-0 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.069A1 1 0 0121 8.882v6.236a1 1 0 01-1.447.894L15 14M3 8a2 2 0 012-2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V8z" /></svg>
+                  Stream Overlays
+                </button>
+              )}
+              {isModerator && (
+                <button onClick={() => { navigate('/game-board'); setMenuOpen(false); }}
+                  className="w-full px-3 py-2 text-left text-sm text-green-400 hover:bg-gray-700/60 flex items-center gap-2.5 transition-colors">
+                  <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  Game Board
+                </button>
+              )}
             </>
           )}
+
           {isModerator && (
             <>
-              <div className="border-t border-gray-600 my-1" />
-              <button onClick={() => { navigate('/approvals'); setMenuOpen(false); }} className="w-full px-4 py-2 text-left text-sm text-purple-400 hover:bg-gray-700 flex items-center gap-2">
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                Approvals
-              </button>
-              <button onClick={() => { navigate('/board-builder'); setMenuOpen(false); }} className="w-full px-4 py-2 text-left text-sm text-purple-400 hover:bg-gray-700 flex items-center gap-2">
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 5a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1H5a1 1 0 01-1-1V5zm10 0a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1V5zM4 15a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1H5a1 1 0 01-1-1v-4zm10 0a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1v-4z" /></svg>
-                Board Builder
-              </button>
-              <button onClick={() => { navigate('/badge-upload'); setMenuOpen(false); }} className="w-full px-4 py-2 text-left text-sm text-purple-400 hover:bg-gray-700 flex items-center gap-2">
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z" /></svg>
-                Upload Badge
-              </button>
-              <button onClick={() => { navigate('/pokemon-game-manager'); setMenuOpen(false); }} className="w-full px-4 py-2 text-left text-sm text-purple-400 hover:bg-gray-700 flex items-center gap-2">
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A2 2 0 013 12V7a2 2 0 012-2z" /></svg>
-                Game Manager
-              </button>
-              <button onClick={() => { navigate('/feedback'); setMenuOpen(false); }} className="w-full px-4 py-2 text-left text-sm text-purple-400 hover:bg-gray-700 flex items-center gap-2">
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z" /></svg>
-                Feedback
-              </button>
-              <button onClick={() => { setBannerManagerOpen(true); setMenuOpen(false); }} className="w-full px-4 py-2 text-left text-sm text-purple-400 hover:bg-gray-700 flex items-center gap-2">
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5.882V19.24a1.76 1.76 0 01-3.417.592l-2.147-6.15M18 13a3 3 0 100-6M5.436 13.683A4.001 4.001 0 017 6h1.832c4.1 0 7.625-1.234 9.168-3v14c-1.543-1.766-5.067-3-9.168-3H7a3.988 3.988 0 01-1.564-.317z" /></svg>
+              <div className="border-t border-gray-700 my-1.5" />
+              <div className="px-3 py-0.5 text-[10px] font-bold uppercase tracking-wider text-purple-500">Moderator</div>
+              {[
+                { label: 'Approvals', path: '/approvals' },
+                { label: 'Board Builder', path: '/board-builder' },
+                { label: 'Upload Badge', path: '/badge-upload' },
+                { label: 'Game Manager', path: '/pokemon-game-manager' },
+                { label: 'Feedback', path: '/feedback' },
+              ].map(({ label, path }) => (
+                <button key={path} onClick={() => { navigate(path); setMenuOpen(false); }}
+                  className="w-full px-3 py-2 text-left text-sm text-purple-400 hover:bg-gray-700/60 flex items-center gap-2.5 transition-colors">
+                  <span className="w-4 h-4 shrink-0" />
+                  {label}
+                </button>
+              ))}
+              <button onClick={() => { setBannerManagerOpen(true); setMenuOpen(false); }}
+                className="w-full px-3 py-2 text-left text-sm text-purple-400 hover:bg-gray-700/60 flex items-center gap-2.5 transition-colors">
+                <span className="w-4 h-4 shrink-0" />
                 Manage Banners
               </button>
             </>
           )}
-          {isModerator && (
-            <>
-              <div className="border-t border-gray-600 my-1" />
-              <div className="px-4 py-1 text-xs font-semibold text-green-500 uppercase tracking-wider">Game Tools</div>
-              <button onClick={() => { navigate('/game-board'); setMenuOpen(false); }} className="w-full px-4 py-2 text-left text-sm text-green-400 hover:bg-gray-700 flex items-center gap-2">
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-                Game Board
-              </button>
-            </>
-          )}
-          <div className="border-t border-gray-600 my-1" />
-          <button onClick={() => { navigate('/about'); setMenuOpen(false); }} className="w-full px-4 py-2 text-left text-sm text-gray-200 hover:bg-gray-700 flex items-center gap-2">
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+
+          <div className="border-t border-gray-700 my-1.5" />
+          <button onClick={() => { navigate('/about'); setMenuOpen(false); }}
+            className="w-full px-3 py-2 text-left text-sm text-gray-200 hover:bg-gray-700/60 flex items-center gap-2.5 transition-colors">
+            <svg className="w-4 h-4 shrink-0 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
             How to Play
           </button>
-          <button onClick={() => { setFeedbackOpen(true); setMenuOpen(false); }} className="w-full px-4 py-2 text-left text-sm text-gray-200 hover:bg-gray-700 flex items-center gap-2">
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z" /></svg>
+          <button onClick={() => { setFeedbackOpen(true); setMenuOpen(false); }}
+            className="w-full px-3 py-2 text-left text-sm text-gray-200 hover:bg-gray-700/60 flex items-center gap-2.5 transition-colors">
+            <svg className="w-4 h-4 shrink-0 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z" /></svg>
             Suggestions & Bugs
           </button>
-          <button onClick={() => { signOut(); setMenuOpen(false); }} className="w-full px-4 py-2 text-left text-sm text-red-400 hover:bg-gray-700 flex items-center gap-2">
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>
+          <div className="border-t border-gray-700 my-1.5" />
+          <button onClick={() => { signOut(); setMenuOpen(false); }}
+            className="w-full px-3 py-2 text-left text-sm text-red-400 hover:bg-gray-700/60 flex items-center gap-2.5 transition-colors">
+            <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>
             Log out
           </button>
         </div>
@@ -210,66 +240,222 @@ const AppLayout = () => {
     </div>
   ) : null;
 
+  /* ── Shared action buttons (upload + bell) ── */
+  const actionButtons = user && (
+    <>
+      <button onClick={() => navigate('/upload')} className="p-2 text-gray-400 hover:text-white hover:bg-gray-700 rounded-lg transition-colors" title="Upload">
+        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" /></svg>
+      </button>
+      <button onClick={() => navigate('/history')} className="p-2 text-gray-400 hover:text-white hover:bg-gray-700 rounded-lg transition-colors" title="Notifications">
+        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" /></svg>
+      </button>
+    </>
+  );
+
+  /* ── Mobile hamburger button ── */
+  const hamburger = (
+    <button
+      onClick={() => setDrawerOpen(true)}
+      className="sm:hidden p-2 text-gray-400 hover:text-white hover:bg-gray-700 rounded-lg transition-colors"
+      aria-label="Open menu"
+    >
+      <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+      </svg>
+    </button>
+  );
+
   return (
-    <div className="min-h-screen" style={{ backgroundColor: '#212326' }}>
-      {/* Single adaptive header */}
-      <header className="sticky top-0 z-50 shadow-md" style={{ backgroundColor: '#35373b' }}>
-        <div className={`max-w-7xl mx-auto px-4 ${isHome ? 'py-2 md:py-4' : 'py-2'}`}>
+    <div className="min-h-screen" style={{ background: '#0d0f14' }}>
+      {/* ── Slide-out drawer (mobile) ── */}
+      {drawerOpen && (
+        <div className="fixed inset-0 z-[60] sm:hidden">
+          {/* Backdrop */}
+          <div className="absolute inset-0 bg-black/60" onClick={() => setDrawerOpen(false)} />
+          {/* Panel */}
+          <div className="absolute right-0 top-0 bottom-0 w-72 flex flex-col shadow-2xl" style={{ background: 'linear-gradient(160deg, #13151a 0%, #181a21 100%)' }}>
+            {/* Drawer header */}
+            <div className="flex items-center justify-between px-4 py-4 border-b border-gray-700">
+              {user ? (
+                <div className="flex items-center gap-3">
+                  {user.user_metadata?.avatar_url && (
+                    <img src={user.user_metadata.avatar_url} alt="Profile" className="w-9 h-9 rounded-full" />
+                  )}
+                  <div>
+                    <p className="text-sm font-semibold text-white">
+                      {user.user_metadata?.custom_claims?.global_name || user.user_metadata?.full_name || user.user_metadata?.username || 'User'}
+                    </p>
+                    <button onClick={() => { navigate('/profile'); setDrawerOpen(false); }} className="text-xs text-purple-400 hover:text-purple-300">View Profile</button>
+                  </div>
+                </div>
+              ) : (
+                <span className="text-sm font-semibold text-white">Menu</span>
+              )}
+              <button onClick={() => setDrawerOpen(false)} className="p-1.5 text-gray-400 hover:text-white rounded-lg hover:bg-gray-700 transition-colors">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+              </button>
+            </div>
+
+            {/* Nav links */}
+            <nav className="flex-1 overflow-y-auto py-2">
+              <div className="px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-gray-500">Navigate</div>
+              {[
+                { label: 'Home', path: '/', icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" /> },
+                { label: 'Pokédex', path: '/pokedex', icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" /> },
+                { label: 'How to Play', path: '/about', icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /> },
+              ].map(({ label, path, icon }) => (
+                <button key={path} onClick={() => { navigate(path); setDrawerOpen(false); }}
+                  className={`w-full flex items-center gap-3 px-4 py-2.5 text-sm transition-colors hover:bg-gray-700/60 ${location.pathname === path ? 'text-white font-medium' : 'text-gray-300'}`}>
+                  <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">{icon}</svg>
+                  {label}
+                </button>
+              ))}
+              <button onClick={() => { navigate('/tools'); setDrawerOpen(false); }}
+                className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-yellow-300 hover:bg-gray-700/60 transition-colors">
+                <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 3l14 9-14 9V3z" /></svg>
+                Shiny Tools
+              </button>
+
+              {user && (
+                <>
+                  <div className="border-t border-gray-700 my-2" />
+                  <div className="px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-gray-500">My Account</div>
+                  {[
+                    { label: 'Upload', path: '/upload', icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" /> },
+                    { label: 'Notifications', path: '/history', icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" /> },
+                  ].map(({ label, path, icon }) => (
+                    <button key={path} onClick={() => { navigate(path); setDrawerOpen(false); }}
+                      className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-gray-300 hover:bg-gray-700/60 transition-colors">
+                      <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">{icon}</svg>
+                      {label}
+                    </button>
+                  ))}
+                </>
+              )}
+
+              {isModerator && (
+                <>
+                  <div className="border-t border-gray-700 my-2" />
+                  <div className="px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-purple-500">Moderator</div>
+                  {[
+                    { label: 'Approvals', path: '/approvals' },
+                    { label: 'Board Builder', path: '/board-builder' },
+                    { label: 'Upload Badge', path: '/badge-upload' },
+                    { label: 'Game Manager', path: '/pokemon-game-manager' },
+                    { label: 'Feedback', path: '/feedback' },
+                  ].map(({ label, path }) => (
+                    <button key={path} onClick={() => { navigate(path); setDrawerOpen(false); }}
+                      className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-purple-400 hover:bg-gray-700/60 transition-colors">
+                      <span className="w-4 h-4 shrink-0" />
+                      {label}
+                    </button>
+                  ))}
+                  <button onClick={() => { setBannerManagerOpen(true); setDrawerOpen(false); }}
+                    className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-purple-400 hover:bg-gray-700/60 transition-colors">
+                    <span className="w-4 h-4 shrink-0" />
+                    Manage Banners
+                  </button>
+                  <div className="border-t border-gray-700 my-2" />
+                  <div className="px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-gray-500">Pro</div>
+                  {isPro && (
+                    <button onClick={() => { navigate('/overlays'); setDrawerOpen(false); }}
+                      className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-purple-300 hover:bg-gray-700/60 transition-colors">
+                      <svg className="w-4 h-4 shrink-0 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.069A1 1 0 0121 8.882v6.236a1 1 0 01-1.447.894L15 14M3 8a2 2 0 012-2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V8z" /></svg>
+                      Stream Overlays
+                    </button>
+                  )}
+                  <button onClick={() => { navigate('/game-board'); setDrawerOpen(false); }}
+                    className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-green-400 hover:bg-gray-700/60 transition-colors">
+                    <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    Game Board
+                  </button>
+                </>
+              )}
+
+              <div className="border-t border-gray-700 my-2" />
+              <button onClick={() => { setFeedbackOpen(true); setDrawerOpen(false); }}
+                className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-gray-300 hover:bg-gray-700/60 transition-colors">
+                <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z" /></svg>
+                Suggestions & Bugs
+              </button>
+              {user && (
+                <button onClick={() => { signOut(); setDrawerOpen(false); }}
+                  className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-red-400 hover:bg-gray-700/60 transition-colors">
+                  <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>
+                  Log out
+                </button>
+              )}
+            </nav>
+          </div>
+        </div>
+      )}
+
+      {/* ── Single adaptive header — full viewport width ── */}
+      <header className="sticky top-0 z-50 shadow-md" style={{ background: '#13151a', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+        <div className={`px-4 sm:px-6 ${isHome ? 'py-2 md:py-4' : 'py-2'}`}>
           {isHome ? (
-            /* Home: centred logo + menu pinned to the right */
-            <div className="flex items-center justify-between md:justify-center md:relative gap-3">
-              <img
-                src={logoImage}
-                alt="Pokemon Bounty Board"
-                className="h-10 sm:h-16 md:h-20 object-contain cursor-pointer max-w-[55%] sm:max-w-none"
-                onClick={() => navigate('/')}
-              />
-              <div className="flex items-center gap-3 shrink-0 md:absolute md:right-0">
-                {userMenu}
+            /* Home: logo left | nav flows naturally after logo | actions right */
+            <div className="flex items-center">
+              {/* Both images always in DOM so logoImage is pre-decoded before returning home */}
+              <img src={logoImage} alt="Pokemon Bounty Board" className="h-10 sm:h-14 object-contain cursor-pointer shrink-0" onClick={() => navigate('/')} />
+              <img src={logoIcon} alt="" className="hidden" aria-hidden="true" />
+              <nav className="hidden sm:flex items-center gap-0.5 ml-6">
+                <button onClick={() => navigate('/about')} className="px-3 py-1.5 text-sm text-gray-300 hover:text-white hover:bg-gray-700 rounded-lg transition-colors">How to Play</button>
+                <button onClick={() => navigate('/pokedex')} className="px-3 py-1.5 text-sm text-gray-300 hover:text-white hover:bg-gray-700 rounded-lg transition-colors">Pokédex</button>
+                <button onClick={() => navigate('/tools')} className="px-3 py-1.5 text-sm text-yellow-300 hover:text-yellow-100 hover:bg-gray-700 rounded-lg transition-colors">Shiny Tools</button>
+              </nav>
+              <div className="flex items-center gap-1 ml-auto">
+                <div className="hidden sm:flex items-center gap-1">
+                  {actionButtons}
+                </div>
+                <div className="hidden sm:block">{userMenu}</div>
+                {hamburger}
               </div>
             </div>
           ) : (
-            /* Sub-page: compact bar — back + title on the left, optional completion + menu on the right */
-            <div className="flex items-center justify-between gap-4 min-h-[40px]">
-              <div className="flex items-center gap-3 min-w-0">
-                <button
-                  onClick={handleBack}
-                  className="text-gray-400 hover:text-white transition-colors shrink-0"
-                  aria-label="Back"
-                >
-                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-                  </svg>
-                </button>
-                <div className="min-w-0">
-                  <div className="flex items-center gap-2">
-                    <h1 className="text-lg font-bold text-white truncate">{pageMeta.title}</h1>
-                    {pageMeta.badge === 'mod' && (
-                      <span className="text-xs text-purple-400 bg-purple-400/10 px-2 py-0.5 rounded-full font-medium shrink-0">
-                        Moderator
-                      </span>
-                    )}
-                    {pageMeta.badge === 'pro' && (
-                      <span className="text-xs text-yellow-400 bg-yellow-400/10 px-2 py-0.5 rounded-full font-medium shrink-0">
-                        Pro
-                      </span>
-                    )}
-                  </div>
-                  {pageMeta.subtitle && (
-                    <p className="text-xs text-gray-400 mt-0.5">{pageMeta.subtitle}</p>
+            /* Sub-page: icon (home) | title | actions */
+            <div className="flex items-center gap-3 min-h-[40px]">
+              {/* Hidden preload so logoImage is decoded before the user returns home */}
+              <img src={logoImage} alt="" className="hidden" aria-hidden="true" />
+              <img
+                src={logoIcon}
+                alt="Home"
+                className="h-7 w-7 object-contain cursor-pointer shrink-0 opacity-70 hover:opacity-100 transition-opacity"
+                onClick={() => navigate('/')}
+                title="Home"
+              />
+              <div className="w-px h-5 bg-gray-600 shrink-0" />
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-2">
+                  <h1 className="text-lg font-bold text-white truncate">{pageMeta.title}</h1>
+                  {pageMeta.badge === 'mod' && (
+                    <span className="text-xs text-purple-400 bg-purple-400/10 px-2 py-0.5 rounded-full font-medium shrink-0">Moderator</span>
+                  )}
+                  {pageMeta.badge === 'pro' && (
+                    <span className="text-xs text-yellow-400 bg-yellow-400/10 px-2 py-0.5 rounded-full font-medium shrink-0">Pro</span>
                   )}
                 </div>
+                {pageMeta.subtitle && (
+                  <p className="text-xs text-gray-400 mt-0.5">{pageMeta.subtitle}</p>
+                )}
               </div>
-              <div className="flex items-center gap-3 shrink-0">
+              <div className="flex items-center gap-1 shrink-0">
                 {pageMeta.completion && (
-                  <div className="text-right">
+                  <div className="text-right mr-2 hidden sm:block">
                     <div className="text-xs text-gray-400">Caught</div>
                     <div className="text-lg font-bold text-purple-400">
                       {pageMeta.completion.caught} / {pageMeta.completion.total}
                     </div>
                   </div>
                 )}
-                {userMenu}
+                <div className="hidden sm:flex items-center gap-1">
+                  {actionButtons}
+                </div>
+                <div className="hidden sm:block">{userMenu}</div>
+                {hamburger}
               </div>
             </div>
           )}
@@ -279,6 +465,27 @@ const AppLayout = () => {
       {/* Page content */}
       <Outlet />
 
+<<<<<<< Updated upstream
+=======
+      {/* Footer */}
+      <footer className="mt-12 border-t border-gray-700 py-6 text-center text-xs text-gray-500">
+        <div className="max-w-7xl mx-auto px-4">
+          <div className="flex flex-wrap justify-center gap-x-6 gap-y-2 mb-4 text-sm">
+            <button onClick={() => navigate('/')} className="hover:text-gray-300 transition-colors">Home</button>
+            <button onClick={() => navigate('/pokedex')} className="hover:text-gray-300 transition-colors">Pokédex</button>
+            <button onClick={() => navigate('/about')} className="hover:text-gray-300 transition-colors">How to Play</button>
+            <button onClick={() => navigate('/tools')} className="text-yellow-600 hover:text-yellow-400 transition-colors">Shiny Tools</button>
+          </div>
+          <div className="flex flex-wrap justify-center gap-x-5 gap-y-1">
+            <span>Pokeboard.net is not affiliated with Nintendo, Game Freak, or The Pokémon Company.</span>
+            <span className="hidden sm:inline text-gray-700">|</span>
+            <button onClick={() => navigate('/privacy')} className="hover:text-gray-300 transition-colors">Privacy Policy</button>
+            <button onClick={() => navigate('/terms')} className="hover:text-gray-300 transition-colors">Terms of Service</button>
+          </div>
+        </div>
+      </footer>
+
+>>>>>>> Stashed changes
       <FeedbackModal isOpen={feedbackOpen} onClose={() => setFeedbackOpen(false)} />
       <BannerManagerModal isOpen={bannerManagerOpen} onClose={() => setBannerManagerOpen(false)} />
     </div>
@@ -291,7 +498,7 @@ const HomePage = () => {
   return (
     <main className="max-w-7xl mx-auto px-4 py-5">
       {!user && !import.meta.env.DEV && (
-        <div className="mb-4 rounded-lg p-4 text-center" style={{ backgroundColor: '#35373b', borderColor: '#5865F2', borderWidth: '1px' }}>
+        <div className="mb-4 rounded-lg p-4 text-center" style={{ background: 'linear-gradient(160deg, #1a1c23 0%, #1f2128 100%)', borderColor: '#5865F2', borderWidth: '1px' }}>
           <p className="text-blue-300 text-sm">
             👋 Sign in with Discord to track your own Pokemon progress!
           </p>
@@ -300,11 +507,13 @@ const HomePage = () => {
       <BannerBar />
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="rounded-xl shadow-xl p-6 border border-gray-600" style={{ backgroundColor: '#35373b' }}>
+        <div className="rounded-xl shadow-xl p-6 border border-gray-600" style={{ background: 'linear-gradient(160deg, #1a1c23 0%, #1f2128 100%)', borderColor: 'rgba(255,255,255,0.07)' }}>
           <BingoBoard />
         </div>
-        <div className="rounded-xl shadow-xl p-6 border border-gray-600" style={{ backgroundColor: '#35373b' }}>
-          <Leaderboard />
+        <div className="relative rounded-xl shadow-xl overflow-hidden min-h-[480px] lg:min-h-0" style={{ background: 'linear-gradient(160deg, #1a1c23 0%, #1f2128 100%)', border: '1px solid rgba(255,255,255,0.07)' }}>
+          <div className="absolute inset-0 p-6 flex flex-col">
+            <Leaderboard />
+          </div>
         </div>
       </div>
 
@@ -313,11 +522,54 @@ const HomePage = () => {
   );
 };
 
+<<<<<<< Updated upstream
+=======
+// Consent gate: shown to any logged-in user who hasn't accepted the ToS yet.
+// Bypassed in localhost dev (no real auth).
+const ConsentGate = ({ children }) => {
+  const { user, loading } = useAuth();
+  const { pathname } = useLocation();
+  const [tosAccepted, setTosAccepted] = React.useState(null); // null = unknown
+
+  React.useEffect(() => {
+    if (!user || import.meta.env.DEV) { setTosAccepted(true); return; }
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (!session) { setTosAccepted(true); return; }
+      fetch('/api/user/tos-status', {
+        headers: { Authorization: `Bearer ${session.access_token}` },
+      })
+        .then(r => r.json())
+        .then(d => setTosAccepted(!!d.accepted))
+        .catch(() => setTosAccepted(true)); // fail open so a network error doesn't lock users out
+    });
+  }, [user]);
+
+  const handleAccept = async () => {
+    const { data: { session } } = await supabase.auth.getSession();
+    await fetch('/api/user/accept-tos', {
+      method: 'POST',
+      headers: { Authorization: session ? `Bearer ${session.access_token}` : '' },
+    });
+    setTosAccepted(true);
+  };
+
+  return (
+    <>
+      {children}
+      {!loading && user && tosAccepted === false && pathname !== '/privacy' && pathname !== '/terms' && (
+        <ConsentModal onAccept={handleAccept} />
+      )}
+    </>
+  );
+};
+
+>>>>>>> Stashed changes
 function App() {
   const [pageMeta, setPageMeta] = React.useState({ title: '', badge: null, subtitle: null, completion: null });
 
   return (
     <Router>
+      <ScrollToTop />
       <AuthProvider>
         <PageTitleContext.Provider value={{ pageMeta, setPageMeta }}>
         <NotificationToast />
@@ -340,7 +592,8 @@ function App() {
             <Route path="/board-builder" element={<BoardBuilder />} />
             <Route path="/game-board" element={<GameBoard />} />
             <Route path="/about" element={<About />} />
-            <Route path="/pro" element={<Pro />} />
+            <Route path="/overlays" element={<Pro />} />
+            <Route path="/pro" element={<Navigate to="/overlays" replace />} />
             <Route path="/badge-upload" element={<BadgeUpload />} />
             <Route path="/pokemon-game-manager" element={<PokemonGameManager />} />
             <Route path="/feedback" element={<ModFeedback />} />

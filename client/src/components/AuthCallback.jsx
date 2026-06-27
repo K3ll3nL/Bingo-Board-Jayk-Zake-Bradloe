@@ -49,22 +49,25 @@ const AuthCallback = () => {
   }, [navigate]);
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-purple-50">
+    <div className="min-h-screen flex items-center justify-center" style={{ background: '#0d0f14' }}>
       <div className="text-center">
         {error ? (
-          <div>
-            <p className="text-red-600 mb-4">{error}</p>
+          <div
+            className="rounded-2xl p-8 border max-w-sm mx-4"
+            style={{ background: 'linear-gradient(160deg, #13151a 0%, #181a21 100%)', borderColor: 'rgba(255,255,255,0.07)' }}
+          >
+            <p className="text-red-400 mb-5">{error}</p>
             <button
               onClick={() => navigate('/')}
-              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+              className="px-5 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition-colors font-medium"
             >
               Go back
             </button>
           </div>
         ) : (
           <>
-            <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-blue-600 mx-auto mb-4"></div>
-            <p className="text-gray-600">Signing you in...</p>
+            <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-purple-500 mx-auto mb-4"></div>
+            <p className="text-gray-400">Signing you in...</p>
           </>
         )}
       </div>

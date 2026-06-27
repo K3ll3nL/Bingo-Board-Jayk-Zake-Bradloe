@@ -3,7 +3,6 @@ import restrictedIcon from '../Icons/restricted-icon.png';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { createClient } from '@supabase/supabase-js';
-import { isRestrictedEnabled } from '../featureFlags';
 import { ALLOWED_GAMES } from '../constants/games';
 import PageBackground from './PageBackground';
 import PageHeader from './PageHeader';
@@ -27,8 +26,7 @@ const getAuthHeader = async () => {
 // ── Historical Upload Section ────────────────────────────────────────────────
 
 const HistoricalUploadSection = () => {
-  const { isModerator } = useAuth();
-  const restrictedEnabled = isRestrictedEnabled(isModerator);
+  const restrictedEnabled = true;
   const [pokemon, setPokemon] = useState(null); // null = loading
   const [selectedPokemon, setSelectedPokemon] = useState('');
   const [dropdownOpen, setDropdownOpen] = useState(false);
@@ -53,6 +51,16 @@ const HistoricalUploadSection = () => {
     }
     return result;
   });
+<<<<<<< Updated upstream
+=======
+  const [caughtInDifferentGame, setCaughtInDifferentGame] = useState(false);
+  const [caughtInGame, setCaughtInGame] = useState('');
+  const [caughtInGameOpen, setCaughtInGameOpen] = useState(false);
+  const [evolutionFile, setEvolutionFile] = useState(null);
+  const [evolutionSummaryFile, setEvolutionSummaryFile] = useState(null);
+  const [extraFiles, setExtraFiles] = useState([]);
+  const [note, setNote] = useState('');
+>>>>>>> Stashed changes
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(false);
@@ -208,10 +216,19 @@ const HistoricalUploadSection = () => {
       formData.append('game', game.trim());
       formData.append('month_id', String(selectedPokeData.month_id));
       validLinks.forEach(u => formData.append('link', u));
+<<<<<<< Updated upstream
       if (!isRestricted) {
         if (mediaFile)  formData.append('file', mediaFile);
         if (mediaFile2) formData.append('file2', mediaFile2);
       }
+=======
+      if (mediaFile)  formData.append('file', mediaFile);
+      if (mediaFile2) formData.append('file2', mediaFile2);
+      if (caughtInDifferentGame && evolutionFile)        formData.append('evolutionFile', evolutionFile);
+      if (caughtInDifferentGame && evolutionSummaryFile) formData.append('evolutionSummaryFile', evolutionSummaryFile);
+      extraFiles.filter(Boolean).forEach(f => formData.append('extraFile', f));
+      if (note.trim()) formData.append('note', note.trim());
+>>>>>>> Stashed changes
 
       const response = await fetch('/api/upload/historical-submission', {
         method: 'POST',
@@ -228,6 +245,7 @@ const HistoricalUploadSection = () => {
       setMediaUrls(['']);
       setMediaFile(null);
       setMediaFile2(null);
+      setNote('');
       setTimeout(() => { setSuccess(false); loadPokemon(); }, 3000);
     } catch (err) {
       setError(err.message || 'Failed to submit catch');
@@ -552,7 +570,7 @@ const HistoricalUploadSection = () => {
       </div>
 
       {/* Proof uploads */}
-      <div className={`grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4 transition-opacity duration-200 ${noImageProof ? 'opacity-40 pointer-events-none select-none' : ''}`}>
+      <div className={`grid grid-cols-2 gap-3 mb-4 transition-opacity duration-200 ${noImageProof ? 'opacity-40 pointer-events-none select-none' : ''}`}>
         <div>
           <label className="block text-xs font-medium text-gray-300 mb-2">
             {isRestricted || noImageProof
@@ -561,7 +579,7 @@ const HistoricalUploadSection = () => {
             }
           </label>
           <input type="file" onChange={(e) => { if (e.target.files[0]) setMediaFile(e.target.files[0]); }} accept="image/*,video/*" className="hidden" id="hist-file-1" disabled={submitting} />
-          <label htmlFor="hist-file-1" className="block w-full p-4 sm:p-6 border-2 border-dashed rounded-lg text-center cursor-pointer transition-colors border-gray-600 bg-gray-700 hover:border-purple-500">
+          <label htmlFor="hist-file-1" className="block w-full p-4 border-2 border-dashed rounded-lg text-center cursor-pointer transition-colors border-gray-600 bg-gray-700 hover:border-purple-500">
             {mediaFile ? (
               <div className="text-white"><svg className="w-6 h-6 mx-auto mb-2 text-green-400" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" /></svg><p className="text-xs truncate">{mediaFile.name}</p></div>
             ) : (
@@ -577,7 +595,7 @@ const HistoricalUploadSection = () => {
             }
           </label>
           <input type="file" onChange={(e) => { if (e.target.files[0]) setMediaFile2(e.target.files[0]); }} accept="image/*,video/*" className="hidden" id="hist-file-2" disabled={submitting} />
-          <label htmlFor="hist-file-2" className="block w-full p-4 sm:p-6 border-2 border-dashed rounded-lg text-center cursor-pointer transition-colors border-gray-600 bg-gray-700 hover:border-purple-500">
+          <label htmlFor="hist-file-2" className="block w-full p-4 border-2 border-dashed rounded-lg text-center cursor-pointer transition-colors border-gray-600 bg-gray-700 hover:border-purple-500">
             {mediaFile2 ? (
               <div className="text-white"><svg className="w-6 h-6 mx-auto mb-2 text-green-400" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" /></svg><p className="text-xs truncate">{mediaFile2.name}</p></div>
             ) : (
@@ -587,6 +605,80 @@ const HistoricalUploadSection = () => {
         </div>
       </div>
 
+<<<<<<< Updated upstream
+=======
+      {/* Additional images */}
+      <div className="mb-4">
+        <label className="block text-xs font-medium text-gray-400 mb-2">Additional Images <span className="text-gray-500">(optional)</span></label>
+        <input
+          type="file"
+          multiple
+          accept="image/*,video/*"
+          className="hidden"
+          id="hist-extra-files"
+          disabled={submitting || extraFiles.length >= 6}
+          onChange={(e) => {
+            const incoming = Array.from(e.target.files);
+            setExtraFiles(prev => [...prev, ...incoming].slice(0, 6));
+            e.target.value = '';
+          }}
+        />
+        <label
+          htmlFor="hist-extra-files"
+          className={`block w-full p-4 border-2 border-dashed rounded-lg text-center transition-colors ${
+            extraFiles.length >= 6
+              ? 'border-gray-700 bg-gray-800/40 cursor-not-allowed'
+              : 'border-gray-600 bg-gray-700 hover:border-purple-500 cursor-pointer'
+          }`}
+        >
+          <svg className="w-6 h-6 mx-auto mb-1 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+          </svg>
+          {extraFiles.length >= 6
+            ? <p className="text-xs text-amber-400">Maximum 6 images reached</p>
+            : <p className="text-xs text-gray-400">Click to add images{extraFiles.length > 0 ? ` (${extraFiles.length}/6)` : ''}</p>
+          }
+        </label>
+        {extraFiles.length > 0 && (
+          <div className="mt-2 grid grid-cols-3 gap-2">
+            {extraFiles.map((f, i) => (
+              <div key={i} className="relative group rounded-lg overflow-hidden border border-gray-700 bg-gray-800 aspect-square">
+                {f.type.startsWith('image/') ? (
+                  <img src={URL.createObjectURL(f)} alt={f.name} className="w-full h-full object-cover" />
+                ) : (
+                  <div className="w-full h-full flex flex-col items-center justify-center gap-1 text-gray-500">
+                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.069A1 1 0 0121 8.82v6.36a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
+                    <span className="text-xs truncate px-1 w-full text-center">{f.name}</span>
+                  </div>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setExtraFiles(prev => prev.filter((_, j) => j !== i))}
+                  disabled={submitting}
+                  className="absolute top-1 right-1 w-5 h-5 rounded-full bg-black/70 text-gray-300 hover:text-red-400 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                >
+                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" /></svg>
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Notes for moderators */}
+      <div>
+        <label className="block text-sm font-medium text-gray-400 mb-1">Notes for moderators <span className="text-gray-600">(optional)</span></label>
+        <textarea
+          value={note}
+          onChange={e => setNote(e.target.value)}
+          placeholder="Any context that might help the mod team..."
+          rows={2}
+          maxLength={500}
+          className="w-full px-3 py-2 bg-gray-800 border border-gray-600 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-purple-500 text-sm resize-none"
+        />
+      </div>
+
+>>>>>>> Stashed changes
       <button
         type="submit"
         disabled={
@@ -607,9 +699,9 @@ const HistoricalUploadSection = () => {
 // ── Main Upload Component ────────────────────────────────────────────────────
 
 const Upload = () => {
-  const { user, isModerator } = useAuth();
+  const { user } = useAuth();
   const navigate = useNavigate();
-  const restrictedEnabled = isRestrictedEnabled(isModerator);
+  const restrictedEnabled = true;
   const [availablePokemon, setAvailablePokemon] = useState([]);
   const [restrictedAvailablePokemon, setRestrictedAvailablePokemon] = useState(null);
   const [selectedPokemon, setSelectedPokemon] = useState('');
@@ -637,6 +729,16 @@ const Upload = () => {
     }
     return result;
   });
+<<<<<<< Updated upstream
+=======
+  const [caughtInDifferentGame, setCaughtInDifferentGame] = useState(false);
+  const [caughtInGame, setCaughtInGame] = useState('');
+  const [caughtInGameOpen, setCaughtInGameOpen] = useState(false);
+  const [evolutionFile, setEvolutionFile] = useState(null);
+  const [evolutionSummaryFile, setEvolutionSummaryFile] = useState(null);
+  const [extraFiles, setExtraFiles] = useState([]);
+  const [note, setNote] = useState('');
+>>>>>>> Stashed changes
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(false);
@@ -871,10 +973,19 @@ const Upload = () => {
       formData.append('game', game.trim());
 
       validLinks.forEach(u => formData.append('link', u));
+<<<<<<< Updated upstream
       if (!isRestricted) {
         if (mediaFile)  formData.append('file', mediaFile);
         if (mediaFile2) formData.append('file2', mediaFile2);
       }
+=======
+      if (mediaFile)  formData.append('file', mediaFile);
+      if (mediaFile2) formData.append('file2', mediaFile2);
+      if (caughtInDifferentGame && evolutionFile)        formData.append('evolutionFile', evolutionFile);
+      if (caughtInDifferentGame && evolutionSummaryFile) formData.append('evolutionSummaryFile', evolutionSummaryFile);
+      extraFiles.filter(Boolean).forEach(f => formData.append('extraFile', f));
+      if (note.trim()) formData.append('note', note.trim());
+>>>>>>> Stashed changes
 
       const response = await fetch('/api/upload/submission', {
         method: 'POST',
@@ -893,6 +1004,7 @@ const Upload = () => {
       setMediaUrls(['']);
       setMediaFile(null);
       setMediaFile2(null);
+      setNote('');
       setIsRestricted(false);
       setRestrictedAvailablePokemon(null);
 
@@ -958,13 +1070,13 @@ const Upload = () => {
 
           {/* ── Historical Form ─────────────────────────────────────────────── */}
           {restrictedEnabled && (
-            <div className={`rounded-lg shadow-lg p-4 sm:p-6 border border-gray-600 ${!isHistoricalMode ? 'hidden' : ''}`} style={{ backgroundColor: '#35373b' }}>
+            <div className={`rounded-lg shadow-lg p-4 sm:p-6 border border-gray-600 ${!isHistoricalMode ? 'hidden' : ''}`} style={{ background: 'linear-gradient(160deg, #1a1c23 0%, #1f2128 100%)' }}>
               <HistoricalUploadSection />
             </div>
           )}
 
           {/* ── Current Month Form ──────────────────────────────────────────── */}
-          <div className={`rounded-lg shadow-lg p-4 sm:p-6 border border-gray-600 ${isHistoricalMode && restrictedEnabled ? 'hidden' : ''}`} style={{ backgroundColor: '#35373b' }}>
+          <div className={`rounded-lg shadow-lg p-4 sm:p-6 border border-gray-600 ${isHistoricalMode && restrictedEnabled ? 'hidden' : ''}`} style={{ background: 'linear-gradient(160deg, #1a1c23 0%, #1f2128 100%)' }}>
 
             {error && (
               <div className="mb-4 p-3 bg-red-900 border border-red-700 rounded-lg text-red-200 text-sm">{error}</div>
@@ -1149,6 +1261,101 @@ const Upload = () => {
                     </div>
                   )}
                 </div>
+<<<<<<< Updated upstream
+=======
+
+                {!caughtInDifferentGame ? (
+                  <button
+                    type="button"
+                    onClick={() => setCaughtInDifferentGame(true)}
+                    disabled={submitting}
+                    className="mt-2 text-xs text-gray-500 hover:text-gray-400 transition-colors"
+                  >
+                    Caught in a different game?
+                  </button>
+                ) : (
+                  <div className="mt-3 pt-3 border-t border-gray-700">
+                    <div className="flex items-center justify-between mb-3">
+                      <span className="text-xs font-medium text-gray-400">Caught in a different game</span>
+                      <button
+                        type="button"
+                        onClick={() => { setCaughtInDifferentGame(false); setCaughtInGame(''); setEvolutionFile(null); setEvolutionSummaryFile(null); }}
+                        disabled={submitting}
+                        className="text-xs text-gray-500 hover:text-gray-400 transition-colors"
+                      >
+                        Remove &times;
+                      </button>
+                    </div>
+                    <div className="relative caught-game-dropdown mb-3">
+                      <button
+                        type="button"
+                        onClick={() => setCaughtInGameOpen(!caughtInGameOpen)}
+                        disabled={submitting}
+                        className="w-full p-3 bg-gray-700 text-white rounded-lg border border-gray-600 focus:border-purple-500 focus:outline-none flex items-center justify-between"
+                      >
+                        {caughtInGame ? (
+                          <div className="flex items-center gap-3 min-w-0">
+                            {(() => { const g = ALLOWED_GAMES.find(g => g.label === caughtInGame); return g ? (
+                              <div className="flex items-center gap-1 flex-shrink-0" style={{ width: '88px' }}>
+                                {(g.img_urls ?? []).slice(0, 2).map((url, i) => (
+                                  <div key={i} className="flex items-center justify-center flex-shrink-0" style={{ width: '42px', height: '24px' }}>
+                                    <img src={url} alt="" className="object-contain" style={{ maxHeight: '24px', maxWidth: '42px' }} />
+                                  </div>
+                                ))}
+                              </div>
+                            ) : null; })()}
+                            <span className="text-sm truncate">{caughtInGame}</span>
+                          </div>
+                        ) : <span className="text-gray-400">Select a game...</span>}
+                        <svg className={`w-5 h-5 flex-shrink-0 ml-2 transition-transform ${caughtInGameOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                        </svg>
+                      </button>
+                      {caughtInGameOpen && (
+                        <div className="absolute z-20 w-full mt-1 bg-gray-700 border border-gray-600 rounded-lg shadow-lg max-h-72 overflow-y-auto">
+                          {ALLOWED_GAMES.filter(g => g.label !== game).map(g => (
+                            <button key={g.key} type="button" onClick={() => { setCaughtInGame(g.label); setCaughtInGameOpen(false); }}
+                              className={`w-full px-4 py-3 flex items-center gap-4 hover:bg-gray-600 transition-colors text-left ${caughtInGame === g.label ? 'bg-gray-600' : ''}`}>
+                              <div className="flex items-center gap-1 flex-shrink-0" style={{ width: '88px' }}>
+                                {(g.img_urls ?? []).slice(0, 2).map((url, i) => (
+                                  <div key={i} className="flex items-center justify-center flex-shrink-0" style={{ width: '42px', height: '28px' }}>
+                                    <img src={url} alt="" className="object-contain" style={{ maxHeight: '28px', maxWidth: '42px' }} />
+                                  </div>
+                                ))}
+                              </div>
+                              <span className="text-white text-sm">{g.label}</span>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-xs font-medium text-gray-300 mb-2">Evolution Screenshot <span className="text-red-400">*</span></label>
+                        <input type="file" onChange={(e) => { if (e.target.files[0]) setEvolutionFile(e.target.files[0]); }} accept="image/*,video/*" className="hidden" id="main-evo-file" disabled={submitting} />
+                        <label htmlFor="main-evo-file" className="block w-full p-4 border-2 border-dashed rounded-lg text-center cursor-pointer transition-colors border-gray-600 bg-gray-700 hover:border-purple-500">
+                          {evolutionFile ? (
+                            <div className="text-white"><svg className="w-6 h-6 mx-auto mb-2 text-green-400" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" /></svg><p className="text-xs truncate">{evolutionFile.name}</p></div>
+                          ) : (
+                            <div className="text-gray-400"><svg className="w-6 h-6 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" /></svg><p className="text-xs">Upload image</p></div>
+                          )}
+                        </label>
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-gray-300 mb-2">Evolved Summary <span className="text-red-400">*</span></label>
+                        <input type="file" onChange={(e) => { if (e.target.files[0]) setEvolutionSummaryFile(e.target.files[0]); }} accept="image/*,video/*" className="hidden" id="main-evo-summary-file" disabled={submitting} />
+                        <label htmlFor="main-evo-summary-file" className="block w-full p-4 border-2 border-dashed rounded-lg text-center cursor-pointer transition-colors border-gray-600 bg-gray-700 hover:border-purple-500">
+                          {evolutionSummaryFile ? (
+                            <div className="text-white"><svg className="w-6 h-6 mx-auto mb-2 text-green-400" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" /></svg><p className="text-xs truncate">{evolutionSummaryFile.name}</p></div>
+                          ) : (
+                            <div className="text-gray-400"><svg className="w-6 h-6 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" /></svg><p className="text-xs">Upload image</p></div>
+                          )}
+                        </label>
+                      </div>
+                    </div>
+                  </div>
+                )}
+>>>>>>> Stashed changes
               </div>
 
               {/* Video Link(s) + Restricted Toggle */}
@@ -1285,7 +1492,7 @@ const Upload = () => {
 
               {/* Image Uploads */}
               <div className={`transition-opacity duration-200 ${noImageProof ? 'opacity-40 pointer-events-none select-none' : ''}`}>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
+                <div className="grid grid-cols-2 gap-3 mb-4">
                   <div>
                     <label className="block text-xs font-medium text-gray-300 mb-2">
                       {isRestricted || noImageProof
@@ -1294,7 +1501,7 @@ const Upload = () => {
                       }
                     </label>
                     <input type="file" onChange={handleFileChange} accept="image/*,video/*" className="hidden" id="file-upload-1" disabled={submitting} />
-                    <label htmlFor="file-upload-1" className="block w-full p-4 sm:p-6 border-2 border-dashed rounded-lg text-center cursor-pointer transition-colors border-gray-600 bg-gray-700 hover:border-purple-500">
+                    <label htmlFor="file-upload-1" className="block w-full p-4 border-2 border-dashed rounded-lg text-center cursor-pointer transition-colors border-gray-600 bg-gray-700 hover:border-purple-500">
                       {mediaFile ? (
                         <div className="text-white">
                           <svg className="w-6 h-6 mx-auto mb-2 text-green-400" fill="currentColor" viewBox="0 0 20 20">
@@ -1321,7 +1528,7 @@ const Upload = () => {
                       }
                     </label>
                     <input type="file" onChange={handleFile2Change} accept="image/*,video/*" className="hidden" id="file-upload-2" disabled={submitting} />
-                    <label htmlFor="file-upload-2" className="block w-full p-4 sm:p-6 border-2 border-dashed rounded-lg text-center cursor-pointer transition-colors border-gray-600 bg-gray-700 hover:border-purple-500">
+                    <label htmlFor="file-upload-2" className="block w-full p-4 border-2 border-dashed rounded-lg text-center cursor-pointer transition-colors border-gray-600 bg-gray-700 hover:border-purple-500">
                       {mediaFile2 ? (
                         <div className="text-white">
                           <svg className="w-6 h-6 mx-auto mb-2 text-green-400" fill="currentColor" viewBox="0 0 20 20">
@@ -1342,6 +1549,80 @@ const Upload = () => {
                 </div>
               </div>
 
+<<<<<<< Updated upstream
+=======
+              {/* Additional Images */}
+              <div className="mb-4">
+                <label className="block text-xs font-medium text-gray-400 mb-2">Additional Images <span className="text-gray-500">(optional)</span></label>
+                <input
+                  type="file"
+                  multiple
+                  accept="image/*,video/*"
+                  className="hidden"
+                  id="main-extra-files"
+                  disabled={submitting || extraFiles.length >= 6}
+                  onChange={(e) => {
+                    const incoming = Array.from(e.target.files);
+                    setExtraFiles(prev => [...prev, ...incoming].slice(0, 6));
+                    e.target.value = '';
+                  }}
+                />
+                <label
+                  htmlFor="main-extra-files"
+                  className={`block w-full p-4 border-2 border-dashed rounded-lg text-center transition-colors ${
+                    extraFiles.length >= 6
+                      ? 'border-gray-700 bg-gray-800/40 cursor-not-allowed'
+                      : 'border-gray-600 bg-gray-700 hover:border-purple-500 cursor-pointer'
+                  }`}
+                >
+                  <svg className="w-6 h-6 mx-auto mb-1 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                  </svg>
+                  {extraFiles.length >= 6
+                    ? <p className="text-xs text-amber-400">Maximum 6 images reached</p>
+                    : <p className="text-xs text-gray-400">Click to add images{extraFiles.length > 0 ? ` (${extraFiles.length}/6)` : ''}</p>
+                  }
+                </label>
+                {extraFiles.length > 0 && (
+                  <div className="mt-2 grid grid-cols-3 gap-2">
+                    {extraFiles.map((f, i) => (
+                      <div key={i} className="relative group rounded-lg overflow-hidden border border-gray-700 bg-gray-800 aspect-square">
+                        {f.type.startsWith('image/') ? (
+                          <img src={URL.createObjectURL(f)} alt={f.name} className="w-full h-full object-cover" />
+                        ) : (
+                          <div className="w-full h-full flex flex-col items-center justify-center gap-1 text-gray-500">
+                            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.069A1 1 0 0121 8.82v6.36a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
+                            <span className="text-xs truncate px-1 w-full text-center">{f.name}</span>
+                          </div>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => setExtraFiles(prev => prev.filter((_, j) => j !== i))}
+                          disabled={submitting}
+                          className="absolute top-1 right-1 w-5 h-5 rounded-full bg-black/70 text-gray-300 hover:text-red-400 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                        >
+                          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" /></svg>
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Notes for moderators */}
+              <div>
+                <label className="block text-sm font-medium text-gray-400 mb-1">Notes for moderators <span className="text-gray-600">(optional)</span></label>
+                <textarea
+                  value={note}
+                  onChange={e => setNote(e.target.value)}
+                  placeholder="Any context that might help the mod team..."
+                  rows={2}
+                  maxLength={500}
+                  className="w-full px-3 py-2 bg-gray-800 border border-gray-600 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-purple-500 text-sm resize-none"
+                />
+              </div>
+
+>>>>>>> Stashed changes
               {/* Submit */}
               <button
                 type="submit"

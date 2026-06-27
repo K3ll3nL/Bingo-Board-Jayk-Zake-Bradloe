@@ -4,13 +4,24 @@ import restrictedIcon from '../Icons/restricted-icon.png';
 const RESTRICTED_BG = '#78150a';
 const RESTRICTED_BADGE_BG = '#1a0302';
 
-// Small lock badge pinned to the top-right corner of restricted icons
-const LockBadge = ({ large }) => (
+// Restricted badge pinned to the top-right corner of restricted icons
+// responsive: true = small on mobile, larger on sm+; otherwise uses large/xl props for fixed size
+const RestrictedBadge = ({ large, xl, responsive }) => (
   <div
-    className={`absolute rounded-full flex items-center justify-center ${large ? 'w-4 h-4 -top-1.5 -right-1.5' : 'w-3 h-3 -top-1 -right-1'}`}
+    className={`absolute rounded-full flex items-center justify-center ${
+      responsive ? 'w-3 h-3 -top-1 -right-1 sm:w-6 sm:h-6 sm:-top-2 sm:-right-2' :
+      xl         ? 'w-6 h-6 -top-2 -right-2' :
+      large      ? 'w-4 h-4 -top-1.5 -right-1.5' :
+                   'w-3 h-3 -top-1 -right-1'
+    }`}
     style={{ backgroundColor: RESTRICTED_BADGE_BG, border: '1.5px solid rgba(255,255,255,0.2)' }}
   >
-    <img src={restrictedIcon} alt="" className={`object-contain ${large ? 'w-2.5 h-2.5' : 'w-2 h-2'}`} />
+    <img src={restrictedIcon} alt=""
+      className={`object-contain ${
+        responsive ? 'w-2 h-2 sm:w-5 sm:h-5' :
+        xl         ? 'w-5 h-5' :
+        large      ? 'w-2.5 h-2.5' : 'w-2 h-2'
+      }`} />
   </div>
 );
 
@@ -51,7 +62,7 @@ const AchievementSvg = ({ type, className }) => {
  *
  * Props:
  *   type              'row' | 'column' | 'x' | 'blackout'
- *   restricted        boolean — renders #78150a bg, dashed stroke, lock badge
+ *   restricted        boolean — renders #78150a bg, dashed stroke, restricted badge
  *   claimed           boolean — false renders gray/unclaimed style (BingoBoard use)
  *   color             hex bg color for claimed non-restricted icons (default #9147ff)
  *   containerClassName  Tailwind size + any extra classes for the outer div
@@ -65,7 +76,10 @@ const AchievementIcon = ({
   containerClassName = 'w-5 h-5',
   svgClassName = 'w-3 h-3',
 }) => {
-  const isLarge = containerClassName.includes('w-9');
+  // Detect responsive containers (e.g. "w-8 sm:w-14") — use CSS-based responsive badge sizing
+  const isResponsive = /\bsm:w-\d+\b/.test(containerClassName);
+  const isXL    = !isResponsive && /\bw-(12|14|16|20|24)\b/.test(containerClassName);
+  const isLarge = !isResponsive && !isXL && /\bw-9\b/.test(containerClassName);
   const bgColor = !claimed ? undefined : restricted ? RESTRICTED_BG : color;
   const containerBgClass = !claimed ? 'bg-gray-700' : '';
 
@@ -78,7 +92,7 @@ const AchievementIcon = ({
         type={type}
         className={`${svgClassName} ${claimed ? 'text-white' : 'text-gray-500'}`}
       />
-      {restricted && <LockBadge large={isLarge} />}
+      {restricted && <RestrictedBadge large={isLarge} xl={isXL} responsive={isResponsive} />}
     </div>
   );
 };
