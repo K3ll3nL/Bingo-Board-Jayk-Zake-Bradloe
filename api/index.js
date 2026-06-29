@@ -6620,6 +6620,57 @@ app.get('/api/approvals/history', async (req, res) => {
   }
 });
 
+// ── XY Radar Route Maps ────────────────────────────────────────────────────────
+
+app.get('/api/radar/routes/:routeId', async (req, res) => {
+  try {
+    const { routeId } = req.params;
+    const { data, error } = await supabase
+      .from('radar_route_maps')
+      .select('route_id, width, height, tiles')
+      .eq('route_id', routeId)
+      .single();
+    if (error && error.code !== 'PGRST116') throw error;
+    if (!data) return res.status(404).json({ error: 'Not found' });
+    res.json(data);
+  } catch (err) {
+    console.error('Error fetching radar route map:', err);
+    res.status(500).json({ error: 'Failed to fetch route map' });
+  }
+});
+
+app.put('/api/radar/routes/:routeId', async (req, res) => {
+  try {
+    const userId = await getAuthenticatedUserId(req);
+    if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+    const { data: mod } = await supabase.from('moderators').select('id').eq('id', userId).single();
+    if (!mod) return res.status(403).json({ error: 'Moderators only' });
+
+    const { routeId } = req.params;
+    const { width, height, tiles } = req.body;
+    if (!width || !height || !Array.isArray(tiles)) {
+      return res.status(400).json({ error: 'width, height, and tiles array required' });
+    }
+    if (tiles.length !== width * height) {
+      return res.status(400).json({ error: 'tiles length must equal width * height' });
+    }
+
+    const { error } = await supabase.from('radar_route_maps').upsert({
+      route_id: routeId,
+      width,
+      height,
+      tiles,
+      updated_at: new Date().toISOString(),
+      updated_by: userId,
+    }, { onConflict: 'route_id' });
+    if (error) throw error;
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('Error saving radar route map:', err);
+    res.status(500).json({ error: 'Failed to save route map' });
+  }
+});
+
 // Start server locally (not needed in Vercel)
 if (require.main === module) {
   const PORT = process.env.PORT || 3000;

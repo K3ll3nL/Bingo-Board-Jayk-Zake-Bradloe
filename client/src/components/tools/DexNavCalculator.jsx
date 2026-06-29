@@ -1,17 +1,8 @@
 import React, { useState, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
+import PageBackground from '../PageBackground';
 
 // ── Serebii lookup table ──────────────────────────────────────────────────────
-// Source: serebii.net/omegarubyalphasapphire/dexnav.shtml
-//
-// Each row: [slMin, slMax, standard, boost4pct, enc50, enc100]
-//   standard  = baseline odds when NOT in a chain (denominator of 1/X)
-//   boost4pct = odds when the random 4% per-encounter boost triggers
-//   enc50     = guaranteed odds at exactly chain step 50
-//   enc100    = guaranteed odds at exactly chain step 100
-//
-// Per-encounter effective P = 0.96 × (1/standard) + 0.04 × (1/boost4pct)
-// At chain 50: P = 1/enc50  |  At chain 100: P = 1/enc100
-
 const TABLE_NO_CHARM = [
   [0,          0,   4096,    4096,    4096,   4096   ],
   [1,         16,   2906,    1344.23, 804.22, 573.81 ],
@@ -57,42 +48,26 @@ function slRow(sl, charm) {
   return t.find(r => sl >= r[0] && sl <= r[1]) ?? t[t.length - 1];
 }
 
-// Per-encounter shiny probability given SL, chain position, and Shiny Charm.
-//
-// DexNav boost mechanic (Bulbapedia-verified):
-//   - Every multiple of 5 in the chain: GUARANTEED boost (+4 extra shiny checks)
-//   - Any encounter (including non-multiples): independent 4% random chance of the same boost
-//   - Chain 50: guaranteed boost PLUS +5 extra milestone checks (stacks → enc50 column)
-//   - Chain 100: guaranteed boost PLUS +10 extra milestone checks (stacks → enc100 column)
-//
-// Serebii enc50/enc100 values already reflect the full stacked probability.
-// At non-multiples of 5: P = 0.96×P_std + 0.04×P_boost (random 4% boost).
-// At multiples of 5 (not 50/100): P = P_boost (guaranteed; random 4% can't stack higher).
 function prob(sl, chain, charm) {
   const [, , std, boost, e50, e100] = slRow(sl, charm);
-  if (chain === 100)                 return 1 / e100;       // boost + 10 milestone checks
-  if (chain === 50)                  return 1 / e50;        // boost + 5 milestone checks
-  if (chain > 0 && chain % 5 === 0) return 1 / boost;      // guaranteed boost at mult of 5
-  return 0.96 / std + 0.04 / boost;                         // 4% random boost otherwise
+  if (chain === 100)                 return 1 / e100;
+  if (chain === 50)                  return 1 / e50;
+  if (chain > 0 && chain % 5 === 0) return 1 / boost;
+  return 0.96 / std + 0.04 / boost;
 }
 
-// The denominator (1/X) values for display
 function oddsNums(sl, charm) {
   const [, , std, boost, e50, e100] = slRow(sl, charm);
   return { std, boost, e50, e100 };
 }
 
-// Chain value at a given encounter offset, with optional "reset after" threshold.
-// "reset after N" means the chain reaches N (triggering enc50/enc100 if applicable),
-// then resets to 0. Cycle length is N+1 (values 0 through N inclusive).
 function chainAt(start, offset, resetAt) {
   if (resetAt <= 0) return start + offset;
   return (start + offset) % (resetAt + 1);
 }
 
-// ── Formatters ────────────────────────────────────────────────────────────────
-function fmtOdds(p)    { return `1 in ${Math.round(1 / p).toLocaleString()}`; }
-function fmtDenom(d)   { return `1 in ${Math.round(d).toLocaleString()}`; }
+function fmtOdds(p)    { return `1/${Math.round(1 / p).toLocaleString()}`; }
+function fmtDenom(d)   { return `1/${Math.round(d).toLocaleString()}`; }
 function fmtPct(p, d = 2) {
   const v = p * 100;
   if (v >= 99.995) return '≈100%';
@@ -112,48 +87,39 @@ function fmtEnc(n) {
        : String(n);
 }
 
-// ── StatCard ──────────────────────────────────────────────────────────────────
-const CCLS = {
-  indigo: 'text-indigo-400', emerald: 'text-emerald-400', amber: 'text-amber-400',
-  violet: 'text-violet-400', sky: 'text-sky-400',         orange: 'text-orange-400',
-  pink:   'text-pink-400',   yellow: 'text-yellow-300',   red: 'text-red-400',
-};
-function StatCard({ label, value, color = 'indigo', sub, note }) {
-  return (
-    <div className="bg-gray-800/60 border border-gray-700 rounded-xl p-3">
-      <p className="text-xs font-bold uppercase tracking-wider text-gray-500 mb-1">{label}</p>
-      <p className={`text-xl font-bold leading-tight ${CCLS[color] ?? 'text-white'}`}>{value}</p>
-      {sub  && <p className={`text-sm font-semibold leading-tight ${CCLS[color] ?? ''} opacity-60`}>{sub}</p>}
-      {note && <p className="text-xs text-gray-500 mt-1 leading-snug">{note}</p>}
-    </div>
-  );
-}
+// ── Accent ────────────────────────────────────────────────────────────────────
+const A  = '#60a5fa'; // blue-400
+const AB = 'rgba(96,165,250,0.12)';
+const ABorder = 'rgba(96,165,250,0.3)';
 
 // ── CounterBox ────────────────────────────────────────────────────────────────
-function CounterBox({ label, sublabel, value, onChange, color = 'indigo' }) {
+function CounterBox({ label, sublabel, value, onChange, accent = A }) {
   const [raw, setRaw] = React.useState(String(value));
 
-  // Sync display when value changes externally (button clicks, resets, etc.)
   React.useEffect(() => {
     const n = parseInt(raw, 10);
     if (isNaN(n) || n !== value) setRaw(String(value));
   }, [value]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
-    <div className="bg-gray-900/60 rounded-xl p-3 flex flex-col gap-1.5">
+    <div className="rounded-2xl p-4 flex flex-col gap-3 min-w-0 overflow-hidden" style={{
+      background: 'linear-gradient(160deg, #1a1c23 0%, #1f2128 100%)',
+      border: '1px solid rgba(255,255,255,0.07)',
+    }}>
       <div>
-        <p className="text-xs font-bold uppercase tracking-wider text-gray-500">{label}</p>
-        {sublabel && <p className="text-[10px] text-gray-600 leading-tight">{sublabel}</p>}
+        <p className="text-[10px] font-bold uppercase tracking-widest text-gray-500">{label}</p>
+        {sublabel && <p className="text-[10px] text-gray-700 leading-tight mt-0.5">{sublabel}</p>}
       </div>
-      <div className="flex items-center gap-1.5">
+      <div className="flex items-center gap-2">
         <button
           onClick={() => onChange(Math.max(0, value - 1))}
-          className="w-8 h-8 flex items-center justify-center rounded-lg bg-gray-700 hover:bg-gray-600 text-gray-300 text-lg font-bold transition-colors shrink-0"
+          className="w-10 h-10 flex items-center justify-center rounded-xl text-xl font-bold transition-all active:scale-95 shrink-0"
+          style={{ background: 'rgba(255,255,255,0.06)', color: '#6b7280' }}
+          onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.1)'}
+          onMouseLeave={e => e.currentTarget.style.background = 'rgba(255,255,255,0.06)'}
         >−</button>
         <input
-          type="text"
-          inputMode="numeric"
-          value={raw}
+          type="text" inputMode="numeric" value={raw}
           onChange={e => {
             const s = e.target.value.replace(/[^0-9]/g, '');
             setRaw(s);
@@ -162,34 +128,52 @@ function CounterBox({ label, sublabel, value, onChange, color = 'indigo' }) {
           onBlur={() => {
             const n = parseInt(raw, 10);
             const v = isNaN(n) ? 0 : Math.max(0, n);
-            onChange(v);
-            setRaw(String(v));
+            onChange(v); setRaw(String(v));
           }}
-          className={`flex-1 min-w-0 bg-transparent text-3xl font-bold text-center focus:outline-none ${CCLS[color] ?? 'text-white'}`}
+          className="flex-1 min-w-0 text-4xl font-black text-center focus:outline-none tabular-nums bg-transparent"
+          style={{ color: accent }}
         />
         <button
           onClick={() => onChange(value + 1)}
-          className="w-8 h-8 flex items-center justify-center rounded-lg bg-gray-700 hover:bg-gray-600 text-gray-300 text-lg font-bold transition-colors shrink-0"
+          className="w-10 h-10 flex items-center justify-center rounded-xl text-xl font-bold transition-all active:scale-95 shrink-0"
+          style={{ background: 'rgba(255,255,255,0.06)', color: '#6b7280' }}
+          onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.1)'}
+          onMouseLeave={e => e.currentTarget.style.background = 'rgba(255,255,255,0.06)'}
         >+</button>
       </div>
     </div>
   );
 }
 
+// ── SmallStatCard ─────────────────────────────────────────────────────────────
+function SmallStatCard({ label, value, sub, note, accent = '#9ca3af' }) {
+  return (
+    <div className="rounded-xl p-3.5" style={{
+      background: 'linear-gradient(160deg, #1a1c23 0%, #1f2128 100%)',
+      border: '1px solid rgba(255,255,255,0.07)',
+    }}>
+      <p className="text-[10px] font-bold uppercase tracking-widest text-gray-500 mb-1">{label}</p>
+      <p className="text-xl font-bold leading-tight" style={{ color: accent }}>{value}</p>
+      {sub  && <p className="text-xs leading-tight mt-0.5" style={{ color: accent, opacity: 0.55 }}>{sub}</p>}
+      {note && <p className="text-xs text-gray-600 mt-1 leading-snug">{note}</p>}
+    </div>
+  );
+}
+
 // ── Main component ────────────────────────────────────────────────────────────
 export default function DexNavCalculator() {
-  const [chain, setChain]               = useState(0);
-  const [searchLevel, setSearchLevel]   = useState(0);
-  const [shinyCharm, setShinyCharm]     = useState(false);
-  const [resetAtStr, setResetAtStr]     = useState('');
-  const [secsStr, setSecsStr]           = useState('');
-  const [graphMode, setGraphMode]       = useState('cdf');
+  const navigate = useNavigate();
+  const [chain, setChain]             = useState(0);
+  const [searchLevel, setSearchLevel] = useState(0);
+  const [shinyCharm, setShinyCharm]   = useState(false);
+  const [resetAtStr, setResetAtStr]   = useState('');
+  const [secsStr, setSecsStr]         = useState('');
+  const [graphMode, setGraphMode]     = useState('cdf');
+  const [showNerdStats, setShowNerdStats] = useState(false);
 
-  const resetAt    = resetAtStr ? Math.max(1, parseInt(resetAtStr)  || 0) : 0;
-  const secsPerEnc = secsStr    ? Math.max(1, parseFloat(secsStr)   || 10) : null;
+  const resetAt    = resetAtStr ? Math.max(1, parseInt(resetAtStr) || 0) : 0;
+  const secsPerEnc = secsStr    ? Math.max(1, parseFloat(secsStr)  || 10) : null;
 
-  // Advance chain (+SL or not).
-  // "reset after N" → chain reaches N, then next advance resets to 0.
   const advance = (alsoSL) => {
     setChain(c => {
       const next = c + 1;
@@ -197,69 +181,37 @@ export default function DexNavCalculator() {
     });
     if (alsoSL) setSearchLevel(s => s + 1);
   };
-  const handleSetChain = v => {
-    setChain(Math.max(0, resetAt > 0 ? Math.min(v, resetAt) : v));
-  };
+  const handleSetChain = v => setChain(Math.max(0, resetAt > 0 ? Math.min(v, resetAt) : v));
 
-  // ── Computed ─────────────────────────────────────────────────────────────
   const comp = useMemo(() => {
-    // `chain` = encounters completed. The NEXT encounter is chain+1.
-    // All probability display and projections use chain+1 as the reference point.
     const nextChain = chain + 1;
-
     const currentP  = prob(searchLevel, nextChain, shinyCharm);
     const { std, boost, e50, e100 } = oddsNums(searchLevel, shinyCharm);
-    // Long-run per-encounter average (post-milestone, ignoring 50/100):
-    //   1/5 encounters are mult-of-5 → guaranteed boost
-    //   4/5 encounters → 96% standard + 4% random boost
-    // = 0.2/boost + (4/5)*(0.96/std + 0.04/boost) = 0.768/std + 0.232/boost
     const effectiveP = 0.768 / std + 0.232 / boost;
-
-    // Encounters until Step 50 / Step 100 land on the upcoming encounter (0 = next IS the milestone)
     const distTo50  = Math.max(0, 50  - nextChain);
     const distTo100 = Math.max(0, 100 - nextChain);
-
-    // Projected SL and odds AT each milestone (SL increases once per on-target encounter)
     const slAt50  = searchLevel + distTo50;
     const slAt100 = searchLevel + distTo100;
     const pAt50   = prob(slAt50,  50,  shinyCharm);
     const pAt100  = prob(slAt100, 100, shinyCharm);
+    const graphMax = Math.min(1200, Math.max(200, distTo100 + 100, Math.ceil(1 / effectiveP * 1.5)));
+    const fullMax  = Math.min(20000, Math.max(graphMax, Math.ceil(1 / effectiveP * 5)));
 
-    // Graph range: show through Step 100 + 100 buffer, min 200
-    const graphMax = Math.min(1200,
-      Math.max(200, distTo100 + 100, Math.ceil(1 / effectiveP * 1.5))
-    );
-
-    // Full range for milestone computation
-    const fullMax = Math.min(20000, Math.max(graphMax, Math.ceil(1 / effectiveP * 5)));
-
-    // Build CDF points — i=0 is the very next encounter (chain = nextChain)
     const points = [];
     let cumNotShiny = 1;
     for (let i = 0; i <= fullMax; i++) {
       const c  = chainAt(nextChain, i, resetAt);
-      const sl = searchLevel + i;   // SL increases each on-target encounter
+      const sl = searchLevel + i;
       const p  = prob(sl, c, shinyCharm);
       points.push({ enc: i, cdf: 1 - cumNotShiny, p, chain: c, sl });
       cumNotShiny *= (1 - p);
     }
 
-    // Milestones from CDF
-    const find = target => {
-      for (const pt of points) if (pt.cdf >= target) return pt;
-      return points[points.length - 1];
-    };
-    const m50 = find(0.500);
-    const m63 = find(0.632);
-    const m75 = find(0.750);
-    const m90 = find(0.900);
-    const m99 = find(0.990);
+    const find = target => { for (const pt of points) if (pt.cdf >= target) return pt; return points[points.length - 1]; };
+    const m50 = find(0.500), m63 = find(0.632), m75 = find(0.750), m90 = find(0.900), m99 = find(0.990);
 
-    // True expected encounters: sum of survival function from the next encounter forward.
-    // E[T] = Σ S(i) where S(i) = P(not found in first i encounters from now).
     let expectedEnc = 0;
-    {
-      let survival = 1;
+    { let survival = 1;
       const cap = Math.max(fullMax, Math.ceil(1 / effectiveP) * 15);
       for (let i = 0; i <= cap; i++) {
         expectedEnc += survival;
@@ -271,362 +223,334 @@ export default function DexNavCalculator() {
       expectedEnc = Math.round(expectedEnc);
     }
 
-    return {
-      currentP, effectiveP, std, boost, e50, e100,
-      distTo50, distTo100, slAt50, slAt100, pAt50, pAt100,
-      graphMax, fullMax, points,
-      m50, m63, m75, m90, m99,
-      expectedEnc,
-    };
+    return { currentP, effectiveP, std, boost, e50, e100, distTo50, distTo100, slAt50, slAt100, pAt50, pAt100, graphMax, fullMax, points, m50, m63, m75, m90, m99, expectedEnc };
   }, [chain, searchLevel, shinyCharm, resetAt]);
 
-  const {
-    currentP, effectiveP, std, boost, e50, e100,
-    distTo50, distTo100, slAt50, slAt100, pAt50, pAt100,
-    graphMax, points,
-    m50, m63, m75, m90, m99,
-    expectedEnc,
-  } = comp;
+  const { currentP, std, boost, e50, e100, distTo50, distTo100, slAt50, slAt100, pAt50, pAt100, graphMax, points, m50, m63, m75, m90, m99, expectedEnc } = comp;
 
-  // State of the NEXT (upcoming) encounter
   const nextChain   = chain + 1;
   const atMilestone = nextChain === 50  ? 'enc50'
                     : nextChain === 100 ? 'enc100'
                     : nextChain % 5 === 0 ? 'boost'
                     : null;
 
-  return (
-    <div className="max-w-3xl mx-auto px-4 py-4 text-white">
-      <h1 className="text-2xl font-bold mb-0.5">DexNav Shiny Calculator</h1>
-      <p className="text-gray-400 text-sm mb-4">
-        Omega Ruby / Alpha Sapphire · odds sourced from{' '}
-        <a href="https://www.serebii.net/omegarubyalphasapphire/dexnav.shtml"
-          target="_blank" rel="noreferrer" className="text-indigo-400 hover:underline">
-          Serebii
-        </a>
-        {' '}· SL = total encounters with this species
-      </p>
+  const milestoneColor = atMilestone === 'enc100' ? '#fbbf24'
+                       : atMilestone === 'enc50'  ? '#34d399'
+                       : atMilestone === 'boost'  ? '#38bdf8'
+                       : A;
+  const milestoneBg = atMilestone === 'enc100' ? 'rgba(251,191,36,0.08)'
+                    : atMilestone === 'enc50'  ? 'rgba(52,211,153,0.08)'
+                    : atMilestone === 'boost'  ? 'rgba(56,189,248,0.08)'
+                    : AB;
+  const milestoneBorder = atMilestone === 'enc100' ? 'rgba(251,191,36,0.3)'
+                        : atMilestone === 'enc50'  ? 'rgba(52,211,153,0.3)'
+                        : atMilestone === 'boost'  ? 'rgba(56,189,248,0.3)'
+                        : ABorder;
 
-      {/* ── Settings ── */}
-      <div className="bg-gray-800/60 border border-gray-700 rounded-xl p-3 mb-4">
-        <div className="flex flex-wrap gap-3 items-end">
-          <div className="shrink-0">
-            <p className="text-xs font-semibold text-gray-400 mb-1.5">Shiny Charm</p>
+  return (
+    <div className="min-h-screen text-white" style={{ isolation: 'isolate', position: 'relative' }}>
+      <PageBackground />
+
+      {/* ── Sticky header ─────────────────────────────────────────────────── */}
+      <div className="sticky top-0 z-30 border-b"
+        style={{ background: 'rgba(13,15,20,0.85)', backdropFilter: 'blur(10px)', borderColor: 'rgba(255,255,255,0.06)' }}>
+        <div className="max-w-5xl mx-auto px-4 py-2.5 flex items-center justify-between gap-3 flex-wrap">
+          <div className="flex items-center gap-3">
+            <button onClick={() => navigate('/tools')}
+              className="flex items-center gap-1.5 text-sm transition-colors"
+              style={{ color: 'rgba(255,255,255,0.4)' }}
+              onMouseEnter={e => e.currentTarget.style.color = '#fff'}
+              onMouseLeave={e => e.currentTarget.style.color = 'rgba(255,255,255,0.4)'}>
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
+              </svg>
+              <span className="hidden sm:inline">Shiny Tools</span>
+            </button>
+            <span style={{ color: 'rgba(255,255,255,0.15)' }}>|</span>
+            <span className="text-sm font-semibold text-white">DexNav Calculator</span>
+          </div>
+          <div className="flex items-center gap-2">
+            {/* Shiny Charm quick toggle */}
             <button
               onClick={() => setShinyCharm(v => !v)}
-              className={`px-3 py-1.5 rounded-lg border text-sm font-semibold transition-all ${
-                shinyCharm
-                  ? 'bg-indigo-600/30 border-indigo-500 text-indigo-300'
-                  : 'bg-gray-700/40 border-gray-600 text-gray-400 hover:border-gray-500'
-              }`}
-            >
-              {shinyCharm ? '✦ Active' : 'None'}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold border transition-all"
+              style={shinyCharm
+                ? { background: 'rgba(250,204,21,0.12)', borderColor: 'rgba(250,204,21,0.4)', color: '#fde047' }
+                : { background: 'transparent', borderColor: 'rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.4)' }}>
+              ✦ Shiny Charm
+            </button>
+            <button
+              onClick={() => setShowNerdStats(v => !v)}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold border transition-all"
+              style={showNerdStats
+                ? { background: AB, borderColor: ABorder, color: A }
+                : { background: 'transparent', borderColor: 'rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.4)' }}>
+              <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+                <path d="M9 2a1 1 0 000 2h2a1 1 0 100-2H9z" />
+                <path fillRule="evenodd" d="M4 5a2 2 0 012-2 3 3 0 003 3h2a3 3 0 003-3 2 2 0 012 2v11a2 2 0 01-2 2H6a2 2 0 01-2-2V5zm3 4a1 1 0 000 2h.01a1 1 0 100-2H7zm3 0a1 1 0 000 2h3a1 1 0 100-2h-3zm-3 4a1 1 0 100 2h.01a1 1 0 100-2H7zm3 0a1 1 0 100 2h3a1 1 0 100-2h-3z" clipRule="evenodd" />
+              </svg>
+              Stats for Nerds
             </button>
           </div>
-          <div className="w-36">
-            <p className="text-xs font-semibold text-gray-400 mb-1.5">
-              Reset chain after <span className="text-gray-600 font-normal">(optional)</span>
-            </p>
-            <input type="number" min={1} value={resetAtStr}
-              onChange={e => setResetAtStr(e.target.value)} placeholder="no reset"
-              className="w-full bg-gray-900 border border-gray-600 rounded-lg px-2.5 py-1.5 text-sm text-white focus:outline-none focus:border-indigo-500"
-            />
-          </div>
-          <div className="w-36">
-            <p className="text-xs font-semibold text-gray-400 mb-1.5">
-              Sec / encounter <span className="text-gray-600 font-normal">(optional)</span>
-            </p>
-            <input type="number" min={1} max={300} value={secsStr}
-              onChange={e => setSecsStr(e.target.value)} placeholder="—"
-              className="w-full bg-gray-900 border border-gray-600 rounded-lg px-2.5 py-1.5 text-sm text-white focus:outline-none focus:border-indigo-500"
-            />
-          </div>
         </div>
       </div>
 
-      {/* ── Live Tracker ── */}
-      <div className="bg-gray-800/60 border border-gray-700 rounded-xl p-4 mb-4">
-        <p className="text-xs font-bold uppercase tracking-wider text-gray-500 mb-3">Live Tracker</p>
-        <div className="grid grid-cols-2 gap-3 mb-3">
+      <div className="max-w-5xl mx-auto px-4 py-6">
+
+        {/* ── Live Tracker ──────────────────────────────────────────────────── */}
+        <div className="grid sm:grid-cols-2 gap-4 mb-4">
           <CounterBox
-            label="Chain"
+            label="Chain" accent={A}
             sublabel={resetAtStr ? `resets after ${resetAtStr}` : 'consecutive encounters · resets on break'}
-            value={chain}
-            onChange={handleSetChain}
-            color="indigo"
+            value={chain} onChange={handleSetChain}
           />
           <CounterBox
-            label="Search Level"
-            sublabel="total encounters ever with this species · never resets"
-            value={searchLevel}
-            onChange={v => setSearchLevel(Math.max(0, v))}
-            color="emerald"
+            label="Search Level" accent="#34d399"
+            sublabel="total encounters with this species · never resets"
+            value={searchLevel} onChange={v => setSearchLevel(Math.max(0, v))}
           />
         </div>
-        <div className="grid grid-cols-3 gap-2">
-          <button onClick={() => advance(true)}
-            className="flex flex-col items-center justify-center gap-0.5 py-3 px-2 rounded-xl bg-emerald-600/20 border border-emerald-600/40 hover:bg-emerald-600/30 transition-colors active:scale-95">
-            <span className="text-lg leading-none">🎯</span>
-            <span className="text-sm font-bold text-emerald-300">On-Target</span>
-            <span className="text-[10px] text-emerald-600 font-mono">chain+1 · SL+1</span>
-          </button>
-          <button onClick={() => advance(false)}
-            className="flex flex-col items-center justify-center gap-0.5 py-3 px-2 rounded-xl bg-amber-600/20 border border-amber-600/40 hover:bg-amber-600/30 transition-colors active:scale-95">
-            <span className="text-lg leading-none">↪️</span>
-            <span className="text-sm font-bold text-amber-300">Off-Target</span>
-            <span className="text-[10px] text-amber-600 font-mono">chain+1 · SL stays</span>
-          </button>
-          <button onClick={() => setChain(0)}
-            className="flex flex-col items-center justify-center gap-0.5 py-3 px-2 rounded-xl bg-gray-700/40 border border-gray-600/60 hover:bg-gray-700/70 transition-colors active:scale-95">
-            <span className="text-lg leading-none">↩</span>
-            <span className="text-sm font-bold text-gray-300">Reset Chain</span>
-            <span className="text-[10px] text-gray-600 font-mono">SL unchanged</span>
-          </button>
+
+        {/* Action buttons */}
+        <div className="grid grid-cols-3 gap-3 mb-6">
+          {[
+            { label: 'On-Target', sub: 'chain+1 · SL+1', icon: '🎯', color: '#34d399', bg: 'rgba(52,211,153,0.1)', border: 'rgba(52,211,153,0.25)', onClick: () => advance(true) },
+            { label: 'Off-Target', sub: 'chain+1 · SL stays', icon: '↪', color: '#fbbf24', bg: 'rgba(251,191,36,0.1)', border: 'rgba(251,191,36,0.25)', onClick: () => advance(false) },
+            { label: 'Reset Chain', sub: 'SL unchanged', icon: '↩', color: '#9ca3af', bg: 'rgba(255,255,255,0.04)', border: 'rgba(255,255,255,0.08)', onClick: () => setChain(0) },
+          ].map(btn => (
+            <button key={btn.label} onClick={btn.onClick}
+              className="flex flex-col items-center justify-center gap-1 py-3 sm:py-4 rounded-xl transition-all active:scale-95"
+              style={{ background: btn.bg, border: `1px solid ${btn.border}` }}
+              onMouseEnter={e => e.currentTarget.style.filter = 'brightness(1.2)'}
+              onMouseLeave={e => e.currentTarget.style.filter = ''}>
+              <span className="text-lg sm:text-xl leading-none">{btn.icon}</span>
+              <span className="text-sm font-bold" style={{ color: btn.color }}>{btn.label}</span>
+              <span className="text-[10px] font-mono" style={{ color: btn.color, opacity: 0.5 }}>{btn.sub}</span>
+            </button>
+          ))}
         </div>
-      </div>
 
-      {/* ── Hero ── */}
-      <div className={`border rounded-xl p-4 mb-4 ${
-        atMilestone === 'enc100' ? 'bg-yellow-950/40 border-yellow-500/50' :
-        atMilestone === 'enc50'  ? 'bg-emerald-950/40 border-emerald-500/50' :
-        atMilestone === 'boost'  ? 'bg-sky-950/40 border-sky-500/40' :
-                                   'bg-indigo-950/50 border-indigo-500/40'
-      }`}>
-        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
-          {/* Left: odds */}
-          <div>
-            {atMilestone === 'enc100' && <p className="text-xs font-bold uppercase tracking-wider mb-1 text-yellow-400">★ Chain 100 — Best Odds!</p>}
-            {atMilestone === 'enc50'  && <p className="text-xs font-bold uppercase tracking-wider mb-1 text-emerald-400">★ Chain 50 — Bonus Encounter!</p>}
-            {atMilestone === 'boost'  && <p className="text-xs font-bold uppercase tracking-wider mb-1 text-sky-400">✦ Chain {chain} — Every 5th Step Boost</p>}
-            <p className="text-gray-400 text-sm">
-              {atMilestone === 'enc100' ? `next encounter is chain 100 — SL ${searchLevel}` :
-               atMilestone === 'enc50'  ? `next encounter is chain 50 — SL ${searchLevel}` :
-               atMilestone === 'boost'  ? `next encounter is chain ${nextChain} (every 5th step) — SL ${searchLevel}` :
-               chain === 0 ? `no chain yet — next is chain 1, SL ${searchLevel}` :
-               `next encounter is chain ${nextChain} — 96% standard / 4% random boost, SL ${searchLevel}`}
-            </p>
-            <p className={`text-4xl font-bold mt-0.5 ${
-              atMilestone === 'enc100' ? 'text-yellow-300' :
-              atMilestone === 'enc50'  ? 'text-emerald-300' :
-              atMilestone === 'boost'  ? 'text-sky-300' :
-                                         'text-indigo-300'
-            }`}>
-              {fmtOdds(currentP)}
-            </p>
-            <p className="text-gray-400 text-sm mt-1">
-              {atMilestone === 'boost' || atMilestone === 'enc50' || atMilestone === 'enc100'
-                ? `${fmtPct(currentP, 4)} this encounter`
-                : `${fmtPct(1/std, 4)} standard · ${fmtPct(1/boost, 4)} if boost triggers`}
-            </p>
-            {atMilestone !== 'enc100' && (
-              <div className="flex gap-3 mt-2 text-xs text-gray-500">
-                {distTo50 > 0 && <span>Chain 50 → <span className="text-emerald-400 font-semibold">{fmtDenom(1/pAt50)}</span></span>}
-                {distTo100 > 0 && <span>Chain 100 → <span className="text-yellow-400 font-semibold">{fmtDenom(1/pAt100)}</span></span>}
-              </div>
-            )}
-          </div>
-
-          {/* Right: all 4 column odds for current SL */}
-          <div className="bg-gray-900/60 rounded-lg px-4 py-3 shrink-0 self-start text-xs">
-            <p className="text-gray-500 font-bold uppercase tracking-wider mb-2">SL {searchLevel} odds</p>
-            <div className="space-y-1 font-mono">
-              {[
-                { label: 'No boost',               denom: std,   color: 'text-gray-400',
-                  active: !atMilestone || atMilestone === null,
-                  note: chain > 0 && !atMilestone ? ' (96% of enc.)' : '' },
-                { label: 'Every 5th step / 4% random', denom: boost, color: 'text-sky-400',
-                  active: atMilestone === 'boost',
-                  note: chain > 0 && !atMilestone ? ' (4% of enc.)' : '' },
-                { label: 'Step 50 bonus',          denom: e50,   color: 'text-emerald-400',
-                  active: atMilestone === 'enc50',  note: '' },
-                { label: 'Step 100 bonus',         denom: e100,  color: 'text-yellow-400',
-                  active: atMilestone === 'enc100', note: '' },
-              ].map(({ label, denom, color, active, note }) => (
-                <div key={label} className={`flex justify-between gap-4 ${active ? 'font-bold' : 'opacity-50'}`}>
-                  <span className="text-gray-500">{label}{note}<span className={active ? color : ''}>{active ? ' ◄' : ''}</span></span>
-                  <span className={color}>1/{Math.round(denom).toLocaleString()}</span>
+        {/* ── Current Odds Hero ──────────────────────────────────────────────── */}
+        <div className="rounded-2xl p-5 mb-6" style={{
+          background: milestoneBg,
+          border: `1px solid ${milestoneBorder}`,
+        }}>
+          <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
+            {/* Left: odds */}
+            <div>
+              {atMilestone === 'enc100' && <p className="text-xs font-bold uppercase tracking-wider mb-1" style={{ color: '#fbbf24' }}>★ Step 100 — Best Odds!</p>}
+              {atMilestone === 'enc50'  && <p className="text-xs font-bold uppercase tracking-wider mb-1" style={{ color: '#34d399' }}>★ Step 50 — Bonus Encounter!</p>}
+              {atMilestone === 'boost'  && <p className="text-xs font-bold uppercase tracking-wider mb-1" style={{ color: '#38bdf8' }}>✦ Every 5th Step Boost</p>}
+              <p className="text-xs text-gray-500 mb-1">
+                {chain === 0 ? `Next encounter is chain 1 · SL ${searchLevel}` : `Next encounter is chain ${nextChain} · SL ${searchLevel}`}
+              </p>
+              <p className="text-5xl font-black leading-none" style={{ color: milestoneColor }}>
+                {fmtOdds(currentP)}
+              </p>
+              <p className="text-sm mt-1" style={{ color: milestoneColor, opacity: 0.7 }}>
+                {atMilestone === 'boost' || atMilestone === 'enc50' || atMilestone === 'enc100'
+                  ? `${fmtPct(currentP, 4)} this encounter`
+                  : `${fmtPct(1/std, 4)} standard · ${fmtPct(1/boost, 4)} if boost`}
+              </p>
+              {/* Milestone previews */}
+              {atMilestone !== 'enc100' && (distTo50 > 0 || distTo100 > 0) && (
+                <div className="flex gap-4 mt-3 text-xs">
+                  {distTo50 > 0 && (
+                    <span className="text-gray-500">
+                      Step 50 → <span className="font-bold" style={{ color: '#34d399' }}>{fmtDenom(1/pAt50)}</span>
+                      <span className="text-gray-600"> in {distTo50} enc</span>
+                    </span>
+                  )}
+                  {distTo100 > 0 && (
+                    <span className="text-gray-500">
+                      Step 100 → <span className="font-bold" style={{ color: '#fbbf24' }}>{fmtDenom(1/pAt100)}</span>
+                      <span className="text-gray-600"> in {distTo100} enc</span>
+                    </span>
+                  )}
                 </div>
-              ))}
+              )}
+            </div>
+
+            {/* Right: SL odds breakdown */}
+            <div className="rounded-xl px-4 py-3 shrink-0 self-start" style={{ background: 'rgba(0,0,0,0.3)', border: '1px solid rgba(255,255,255,0.06)' }}>
+              <p className="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-2">SL {searchLevel} odds</p>
+              <div className="space-y-1.5 font-mono text-xs">
+                {[
+                  { label: 'No boost',      denom: std,   color: '#6b7280', active: !atMilestone },
+                  { label: 'Every 5th / 4%', denom: boost, color: '#38bdf8', active: atMilestone === 'boost' },
+                  { label: 'Step 50 ★',     denom: e50,   color: '#34d399', active: atMilestone === 'enc50'  },
+                  { label: 'Step 100 ★',    denom: e100,  color: '#fbbf24', active: atMilestone === 'enc100' },
+                ].map(({ label, denom, color, active }) => (
+                  <div key={label} className="flex justify-between gap-5" style={{ opacity: active ? 1 : 0.35 }}>
+                    <span style={{ color: active ? '#d1d5db' : '#4b5563' }}>
+                      {label}{active ? <span style={{ color }} className="ml-1">◄</span> : ''}
+                    </span>
+                    <span style={{ color }}>1/{Math.round(denom).toLocaleString()}</span>
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
         </div>
-      </div>
 
-      {/* ── Stats grid ── */}
-      <div className="grid grid-cols-3 gap-3 mb-4">
-        {(() => {
-          // enc50 is unreachable if the chain resets before reaching 50
-          const enc50Reachable = resetAt <= 0 || resetAt >= 50;
-          if (!enc50Reachable) {
-            return (
-              <StatCard
-                label="Step 50 Bonus"
-                value="Unreachable"
-                color="indigo"
-                note={`Chain resets after ${resetAt} — set reset threshold to 50 or higher to hit this bonus`}
-              />
-            );
-          }
-          if (distTo50 === 0) {
-            return (
-              <StatCard
-                label="Step 50 Bonus ★ NEXT"
-                value={fmtDenom(1 / pAt50)}
-                color="emerald"
-                sub={fmtPct(pAt50, 4)}
-                note={`SL ${slAt50} · your next encounter`}
-              />
-            );
-          }
-          return (
-            <StatCard
-              label="Step 50 Bonus"
-              value={fmtDenom(1 / pAt50)}
-              color="emerald"
-              sub={`in ${distTo50} enc${secsPerEnc ? ` · ${fmtTime(distTo50 * secsPerEnc)}` : ''}`}
-              note={`SL ${slAt50} projected at that point`}
-            />
-          );
-        })()}
-        {(() => {
-          // enc100 is unreachable if the chain resets before reaching 100
-          const enc100Reachable = resetAt <= 0 || resetAt >= 100;
-          if (!enc100Reachable) {
-            return (
-              <StatCard
-                label="Step 100 Bonus"
-                value="Unreachable"
-                color="indigo"
-                note={`Chain resets after ${resetAt} — set reset threshold to 100 or higher to hit this bonus`}
-              />
-            );
-          }
-          if (distTo100 === 0) {
-            return (
-              <StatCard
-                label="Step 100 Bonus ★ NEXT"
-                value={fmtDenom(1 / pAt100)}
-                color="yellow"
-                sub={fmtPct(pAt100, 4)}
-                note={`SL ${slAt100} · your next encounter`}
-              />
-            );
-          }
-          return (
-            <StatCard
-              label="Step 100 Bonus"
-              value={fmtDenom(1 / pAt100)}
-              color="yellow"
-              sub={`in ${distTo100} enc${secsPerEnc ? ` · ${fmtTime(distTo100 * secsPerEnc)}` : ''}`}
-              note={`SL ${slAt100} projected at that point`}
-            />
-          );
-        })()}
-        <StatCard
-          label="Expected encounters"
-          value={expectedEnc.toLocaleString()}
-          color="amber"
-          sub={secsPerEnc ? `≈ ${fmtTime(expectedEnc * secsPerEnc)}` : undefined}
-          note="projected from now · SL growth + milestones + 4% boost included"
-        />
-      </div>
+        {/* ── Nerd Stats ────────────────────────────────────────────────────── */}
+        {showNerdStats && (
+          <div className="space-y-5">
+            {/* Settings */}
+            <div className="rounded-xl p-4 flex flex-wrap gap-4 items-end" style={{
+              background: 'linear-gradient(160deg, #1a1c23 0%, #1f2128 100%)',
+              border: '1px solid rgba(255,255,255,0.07)',
+            }}>
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1.5">
+                  Reset chain after <span className="text-gray-700 font-normal normal-case">(optional)</span>
+                </p>
+                <input type="number" min={1} value={resetAtStr}
+                  onChange={e => setResetAtStr(e.target.value)} placeholder="no reset"
+                  className="w-32 rounded-lg px-2.5 py-1.5 text-sm text-white focus:outline-none"
+                  style={{ background: '#0d0f14', border: '1px solid rgba(255,255,255,0.07)' }}
+                />
+              </div>
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1.5">
+                  Seconds / encounter <span className="text-gray-700 font-normal normal-case">(optional)</span>
+                </p>
+                <input type="number" min={1} max={300} value={secsStr}
+                  onChange={e => setSecsStr(e.target.value)} placeholder="—"
+                  className="w-32 rounded-lg px-2.5 py-1.5 text-sm text-white focus:outline-none"
+                  style={{ background: '#0d0f14', border: '1px solid rgba(255,255,255,0.07)' }}
+                />
+              </div>
+            </div>
 
-      {/* ── Graph ── */}
-      <div className="bg-gray-800/60 border border-gray-700 rounded-xl overflow-hidden mb-4">
-        <div className="px-4 py-3 border-b border-gray-700 flex items-center justify-between">
-          <div>
-            <h2 className="text-sm font-bold text-gray-300">
-              {graphMode === 'cdf' ? 'Cumulative Shiny Probability' : 'Per-Encounter Shiny Rate'}
-            </h2>
-            <p className="text-xs text-gray-500 mt-0.5">
-              {graphMode === 'cdf'
-                ? 'Spikes at chain 50 & 100 — slope increases at guaranteed milestones'
-                : 'Step spikes at chain 50 & 100 — flat baseline with SL-driven slow rise'}
+            {/* Stats grid */}
+            <div className="grid grid-cols-3 gap-3">
+              {(() => {
+                const enc50Reachable = resetAt <= 0 || resetAt >= 50;
+                const step50Card = !enc50Reachable
+                  ? <SmallStatCard key="s50" label="Step 50 Bonus" value="Unreachable" accent="#6b7280"
+                      note={`Resets at ${resetAt} — need ≥50`} />
+                  : distTo50 === 0
+                    ? <SmallStatCard key="s50" label="Step 50 ★ NEXT" value={fmtDenom(1/pAt50)} accent="#34d399"
+                        sub={fmtPct(pAt50, 4)} note={`SL ${slAt50}`} />
+                    : <SmallStatCard key="s50" label="Step 50 Bonus" value={fmtDenom(1/pAt50)} accent="#34d399"
+                        sub={`in ${distTo50} enc${secsPerEnc ? ` · ${fmtTime(distTo50 * secsPerEnc)}` : ''}`}
+                        note={`SL ${slAt50} at that point`} />;
+
+                const enc100Reachable = resetAt <= 0 || resetAt >= 100;
+                const step100Card = !enc100Reachable
+                  ? <SmallStatCard key="s100" label="Step 100 Bonus" value="Unreachable" accent="#6b7280"
+                      note={`Resets at ${resetAt} — need ≥100`} />
+                  : distTo100 === 0
+                    ? <SmallStatCard key="s100" label="Step 100 ★ NEXT" value={fmtDenom(1/pAt100)} accent="#fbbf24"
+                        sub={fmtPct(pAt100, 4)} note={`SL ${slAt100}`} />
+                    : <SmallStatCard key="s100" label="Step 100 Bonus" value={fmtDenom(1/pAt100)} accent="#fbbf24"
+                        sub={`in ${distTo100} enc${secsPerEnc ? ` · ${fmtTime(distTo100 * secsPerEnc)}` : ''}`}
+                        note={`SL ${slAt100} at that point`} />;
+
+                return [step50Card, step100Card,
+                  <SmallStatCard key="exp" label="Expected encounters"
+                    value={expectedEnc.toLocaleString()} accent="#fb923c"
+                    sub={secsPerEnc ? `≈ ${fmtTime(expectedEnc * secsPerEnc)}` : undefined}
+                    note="from now · SL growth + milestones + boosts included" />
+                ];
+              })()}
+            </div>
+
+            {/* Graph */}
+            <div className="rounded-2xl overflow-hidden" style={{
+              background: 'linear-gradient(160deg, #1a1c23 0%, #1f2128 100%)',
+              border: '1px solid rgba(255,255,255,0.07)',
+            }}>
+              <div className="px-4 py-3 border-b flex items-center justify-between" style={{ borderColor: 'rgba(255,255,255,0.06)' }}>
+                <div>
+                  <h2 className="text-sm font-bold text-white">
+                    {graphMode === 'cdf' ? 'Cumulative Shiny Probability' : 'Per-Encounter Shiny Rate'}
+                  </h2>
+                  <p className="text-xs text-gray-500 mt-0.5">
+                    {graphMode === 'cdf' ? 'Spikes at chain 50 & 100' : 'Step spikes at milestones'}
+                  </p>
+                </div>
+                <div className="flex rounded-lg overflow-hidden border text-xs font-semibold shrink-0" style={{ borderColor: 'rgba(255,255,255,0.1)' }}>
+                  {['cdf', 'hazard'].map(m => (
+                    <button key={m} onClick={() => setGraphMode(m)}
+                      className="px-3 py-1.5 transition-colors"
+                      style={{ background: graphMode === m ? A : 'transparent', color: graphMode === m ? '#0d0f14' : '#6b7280' }}>
+                      {m === 'cdf' ? 'CDF' : 'Per-Enc'}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div className="p-3">
+                <DexNavGraph points={points} graphMode={graphMode} graphMax={graphMax}
+                  chain={chain} resetAt={resetAt} m50={m50} m63={m63} m90={m90} accentColor={A} />
+              </div>
+            </div>
+
+            {/* Milestones table */}
+            <div className="rounded-2xl overflow-hidden" style={{
+              background: 'linear-gradient(160deg, #1a1c23 0%, #1f2128 100%)',
+              border: '1px solid rgba(255,255,255,0.07)',
+            }}>
+              <div className="px-4 py-3 border-b" style={{ borderColor: 'rgba(255,255,255,0.06)' }}>
+                <h2 className="text-sm font-bold text-white">Probability Milestones</h2>
+                <p className="text-xs text-gray-500 mt-0.5">Encounters from now · SL increases per on-target encounter</p>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b text-[10px] font-bold uppercase tracking-wider text-gray-500"
+                      style={{ borderColor: 'rgba(255,255,255,0.06)', background: 'rgba(255,255,255,0.02)' }}>
+                      <th className="text-left px-4 py-2.5">Target</th>
+                      <th className="text-right px-4 py-2.5">Encounter #</th>
+                      <th className="text-right px-4 py-2.5">Chain / SL</th>
+                      {secsPerEnc && <th className="text-right px-4 py-2.5">Est. time</th>}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {[
+                      { label: '50%',           m: m50, color: '#34d399' },
+                      { label: '63.2% (1 avg)', m: m63, color: A         },
+                      { label: '75%',           m: m75, color: '#fbbf24' },
+                      { label: '90%',           m: m90, color: '#fb923c' },
+                      { label: '99%',           m: m99, color: '#f87171' },
+                    ].map(({ label, m, color }) => (
+                      <tr key={label} className="border-b transition-colors hover:bg-white/[0.02]"
+                        style={{ borderColor: 'rgba(255,255,255,0.04)' }}>
+                        <td className="px-4 py-2.5 font-semibold" style={{ color }}>{label}</td>
+                        <td className="text-right px-4 py-2.5 text-gray-300 tabular-nums font-mono">
+                          {m?.enc.toLocaleString() ?? '—'}
+                        </td>
+                        <td className="text-right px-4 py-2.5 text-gray-600 tabular-nums text-xs">
+                          {m ? `chain ${m.chain} · SL ${m.sl.toLocaleString()}` : '—'}
+                        </td>
+                        {secsPerEnc && (
+                          <td className="text-right px-4 py-2.5 text-gray-400">
+                            {m ? fmtTime(m.enc * secsPerEnc) : '—'}
+                          </td>
+                        )}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* SL reference */}
+            <SLReferenceTable shinyCharm={shinyCharm} currentSL={searchLevel} accentColor={A} />
+
+            <p className="text-[10px] text-gray-700 text-center pb-2">
+              Odds from Serebii · every 5th step = guaranteed boost · steps 50 & 100 = special higher bonuses · SL = search level (never resets)
             </p>
           </div>
-          <div className="flex rounded-lg overflow-hidden border border-gray-600 text-xs font-semibold shrink-0">
-            <button onClick={() => setGraphMode('cdf')}
-              className={`px-3 py-1.5 transition-colors ${graphMode === 'cdf' ? 'bg-indigo-600 text-white' : 'bg-gray-800 text-gray-400 hover:text-gray-200'}`}>
-              CDF
-            </button>
-            <button onClick={() => setGraphMode('hazard')}
-              className={`px-3 py-1.5 transition-colors ${graphMode === 'hazard' ? 'bg-indigo-600 text-white' : 'bg-gray-800 text-gray-400 hover:text-gray-200'}`}>
-              Per-Enc
-            </button>
-          </div>
-        </div>
-        <div className="p-3">
-          <DexNavGraph
-            points={points}
-            graphMode={graphMode}
-            graphMax={graphMax}
-            chain={chain}
-            resetAt={resetAt}
-            m50={m50} m63={m63} m90={m90}
-          />
-        </div>
+        )}
       </div>
-
-      {/* ── Milestones table ── */}
-      <div className="bg-gray-800/60 border border-gray-700 rounded-xl overflow-hidden mb-4">
-        <div className="px-4 py-3 border-b border-gray-700">
-          <h2 className="text-sm font-bold text-gray-300">Probability Milestones</h2>
-          <p className="text-xs text-gray-500 mt-0.5">
-            Encounter counts from now · SL increases with each on-target encounter
-          </p>
-        </div>
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-gray-700 bg-gray-900/30 text-gray-400 text-xs font-semibold uppercase tracking-wide">
-                <th className="text-left px-4 py-2.5">Target</th>
-                <th className="text-right px-4 py-2.5">Encounter #</th>
-                <th className="text-right px-4 py-2.5">Chain / SL</th>
-                {secsPerEnc && <th className="text-right px-4 py-2.5">Est. time</th>}
-              </tr>
-            </thead>
-            <tbody>
-              {[
-                { label: '50%',           m: m50, color: 'text-emerald-400' },
-                { label: '63.2% (1 avg)', m: m63, color: 'text-indigo-400'  },
-                { label: '75%',           m: m75, color: 'text-amber-400'   },
-                { label: '90%',           m: m90, color: 'text-orange-400'  },
-                { label: '99%',           m: m99, color: 'text-red-400'     },
-              ].map(({ label, m, color }) => (
-                <tr key={label} className="border-b border-gray-700/40 hover:bg-gray-700/20">
-                  <td className={`px-4 py-2.5 font-semibold ${color}`}>{label}</td>
-                  <td className="text-right px-4 py-2.5 text-gray-300 tabular-nums font-mono">
-                    {m?.enc.toLocaleString() ?? '—'}
-                  </td>
-                  <td className="text-right px-4 py-2.5 text-gray-500 tabular-nums text-xs">
-                    {m ? <>chain {m.chain} · SL {m.sl.toLocaleString()}</> : '—'}
-                  </td>
-                  {secsPerEnc && (
-                    <td className="text-right px-4 py-2.5 text-gray-400">
-                      {m ? fmtTime(m.enc * secsPerEnc) : '—'}
-                    </td>
-                  )}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      {/* ── SL reference table ── */}
-      <SLReferenceTable shinyCharm={shinyCharm} currentSL={searchLevel} />
-
-      <p className="text-xs text-gray-600 mt-4 text-center">
-        Odds from Serebii · every 5th chain step = guaranteed boost · all others = 96% standard / 4% random boost ·
-        steps 50 &amp; 100 = special higher bonuses · SL = search level (never resets)
-      </p>
     </div>
   );
 }
 
 // ── Graph ─────────────────────────────────────────────────────────────────────
-
-function DexNavGraph({ points, graphMode, graphMax, chain, resetAt, m50, m63, m90 }) {
+function DexNavGraph({ points, graphMode, graphMax, chain, resetAt, m50, m63, m90, accentColor }) {
   const W = 580, H = 230;
   const PAD = { top: 12, right: 20, bottom: 38, left: 52 };
   const plotW = W - PAD.left - PAD.right;
@@ -637,7 +561,6 @@ function DexNavGraph({ points, graphMode, graphMax, chain, resetAt, m50, m63, m9
 
   const xScale = enc => PAD.left + (enc / graphMax) * plotW;
 
-  // ── Y scale ───────────────────────────────────────────────────────────────
   let yScale, yTicks;
   if (graphMode === 'cdf') {
     yScale = v => PAD.top + (1 - v) * plotH;
@@ -649,201 +572,125 @@ function DexNavGraph({ points, graphMode, graphMax, chain, resetAt, m50, m63, m9
     yTicks = [0, maxP * 0.25, maxP * 0.5, maxP * 0.75, maxP];
   }
 
-  // ── CDF path (sampled) ────────────────────────────────────────────────────
   const cdfPath = () => {
     const step = Math.max(1, Math.floor(vis.length / 400));
-    return vis
-      .filter((_, i) => i === 0 || i === vis.length - 1 || i % step === 0)
-      .map((d, i) => `${i === 0 ? 'M' : 'L'} ${xScale(d.enc).toFixed(1)} ${yScale(d.cdf).toFixed(1)}`)
-      .join(' ');
+    return vis.filter((_, i) => i === 0 || i === vis.length - 1 || i % step === 0)
+      .map((d, i) => `${i === 0 ? 'M' : 'L'} ${xScale(d.enc).toFixed(1)} ${yScale(d.cdf).toFixed(1)}`).join(' ');
   };
 
-  // ── Hazard (step-function) path ───────────────────────────────────────────
   const hazardResult = () => {
     const changes = [];
     let prevP = null;
-    for (const pt of vis) {
-      if (pt.p !== prevP) { changes.push(pt); prevP = pt.p; }
-    }
+    for (const pt of vis) { if (pt.p !== prevP) { changes.push(pt); prevP = pt.p; } }
     if (!changes.length) return null;
-
     const maxP = Math.max(...changes.map(d => d.p));
     const yMax = maxP * 1.15;
-    const yS   = v => PAD.top + (1 - v / yMax) * plotH;
-
+    const yS = v => PAD.top + (1 - v / yMax) * plotH;
     let d = `M ${xScale(changes[0].enc).toFixed(1)} ${yS(changes[0].p).toFixed(1)}`;
     for (let i = 1; i < changes.length; i++) {
       d += ` H ${xScale(changes[i].enc).toFixed(1)} V ${yS(changes[i].p).toFixed(1)}`;
     }
     d += ` H ${xScale(graphMax).toFixed(1)}`;
-    const hTicks = [0, maxP * 0.25, maxP * 0.5, maxP * 0.75, maxP];
-    return { d, yS, hTicks };
+    return { d, yS, hTicks: [0, maxP * 0.25, maxP * 0.5, maxP * 0.75, maxP] };
   };
 
   let mainPath, hz;
-  if (graphMode === 'cdf') {
-    mainPath = cdfPath();
-  } else {
-    hz = hazardResult();
-    mainPath = hz?.d ?? '';
-  }
+  if (graphMode === 'cdf') { mainPath = cdfPath(); }
+  else { hz = hazardResult(); mainPath = hz?.d ?? ''; }
 
   const effY = graphMode === 'cdf' ? yScale : (hz?.yS ?? yScale);
   const effTicks = graphMode === 'cdf' ? yTicks : (hz?.hTicks ?? yTicks);
+  const fmtY = v => graphMode === 'cdf' ? `${(v * 100).toFixed(0)}%` : v === 0 ? '0' : `1/${Math.round(1/v).toLocaleString()}`;
 
-  const fmtY = v => graphMode === 'cdf'
-    ? `${(v * 100).toFixed(0)}%`
-    : v === 0 ? '0' : `1/${Math.round(1 / v).toLocaleString()}`;
-
-  // Area fill (CDF)
   const area = graphMode === 'cdf' && mainPath
-    ? `${mainPath} L ${xScale(graphMax).toFixed(1)} ${PAD.top + plotH} L ${PAD.left} ${PAD.top + plotH} Z`
-    : null;
+    ? `${mainPath} L ${xScale(graphMax).toFixed(1)} ${PAD.top + plotH} L ${PAD.left} ${PAD.top + plotH} Z` : null;
 
-  // Chain reset markers
   const resetMarkers = [];
-  if (resetAt > 0) {
-    let e = resetAt - chain;
-    while (e <= graphMax) { if (e > 0) resetMarkers.push(e); e += resetAt; }
-  }
+  if (resetAt > 0) { let e = resetAt - chain; while (e <= graphMax) { if (e > 0) resetMarkers.push(e); e += resetAt; } }
 
-  // Milestone dots (CDF only)
   const milePoints = graphMode === 'cdf'
-    ? [ { pt: m50, color: '#10b981', label: '50%' },
-        { pt: m63, color: '#818cf8', label: '63%' },
-        { pt: m90, color: '#f97316', label: '90%' },
-      ].filter(m => m.pt && m.pt.enc > 0 && m.pt.enc <= graphMax)
-    : [];
+    ? [{ pt: m50, color: '#10b981', label: '50%' }, { pt: m63, color: accentColor, label: '63%' }, { pt: m90, color: '#f97316', label: '90%' }]
+        .filter(m => m.pt && m.pt.enc > 0 && m.pt.enc <= graphMax) : [];
 
-  // Chain-50 and chain-100 vertical markers
   const chainMarkers = [];
   for (let i = 0; i <= graphMax; i++) {
     const c = chainAt(chain, i, resetAt);
-    if (c === 50 || c === 100) {
-      chainMarkers.push({ enc: i, type: c === 100 ? 'enc100' : 'enc50' });
-    }
+    if (c === 50 || c === 100) chainMarkers.push({ enc: i, type: c === 100 ? 'enc100' : 'enc50' });
   }
 
   const xTicks = Array.from({ length: 6 }, (_, i) => Math.round(graphMax / 5 * i));
 
   return (
     <svg viewBox={`0 0 ${W} ${H}`} className="w-full" style={{ height: '230px' }}>
-      {/* Grid */}
       {effTicks.map((t, i) => (
-        <line key={i}
-          x1={PAD.left} y1={effY(t).toFixed(1)} x2={PAD.left + plotW} y2={effY(t).toFixed(1)}
-          stroke="#374151" strokeWidth="0.5" strokeDasharray="3 3"
-        />
+        <line key={i} x1={PAD.left} y1={effY(t).toFixed(1)} x2={PAD.left + plotW} y2={effY(t).toFixed(1)} stroke="#1f2937" strokeWidth="0.5" strokeDasharray="3 3" />
       ))}
-
-      {/* Chain reset markers */}
       {resetMarkers.map((e, i) => (
-        <line key={i}
-          x1={xScale(e).toFixed(1)} y1={PAD.top} x2={xScale(e).toFixed(1)} y2={PAD.top + plotH}
-          stroke="#f59e0b" strokeWidth="1" strokeDasharray="5 3" opacity="0.4"
-        />
+        <line key={i} x1={xScale(e).toFixed(1)} y1={PAD.top} x2={xScale(e).toFixed(1)} y2={PAD.top + plotH} stroke="#f59e0b" strokeWidth="1" strokeDasharray="5 3" opacity="0.4" />
       ))}
-
-      {/* Chain 50 / Chain 100 milestone markers */}
       {chainMarkers.map(({ enc, type }, i) => {
         const x = xScale(enc);
         const color = type === 'enc100' ? '#fbbf24' : '#34d399';
-        const label = type === 'enc100' ? '100' : '50';
         return (
           <g key={i}>
-            <line x1={x.toFixed(1)} y1={PAD.top} x2={x.toFixed(1)} y2={PAD.top + plotH}
-              stroke={color} strokeWidth="1.5" strokeDasharray="4 3" opacity="0.7" />
-            <rect x={(x - 8).toFixed(1)} y={(PAD.top + plotH + 3).toFixed(1)}
-              width="18" height="12" fill="#111827" rx="2" />
-            <text x={x.toFixed(1)} y={(PAD.top + plotH + 12).toFixed(1)}
-              textAnchor="middle" fontSize="8" fill={color} fontWeight="bold">{label}</text>
+            <line x1={x.toFixed(1)} y1={PAD.top} x2={x.toFixed(1)} y2={PAD.top + plotH} stroke={color} strokeWidth="1.5" strokeDasharray="4 3" opacity="0.7" />
+            <rect x={(x-8).toFixed(1)} y={(PAD.top+plotH+3).toFixed(1)} width="18" height="12" fill="#0d0f14" rx="2" />
+            <text x={x.toFixed(1)} y={(PAD.top+plotH+12).toFixed(1)} textAnchor="middle" fontSize="8" fill={color} fontWeight="bold">{type === 'enc100' ? '100' : '50'}</text>
           </g>
         );
       })}
-
-      {/* Area */}
-      {area && <path d={area} fill="#6366f1" opacity="0.07" />}
-
-      {/* Main curve */}
-      {mainPath && (
-        <path d={mainPath} fill="none"
-          stroke={graphMode === 'cdf' ? '#818cf8' : '#34d399'}
-          strokeWidth="2" strokeLinejoin="round" strokeLinecap="round"
-        />
-      )}
-
-      {/* Milestone dots */}
+      {area && <path d={area} fill={accentColor} opacity="0.06" />}
+      {mainPath && <path d={mainPath} fill="none" stroke={graphMode === 'cdf' ? accentColor : '#34d399'} strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" />}
       {milePoints.map(({ pt, color, label }) => {
         const x = xScale(pt.enc), y = yScale(pt.cdf);
         return (
           <g key={label}>
-            <line x1={x.toFixed(1)} y1={PAD.top} x2={x.toFixed(1)} y2={(PAD.top + plotH).toFixed(1)}
-              stroke={color} strokeWidth="1.2" strokeDasharray="5 3" opacity="0.6" />
+            <line x1={x.toFixed(1)} y1={PAD.top} x2={x.toFixed(1)} y2={(PAD.top+plotH).toFixed(1)} stroke={color} strokeWidth="1.2" strokeDasharray="5 3" opacity="0.6" />
             <circle cx={x.toFixed(1)} cy={y.toFixed(1)} r="3.5" fill={color} opacity="0.9" />
-            <rect x={(x + 4).toFixed(1)} y={(y - 9.5).toFixed(1)} width={label.length * 5.5 + 6} height={13}
-              fill="#111827" rx="2" opacity="0.85" />
-            <text x={(x + 7).toFixed(1)} y={(y + 1).toFixed(1)} fontSize="8.5" fill={color} fontWeight="bold">
-              {label}
-            </text>
+            <rect x={(x+4).toFixed(1)} y={(y-9.5).toFixed(1)} width={label.length*5.5+6} height={13} fill="#0d0f14" rx="2" opacity="0.85" />
+            <text x={(x+7).toFixed(1)} y={(y+1).toFixed(1)} fontSize="8.5" fill={color} fontWeight="bold">{label}</text>
           </g>
         );
       })}
-
-      {/* Axes */}
-      <line x1={PAD.left} y1={PAD.top} x2={PAD.left} y2={PAD.top + plotH} stroke="#4b5563" strokeWidth="1" />
-      <line x1={PAD.left} y1={PAD.top + plotH} x2={PAD.left + plotW} y2={PAD.top + plotH} stroke="#4b5563" strokeWidth="1" />
-
-      {/* Y labels */}
-      {effTicks.map((t, i) => (
-        <text key={i} x={PAD.left - 5} y={(effY(t) + 3).toFixed(1)}
-          textAnchor="end" fontSize="9" fill="#6b7280">{fmtY(t)}</text>
-      ))}
-
-      {/* X labels */}
-      {xTicks.map((t, i) => (
-        <text key={i} x={xScale(t).toFixed(1)} y={(PAD.top + plotH + 22).toFixed(1)}
-          textAnchor="middle" fontSize="9" fill="#6b7280">{fmtEnc(t)}</text>
-      ))}
-
-      <text x={(PAD.left + plotW / 2).toFixed(1)} y={(H - 3).toFixed(1)}
-        textAnchor="middle" fontSize="8.5" fill="#4b5563">Encounters from now</text>
-
-      {/* Legend */}
+      <line x1={PAD.left} y1={PAD.top} x2={PAD.left} y2={PAD.top+plotH} stroke="#374151" strokeWidth="1" />
+      <line x1={PAD.left} y1={PAD.top+plotH} x2={PAD.left+plotW} y2={PAD.top+plotH} stroke="#374151" strokeWidth="1" />
+      {effTicks.map((t, i) => <text key={i} x={PAD.left-5} y={(effY(t)+3).toFixed(1)} textAnchor="end" fontSize="9" fill="#4b5563">{fmtY(t)}</text>)}
+      {xTicks.map((t, i) => <text key={i} x={xScale(t).toFixed(1)} y={(PAD.top+plotH+22).toFixed(1)} textAnchor="middle" fontSize="9" fill="#4b5563">{fmtEnc(t)}</text>)}
+      <text x={(PAD.left+plotW/2).toFixed(1)} y={(H-3).toFixed(1)} textAnchor="middle" fontSize="8.5" fill="#374151">Encounters from now</text>
       <g>
-        <line x1={PAD.left + plotW - 120} y1={15} x2={PAD.left + plotW - 110} y2={15}
-          stroke="#34d399" strokeWidth="1.5" strokeDasharray="4 3" opacity="0.7" />
-        <text x={PAD.left + plotW - 106} y={18} fontSize="8" fill="#34d399" opacity="0.85">step 50 bonus</text>
-        <line x1={PAD.left + plotW - 120} y1={27} x2={PAD.left + plotW - 110} y2={27}
-          stroke="#fbbf24" strokeWidth="1.5" strokeDasharray="4 3" opacity="0.7" />
-        <text x={PAD.left + plotW - 106} y={30} fontSize="8" fill="#fbbf24" opacity="0.85">step 100 bonus</text>
+        <line x1={PAD.left+plotW-120} y1={15} x2={PAD.left+plotW-110} y2={15} stroke="#34d399" strokeWidth="1.5" strokeDasharray="4 3" opacity="0.7" />
+        <text x={PAD.left+plotW-106} y={18} fontSize="8" fill="#34d399" opacity="0.85">step 50</text>
+        <line x1={PAD.left+plotW-120} y1={27} x2={PAD.left+plotW-110} y2={27} stroke="#fbbf24" strokeWidth="1.5" strokeDasharray="4 3" opacity="0.7" />
+        <text x={PAD.left+plotW-106} y={30} fontSize="8" fill="#fbbf24" opacity="0.85">step 100</text>
       </g>
     </svg>
   );
 }
 
-// ── Search Level reference table ──────────────────────────────────────────────
-
-function SLReferenceTable({ shinyCharm, currentSL }) {
+// ── SL Reference Table ────────────────────────────────────────────────────────
+function SLReferenceTable({ shinyCharm, currentSL, accentColor }) {
   const table = shinyCharm ? TABLE_CHARM : TABLE_NO_CHARM;
   const currentRowIdx = table.findIndex(r => currentSL >= r[0] && currentSL <= r[1]);
 
   return (
-    <div className="bg-gray-800/60 border border-gray-700 rounded-xl overflow-hidden">
-      <div className="px-4 py-3 border-b border-gray-700">
-        <h2 className="text-sm font-bold text-gray-300">Search Level Reference</h2>
+    <div className="rounded-2xl overflow-hidden" style={{
+      background: 'linear-gradient(160deg, #1a1c23 0%, #1f2128 100%)',
+      border: '1px solid rgba(255,255,255,0.07)',
+    }}>
+      <div className="px-4 py-3 border-b" style={{ borderColor: 'rgba(255,255,255,0.06)' }}>
+        <h2 className="text-sm font-bold text-white">Search Level Reference</h2>
         <p className="text-xs text-gray-500 mt-0.5">
-          {shinyCharm ? 'Shiny Charm active' : 'No Shiny Charm'} ·
-          every 5th chain step gets the boosted odds ·
-          steps 50 and 100 have special higher bonuses
+          {shinyCharm ? 'Shiny Charm active' : 'No Shiny Charm'} · every 5th step = boost · steps 50 & 100 = special bonuses
         </p>
       </div>
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
-            <tr className="border-b border-gray-700 bg-gray-900/30 text-gray-400 text-xs font-semibold uppercase tracking-wide">
+            <tr className="border-b text-[10px] font-bold uppercase tracking-wider text-gray-500"
+              style={{ borderColor: 'rgba(255,255,255,0.06)', background: 'rgba(255,255,255,0.02)' }}>
               <th className="text-left px-4 py-2.5">SL range</th>
               <th className="text-right px-4 py-2.5">No boost</th>
-              <th className="text-right px-4 py-2.5">Every 5th step / 4% random</th>
+              <th className="text-right px-4 py-2.5">Every 5th / 4% random</th>
               <th className="text-right px-4 py-2.5">Step 50 ★</th>
               <th className="text-right px-4 py-2.5">Step 100 ★</th>
             </tr>
@@ -851,30 +698,18 @@ function SLReferenceTable({ shinyCharm, currentSL }) {
           <tbody>
             {table.map(([slMin, slMax, std, boost, e50, e100], idx) => {
               const isActive = idx === currentRowIdx;
-              const isLast   = slMax === Infinity;
-              const label    = isLast ? `${slMin}+` : slMin === slMax ? String(slMin) : `${slMin}–${slMax}`;
+              const isLast = slMax === Infinity;
+              const label = isLast ? `${slMin}+` : slMin === slMax ? String(slMin) : `${slMin}–${slMax}`;
               return (
-                <tr key={idx}
-                  className={`border-b border-gray-700/40 transition-colors ${
-                    isActive ? 'bg-indigo-900/25' : 'hover:bg-gray-700/20'
-                  }`}
-                >
-                  <td className={`px-4 py-2 font-semibold tabular-nums ${isActive ? 'text-indigo-300' : 'text-gray-300'}`}>
-                    {label}
-                    {isActive && <span className="ml-1.5 text-indigo-400 text-xs font-normal">◄ you</span>}
+                <tr key={idx} className="border-b transition-colors"
+                  style={{ borderColor: 'rgba(255,255,255,0.04)', background: isActive ? 'rgba(96,165,250,0.08)' : undefined }}>
+                  <td className="px-4 py-2 font-semibold tabular-nums" style={{ color: isActive ? accentColor : '#d1d5db' }}>
+                    {label}{isActive && <span className="ml-1.5 text-xs font-normal" style={{ color: accentColor, opacity: 0.6 }}>◄ you</span>}
                   </td>
-                  <td className="text-right px-4 py-2 text-gray-400 tabular-nums text-xs">
-                    1/{Math.round(std).toLocaleString()}
-                  </td>
-                  <td className="text-right px-4 py-2 text-indigo-400 tabular-nums text-xs">
-                    1/{Math.round(boost).toLocaleString()}
-                  </td>
-                  <td className="text-right px-4 py-2 text-emerald-400 tabular-nums text-xs font-semibold">
-                    1/{Math.round(e50).toLocaleString()}
-                  </td>
-                  <td className="text-right px-4 py-2 text-yellow-400 tabular-nums text-xs font-semibold">
-                    1/{Math.round(e100).toLocaleString()}
-                  </td>
+                  <td className="text-right px-4 py-2 text-gray-500 tabular-nums text-xs">1/{Math.round(std).toLocaleString()}</td>
+                  <td className="text-right px-4 py-2 tabular-nums text-xs" style={{ color: '#38bdf8' }}>1/{Math.round(boost).toLocaleString()}</td>
+                  <td className="text-right px-4 py-2 tabular-nums text-xs font-semibold" style={{ color: '#34d399' }}>1/{Math.round(e50).toLocaleString()}</td>
+                  <td className="text-right px-4 py-2 tabular-nums text-xs font-semibold" style={{ color: '#fbbf24' }}>1/{Math.round(e100).toLocaleString()}</td>
                 </tr>
               );
             })}

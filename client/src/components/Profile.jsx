@@ -147,22 +147,22 @@ const OverviewTab = ({ profile, accentColor, onPokemonClick }) => {
   const { stats, monthlyData, recentCatches = [] } = profile;
 
   const AchievementBlock = ({ items, label, restricted }) => (
-    <div className="rounded-xl p-4 border flex flex-col"
+    <div className="rounded-xl p-3 sm:p-4 border flex flex-col"
       style={{
         background: CARD.bg,
         borderColor: restricted ? 'rgba(120,40,30,0.4)' : CARD.border,
       }}>
-      <div className="flex items-center gap-1.5 mb-4">
+      <div className="flex items-center gap-1.5 mb-3 sm:mb-4">
         {restricted && <img src={restrictedIcon} alt="" className="w-3.5 h-3.5 object-contain" />}
-        <p className="text-sm font-semibold uppercase tracking-wide" style={{ color: restricted ? '#e07060' : 'rgba(255,255,255,0.35)' }}>{label}</p>
+        <p className="text-xs sm:text-sm font-semibold uppercase tracking-wide" style={{ color: restricted ? '#e07060' : 'rgba(255,255,255,0.35)' }}>{label}</p>
       </div>
-      <div className="grid grid-cols-4 gap-2 flex-1">
+      <div className="grid grid-cols-4 gap-1 sm:gap-2 flex-1">
         {items.map(({ type, count }) => (
-          <div key={type} className="flex flex-col items-center gap-2">
+          <div key={type} className="flex flex-col items-center gap-1 sm:gap-2">
             <AchievementIcon type={type} color={restricted ? undefined : accentColor} restricted={restricted}
-              containerClassName="w-14 h-14 rounded-xl"
-              svgClassName={type === 'blackout' ? 'w-8 h-8' : 'w-7 h-7'} />
-            <span className="text-2xl font-black text-white leading-none">{count || 0}</span>
+              containerClassName="w-8 h-8 sm:w-14 sm:h-14 rounded-md sm:rounded-xl"
+              svgClassName={type === 'blackout' ? 'w-4 h-4 sm:w-8 sm:h-8' : 'w-4 h-4 sm:w-7 sm:h-7'} />
+            <span className="text-lg sm:text-2xl font-black text-white leading-none">{count || 0}</span>
           </div>
         ))}
       </div>
@@ -690,40 +690,63 @@ const Profile = () => {
         <div className="rounded-2xl shadow-2xl overflow-hidden border" style={{ background: CARD.hero, borderColor: CARD.border }}>
           {/* Accent top bar with glow */}
           <div className="h-1.5" style={{ backgroundColor: accentColor, boxShadow: `0 0 20px ${accentColor}80` }} />
-          <div className="px-6 py-4 flex items-center gap-5">
+          <div className="px-4 sm:px-6 py-4">
 
-            {/* Avatar */}
-            <div className="relative shrink-0">
-              <div className="absolute inset-0 rounded-full blur-lg opacity-40" style={{ backgroundColor: accentColor, margin: '-6px' }} />
-              {profile.user.avatar_url
-                ? <img src={profile.user.avatar_url} alt="Avatar"
-                    className="relative w-20 h-20 rounded-full shadow-2xl"
-                    style={{ outline: `3px solid ${accentColor}`, outlineOffset: '2px' }} />
-                : <div className="relative w-20 h-20 rounded-full flex items-center justify-center text-3xl text-gray-400"
-                    style={{ background: CARD.inner, outline: `3px solid ${accentColor}`, outlineOffset: '2px' }}>?</div>}
+            {/* Top row: avatar + identity + desktop stats */}
+            <div className="flex items-center gap-4">
+
+              {/* Avatar */}
+              <div className="relative shrink-0">
+                <div className="absolute inset-0 rounded-full blur-lg opacity-40" style={{ backgroundColor: accentColor, margin: '-6px' }} />
+                {profile.user.avatar_url
+                  ? <img src={profile.user.avatar_url} alt="Avatar"
+                      className="relative w-16 h-16 sm:w-20 sm:h-20 rounded-full shadow-2xl"
+                      style={{ outline: `3px solid ${accentColor}`, outlineOffset: '2px' }} />
+                  : <div className="relative w-16 h-16 sm:w-20 sm:h-20 rounded-full flex items-center justify-center text-3xl text-gray-400"
+                      style={{ background: CARD.inner, outline: `3px solid ${accentColor}`, outlineOffset: '2px' }}>?</div>}
+              </div>
+
+              {/* Identity */}
+              <div className="flex-1 min-w-0">
+                <h1 className="text-xl sm:text-2xl font-extrabold text-white leading-tight truncate">
+                  {profile.user.display_name}
+                </h1>
+                <p className="text-sm" style={{ color: accentColor }}>@{profile.user.username}</p>
+                <p className="hidden sm:block text-sm text-gray-500 mt-0.5">
+                  Joined {new Date(profile.user.created_at).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
+                </p>
+              </div>
+
+              {/* Stat values — desktop only */}
+              <div className="hidden sm:flex shrink-0 items-center gap-px border-l pl-5" style={{ borderColor: CARD.border }}>
+                {[
+                  { label: 'Rank',   value: stats.overallRank > 0 ? `#${stats.overallRank}` : '—' },
+                  { label: 'Points', value: stats.totalPoints || 0 },
+                  { label: 'Shinies', value: stats.totalShinies || 0 },
+                ].map(({ label, value }, i) => (
+                  <div key={label} className={`text-center px-5 ${i > 0 ? 'border-l' : ''}`} style={{ borderColor: CARD.border }}>
+                    <div className="text-xs uppercase tracking-widest mb-0.5" style={{ color: 'rgba(255,255,255,0.35)' }}>{label}</div>
+                    <div className="text-2xl font-extrabold leading-none" style={{ color: accentColor }}>{value}</div>
+                  </div>
+                ))}
+              </div>
+
             </div>
 
-            {/* Identity */}
-            <div className="flex-1 min-w-0">
-              <h1 className="text-2xl font-extrabold text-white leading-tight truncate">
-                {profile.user.display_name}
-              </h1>
-              <p className="text-sm" style={{ color: accentColor }}>@{profile.user.username}</p>
-              <p className="text-sm text-gray-500 mt-0.5">
-                Joined {new Date(profile.user.created_at).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
-              </p>
-            </div>
-
-            {/* Stat values — right side */}
-            <div className="shrink-0 flex items-center gap-px border-l pl-5" style={{ borderColor: CARD.border }}>
+            {/* 6-stat grid — mobile only */}
+            <div className="sm:hidden mt-3 pt-3 border-t grid grid-cols-3" style={{ borderColor: CARD.borderSubtle }}>
               {[
-                { label: 'Rank', value: stats.overallRank > 0 ? `#${stats.overallRank}` : '—' },
-                { label: 'Points', value: stats.totalPoints || 0 },
-                { label: 'Shinies', value: stats.totalShinies || 0 },
+                { label: 'Rank',        value: stats.overallRank > 0 ? `#${stats.overallRank}` : '—' },
+                { label: 'Best Rank',   value: stats.bestRankedMonth ? `#${stats.bestRankedMonth.rank}` : '—' },
+                { label: 'Shinies',     value: stats.totalShinies || 0 },
+                { label: 'Points',      value: stats.totalPoints || 0 },
+                { label: 'Avg Pts',     value: stats.avgPointsPerMonth || 0 },
+                { label: 'Months',      value: stats.monthsParticipated || 0 },
               ].map(({ label, value }, i) => (
-                <div key={label} className={`text-center px-5 ${i > 0 ? 'border-l' : ''}`} style={{ borderColor: CARD.border }}>
-                  <div className="text-xs uppercase tracking-widest mb-0.5" style={{ color: 'rgba(255,255,255,0.35)' }}>{label}</div>
-                  <div className="text-2xl font-extrabold leading-none" style={{ color: accentColor }}>{value}</div>
+                <div key={label} className={`text-center py-2 ${i % 3 !== 0 ? 'border-l' : ''} ${i >= 3 ? 'border-t' : ''}`}
+                  style={{ borderColor: CARD.borderSubtle }}>
+                  <div className="text-[10px] uppercase tracking-widest mb-0.5" style={{ color: 'rgba(255,255,255,0.3)' }}>{label}</div>
+                  <div className="text-lg font-extrabold leading-none" style={{ color: accentColor }}>{value}</div>
                 </div>
               ))}
             </div>

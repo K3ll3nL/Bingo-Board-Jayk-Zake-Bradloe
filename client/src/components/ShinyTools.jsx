@@ -21,6 +21,7 @@ const TOOLS = [
     icon: '⚾',
     category: 'Calculators',
     gen: 'Universal',
+    live: true,
   },
   {
     id: 'home-value',
@@ -66,11 +67,12 @@ const TOOLS = [
   },
   {
     id: 'xy-radar',
-    name: 'X/Y Radar Breakdown',
-    description: 'Maximize your Poké Radar chain in X/Y with step-by-step mechanics guidance.',
+    name: 'XY Poké Radar',
+    description: 'Interactive tile maps showing safe vs edge-patch tiles, plus zone analysis for radar chaining in X & Y.',
     icon: '📡',
     category: 'Chaining',
     gen: 'Gen 6',
+    live: true,
   },
   {
     id: 'dexnav',

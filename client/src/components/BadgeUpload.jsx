@@ -170,20 +170,19 @@ export default function BadgeUpload() {
       <div className="max-w-5xl mx-auto px-4 sm:px-6 pb-12">
 
         {/* Tab bar */}
-        <div className="flex gap-1 mb-6 p-1 rounded-xl border" style={{ background: C.inner, borderColor: C.border }}>
+        <div className="flex gap-1 my-6 flex-wrap">
           {TABS.map(t => (
             <button
               key={t.id}
               onClick={() => setTab(t.id)}
-              className="flex-1 flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg text-sm font-medium transition-all"
-              style={{
-                color: tab === t.id ? '#fff' : 'rgba(255,255,255,0.4)',
-                background: tab === t.id ? 'rgba(147,51,234,0.25)' : 'transparent',
-                border: `1px solid ${tab === t.id ? 'rgba(147,51,234,0.4)' : 'transparent'}`,
-              }}
+              className={`flex items-center gap-1.5 px-4 py-1.5 rounded-full text-sm font-medium transition-colors ${
+                tab === t.id
+                  ? 'bg-purple-600/20 text-purple-300 border border-purple-500/30'
+                  : 'text-gray-500 hover:text-gray-200'
+              }`}
             >
-              <span className="text-base leading-none" style={{ color: tab === t.id ? '#a855f7' : 'rgba(255,255,255,0.2)' }}>{t.icon}</span>
-              <span className="hidden sm:inline">{t.label}</span>
+              <span className="text-xs leading-none opacity-70">{t.icon}</span>
+              {t.label}
             </button>
           ))}
         </div>
@@ -570,11 +569,13 @@ function ReplaceImageTab() {
     })();
   }, []);
 
-  const filtered = allBadges.filter(b =>
-    !search.trim() ||
-    b.name.toLowerCase().includes(search.toLowerCase()) ||
-    b.key.toLowerCase().includes(search.toLowerCase())
-  );
+  const filtered = allBadges
+    .filter(b =>
+      !search.trim() ||
+      b.name.toLowerCase().includes(search.toLowerCase()) ||
+      b.key.toLowerCase().includes(search.toLowerCase())
+    )
+    .sort((a, b) => a.name.localeCompare(b.name));
 
   const handleSelect = (badge) => {
     setSelected(badge);

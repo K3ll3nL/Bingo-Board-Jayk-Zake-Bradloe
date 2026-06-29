@@ -162,23 +162,22 @@ const Pokedex = () => {
                   <div className="flex-1 h-px bg-gray-700" />
                   <span className="text-xs text-gray-600">{byGen[gen].filter(p => p.caught).length} / {byGen[gen].length}</span>
                 </div>
-                <div className="grid grid-cols-5 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-10 xl:grid-cols-12 gap-1.5">
+                <div className="grid grid-cols-5 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-10 xl:grid-cols-12 gap-2">
                   {byGen[gen].map(poke => {
                     const canSubmit = poke.in_pool && !poke.caught;
-                    const isCurrentMonth = poke.in_current_pool;
+                    const isCurrentPool = poke.in_current_pool && !poke.caught;
+                    const submitUrl = isCurrentPool
+                      ? `/upload?pokemon=${poke.id}`
+                      : `/upload?historical=true&pokemon=${poke.id}`;
+                    const submitTitle = isCurrentPool
+                      ? `Submit catch for ${poke.display_name || poke.name}`
+                      : `Submit historical catch for ${poke.display_name || poke.name}`;
                     return (
                     <div
                       key={poke.id}
-                      onClick={() => {
-                        if (!canSubmit) return;
-                        if (isCurrentMonth) {
-                          navigate(`/upload?pokemon=${poke.id}`);
-                        } else {
-                          navigate(`/upload?historical=true&pokemon=${poke.id}`);
-                        }
-                      }}
+                      onClick={() => canSubmit && navigate(submitUrl)}
                       className={`group relative rounded-lg border-2 transition-all duration-200 overflow-hidden leading-none aspect-square ${canSubmit ? 'hover:scale-105 cursor-pointer hover:border-purple-400' : poke.caught ? 'hover:scale-105 cursor-pointer' : 'cursor-default'} ${poke.caught ? 'border-purple-500 bg-gray-800' : 'border-gray-700 bg-gray-900'}`}
-                      title={canSubmit ? (isCurrentMonth ? `Submit catch for ${poke.display_name || poke.name}` : `Submit historical catch for ${poke.display_name || poke.name}`) : `${poke.display_name || poke.name}${poke.caught ? ' ✓' : ''}`}
+                      title={canSubmit ? submitTitle : `${poke.display_name || poke.name}${poke.caught ? ' ✓' : ''}`}
                     >
                       <div className={`w-full h-full ${poke.caught ? '' : poke.in_pool ? 'grayscale opacity-30' : 'brightness-0 opacity-20'}`}>
                         <PokemonImage pokemon={poke} className="w-full h-full" disableCycling={!poke.in_pool} />

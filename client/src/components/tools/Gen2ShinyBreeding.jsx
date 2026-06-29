@@ -1,6 +1,8 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { supabase } from '../../contexts/AuthContext';
 import PokemonImage from '../PokemonImage';
+import PageBackground from '../PageBackground';
 import {
   POKEMON_DATA,
   POKEMON_BY_ID,
@@ -302,6 +304,7 @@ function OwnedTag({ pokemon, pmMap, onRemove }) {
 
 // ── Main component ────────────────────────────────────────────────────────────
 export default function Gen2ShinyBreeding() {
+  const navigate = useNavigate();
   const [ownedIds, setOwnedIds] = useState(() => {
     try { return JSON.parse(localStorage.getItem('gen2_owned_shinies') || '[]'); }
     catch { return []; }
@@ -351,28 +354,49 @@ export default function Gen2ShinyBreeding() {
   const ownedPokemon = ownedIds.map(id => POKEMON_BY_ID[id]).filter(Boolean);
 
   return (
-    <div className="max-w-3xl mx-auto px-4 py-8">
-      {/* Header */}
-      <div className="flex items-start justify-between mb-6 gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-white mb-1">Gen 2 Shiny Gene Breeding</h1>
-          <p className="text-gray-400 text-sm leading-relaxed">
-            Find the shortest breeding chain to pass shiny DVs from any Pokémon you already have
-            shiny to your target. Shiny females pass their Special DV to all offspring, boosting
-            shiny odds to ~1/1024 per egg.
-          </p>
+    <div className="min-h-screen text-white" style={{ isolation: 'isolate', position: 'relative' }}>
+      <PageBackground />
+
+      {/* Sticky header */}
+      <div className="sticky top-0 z-30 border-b"
+        style={{ background: 'rgba(13,15,20,0.85)', backdropFilter: 'blur(10px)', borderColor: 'rgba(255,255,255,0.06)' }}>
+        <div className="max-w-5xl mx-auto px-4 py-2.5 flex items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <button onClick={() => navigate('/tools')}
+              className="flex items-center gap-1.5 text-sm transition-colors"
+              style={{ color: 'rgba(255,255,255,0.4)' }}
+              onMouseEnter={e => e.currentTarget.style.color = '#fff'}
+              onMouseLeave={e => e.currentTarget.style.color = 'rgba(255,255,255,0.4)'}>
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
+              </svg>
+              <span className="hidden sm:inline">Shiny Tools</span>
+            </button>
+            <span style={{ color: 'rgba(255,255,255,0.15)' }}>|</span>
+            <span className="text-sm font-semibold text-white">Gen 2 Shiny Breeding</span>
+          </div>
+          <button
+            onClick={() => setDittoOpen(true)}
+            className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-fuchsia-300 text-xs font-semibold border transition-all hover:bg-fuchsia-500/20"
+            style={{ background: 'rgba(217,70,239,0.1)', borderColor: 'rgba(217,70,239,0.25)' }}
+            title="How to get a shiny Ditto">
+            {pmMap[132]
+              ? <PokemonImage pokemon={pmMap[132]} className="w-5 h-5" disableCycling />
+              : <div className="w-5 h-5 bg-gray-700 rounded animate-pulse" />}
+            Ditto trick
+          </button>
         </div>
-        <button
-          onClick={() => setDittoOpen(true)}
-          className="shrink-0 flex items-center gap-1.5 bg-fuchsia-500/15 border border-fuchsia-500/30
-            hover:bg-fuchsia-500/25 transition rounded-lg px-3 py-2 text-fuchsia-300 text-xs font-semibold"
-          title="How to get a shiny Ditto"
-        >
-          {pmMap[132]
-            ? <PokemonImage pokemon={pmMap[132]} className="w-6 h-6" disableCycling />
-            : <div className="w-6 h-6 bg-gray-700 rounded animate-pulse" />}
-          Ditto trick
-        </button>
+      </div>
+
+    <div className="max-w-5xl mx-auto px-4 py-6">
+      {/* Header */}
+      <div className="mb-6">
+        <h1 className="text-2xl font-bold text-white mb-1">Gen 2 Shiny Gene Breeding</h1>
+        <p className="text-gray-400 text-sm leading-relaxed">
+          Find the shortest breeding chain to pass shiny DVs from any Pokémon you already have
+          shiny to your target. Shiny females pass their Special DV to all offspring, boosting
+          shiny odds to ~1/1024 per egg.
+        </p>
       </div>
 
       {/* Inputs */}
@@ -559,6 +583,7 @@ export default function Gen2ShinyBreeding() {
       )}
 
       {dittoOpen && <DittoModal onClose={() => setDittoOpen(false)} dittoPm={pmMap[132]} />}
+    </div>
     </div>
   );
 }

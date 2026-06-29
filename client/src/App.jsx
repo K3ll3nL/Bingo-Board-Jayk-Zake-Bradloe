@@ -30,6 +30,9 @@ import SVSandwichCalculator from './components/tools/SVSandwichCalculator';
 import BDSPRadar from './components/tools/BDSPRadar';
 import Gen2ShinyBreeding from './components/tools/Gen2ShinyBreeding';
 import DexNavCalculator from './components/tools/DexNavCalculator';
+import CatchRateCalculator from './components/tools/CatchRateCalculator';
+import XYRadar from './components/tools/XYRadar';
+import XYRadarBuilder from './components/tools/XYRadarBuilder';
 import logoImage from './Icons/pokemon-bounty-board.png';
 import logoIcon from './Icons/logo-mobile.png';
 
@@ -589,6 +592,9 @@ function App() {
             <Route path="/tools/bdsp-radar" element={<BDSPRadar />} />
             <Route path="/tools/gen2-breeding" element={<Gen2ShinyBreeding />} />
             <Route path="/tools/dexnav" element={<DexNavCalculator />} />
+            <Route path="/tools/catch-rate" element={<CatchRateCalculator />} />
+            <Route path="/tools/xy-radar" element={<XYRadar />} />
+            <Route path="/tools/xy-radar/builder" element={<XYRadarBuilder />} />
             <Route path="/tools/:toolId" element={<ShinyTools />} />
             <Route path="*" element={<HomePage />} />
           </Route>

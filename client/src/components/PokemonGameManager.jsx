@@ -20,126 +20,213 @@ const getAuthHeader = async () => {
   return `Bearer ${session?.access_token}`;
 };
 
-// ── Slug Dropdown ─────────────────────────────────────────────────────────────
-// Renders a button that opens a checklist of all ALLOWED_GAMES.
-// `field` is either 'game_slugs' or 'restricted_game_slugs'.
-// Opens upward automatically when the button is in the lower 55% of the viewport.
+// ── Theme ──────────────────────────────────────────────────────────────────────
+const C = {
+  bg:         '#0d0f14',
+  card:       'linear-gradient(160deg, #1a1c23 0%, #1f2128 100%)',
+  header:     'linear-gradient(160deg, #13151a 0%, #181a21 100%)',
+  input:      '#0d0f14',
+  border:     'rgba(255,255,255,0.07)',
+  borderSubt: 'rgba(255,255,255,0.04)',
+  rowAlt:     'rgba(255,255,255,0.02)',
+  rowHover:   'rgba(255,255,255,0.04)',
+};
 
-const PANEL_WIDTH = 1020;
+// ── Column definitions ─────────────────────────────────────────────────────────
+// Always-visible: checkbox, sprite, name, spacer, save.
+// 'slugs' is a paired entry — toggling it shows/hides both slug columns together.
+const COLUMN_DEFS = [
+  { id: 'slugs',       label: 'Slug Columns',  dot: '#a855f7', widths: ['200px', '200px'] },
+  { id: 'shiny',       label: 'Shiny',          dot: '#facc15', width: '90px'  },
+  { id: 'forms',       label: 'Forms',          dot: '#60a5fa', width: '72px'  },
+  { id: 'categories', label: 'Categories',     dot: '#34d399', width: '90px'  },
+  { id: 'copy_paste',  label: 'Copy / Paste',   dot: null,      width: '72px'  },
+];
 
-const SlugDropdown = ({ pokemonId, field, value, onChange, matchValue, reversed }) => {
-  const [open, setOpen] = useState(false);
-  const [panelStyle, setPanelStyle] = useState({});
+const DEFAULT_VISIBLE = new Set(COLUMN_DEFS.map(c => c.id));
+
+const buildGrid = (visible) => {
+  const cols = ['32px', '52px', '1fr']; // checkbox, sprite, name
+  for (const def of COLUMN_DEFS) {
+    if (!visible.has(def.id)) continue;
+    if (def.widths) cols.push(...def.widths);
+    else cols.push(def.width);
+  }
+  cols.push('minmax(0,1fr)'); // spacer so table always fills container
+  cols.push('24px');          // save indicator
+  return cols.join(' ');
+};
+
+// ── Shared portal dropdown helper ──────────────────────────────────────────────
+const usePortalDropdown = (onClose) => {
   const btnRef = useRef(null);
   const panelRef = useRef(null);
+  const [open, setOpen] = useState(false);
+  const [style, setStyle] = useState({});
 
-  // Close on outside click — must check both trigger and portal panel
   useEffect(() => {
     if (!open) return;
-    const handler = (e) => {
+    const close = (e) => {
       if (
         btnRef.current && !btnRef.current.contains(e.target) &&
         panelRef.current && !panelRef.current.contains(e.target)
       ) setOpen(false);
     };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
+    const onScroll = () => setOpen(false);
+    document.addEventListener('mousedown', close);
+    document.addEventListener('scroll', onScroll, true);
+    return () => {
+      document.removeEventListener('mousedown', close);
+      document.removeEventListener('scroll', onScroll, true);
+    };
   }, [open]);
 
-  // Close if the scroll container scrolls while open
-  useEffect(() => {
-    if (!open) return;
-    const handler = () => setOpen(false);
-    document.addEventListener('scroll', handler, true);
-    return () => document.removeEventListener('scroll', handler, true);
-  }, [open]);
-
-  const handleToggleOpen = () => {
+  const toggle = (width = 240) => {
     if (!open && btnRef.current) {
       const rect = btnRef.current.getBoundingClientRect();
       const openUp = rect.bottom > window.innerHeight * 0.55;
-
-      // Clamp left so panel never bleeds off-screen
-      const idealLeft = rect.left + rect.width / 2 - PANEL_WIDTH / 2;
-      const clampedLeft = Math.max(8, Math.min(idealLeft, window.innerWidth - PANEL_WIDTH - 8));
-
-      setPanelStyle(openUp
-        ? { position: 'fixed', width: PANEL_WIDTH, left: clampedLeft, bottom: window.innerHeight - rect.top + 4, zIndex: 9999 }
-        : { position: 'fixed', width: PANEL_WIDTH, left: clampedLeft, top: rect.bottom + 4, zIndex: 9999 }
+      const ideal = rect.left + rect.width / 2 - width / 2;
+      const left = Math.max(8, Math.min(ideal, window.innerWidth - width - 8));
+      setStyle(openUp
+        ? { position: 'fixed', width, left, bottom: window.innerHeight - rect.top + 4, zIndex: 9999 }
+        : { position: 'fixed', width, left, top: rect.bottom + 4, zIndex: 9999 }
       );
     }
     setOpen(o => !o);
   };
 
-  const toggle = (key) => {
-    const next = value.includes(key)
-      ? value.filter(k => k !== key)
-      : [...value, key];
+  return { btnRef, panelRef, open, setOpen, style, toggle };
+};
+
+// ── Panel chrome (shared between dropdowns) ────────────────────────────────────
+const PanelBox = React.forwardRef(({ style, children, maxH = 400 }, ref) => (
+  <div ref={ref} style={{ ...style, maxHeight: maxH }}
+    className="rounded-xl border overflow-y-auto shadow-2xl"
+    style={{ ...style, maxHeight: maxH, background: 'linear-gradient(160deg, #13151a 0%, #181a21 100%)', borderColor: C.border }}>
+    {children}
+  </div>
+));
+PanelBox.displayName = 'PanelBox';
+
+// ── Column visibility dropdown ─────────────────────────────────────────────────
+const ColumnsDropdown = ({ visible, setVisible }) => {
+  const { btnRef, panelRef, open, style, toggle } = usePortalDropdown();
+  const hiddenCount = COLUMN_DEFS.length - visible.size;
+
+  const panel = (
+    <div ref={panelRef} style={{ ...style, width: 220, maxHeight: 400, background: 'linear-gradient(160deg, #13151a 0%, #181a21 100%)', borderColor: C.border }}
+      className="rounded-xl border overflow-y-auto shadow-2xl">
+      <div className="px-3 py-2 border-b text-[10px] font-bold uppercase tracking-widest text-gray-500"
+        style={{ borderColor: C.border }}>Columns</div>
+      <div className="p-2 space-y-0.5">
+        {COLUMN_DEFS.map(col => {
+          const on = visible.has(col.id);
+          return (
+            <label key={col.id}
+              className="flex items-center gap-3 px-3 py-2 rounded-lg cursor-pointer select-none transition-colors hover:bg-white/[0.04]">
+              <input type="checkbox" checked={on}
+                onChange={() => setVisible(prev => {
+                  const next = new Set(prev);
+                  on ? next.delete(col.id) : next.add(col.id);
+                  return next;
+                })}
+                className="w-3.5 h-3.5 rounded accent-purple-500 flex-shrink-0" />
+              {col.dot && <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: col.dot }} />}
+              <span className="text-sm text-gray-300">{col.label}</span>
+            </label>
+          );
+        })}
+      </div>
+      <div className="px-3 py-2 border-t flex gap-3" style={{ borderColor: C.border }}>
+        <button type="button" onClick={() => setVisible(DEFAULT_VISIBLE)}
+          className="text-xs text-purple-400 hover:text-purple-300 transition-colors">Show all</button>
+      </div>
+    </div>
+  );
+
+  return (
+    <div className="relative">
+      <button ref={btnRef} type="button" onClick={() => toggle(220)}
+        className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-colors border"
+        style={{
+          background: hiddenCount > 0 ? 'rgba(147,51,234,0.12)' : C.input,
+          borderColor: hiddenCount > 0 ? 'rgba(147,51,234,0.4)' : C.border,
+          color: hiddenCount > 0 ? '#c084fc' : 'rgba(255,255,255,0.5)',
+        }}>
+        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+            d="M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 002-2M9 7a2 2 0 012-2h2a2 2 0 012 2m0 10V7m0 10a2 2 0 002 2h2a2 2 0 002-2V7a2 2 0 00-2-2h-2a2 2 0 00-2 2" />
+        </svg>
+        Columns
+        {hiddenCount > 0 && (
+          <span className="text-xs font-bold px-1.5 py-0.5 rounded-full bg-purple-500/20 text-purple-300">
+            {hiddenCount} hidden
+          </span>
+        )}
+        <svg className={`w-3.5 h-3.5 transition-transform text-gray-500 ${open ? 'rotate-180' : ''}`}
+          fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+        </svg>
+      </button>
+      {open && createPortal(panel, document.body)}
+    </div>
+  );
+};
+
+// ── Slug Dropdown ──────────────────────────────────────────────────────────────
+const SLUG_PANEL_WIDTH = 960;
+
+const SlugDropdown = ({ pokemonId, field, value, onChange, matchValue, reversed }) => {
+  const { btnRef, panelRef, open, style, toggle } = usePortalDropdown();
+  const isRestricted = field === 'restricted_game_slugs';
+
+  const toggleSlug = (key) => {
+    const next = value.includes(key) ? value.filter(k => k !== key) : [...value, key];
     onChange(pokemonId, field, next);
   };
 
   const label = value.length === 0
-    ? <span className="text-gray-500">None</span>
+    ? <span style={{ color: 'rgba(255,255,255,0.25)' }}>None</span>
     : <span className="text-white">{value.length} game{value.length !== 1 ? 's' : ''}</span>;
 
-  const isRestricted = field === 'restricted_game_slugs';
-
   const panel = (
-    <div
-      ref={panelRef}
-      style={panelStyle}
-      className="bg-gray-900 border border-gray-600 rounded-lg shadow-2xl overflow-y-auto"
-    >
-      {/* Select all / Clear / Match games */}
-      <div className="flex gap-2 px-3 py-2.5 border-b border-gray-700 flex-wrap">
-        <button
-          type="button"
-          onClick={() => onChange(pokemonId, field, ALLOWED_GAMES.map(g => g.key))}
-          className="text-xs text-purple-400 hover:text-purple-300 transition-colors"
-        >Select all</button>
-        <span className="text-gray-600">·</span>
-        <button
-          type="button"
-          onClick={() => onChange(pokemonId, field, [])}
-          className="text-xs text-gray-400 hover:text-gray-300 transition-colors"
-        >Clear</button>
+    <div ref={panelRef} style={{ ...style, width: SLUG_PANEL_WIDTH, maxHeight: 360, background: 'linear-gradient(160deg, #13151a 0%, #181a21 100%)', borderColor: C.border }}
+      className="rounded-xl border overflow-y-auto shadow-2xl">
+      <div className="flex gap-3 px-3 py-2.5 border-b flex-wrap" style={{ borderColor: C.border }}>
+        <button type="button" onClick={() => onChange(pokemonId, field, ALLOWED_GAMES.map(g => g.key))}
+          className="text-xs text-purple-400 hover:text-purple-300 transition-colors">Select all</button>
+        <span className="text-gray-700">·</span>
+        <button type="button" onClick={() => onChange(pokemonId, field, [])}
+          className="text-xs text-gray-500 hover:text-gray-300 transition-colors">Clear</button>
         {isRestricted && matchValue && (
           <>
-            <span className="text-gray-600">·</span>
-            <button
-              type="button"
-              onClick={() => onChange(pokemonId, field, [...matchValue])}
-              className="text-xs text-yellow-400 hover:text-yellow-300 transition-colors"
-            >Match games</button>
+            <span className="text-gray-700">·</span>
+            <button type="button" onClick={() => onChange(pokemonId, field, [...matchValue])}
+              className="text-xs text-yellow-400 hover:text-yellow-300 transition-colors">Match games</button>
           </>
         )}
       </div>
-
-      <div className="grid grid-cols-3 gap-2 p-2">
+      <div className="grid grid-cols-3 gap-1.5 p-2">
         {(reversed ? [...ALLOWED_GAMES].reverse() : ALLOWED_GAMES).map((g) => {
           const checked = value.includes(g.key);
           return (
-            <label
-              key={g.key}
-              className={`flex items-center gap-3 px-3 py-2 rounded-lg cursor-pointer border transition-colors ${
-                checked
-                  ? 'bg-gray-800 border-purple-600'
-                  : 'border-transparent hover:bg-gray-800 hover:border-gray-600'
-              }`}
+            <label key={g.key}
+              className="flex items-center gap-3 px-3 py-2 rounded-lg cursor-pointer border transition-colors"
+              style={{
+                borderColor: checked ? 'rgba(147,51,234,0.5)' : 'transparent',
+                background: checked ? 'rgba(147,51,234,0.1)' : 'transparent',
+              }}
+              onMouseEnter={e => { if (!checked) e.currentTarget.style.background = 'rgba(255,255,255,0.04)'; }}
+              onMouseLeave={e => { if (!checked) e.currentTarget.style.background = 'transparent'; }}
             >
-              <input
-                type="checkbox"
-                checked={checked}
-                onChange={() => toggle(g.key)}
-                className="w-3.5 h-3.5 rounded accent-purple-500 flex-shrink-0"
-              />
+              <input type="checkbox" checked={checked} onChange={() => toggleSlug(g.key)}
+                className="w-3.5 h-3.5 rounded accent-purple-500 flex-shrink-0" />
               <div className="flex items-center justify-center gap-1" style={{ width: '90px', flexShrink: 0 }}>
                 {(g.img_urls ?? []).slice(0, 3).map((url, i) => (
-                  <img key={i} src={url} alt="" className="object-contain"
-                    style={{ height: '27px', maxWidth: '40px' }} />
+                  <img key={i} src={url} alt="" className="object-contain" style={{ height: '27px', maxWidth: '40px' }} />
                 ))}
               </div>
-              <span className="text-xs text-gray-200 leading-tight">{g.label}</span>
+              <span className="text-xs text-gray-300 leading-tight">{g.label}</span>
             </label>
           );
         })}
@@ -149,100 +236,51 @@ const SlugDropdown = ({ pokemonId, field, value, onChange, matchValue, reversed 
 
   return (
     <div className="relative">
-      <button
-        ref={btnRef}
-        type="button"
-        onClick={handleToggleOpen}
-        className={`flex items-center justify-between gap-2 w-full px-3 py-1.5 rounded-lg border text-sm transition-colors ${
-          isRestricted
-            ? 'bg-gray-800 border-gray-600 hover:border-red-700'
-            : 'bg-gray-700 border-gray-600 hover:border-purple-500'
-        }`}
-      >
+      <button ref={btnRef} type="button" onClick={() => toggle(SLUG_PANEL_WIDTH)}
+        className="flex items-center justify-between gap-2 w-full px-3 py-1.5 rounded-lg border text-sm transition-colors"
+        style={{
+          background: C.input,
+          borderColor: isRestricted ? 'rgba(248,113,113,0.2)' : C.border,
+          color: 'inherit',
+        }}>
         {label}
-        <svg className={`w-3.5 h-3.5 flex-shrink-0 transition-transform text-gray-400 ${open ? 'rotate-180' : ''}`}
+        <svg className={`w-3.5 h-3.5 flex-shrink-0 transition-transform text-gray-600 ${open ? 'rotate-180' : ''}`}
           fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
         </svg>
       </button>
-
       {open && createPortal(panel, document.body)}
     </div>
   );
 };
 
-// ── Category Dropdown ────────────────────────────────────────────────────────
-
+// ── Category Dropdown ──────────────────────────────────────────────────────────
 const CATEGORIES = [
-  { key: 'legendary', label: 'Legendary' },
-  { key: 'baby', label: 'Baby' },
-  { key: 'ultra_beast', label: 'Ultra Beast' },
-  { key: 'paradox', label: 'Paradox' },
-  { key: 'starter', label: 'Starter' },
-  { key: 'fossil', label: 'Fossil' },
-  { key: 'regional_alt', label: 'Regional Variant' },
-  { key: 'pseudo_legendary', label: 'Pseudo-Legendary' },
+  { key: 'legendary',       label: 'Legendary' },
+  { key: 'baby',            label: 'Baby' },
+  { key: 'ultra_beast',     label: 'Ultra Beast' },
+  { key: 'paradox',         label: 'Paradox' },
+  { key: 'starter',         label: 'Starter' },
+  { key: 'fossil',          label: 'Fossil' },
+  { key: 'regional_alt',    label: 'Regional Variant' },
+  { key: 'pseudo_legendary',label: 'Pseudo-Legendary' },
 ];
 
 const CategoryDropdown = ({ pokemonId, data, onChange }) => {
-  const [open, setOpen] = useState(false);
-  const [panelStyle, setPanelStyle] = useState({});
-  const btnRef = useRef(null);
-  const panelRef = useRef(null);
-
-  useEffect(() => {
-    if (!open) return;
-    const handler = (e) => {
-      if (
-        btnRef.current && !btnRef.current.contains(e.target) &&
-        panelRef.current && !panelRef.current.contains(e.target)
-      ) setOpen(false);
-    };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
-  }, [open]);
-
-  useEffect(() => {
-    if (!open) return;
-    const handler = () => setOpen(false);
-    document.addEventListener('scroll', handler, true);
-    return () => document.removeEventListener('scroll', handler, true);
-  }, [open]);
-
-  const handleToggleOpen = () => {
-    if (!open && btnRef.current) {
-      const rect = btnRef.current.getBoundingClientRect();
-      const openUp = rect.bottom > window.innerHeight * 0.55;
-      const panelWidth = 220;
-      const idealLeft = rect.left + rect.width / 2 - panelWidth / 2;
-      const clampedLeft = Math.max(8, Math.min(idealLeft, window.innerWidth - panelWidth - 8));
-
-      setPanelStyle(openUp
-        ? { position: 'fixed', width: panelWidth, left: clampedLeft, bottom: window.innerHeight - rect.top + 4, zIndex: 9999 }
-        : { position: 'fixed', width: panelWidth, left: clampedLeft, top: rect.bottom + 4, zIndex: 9999 }
-      );
-    }
-    setOpen(o => !o);
-  };
-
+  const { btnRef, panelRef, open, style, toggle } = usePortalDropdown();
   const activeCount = CATEGORIES.filter(c => data[c.key]).length;
 
   const panel = (
-    <div
-      ref={panelRef}
-      style={panelStyle}
-      className="bg-gray-900 border border-gray-600 rounded-lg shadow-2xl overflow-y-auto max-h-96"
-    >
-      <div className="space-y-2 p-3">
+    <div ref={panelRef} style={{ ...style, width: 200, maxHeight: 400, background: 'linear-gradient(160deg, #13151a 0%, #181a21 100%)', borderColor: C.border }}
+      className="rounded-xl border overflow-y-auto shadow-2xl">
+      <div className="p-2 space-y-0.5">
         {CATEGORIES.map(cat => (
-          <label key={cat.key} className="flex items-center gap-3 px-3 py-2.5 rounded cursor-pointer select-none hover:bg-gray-800 transition-colors">
-            <input
-              type="checkbox"
-              checked={data[cat.key] ?? false}
+          <label key={cat.key}
+            className="flex items-center gap-3 px-3 py-2 rounded-lg cursor-pointer select-none transition-colors hover:bg-white/[0.04]">
+            <input type="checkbox" checked={data[cat.key] ?? false}
               onChange={() => onChange(cat.key, !data[cat.key])}
-              className="w-3.5 h-3.5 rounded accent-cyan-500 flex-shrink-0"
-            />
-            <span className="text-xs text-gray-200">{cat.label}</span>
+              className="w-3.5 h-3.5 rounded accent-emerald-500 flex-shrink-0" />
+            <span className="text-sm text-gray-300">{cat.label}</span>
           </label>
         ))}
       </div>
@@ -251,157 +289,32 @@ const CategoryDropdown = ({ pokemonId, data, onChange }) => {
 
   return (
     <div className="relative">
-      <button
-        ref={btnRef}
-        type="button"
-        onClick={handleToggleOpen}
-        className={`flex items-center justify-between gap-2 w-full px-3 py-1.5 rounded-lg border text-sm transition-colors bg-gray-700 border-gray-600 hover:border-purple-500`}
-      >
-        <span className="text-white text-xs">{activeCount > 0 ? `${activeCount}` : '0'}</span>
-        <svg className={`w-3.5 h-3.5 flex-shrink-0 transition-transform text-gray-400 ${open ? 'rotate-180' : ''}`}
+      <button ref={btnRef} type="button" onClick={() => toggle(200)}
+        className="flex items-center justify-between gap-2 w-full px-3 py-1.5 rounded-lg border text-sm transition-colors"
+        style={{ background: C.input, borderColor: activeCount > 0 ? 'rgba(52,211,153,0.3)' : C.border }}>
+        <span style={{ color: activeCount > 0 ? '#34d399' : 'rgba(255,255,255,0.25)' }}>
+          {activeCount > 0 ? activeCount : '—'}
+        </span>
+        <svg className={`w-3.5 h-3.5 flex-shrink-0 transition-transform text-gray-600 ${open ? 'rotate-180' : ''}`}
           fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
         </svg>
       </button>
-
       {open && createPortal(panel, document.body)}
     </div>
   );
 };
 
-// ── Pokemon Row ──────────────────────────────────────────────────────────────
-
-const PokemonRow = React.memo(({
-  p, i, data, status, selected, isSelected,
-  toggleSelected, handleSlugChange, handleShinyToggle, handleFormsCountChange, handleCategoryToggle,
-  clipboard, setClipboard, reversed
-}) => (
-  <div
-    className="grid gap-3 items-center px-4 py-2.5 transition-colors hover:bg-white/5"
-    style={{
-      gridTemplateColumns: GRID,
-      backgroundColor: i % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.02)',
-      borderBottom: '1px solid rgba(255,255,255,0.05)',
-    }}
-  >
-    {/* Selection checkbox */}
-    <div className="flex items-center justify-center">
-      <input
-        type="checkbox"
-        checked={isSelected}
-        onChange={() => toggleSelected(p.id)}
-        className="w-4 h-4 rounded accent-purple-500"
-      />
-    </div>
-
-    {/* Sprite */}
-    <PokemonImage pokemon={{ ...p, forms_count: data.forms_count }} className="w-11 h-11" />
-
-    {/* Name */}
-    <div>
-      <div className="text-white text-sm font-medium">{p.name}</div>
-      <div className="text-gray-500 text-xs">#{String(p.national_dex_id).padStart(4, '0')}</div>
-    </div>
-
-    {/* Game slugs */}
-    <SlugDropdown
-      pokemonId={p.id}
-      field="game_slugs"
-      value={data.game_slugs}
-      onChange={handleSlugChange}
-      reversed={reversed}
-    />
-
-    {/* Restricted game slugs */}
-    <SlugDropdown
-      pokemonId={p.id}
-      field="restricted_game_slugs"
-      value={data.restricted_game_slugs}
-      onChange={handleSlugChange}
-      matchValue={data.game_slugs}
-      reversed={reversed}
-    />
-
-    {/* Shiny available */}
-    <label className="flex items-center gap-2 cursor-pointer select-none">
-      <div className="relative">
-        <input
-          type="checkbox"
-          checked={data.shiny_available}
-          onChange={() => handleShinyToggle(p.id)}
-          className="sr-only"
-        />
-        <div className={`w-9 h-5 rounded-full transition-colors ${data.shiny_available ? 'bg-yellow-500' : 'bg-gray-600'}`} />
-        <div className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${data.shiny_available ? 'translate-x-4' : ''}`} />
-      </div>
-    </label>
-
-    {/* Forms count */}
-    <input
-      type="number"
-      min="1"
-      value={data.forms_count}
-      onChange={e => handleFormsCountChange(p.id, e.target.value)}
-      className="w-full px-2 py-1 rounded bg-gray-700 border border-gray-600 text-white text-sm text-center focus:border-blue-400 focus:outline-none"
-    />
-
-    {/* Categories dropdown */}
-    <CategoryDropdown
-      pokemonId={p.id}
-      data={data}
-      onChange={(category, value) => handleCategoryToggle(p.id, category, value)}
-    />
-
-    {/* Copy / Paste */}
-    <div className="flex items-center gap-1">
-      <button
-        type="button"
-        title="Copy slugs"
-        onClick={() => setClipboard({ fromId: p.id, game_slugs: [...data.game_slugs], restricted_game_slugs: [...data.restricted_game_slugs] })}
-        className={`p-1.5 rounded transition-colors text-sm ${clipboard?.fromId === p.id ? 'bg-purple-700 text-white' : 'text-gray-400 hover:text-white hover:bg-gray-700'}`}
-      >📋</button>
-      {clipboard && clipboard.fromId !== p.id && (
-        <button
-          type="button"
-          title="Paste slugs"
-          onClick={() => {
-            handleSlugChange(p.id, 'game_slugs', clipboard.game_slugs);
-            handleSlugChange(p.id, 'restricted_game_slugs', clipboard.restricted_game_slugs);
-          }}
-          className="p-1.5 rounded text-sm text-green-400 hover:text-white hover:bg-gray-700 transition-colors"
-        >📥</button>
-      )}
-    </div>
-
-    {/* Save indicator */}
-    <div className="flex items-center justify-center">
-      <SaveIndicator status={status} />
-    </div>
-  </div>
-), (prev, next) => {
-  // Custom comparison: only re-render if data actually changed
-  return (
-    prev.isSelected === next.isSelected &&
-    prev.data === next.data &&
-    prev.status === next.status &&
-    prev.clipboard?.fromId === next.clipboard?.fromId &&
-    prev.i === next.i
-  );
-});
-
-PokemonRow.displayName = 'PokemonRow';
-
-// ── Save indicator ────────────────────────────────────────────────────────────
-
+// ── Save indicator ─────────────────────────────────────────────────────────────
 const SaveIndicator = ({ status }) => {
   if (status === 'saving') return (
-    <svg className="w-4 h-4 text-gray-400 animate-spin flex-shrink-0" fill="none" viewBox="0 0 24 24">
+    <svg className="w-4 h-4 text-gray-500 animate-spin flex-shrink-0" fill="none" viewBox="0 0 24 24">
       <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
       <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
     </svg>
   );
   if (status === 'saved') return (
-    <svg className="w-4 h-4 text-green-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <svg className="w-4 h-4 text-emerald-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
     </svg>
   );
@@ -413,55 +326,156 @@ const SaveIndicator = ({ status }) => {
   return <div className="w-4 h-4 flex-shrink-0" />;
 };
 
-// ── Main component ────────────────────────────────────────────────────────────
+// ── Pokemon Row ────────────────────────────────────────────────────────────────
+const PokemonRow = React.memo(({
+  p, i, data, status, isSelected,
+  visible, toggleSelected, handleSlugChange, handleShinyToggle,
+  handleFormsCountChange, handleCategoryToggle,
+  clipboard, setClipboard, reversed, grid,
+}) => (
+  <div
+    className="grid gap-3 items-center px-4 py-2.5 transition-colors"
+    style={{
+      gridTemplateColumns: grid,
+      backgroundColor: i % 2 === 0 ? 'transparent' : C.rowAlt,
+      borderBottom: `1px solid ${C.borderSubt}`,
+    }}
+    onMouseEnter={e => { e.currentTarget.style.backgroundColor = C.rowHover; }}
+    onMouseLeave={e => { e.currentTarget.style.backgroundColor = i % 2 === 0 ? 'transparent' : C.rowAlt; }}
+  >
+    {/* Checkbox */}
+    <div className="flex items-center justify-center">
+      <input type="checkbox" checked={isSelected} onChange={() => toggleSelected(p.id)}
+        className="w-4 h-4 rounded accent-purple-500" />
+    </div>
 
-const GRID = '32px 52px 1fr 1fr 1fr 90px 72px 90px 72px 24px';
+    {/* Sprite */}
+    <PokemonImage pokemon={{ ...p, forms_count: data.forms_count }} className="w-11 h-11" />
 
+    {/* Name */}
+    <div>
+      <div className="text-white text-sm font-medium leading-tight">{p.name}</div>
+      <div className="text-[11px] mt-0.5" style={{ color: 'rgba(255,255,255,0.25)' }}>
+        #{String(p.national_dex_id).padStart(4, '0')}
+      </div>
+    </div>
+
+    {/* Slug columns — always paired */}
+    {visible.has('slugs') && (
+      <SlugDropdown pokemonId={p.id} field="game_slugs" value={data.game_slugs}
+        onChange={handleSlugChange} reversed={reversed} />
+    )}
+    {visible.has('slugs') && (
+      <SlugDropdown pokemonId={p.id} field="restricted_game_slugs" value={data.restricted_game_slugs}
+        onChange={handleSlugChange} matchValue={data.game_slugs} reversed={reversed} />
+    )}
+    {visible.has('shiny') && (
+      <label className="flex items-center gap-2 cursor-pointer select-none">
+        <div className="relative" onClick={() => handleShinyToggle(p.id)}>
+          <div className={`w-9 h-5 rounded-full transition-colors ${data.shiny_available ? 'bg-yellow-500' : 'bg-gray-700'}`} />
+          <div className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${data.shiny_available ? 'translate-x-4' : ''}`} />
+        </div>
+      </label>
+    )}
+    {visible.has('forms') && (
+      <input type="number" min="1" value={data.forms_count}
+        onChange={e => handleFormsCountChange(p.id, e.target.value)}
+        className="w-full px-2 py-1 rounded-lg text-white text-sm text-center focus:outline-none transition-colors"
+        style={{ background: C.input, border: `1px solid ${C.border}` }}
+        onFocus={e => e.target.style.borderColor = 'rgba(147,51,234,0.6)'}
+        onBlur={e => e.target.style.borderColor = C.border}
+      />
+    )}
+    {visible.has('categories') && (
+      <CategoryDropdown pokemonId={p.id} data={data}
+        onChange={(category, value) => handleCategoryToggle(p.id, category, value)} />
+    )}
+    {visible.has('copy_paste') && (
+      <div className="flex items-center gap-1">
+        <button type="button" title="Copy slugs"
+          onClick={() => setClipboard({ fromId: p.id, game_slugs: [...data.game_slugs], restricted_game_slugs: [...data.restricted_game_slugs] })}
+          className="p-1.5 rounded-lg transition-colors text-sm"
+          style={{
+            background: clipboard?.fromId === p.id ? 'rgba(147,51,234,0.3)' : 'transparent',
+            color: clipboard?.fromId === p.id ? '#fff' : 'rgba(255,255,255,0.3)',
+          }}>📋</button>
+        {clipboard && clipboard.fromId !== p.id && (
+          <button type="button" title="Paste slugs"
+            onClick={() => {
+              handleSlugChange(p.id, 'game_slugs', clipboard.game_slugs);
+              handleSlugChange(p.id, 'restricted_game_slugs', clipboard.restricted_game_slugs);
+            }}
+            className="p-1.5 rounded-lg text-sm text-emerald-400 hover:text-white transition-colors"
+            style={{ background: 'transparent' }}>📥</button>
+        )}
+      </div>
+    )}
+
+    {/* Spacer */}
+    <div />
+
+    {/* Save indicator — always shown */}
+    <div className="flex items-center justify-center">
+      <SaveIndicator status={status} />
+    </div>
+  </div>
+), (prev, next) =>
+  prev.isSelected === next.isSelected &&
+  prev.data === next.data &&
+  prev.status === next.status &&
+  prev.clipboard?.fromId === next.clipboard?.fromId &&
+  prev.i === next.i &&
+  prev.visible === next.visible &&
+  prev.grid === next.grid
+);
+
+PokemonRow.displayName = 'PokemonRow';
+
+// ── Main component ─────────────────────────────────────────────────────────────
 const PokemonGameManager = () => {
-  const [pokemon, setPokemon] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-  const [search, setSearch] = useState('');
-  const [reversed, setReversed] = useState(false);
-  const [clipboard, setClipboard] = useState(null); // { fromId, game_slugs, restricted_game_slugs }
-  const [selected, setSelected] = useState(new Set()); // Set of pokemon IDs
-  const selectedRef = useRef(new Set()); // Keep ref in sync with state for immediate access
+  const [pokemon,    setPokemon]    = useState([]);
+  const [loading,    setLoading]    = useState(true);
+  const [error,      setError]      = useState(null);
+  const [search,     setSearch]     = useState('');
+  const [reversed,   setReversed]   = useState(false);
+  const [clipboard,  setClipboard]  = useState(null);
+  const [selected,   setSelected]   = useState(new Set());
+  const [localData,  setLocalData]  = useState({});
+  const [saveState,  setSaveState]  = useState({});
+  const [visible,    setVisible]    = useState(DEFAULT_VISIBLE);
 
-  // Local data edits: { [pokemonId]: { game_slugs, restricted_game_slugs, shiny_available, forms_count, legendary, baby, ultra_beast, paradox, starter, fossil, regional_alt } }
-  const [localData, setLocalData] = useState({});
+  const selectedRef  = useRef(new Set());
+  const saveTimers   = useRef({});
+  const localDataRef = useRef(localData);
+  useEffect(() => { localDataRef.current = localData; }, [localData]);
 
-  // Save state per pokemon: 'idle' | 'saving' | 'saved' | 'error'
-  const [saveState, setSaveState] = useState({});
+  const grid = useMemo(() => buildGrid(visible), [visible]);
 
-  // Debounce timers per pokemon
-  const saveTimers = useRef({});
-
-  // ── Load ──────────────────────────────────────────────────────────────────
-
+  // ── Load ───────────────────────────────────────────────────────────────────
   useEffect(() => {
-    const load = async () => {
+    (async () => {
       try {
         const res = await fetch('/api/admin/pokemon-game-slugs', {
-          headers: { 'Authorization': await getAuthHeader() },
+          headers: { Authorization: await getAuthHeader() },
         });
-        if (!res.ok) throw new Error('Failed to load pokemon');
+        if (!res.ok) throw new Error('Failed to load');
         const data = await res.json();
         setPokemon(data);
         const init = {};
         for (const p of data) {
           init[p.id] = {
-            game_slugs: p.game_slugs ?? [],
+            game_slugs:           p.game_slugs ?? [],
             restricted_game_slugs: p.restricted_game_slugs ?? [],
-            shiny_available: p.shiny_available ?? false,
-            forms_count: p.forms_count ?? 1,
-            legendary: p.legendary ?? false,
-            baby: p.baby ?? false,
-            ultra_beast: p.ultra_beast ?? false,
-            paradox: p.paradox ?? false,
-            starter: p.starter ?? false,
-            fossil: p.fossil ?? false,
-            regional_alt: p.regional_alt ?? false,
-            pseudo_legendary: p.pseudo_legendary ?? false,
+            shiny_available:      p.shiny_available ?? false,
+            forms_count:          p.forms_count ?? 1,
+            legendary:            p.legendary ?? false,
+            baby:                 p.baby ?? false,
+            ultra_beast:          p.ultra_beast ?? false,
+            paradox:              p.paradox ?? false,
+            starter:              p.starter ?? false,
+            fossil:               p.fossil ?? false,
+            regional_alt:         p.regional_alt ?? false,
+            pseudo_legendary:     p.pseudo_legendary ?? false,
           };
         }
         setLocalData(init);
@@ -470,40 +484,25 @@ const PokemonGameManager = () => {
       } finally {
         setLoading(false);
       }
-    };
-    load();
+    })();
   }, []);
 
-  // ── Save (debounced per pokemon) ──────────────────────────────────────────
-
-  // Keep a ref that always points to the latest localData so the debounced save
-  // closure never reads stale state (e.g. when paste calls handleSlugChange twice
-  // in rapid succession before React re-renders).
-  const localDataRef = useRef(localData);
-  useEffect(() => { localDataRef.current = localData; }, [localData]);
-
+  // ── Save ───────────────────────────────────────────────────────────────────
   const save = useCallback(async (pokemonId) => {
     setSaveState(prev => ({ ...prev, [pokemonId]: 'saving' }));
     try {
-      const payload = localDataRef.current[pokemonId];
       const res = await fetch(`/api/admin/pokemon/${pokemonId}/game-slugs`, {
         method: 'PATCH',
-        headers: {
-          'Authorization': await getAuthHeader(),
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(payload),
+        headers: { Authorization: await getAuthHeader(), 'Content-Type': 'application/json' },
+        body: JSON.stringify(localDataRef.current[pokemonId]),
       });
-      const resText = await res.text();
-      if (!res.ok) {
-        throw new Error(`Save failed: ${resText}`);
-      }
+      if (!res.ok) throw new Error(await res.text());
       setSaveState(prev => ({ ...prev, [pokemonId]: 'saved' }));
       setTimeout(() => setSaveState(prev => ({ ...prev, [pokemonId]: 'idle' })), 2000);
-    } catch (err) {
+    } catch {
       setSaveState(prev => ({ ...prev, [pokemonId]: 'error' }));
     }
-  }, []); // no localData dep needed — reads via ref
+  }, []);
 
   const scheduleSave = (pokemonId) => {
     setSaveState(prev => ({ ...prev, [pokemonId]: 'saving' }));
@@ -511,17 +510,11 @@ const PokemonGameManager = () => {
     saveTimers.current[pokemonId] = setTimeout(() => save(pokemonId), 800);
   };
 
+  // ── Field handlers ─────────────────────────────────────────────────────────
   const handleSlugChange = (pokemonId, field, newValue) => {
     const oldValue = localData[pokemonId]?.[field] ?? [];
-    setLocalData(prev => ({
-      ...prev,
-      [pokemonId]: { ...prev[pokemonId], [field]: newValue },
-    }));
-    if (selected.has(pokemonId)) {
-      applyToSelected(pokemonId, field, newValue, oldValue);
-    } else {
-      scheduleSave(pokemonId);
-    }
+    setLocalData(prev => ({ ...prev, [pokemonId]: { ...prev[pokemonId], [field]: newValue } }));
+    selected.has(pokemonId) ? applyToSelected(pokemonId, field, newValue, oldValue) : scheduleSave(pokemonId);
   };
 
   const handleShinyToggle = (pokemonId) => {
@@ -529,10 +522,7 @@ const PokemonGameManager = () => {
     if (selected.has(pokemonId)) {
       applyToSelected(pokemonId, 'shiny_available', newValue);
     } else {
-      setLocalData(prev => ({
-        ...prev,
-        [pokemonId]: { ...prev[pokemonId], shiny_available: newValue },
-      }));
+      setLocalData(prev => ({ ...prev, [pokemonId]: { ...prev[pokemonId], shiny_available: newValue } }));
       scheduleSave(pokemonId);
     }
   };
@@ -542,33 +532,18 @@ const PokemonGameManager = () => {
     if (selected.has(pokemonId)) {
       applyToSelected(pokemonId, 'forms_count', n);
     } else {
-      setLocalData(prev => ({
-        ...prev,
-        [pokemonId]: { ...prev[pokemonId], forms_count: n },
-      }));
+      setLocalData(prev => ({ ...prev, [pokemonId]: { ...prev[pokemonId], forms_count: n } }));
       scheduleSave(pokemonId);
     }
   };
 
   const handleCategoryToggle = (pokemonId, category, value) => {
     const oldValue = localData[pokemonId]?.[category] ?? false;
-    if (selected.has(pokemonId)) {
-      setLocalData(prev => ({
-        ...prev,
-        [pokemonId]: { ...prev[pokemonId], [category]: value },
-      }));
-      applyToSelected(pokemonId, category, value, oldValue);
-    } else {
-      setLocalData(prev => ({
-        ...prev,
-        [pokemonId]: { ...prev[pokemonId], [category]: value },
-      }));
-      scheduleSave(pokemonId);
-    }
+    setLocalData(prev => ({ ...prev, [pokemonId]: { ...prev[pokemonId], [category]: value } }));
+    selected.has(pokemonId) ? applyToSelected(pokemonId, category, value, oldValue) : scheduleSave(pokemonId);
   };
 
-  // ── Bulk selection handlers ────────────────────────────────────────────────
-
+  // ── Bulk selection ─────────────────────────────────────────────────────────
   const toggleSelected = (pokemonId) => {
     selectedRef.current.has(pokemonId) ? selectedRef.current.delete(pokemonId) : selectedRef.current.add(pokemonId);
     setSelected(new Set(selectedRef.current));
@@ -586,179 +561,172 @@ const PokemonGameManager = () => {
 
   const applyToSelected = (pokemonId, field, newValue, oldValue) => {
     if (!selectedRef.current.has(pokemonId) || selectedRef.current.size === 0) return;
-
-    // For slug fields, apply the delta (additions/removals) rather than replacing
-    const isSlugField = field === 'game_slugs' || field === 'restricted_game_slugs';
-
-    // Capture selected as an array to ensure stable iteration
-    const selectedArray = Array.from(selectedRef.current);
+    const ids = Array.from(selectedRef.current);
+    const isSlug = field === 'game_slugs' || field === 'restricted_game_slugs';
 
     setLocalData(prev => {
       const next = { ...prev };
-
-      if (isSlugField) {
-        const added = newValue.filter(slug => !oldValue.includes(slug));
-        const removed = oldValue.filter(slug => !newValue.includes(slug));
-
-        // Apply the delta to all selected Pokemon
-        for (const id of selectedArray) {
-          const current = next[id]?.[field] ?? [];
-          let updated = [...current];
-
-          // Add the slugs that were added to the clicked Pokemon
-          for (const slug of added) {
-            if (!updated.includes(slug)) {
-              updated.push(slug);
-            }
-          }
-
-          // Remove the slugs that were removed from the clicked Pokemon
-          for (const slug of removed) {
-            updated = updated.filter(s => s !== slug);
-          }
-
-          next[id] = { ...(next[id] ?? {}), [field]: updated };
+      if (isSlug) {
+        const added   = newValue.filter(s => !oldValue.includes(s));
+        const removed = oldValue.filter(s => !newValue.includes(s));
+        for (const id of ids) {
+          let cur = [...(next[id]?.[field] ?? [])];
+          for (const s of added)   if (!cur.includes(s)) cur.push(s);
+          for (const s of removed) cur = cur.filter(x => x !== s);
+          next[id] = { ...(next[id] ?? {}), [field]: cur };
         }
       } else {
-        // For non-slug fields, replace the value entirely
-        for (const id of selectedArray) {
-          next[id] = { ...(next[id] ?? {}), [field]: newValue };
-        }
+        for (const id of ids) next[id] = { ...(next[id] ?? {}), [field]: newValue };
       }
-
       return next;
     });
-
-    for (const id of selectedArray) {
-      scheduleSave(id);
-    }
+    for (const id of ids) scheduleSave(id);
   };
 
-  // ── Filter ────────────────────────────────────────────────────────────────
-
+  // ── Filter ─────────────────────────────────────────────────────────────────
   const filtered = useMemo(() => {
     const q = search.toLowerCase();
     return pokemon.filter(p => !q || p.name.toLowerCase().includes(q) || String(p.national_dex_id).includes(q));
   }, [pokemon, search]);
 
-  // ── Render ────────────────────────────────────────────────────────────────
-
+  // ── Render ─────────────────────────────────────────────────────────────────
   return (
     <div className="h-screen flex flex-col overflow-hidden" style={{ isolation: 'isolate', position: 'relative' }}>
       <PageBackground />
       <PageHeader title="Pokémon Game Manager" badge="mod" />
 
-      <div className="flex-1 overflow-hidden p-6">
-        <div className="max-w-5xl mx-auto h-full flex flex-col">
+      <div className="flex-1 overflow-hidden px-6 pb-6 pt-4">
+        <div className="max-w-6xl mx-auto h-full flex flex-col">
 
-          {/* Search */}
-          <div className="mb-4 flex items-center gap-3">
-            <div className="relative flex-1 max-w-sm">
-              <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400"
+          {/* Toolbar */}
+          <div className="mb-4 flex items-center gap-3 flex-wrap">
+
+            {/* Search */}
+            <div className="relative">
+              <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 pointer-events-none" style={{ color: 'rgba(255,255,255,0.3)' }}
                 fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                  d="M21 21l-4.35-4.35M17 11A6 6 0 105 11a6 6 0 0012 0z" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-4.35-4.35M17 11A6 6 0 105 11a6 6 0 0012 0z" />
               </svg>
-              <input
-                type="text"
-                value={search}
-                onChange={e => setSearch(e.target.value)}
+              <input type="text" value={search} onChange={e => setSearch(e.target.value)}
                 placeholder="Search by name or dex #"
-                className="w-full pl-9 pr-4 py-2 bg-gray-700 border border-gray-600 rounded-lg text-sm text-white placeholder-gray-400 focus:border-purple-500 focus:outline-none"
+                className="pl-9 pr-4 py-2 rounded-lg text-sm text-white placeholder-gray-600 focus:outline-none transition-colors"
+                style={{ background: C.input, border: `1px solid ${C.border}`, width: 240 }}
+                onFocus={e => e.target.style.borderColor = 'rgba(147,51,234,0.5)'}
+                onBlur={e => e.target.style.borderColor = C.border}
               />
             </div>
-            <span className="text-sm text-gray-400 ml-auto">
-              {selected.size > 0 && (
-                <>
-                  <span className="text-purple-400 font-medium">{selected.size} selected</span>
-                  <button
-                    type="button"
-                    onClick={clearSelection}
-                    className="ml-2 text-xs text-purple-400 hover:text-purple-300 transition-colors"
-                  >Clear</button>
-                  <span className="mx-2">·</span>
-                </>
-              )}
-              {filtered.length} / {pokemon.length} Pokémon
-            </span>
-            {clipboard && (
-              <div className="flex items-center gap-1.5 text-xs bg-purple-900/40 border border-purple-700 text-purple-300 px-2.5 py-1 rounded-full">
-                <span>📋</span>
-                <span>{clipboard.game_slugs.length ? clipboard.game_slugs.join(', ') : 'empty'}</span>
-                <button
-                  type="button"
-                  onClick={() => setClipboard(null)}
-                  className="ml-1 text-purple-400 hover:text-white transition-colors"
-                >×</button>
-              </div>
-            )}
-            <label className="flex items-center gap-2 cursor-pointer select-none text-sm text-gray-400 hover:text-gray-200 transition-colors">
-              <input
-                type="checkbox"
-                checked={reversed}
-                onChange={e => setReversed(e.target.checked)}
-                className="w-4 h-4 rounded accent-purple-500"
-              />
+
+            {/* Columns picker */}
+            <ColumnsDropdown visible={visible} setVisible={setVisible} />
+
+            {/* Reverse order */}
+            <label className="flex items-center gap-2 cursor-pointer select-none text-sm transition-colors"
+              style={{ color: reversed ? '#c084fc' : 'rgba(255,255,255,0.4)' }}>
+              <input type="checkbox" checked={reversed} onChange={e => setReversed(e.target.checked)}
+                className="w-4 h-4 rounded accent-purple-500" />
               Reverse order
             </label>
+
+            {/* Spacer */}
+            <div className="flex-1" />
+
+            {/* Clipboard chip */}
+            {clipboard && (
+              <div className="flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-full border"
+                style={{ background: 'rgba(147,51,234,0.12)', borderColor: 'rgba(147,51,234,0.3)', color: '#c084fc' }}>
+                <span>📋</span>
+                <span>{clipboard.game_slugs.length ? `${clipboard.game_slugs.length} game${clipboard.game_slugs.length !== 1 ? 's' : ''}` : 'empty'}</span>
+                <button type="button" onClick={() => setClipboard(null)}
+                  className="ml-1 hover:text-white transition-colors">×</button>
+              </div>
+            )}
+
+            {/* Selection count */}
+            <div className="text-sm" style={{ color: 'rgba(255,255,255,0.3)' }}>
+              {selected.size > 0 && (
+                <>
+                  <span style={{ color: '#c084fc' }}>{selected.size} selected</span>
+                  <button type="button" onClick={clearSelection}
+                    className="ml-2 text-xs hover:text-white transition-colors" style={{ color: '#a855f7' }}>Clear</button>
+                  <span className="mx-2 text-gray-700">·</span>
+                </>
+              )}
+              <span>{filtered.length} / {pokemon.length}</span>
+            </div>
           </div>
 
-          {/* Section */}
-          <div className="flex-1 overflow-y-auto rounded-xl border border-gray-700" style={{ backgroundColor: '#1a1a2e' }}>
+          {/* Table */}
+          <div className="flex-1 overflow-y-auto rounded-xl border" style={{ borderColor: C.border, background: C.card }}>
 
             {/* Column headers */}
-            <div className="grid gap-3 px-4 py-3 text-xs font-semibold text-gray-400 uppercase tracking-widest border-b border-gray-700 rounded-t-xl sticky top-0 z-10"
-              style={{ gridTemplateColumns: GRID, backgroundColor: '#12122a' }}>
+            <div className="grid gap-3 px-4 py-3 text-[10px] font-bold text-gray-500 uppercase tracking-widest border-b sticky top-0 z-10 rounded-t-xl"
+              style={{ gridTemplateColumns: grid, background: C.header, borderColor: C.border }}>
               <div className="flex items-center justify-center">
-                <input
-                  type="checkbox"
+                <input type="checkbox"
                   checked={selected.size > 0 && selected.size === filtered.length}
                   onChange={() => selected.size === filtered.length ? clearSelection() : selectAll()}
-                  className="w-4 h-4 rounded accent-purple-500"
-                />
+                  className="w-4 h-4 rounded accent-purple-500" />
               </div>
               <div />
               <div>Pokémon</div>
-              <div className="flex items-center gap-1.5">
-                <span className="w-2 h-2 rounded-full bg-purple-400 inline-block" />
-                Game Slugs
-              </div>
-              <div className="flex items-center gap-1.5">
-                <span className="w-2 h-2 rounded-full bg-red-400 inline-block" />
-                Restricted Slugs
-              </div>
-              <div className="flex items-center gap-1.5">
-                <span className="w-2 h-2 rounded-full bg-yellow-400 inline-block" />
-                Shiny
-              </div>
-              <div className="flex items-center gap-1.5">
-                <span className="w-2 h-2 rounded-full bg-blue-400 inline-block" />
-                Forms
-              </div>
-              <div>Categories</div>
-              <div />
+              {visible.has('slugs') && (
+                <div className="flex items-center gap-1.5">
+                  <span className="w-2 h-2 rounded-full bg-purple-400 inline-block" />
+                  Game Slugs
+                </div>
+              )}
+              {visible.has('slugs') && (
+                <div className="flex items-center gap-1.5">
+                  <span className="w-2 h-2 rounded-full bg-red-400 inline-block" />
+                  Restricted Slugs
+                </div>
+              )}
+              {visible.has('shiny') && (
+                <div className="flex items-center gap-1.5">
+                  <span className="w-2 h-2 rounded-full bg-yellow-400 inline-block" />
+                  Shiny
+                </div>
+              )}
+              {visible.has('forms') && (
+                <div className="flex items-center gap-1.5">
+                  <span className="w-2 h-2 rounded-full bg-blue-400 inline-block" />
+                  Forms
+                </div>
+              )}
+              {visible.has('categories') && (
+                <div className="flex items-center gap-1.5">
+                  <span className="w-2 h-2 rounded-full bg-emerald-400 inline-block" />
+                  Categories
+                </div>
+              )}
+              {visible.has('copy_paste') && <div />}
+              <div />{/* spacer */}
               <div />
             </div>
 
             {/* Rows */}
             {loading ? (
-              <div className="flex items-center justify-center py-16 text-gray-400">Loading…</div>
+              <div className="flex items-center justify-center py-20 gap-3">
+                <div className="w-6 h-6 border-2 border-gray-700 border-t-purple-500 rounded-full animate-spin" />
+                <span className="text-sm text-gray-500">Loading…</span>
+              </div>
             ) : error ? (
-              <div className="text-red-400 text-sm py-8 text-center">{error}</div>
+              <div className="text-red-400 text-sm py-12 text-center">{error}</div>
             ) : filtered.length === 0 ? (
-              <div className="text-gray-500 text-sm py-8 text-center">No Pokémon found</div>
+              <div className="text-gray-600 text-sm py-12 text-center">No Pokémon found</div>
             ) : filtered.map((p, i) => {
-              const data = localData[p.id] ?? { game_slugs: [], restricted_game_slugs: [], shiny_available: false, forms_count: 1, legendary: false, baby: false, ultra_beast: false, paradox: false, starter: false, fossil: false, regional_alt: false, pseudo_legendary: false };
-              const status = saveState[p.id] ?? 'idle';
+              const data = localData[p.id] ?? {
+                game_slugs: [], restricted_game_slugs: [], shiny_available: false, forms_count: 1,
+                legendary: false, baby: false, ultra_beast: false, paradox: false,
+                starter: false, fossil: false, regional_alt: false, pseudo_legendary: false,
+              };
               return (
                 <PokemonRow
                   key={p.id}
-                  p={p}
-                  i={i}
-                  data={data}
-                  status={status}
-                  selected={selected}
+                  p={p} i={i} data={data}
+                  status={saveState[p.id] ?? 'idle'}
                   isSelected={selected.has(p.id)}
+                  visible={visible} grid={grid}
                   toggleSelected={toggleSelected}
                   handleSlugChange={handleSlugChange}
                   handleShinyToggle={handleShinyToggle}
