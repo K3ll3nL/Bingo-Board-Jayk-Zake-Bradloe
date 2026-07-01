@@ -13,7 +13,7 @@ const upload = multer({
   storage: multer.memoryStorage(),
   limits: { 
     fileSize: 4 * 1024 * 1024, // 4MB per file (Vercel limit is 4.5MB total)
-    files: 2 // Max 2 files
+    files: 10 // file + file2 + evolutionFile + evolutionSummaryFile + up to 6 extraFiles
   }
 });
 
@@ -22,24 +22,6 @@ app.use(cors());
 app.use(express.json({ limit: '50mb' })); // Increase JSON body limit
 app.use(express.urlencoded({ limit: '50mb', extended: true })); // Increase URL-encoded body limit
 
-// Multer error handling middleware
-app.use((err, req, res, next) => {
-  if (err instanceof multer.MulterError) {
-    if (err.code === 'LIMIT_FILE_SIZE') {
-      return res.status(413).json({ 
-        error: 'Image file is too large. Please compress to under 4MB.',
-        fileTooBig: true
-      });
-    }
-    if (err.code === 'LIMIT_FILE_COUNT') {
-      return res.status(400).json({ 
-        error: 'Too many files uploaded. Maximum 2 images allowed.',
-      });
-    }
-    return res.status(400).json({ error: `Upload error: ${err.message}` });
-  }
-  next(err);
-});
 
 const supabase = createClient(
   process.env.SUPABASE_URL,
@@ -2384,7 +2366,7 @@ const uploadRateLimit = rateLimit({
   message: { error: 'Too many submissions. Please wait a few minutes before trying again.' },
 });
 
-app.post('/api/upload/submission', uploadRateLimit, upload.fields([{ name: 'file', maxCount: 1 }, { name: 'file2', maxCount: 1 }]), async (req, res) => {
+app.post('/api/upload/submission', uploadRateLimit, upload.fields([{ name: 'file', maxCount: 1 }, { name: 'file2', maxCount: 1 }, { name: 'evolutionFile', maxCount: 1 }, { name: 'evolutionSummaryFile', maxCount: 1 }, { name: 'extraFile', maxCount: 6 }]), async (req, res) => {
   try {
     console.log('Request body:', req.body);
     console.log('Request files:', req.files);
@@ -2583,7 +2565,7 @@ app.post('/api/upload/submission', uploadRateLimit, upload.fields([{ name: 'file
 
 // Historical submission — queues a past-month catch for mod review.
 // No points are awarded on approval; board state is not affected.
-app.post('/api/upload/historical-submission', uploadRateLimit, upload.fields([{ name: 'file', maxCount: 1 }, { name: 'file2', maxCount: 1 }]), async (req, res) => {
+app.post('/api/upload/historical-submission', uploadRateLimit, upload.fields([{ name: 'file', maxCount: 1 }, { name: 'file2', maxCount: 1 }, { name: 'evolutionFile', maxCount: 1 }, { name: 'evolutionSummaryFile', maxCount: 1 }, { name: 'extraFile', maxCount: 6 }]), async (req, res) => {
   try {
     const userId = await getAuthenticatedUserId(req);
     if (!userId) return res.status(401).json({ error: 'Authentication required' });
@@ -6744,6 +6726,28 @@ app.put('/api/radar/routes/:routeId', async (req, res) => {
     console.error('Error saving radar route map:', err);
     res.status(500).json({ error: 'Failed to save route map' });
   }
+});
+
+// Multer error handling middleware — must be after all routes
+app.use((err, req, res, next) => {
+  if (err instanceof multer.MulterError) {
+    if (err.code === 'LIMIT_FILE_SIZE') {
+      return res.status(413).json({
+        error: 'Image file is too large. Please compress to under 4MB.',
+        fileTooBig: true
+      });
+    }
+    if (err.code === 'LIMIT_FILE_COUNT') {
+      return res.status(400).json({
+        error: 'Too many files uploaded. Maximum 10 images allowed.',
+      });
+    }
+    if (err.code === 'LIMIT_UNEXPECTED_FILE') {
+      return res.status(400).json({ error: `Unexpected file field: ${err.field}` });
+    }
+    return res.status(400).json({ error: `Upload error: ${err.message}` });
+  }
+  next(err);
 });
 
 // Start server locally (not needed in Vercel)
