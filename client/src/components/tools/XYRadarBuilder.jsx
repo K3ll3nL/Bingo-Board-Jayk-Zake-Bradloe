@@ -21,9 +21,58 @@ function buildEmptyTiles(w, h) {
   return new Array(w * h).fill(0);
 }
 
+// ── Spot calculation ──────────────────────────────────────────────────────────
+
+function countZone4(tiles, width, height, px, py) {
+  let n = 0;
+  for (let y = 0; y < height; y++)
+    for (let x = 0; x < width; x++)
+      if (tiles[y * width + x] === 1 && Math.max(Math.abs(x - px), Math.abs(y - py)) === 4 && !isEdgePatch(tiles, width, height, x, y)) n++;
+  return n;
+}
+
+function countZones1to4(tiles, width, height, px, py) {
+  let n = 0;
+  for (let y = 0; y < height; y++)
+    for (let x = 0; x < width; x++) {
+      if (tiles[y * width + x] !== 1) continue;
+      const d = Math.max(Math.abs(x - px), Math.abs(y - py));
+      if (d >= 1 && d <= 4) n++;
+    }
+  return n;
+}
+
+// Best chain spots: all grass tiles tied for the most Zone-4 (distance-4) grass tiles.
+function calcBestChainSpots(tiles, width, height) {
+  let bestZ4 = -1;
+  const scores = [];
+  for (let y = 0; y < height; y++)
+    for (let x = 0; x < width; x++) {
+      if (tiles[y * width + x] !== 1) continue;
+      const z4 = countZone4(tiles, width, height, x, y);
+      if (z4 > bestZ4) bestZ4 = z4;
+      scores.push({ x, y, z4 });
+    }
+  return scores.filter(s => s.z4 === bestZ4).map(({ x, y }) => ({ x, y }));
+}
+
+// Best shiny spots: all grass tiles tied for the most total grass tiles in zones 1-4.
+function calcBestShinySpots(tiles, width, height) {
+  let bestTotal = -1;
+  const scores = [];
+  for (let y = 0; y < height; y++)
+    for (let x = 0; x < width; x++) {
+      if (tiles[y * width + x] !== 1) continue;
+      const total = countZones1to4(tiles, width, height, x, y);
+      if (total > bestTotal) bestTotal = total;
+      scores.push({ x, y, total });
+    }
+  return scores.filter(s => s.total === bestTotal).map(({ x, y }) => ({ x, y }));
+}
+
 // ── Tile Grid Editor ──────────────────────────────────────────────────────────
 
-function TileGridEditor({ tiles, width, height, onChange, previewMode }) {
+function TileGridEditor({ tiles, width, height, onChange, previewMode, chainSpots, shinySpots }) {
   const isPainting = useRef(false);
   const paintValue = useRef(1);
 
@@ -79,6 +128,9 @@ function TileGridEditor({ tiles, width, height, onChange, previewMode }) {
     return () => window.removeEventListener('mouseup', handleMouseUp);
   }, []);
 
+  const chainSet = new Set((chainSpots || []).map(s => `${s.x},${s.y}`));
+  const shinySet = new Set((shinySpots || []).map(s => `${s.x},${s.y}`));
+
   return (
     <div
       className="overflow-auto rounded-xl p-2 select-none"
@@ -89,6 +141,10 @@ function TileGridEditor({ tiles, width, height, onChange, previewMode }) {
         {Array.from({ length: height }, (_, y) =>
           Array.from({ length: width }, (_, x) => {
             const idx = y * width + x;
+            const key = `${x},${y}`;
+            const isChain = chainSet.has(key);
+            const isShiny = shinySet.has(key);
+            const isBoth = isChain && isShiny;
             return (
               <div
                 key={idx}
@@ -97,11 +153,32 @@ function TileGridEditor({ tiles, width, height, onChange, previewMode }) {
                   height: TILE_SIZE,
                   backgroundColor: getTileColor(x, y, idx),
                   borderRadius: 2,
-                  border: hovered?.x === x && hovered?.y === y ? `2px solid ${ACCENT}` : undefined,
+                  position: 'relative',
+                  overflow: 'hidden',
+                  outline: hovered?.x === x && hovered?.y === y ? `2px solid ${ACCENT}` : undefined,
+                  outlineOffset: '-1px',
                 }}
                 onMouseDown={e => !previewMode && handleMouseDown(x, y, e)}
                 onMouseEnter={() => handleMouseEnter(x, y)}
-              />
+              >
+                {isBoth ? (
+                  <>
+                    <div style={{ position: 'absolute', inset: 0, clipPath: 'polygon(0% 0%, calc(100% - 3px) 0%, 0% calc(100% - 3px))', display: 'flex', alignItems: 'center', justifyContent: 'center', pointerEvents: 'none' }}>
+                      <span style={{ fontSize: 16, lineHeight: 1 }}>✨</span>
+                    </div>
+                    <div style={{ position: 'absolute', inset: 0, clipPath: 'polygon(3px 100%, 100% 3px, 100% 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center', pointerEvents: 'none' }}>
+                      <span style={{ fontSize: 16, lineHeight: 1 }}>⭐</span>
+                    </div>
+                    <svg style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', pointerEvents: 'none' }}>
+                      <line x1="0" y1={TILE_SIZE} x2={TILE_SIZE} y2="0" stroke="rgba(0,0,0,0.7)" strokeWidth="1.5" />
+                    </svg>
+                  </>
+                ) : isShiny ? (
+                  <span style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, pointerEvents: 'none' }}>✨</span>
+                ) : isChain ? (
+                  <span style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, pointerEvents: 'none' }}>⭐</span>
+                ) : null}
+              </div>
             );
           })
         )}
@@ -128,8 +205,16 @@ export default function XYRadarBuilder() {
   const [loadingMap, setLoadingMap] = useState(false);
   const [previewMode, setPreviewMode] = useState(false);
   const [routeStatuses, setRouteStatuses] = useState({});
+  const [chainSpots, setChainSpots] = useState([]);   // [{x,y}, ...]
+  const [shinySpots, setShinySpots] = useState([]);   // [{x,y}, ...]
+  const [savedChainSpots, setSavedChainSpots] = useState([]);
+  const [savedShinySpots, setSavedShinySpots] = useState([]);
 
-  const isDirty = tiles !== null && JSON.stringify(tiles) !== JSON.stringify(savedTiles);
+  const isDirty = tiles !== null && (
+    JSON.stringify(tiles) !== JSON.stringify(savedTiles) ||
+    JSON.stringify(chainSpots) !== JSON.stringify(savedChainSpots) ||
+    JSON.stringify(shinySpots) !== JSON.stringify(savedShinySpots)
+  );
 
   // Redirect non-mods
   useEffect(() => {
@@ -161,6 +246,8 @@ export default function XYRadarBuilder() {
     setTiles(null);
     setSavedTiles(null);
     setSaveMsg(null);
+    setChainSpots([]);
+    setShinySpots([]);
 
     try {
       const res = await fetch(`/api/radar/routes/${routeId}`);
@@ -172,6 +259,12 @@ export default function XYRadarBuilder() {
         setHeightInput(String(data.height));
         setTiles(data.tiles);
         setSavedTiles(data.tiles);
+        const cs = Array.isArray(data.chain_spot) ? data.chain_spot : [];
+        const ss = Array.isArray(data.shiny_spot) ? data.shiny_spot : [];
+        setChainSpots(cs);
+        setShinySpots(ss);
+        setSavedChainSpots(cs);
+        setSavedShinySpots(ss);
       } else {
         setWidth(DEFAULT_WIDTH);
         setHeight(DEFAULT_HEIGHT);
@@ -210,11 +303,21 @@ export default function XYRadarBuilder() {
   function handleClearAll() {
     if (!tiles) return;
     setTiles(buildEmptyTiles(width, height));
+    setChainSpots([]);
+    setShinySpots([]);
   }
 
   function handleFillAll() {
     if (!tiles) return;
     setTiles(new Array(width * height).fill(1));
+    setChainSpots([]);
+    setShinySpots([]);
+  }
+
+  function handleCalculateSpots() {
+    if (!tiles) return;
+    setChainSpots(calcBestChainSpots(tiles, width, height));
+    setShinySpots(calcBestShinySpots(tiles, width, height));
   }
 
   async function handleSave() {
@@ -226,10 +329,12 @@ export default function XYRadarBuilder() {
       const res = await fetch(`/api/radar/routes/${selectedRouteId}`, {
         method: 'PUT',
         headers: { ...headers, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ width, height, tiles }),
+        body: JSON.stringify({ width, height, tiles, chain_spot: chainSpots, shiny_spot: shinySpots }),
       });
       if (res.ok) {
         setSavedTiles([...tiles]);
+        setSavedChainSpots([...chainSpots]);
+        setSavedShinySpots([...shinySpots]);
         setSaveMsg({ ok: true, text: 'Saved!' });
         setRouteStatuses(prev => ({ ...prev, [selectedRouteId]: true }));
       } else {
@@ -281,6 +386,8 @@ export default function XYRadarBuilder() {
                 onClick={() => {
                   if (isDirty && window.confirm('Discard unsaved changes?')) {
                     setTiles(savedTiles ? [...savedTiles] : buildEmptyTiles(width, height));
+                    setChainSpots([...savedChainSpots]);
+                    setShinySpots([...savedShinySpots]);
                   }
                 }}
                 className="text-[11px] px-2.5 py-1.5 rounded-lg border transition-all"
@@ -407,6 +514,12 @@ export default function XYRadarBuilder() {
                     style={{ background: 'rgba(74,222,128,0.08)', borderColor: 'rgba(74,222,128,0.25)', color: '#86efac' }}>
                     Fill All Grass
                   </button>
+                  <button onClick={handleCalculateSpots}
+                    disabled={!tiles}
+                    className="text-[11px] px-2.5 py-1.5 rounded-lg border font-semibold transition-all hover:opacity-80 disabled:opacity-40"
+                    style={{ background: 'rgba(167,139,250,0.08)', borderColor: 'rgba(167,139,250,0.3)', color: '#a78bfa' }}>
+                    ⭐✨ Calculate Spots
+                  </button>
                 </div>
 
                 <div className="flex items-center gap-2 ml-auto">
@@ -438,6 +551,8 @@ export default function XYRadarBuilder() {
                     <span className="ml-2 text-gray-500">Click or drag to paint tiles</span>
                   </>
                 )}
+                {chainSpots.length > 0 && <span>⭐ Best chain ({chainSpots.length} tile{chainSpots.length !== 1 ? 's' : ''})</span>}
+                {shinySpots.length > 0 && <span>✨ Best shiny ({shinySpots.length} tile{shinySpots.length !== 1 ? 's' : ''})</span>}
               </div>
 
               {/* Grid */}
@@ -450,6 +565,8 @@ export default function XYRadarBuilder() {
                   height={height}
                   onChange={setTiles}
                   previewMode={previewMode}
+                  chainSpots={chainSpots}
+                  shinySpots={shinySpots}
                 />
               ) : null}
 

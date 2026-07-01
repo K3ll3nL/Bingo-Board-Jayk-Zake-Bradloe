@@ -9,38 +9,39 @@ const AuthCallback = () => {
   useEffect(() => {
     const handleCallback = async () => {
       try {
-        // Check for errors in URL
         const params = new URLSearchParams(window.location.search);
         const errorParam = params.get('error');
         const errorDescription = params.get('error_description');
-        
+        const action = params.get('action'); // 'link' when called from linkIdentity()
+
         if (errorParam) {
           setError(`Login failed: ${errorDescription || errorParam}`);
           return;
         }
-        
+
         // Wait for Supabase to process the OAuth callback
         await new Promise(resolve => setTimeout(resolve, 1500));
-        
-        // Check session
+
         const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-        
+
         if (sessionError) {
           setError('Failed to sign in');
           return;
         }
-        
+
         if (session) {
-          // Sync Discord avatar in background — fire and forget
-          fetch('/api/user/sync-avatar', {
-            method: 'POST',
-            headers: { Authorization: `Bearer ${session.access_token}` },
-          }).catch(() => {});
-          navigate('/');
+          if (action !== 'link') {
+            // Fresh login — sync avatar in background
+            fetch('/api/user/sync-avatar', {
+              method: 'POST',
+              headers: { Authorization: `Bearer ${session.access_token}` },
+            }).catch(() => {});
+          }
+          navigate(action === 'link' ? '/profile' : '/');
         } else {
           setError('Authentication failed. Please try again.');
         }
-      } catch (err) {
+      } catch {
         setError('Something went wrong. Please try again.');
       }
     };

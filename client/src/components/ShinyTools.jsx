@@ -21,7 +21,6 @@ const TOOLS = [
     icon: '⚾',
     category: 'Calculators',
     gen: 'Universal',
-    live: true,
   },
   {
     id: 'home-value',

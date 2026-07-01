@@ -600,7 +600,7 @@ const HistoryTab = ({ userId, monthlyData, stats, onPokemonClick, accentColor })
 
 // ── Main ──────────────────────────────────────────────────────
 const Profile = () => {
-  const { user } = useAuth();
+  const { user, identities, linkIdentity, unlinkIdentity, refreshIdentities } = useAuth();
   const { userId: paramUserId } = useParams();
   const profileUserId = paramUserId || user?.id;
 
@@ -612,7 +612,27 @@ const Profile = () => {
   const [editingSocials, setEditingSocials] = useState(false);
   const [socialForm, setSocialForm] = useState({ twitch_url: '', youtube_url: '', shinydex_url: '' });
   const [socialSaving, setSocialSaving] = useState(false);
+  const [accountLinking, setAccountLinking] = useState(null);
+  const [editingProviders, setEditingProviders] = useState(false);
   const badgesAnimationPlayed = useRef(false);
+
+  const handleLinkIdentity = async (provider) => {
+    try {
+      setAccountLinking(provider);
+      await linkIdentity(provider);
+    } catch {
+      setAccountLinking(null);
+    }
+  };
+
+  const handleUnlinkIdentity = async (provider) => {
+    if (identities.length <= 1) return;
+    try {
+      setAccountLinking(provider);
+      await unlinkIdentity(provider);
+    } catch {}
+    setAccountLinking(null);
+  };
 
   useEffect(() => {
     if (!profileUserId) { setLoading(false); return; }
@@ -687,9 +707,9 @@ const Profile = () => {
       <div className="max-w-7xl mx-auto px-6 py-4">
 
         {/* ── Hero ──────────────────────────────────────────── */}
-        <div className="rounded-2xl shadow-2xl overflow-hidden border" style={{ background: CARD.hero, borderColor: CARD.border }}>
+        <div className="rounded-2xl shadow-2xl border" style={{ background: CARD.hero, borderColor: CARD.border, overflow: 'visible' }}>
           {/* Accent top bar with glow */}
-          <div className="h-1.5" style={{ backgroundColor: accentColor, boxShadow: `0 0 20px ${accentColor}80` }} />
+          <div className="h-1.5 rounded-t-2xl" style={{ backgroundColor: accentColor, boxShadow: `0 0 20px ${accentColor}80` }} />
           <div className="px-4 sm:px-6 py-4">
 
             {/* Top row: avatar + identity + desktop stats */}
@@ -785,14 +805,68 @@ const Profile = () => {
                   </a>
                 )}
                 {isOwnProfile && (
-                  <button onClick={() => { setSocialForm({ twitch_url: profile.user.twitch_url || '', youtube_url: profile.user.youtube_url || '', shinydex_url: profile.user.shinydex_url || '' }); setEditingSocials(e => !e); }}
-                    className="flex justify-center items-center gap-1.5 px-3 py-2 rounded-lg text-sm transition-all"
-                    style={{ color: editingSocials ? '#fff' : 'rgba(255,255,255,0.35)', border: `1px solid ${editingSocials ? 'rgba(255,255,255,0.15)' : CARD.border}`, backgroundColor: editingSocials ? 'rgba(255,255,255,0.08)' : 'transparent' }}>
-                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
-                    </svg>
-                    {editingSocials ? 'Cancel' : 'Edit Socials'}
-                  </button>
+                  <>
+                    <button onClick={() => { setSocialForm({ twitch_url: profile.user.twitch_url || '', youtube_url: profile.user.youtube_url || '', shinydex_url: profile.user.shinydex_url || '' }); setEditingSocials(e => !e); }}
+                      className="flex justify-center items-center gap-1.5 px-3 py-2 rounded-lg text-sm transition-all"
+                      style={{ color: editingSocials ? '#fff' : 'rgba(255,255,255,0.35)', border: `1px solid ${editingSocials ? 'rgba(255,255,255,0.15)' : CARD.border}`, backgroundColor: editingSocials ? 'rgba(255,255,255,0.08)' : 'transparent' }}>
+                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                      </svg>
+                      {editingSocials ? 'Cancel' : 'Edit Socials'}
+                    </button>
+
+                    {/* Connect Authenticators toggle */}
+                    <div className="ml-auto relative">
+                      <button
+                        onClick={() => setEditingProviders(e => !e)}
+                        className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm transition-all"
+                        style={{
+                          color: editingProviders ? accentColor : 'rgba(255,255,255,0.35)',
+                          border: `1px solid ${editingProviders ? accentColor + '50' : CARD.border}`,
+                          backgroundColor: editingProviders ? accentColor + '14' : 'transparent',
+                        }}
+                      >
+                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+                        </svg>
+                        Authenticators
+                      </button>
+
+                      {editingProviders && (
+                        <div className="absolute right-0 top-full mt-1 z-20 rounded-xl border overflow-hidden shadow-xl"
+                          style={{ background: CARD.inner, borderColor: CARD.border, minWidth: 200 }}>
+                          {[
+                            { provider: 'discord', label: 'Discord', color: '#5865F2' },
+                            { provider: 'twitch',  label: 'Twitch',  color: '#9147ff' },
+                            { provider: 'google',  label: 'Google',  color: '#4285F4' },
+                          ].map(({ provider, label, color }) => {
+                            const identity = identities.find(i => i.provider === provider);
+                            const busy = accountLinking === provider;
+                            return (
+                              <div key={provider} className="flex items-center justify-between gap-3 px-4 py-2.5 border-b last:border-b-0"
+                                style={{ borderColor: CARD.borderSubtle }}>
+                                <div className="flex items-center gap-2">
+                                  <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: identity ? color : 'rgba(255,255,255,0.15)' }} />
+                                  <span className="text-sm" style={{ color: identity ? '#fff' : 'rgba(255,255,255,0.4)' }}>{label}</span>
+                                </div>
+                                <button
+                                  onClick={() => identity ? handleUnlinkIdentity(provider) : handleLinkIdentity(provider)}
+                                  disabled={busy || (identity && identities.length <= 1) || accountLinking !== null}
+                                  title={identity && identities.length <= 1 ? 'Link another account first to enable unlinking' : undefined}
+                                  className="text-xs px-2.5 py-1 rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                                  style={identity
+                                    ? { color: 'rgba(255,255,255,0.35)', border: `1px solid ${CARD.border}` }
+                                    : { color, border: `1px solid ${color}40`, backgroundColor: `${color}12` }}
+                                >
+                                  {busy ? '…' : identity ? 'Unlink' : 'Connect'}
+                                </button>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  </>
                 )}
               </div>
 

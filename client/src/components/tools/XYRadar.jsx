@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useLayoutEffect, useMemo, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import PageBackground from '../PageBackground';
+import PokemonImage from '../PokemonImage';
 import { useAuth } from '../../contexts/AuthContext';
 import {
   XY_ROUTES, GRASS_TYPE_INFO,
@@ -30,20 +31,20 @@ const ZONE_EDGE_COLORS = {
   4: 'rgba(96,165,250,0.28)',
 };
 const ZONE_LABELS = {
-  1: 'Zone 1 — Avoid (too close)',
-  2: 'Zone 2 — Acceptable',
-  3: 'Zone 3 — Recommended',
-  4: 'Zone 4 — Good',
+  1: 'Zone 1 - Avoid (too close)',
+  2: 'Zone 2 - Acceptable',
+  3: 'Zone 3 - Recommended',
+  4: 'Zone 4 - Good',
 };
 
 function fmtPct(v) {
-  if (v == null) return '—';
+  if (v == null) return '-';
   if (v >= 10) return `${v.toFixed(1)}%`;
   if (v >= 1) return `${v.toFixed(2)}%`;
   return `${v.toFixed(3)}%`;
 }
 function fmtOdds(p) {
-  if (!p || !isFinite(p)) return '—';
+  if (!p || !isFinite(p)) return '-';
   return `1 / ${Math.round(1 / p)}`;
 }
 function safeLabel(chainBreak) {
@@ -94,7 +95,7 @@ function useTileSize(containerRef, numCols, numRows, maxHeightPx) {
 // ── Static tile map (accordion preview) ──────────────────────────────────────
 
 function StaticTileMap({ mapData }) {
-  const { width, height, tiles } = mapData;
+  const { width, height, tiles, chain_spot, shiny_spot } = mapData;
   const containerRef = useRef(null);
   const tileSize = useTileSize(containerRef, width, height, 220);
 
@@ -106,13 +107,38 @@ function StaticTileMap({ mapData }) {
     return c;
   }, [tiles, width, height]);
 
+  const chainSet = useMemo(() => new Set((chain_spot || []).map(s => `${s.x},${s.y}`)), [chain_spot]);
+  const shinySet = useMemo(() => new Set((shiny_spot || []).map(s => `${s.x},${s.y}`)), [shiny_spot]);
+
   return (
     <div ref={containerRef} style={{ background: '#0e1014', borderRadius: 10, padding: 6 }}>
       <div style={{ display: 'grid', gridTemplateColumns: `repeat(${width}, ${tileSize}px)`, gap: '1px' }}>
         {Array.from({ length: height * width }, (_, idx) => {
+          const x = idx % width;
+          const y = Math.floor(idx / width);
           const val = tiles[idx];
           const bg = val !== 1 ? '#1e2028' : edgeCache[idx] ? '#16a34a' : '#4ade80';
-          return <div key={idx} style={{ width: tileSize, height: tileSize, backgroundColor: bg, borderRadius: 1 }} />;
+          const key2 = `${x},${y}`;
+          const isChain = chainSet.has(key2);
+          const isShiny = shinySet.has(key2);
+          const isBoth = isChain && isShiny;
+          return (
+            <div key={idx} style={{ width: tileSize, height: tileSize, backgroundColor: bg, borderRadius: 1, position: 'relative', overflow: 'hidden' }}>
+              {isBoth ? (
+                <>
+                  <div style={{ position: 'absolute', inset: 0, background: 'rgba(251,191,36,0.75)', clipPath: 'polygon(0% 0%, calc(100% - 3px) 0%, 0% calc(100% - 3px))' }} />
+                  <div style={{ position: 'absolute', inset: 0, background: 'rgba(167,139,250,0.75)', clipPath: 'polygon(3px 100%, 100% 3px, 100% 100%)' }} />
+                  <svg style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', pointerEvents: 'none' }}>
+                    <line x1="0" y1={tileSize} x2={tileSize} y2="0" stroke="rgba(0,0,0,0.5)" strokeWidth="1" />
+                  </svg>
+                </>
+              ) : isChain ? (
+                <div style={{ position: 'absolute', inset: 0, background: 'rgba(251,191,36,0.75)' }} />
+              ) : isShiny ? (
+                <div style={{ position: 'absolute', inset: 0, background: 'rgba(167,139,250,0.75)' }} />
+              ) : null}
+            </div>
+          );
         })}
       </div>
     </div>
@@ -122,10 +148,31 @@ function StaticTileMap({ mapData }) {
 // ── Interactive tile map ──────────────────────────────────────────────────────
 
 function InteractiveTileMap({ mapData, playerPos, onPlacePlayer, onHoverTile, maxHeight = 500 }) {
-  const { width, height, tiles } = mapData;
+  const { width, height, tiles, chain_spot, shiny_spot } = mapData;
+  const chainSet = useMemo(() => new Set((chain_spot || []).map(s => `${s.x},${s.y}`)), [chain_spot]);
+  const shinySet = useMemo(() => new Set((shiny_spot || []).map(s => `${s.x},${s.y}`)), [shiny_spot]);
   const containerRef = useRef(null);
-  const tileSize = useTileSize(containerRef, width, height, maxHeight);
+  const baseTileSize = useTileSize(containerRef, width, height, maxHeight);
+  const [zoom, setZoom] = useState(1);
+  const tileSize = Math.max(2, Math.round(baseTileSize * zoom));
   const [hovered, setHovered] = useState(null);
+
+  // Reset zoom when route changes
+  useEffect(() => { setZoom(1); }, [mapData]);
+
+  // Ctrl+Scroll to zoom (non-passive so preventDefault works)
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const onWheel = (e) => {
+      if (!e.ctrlKey && !e.metaKey) return;
+      e.preventDefault();
+      setZoom(prev => Math.min(2.5, Math.max(0.75, prev * (e.deltaY > 0 ? 0.9 : 1.1))));
+    };
+    el.addEventListener('wheel', onWheel, { passive: false });
+    return () => el.removeEventListener('wheel', onWheel);
+  }, []);
+
 
   const edgeCache = useMemo(() => {
     const c = new Array(width * height).fill(false);
@@ -134,6 +181,24 @@ function InteractiveTileMap({ mapData, playerPos, onPlacePlayer, onHoverTile, ma
         if (tiles[y * width + x] === 1) c[y * width + x] = isEdgePatch(tiles, width, height, x, y);
     return c;
   }, [tiles, width, height]);
+
+  // Chain continuation % for each grass tile in zones 1-4 from the player
+  const contCache = useMemo(() => {
+    if (!playerPos) return {};
+    const result = {};
+    for (let y = 0; y < height; y++) {
+      for (let x = 0; x < width; x++) {
+        if (tiles[y * width + x] !== 1) continue;
+        const dist = Math.max(Math.abs(x - playerPos.x), Math.abs(y - playerPos.y));
+        if (dist < 1 || dist > 4) continue;
+        const { chainBreakOdds } = analyzePosition(tiles, width, height, x, y);
+        result[`${x},${y}`] = Math.round((1 - chainBreakOdds) * 1000) / 10;
+      }
+    }
+    return result;
+  }, [playerPos, tiles, width, height]);
+
+  const showLabels = tileSize >= 14;
 
   function getTileColor(x, y, idx) {
     const val = tiles[idx];
@@ -164,8 +229,8 @@ function InteractiveTileMap({ mapData, playerPos, onPlacePlayer, onHoverTile, ma
   return (
     <div
       ref={containerRef}
-      className="rounded-xl flex justify-center"
-      style={{ background: '#0e1014', border: '1px solid rgba(255,255,255,0.07)', padding: 6, cursor: 'crosshair' }}
+      className="rounded-xl overflow-auto"
+      style={{ background: '#0e1014', border: '1px solid rgba(255,255,255,0.07)', padding: 6, cursor: 'crosshair', height: maxHeight, width: '100%' }}
       onMouseLeave={handleMouseLeave}
     >
       <div style={{ display: 'grid', gridTemplateColumns: `repeat(${width}, ${tileSize}px)`, gap: '1px' }}>
@@ -174,6 +239,14 @@ function InteractiveTileMap({ mapData, playerPos, onPlacePlayer, onHoverTile, ma
             const idx = y * width + x;
             const isH = hovered?.x === x && hovered?.y === y;
             const isGrass = tiles[idx] === 1;
+            const cont = contCache[`${x},${y}`];
+            const isPlayer = playerPos?.x === x && playerPos?.y === y;
+            const key2 = `${x},${y}`;
+            const isChainSpot = chainSet.has(key2);
+            const isShinySpot = shinySet.has(key2);
+            const isBothSpots = isChainSpot && isShinySpot;
+            const showSpot = tileSize >= 12 && (isChainSpot || isShinySpot);
+            const iconSize = Math.min(18, Math.max(10, Math.floor(tileSize * 0.55)));
             return (
               <div
                 key={idx}
@@ -186,10 +259,47 @@ function InteractiveTileMap({ mapData, playerPos, onPlacePlayer, onHoverTile, ma
                   outline: isH && isGrass ? '2px solid rgba(255,255,255,0.7)' : undefined,
                   outlineOffset: '-1px',
                   cursor: isGrass ? 'pointer' : 'default',
+                  position: 'relative',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  overflow: 'hidden',
                 }}
                 onMouseEnter={() => handleMouseEnter(x, y)}
                 onClick={() => handleClick(x, y)}
-              />
+              >
+                {showLabels && !isPlayer && cont !== undefined && (
+                  <span style={{
+                    fontSize: Math.min(12, Math.floor(tileSize * 0.32)) + 'px',
+                    fontWeight: 700,
+                    color: 'rgba(255,255,255,0.85)',
+                    lineHeight: 1,
+                    userSelect: 'none',
+                    pointerEvents: 'none',
+                    position: 'relative',
+                    zIndex: 1,
+                  }}>{cont}</span>
+                )}
+                {showSpot && isBothSpots && (
+                  <>
+                    <div style={{ position: 'absolute', inset: 0, clipPath: 'polygon(0% 0%, calc(100% - 3px) 0%, 0% calc(100% - 3px))', display: 'flex', alignItems: 'center', justifyContent: 'center', pointerEvents: 'none', zIndex: 2 }}>
+                      <span style={{ fontSize: iconSize, lineHeight: 1 }}>✨</span>
+                    </div>
+                    <div style={{ position: 'absolute', inset: 0, clipPath: 'polygon(3px 100%, 100% 3px, 100% 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center', pointerEvents: 'none', zIndex: 2 }}>
+                      <span style={{ fontSize: iconSize, lineHeight: 1 }}>⭐</span>
+                    </div>
+                    <svg style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', pointerEvents: 'none', zIndex: 3 }}>
+                      <line x1="0" y1={tileSize} x2={tileSize} y2="0" stroke="rgba(0,0,0,0.7)" strokeWidth="1.5" />
+                    </svg>
+                  </>
+                )}
+                {showSpot && !isBothSpots && isShinySpot && (
+                  <span style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: iconSize, lineHeight: 1, pointerEvents: 'none', zIndex: 2 }}>✨</span>
+                )}
+                {showSpot && !isBothSpots && isChainSpot && (
+                  <span style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: iconSize, lineHeight: 1, pointerEvents: 'none', zIndex: 2 }}>⭐</span>
+                )}
+              </div>
             );
           })
         )}
@@ -200,7 +310,38 @@ function InteractiveTileMap({ mapData, playerPos, onPlacePlayer, onHoverTile, ma
 
 // ── Accordion row (browse mode) ───────────────────────────────────────────────
 
-function RouteAccordionRow({ route, isExpanded, mapData, mapLoading, onToggle, onUseMap }) {
+// ── Pokémon chip (image + name) ─────────────────────────────────────────────
+
+function PokemonChip({ name, pokemon }) {
+  return (
+    <div className="flex items-center gap-1.5 pl-1 pr-2 py-0.5 rounded-full bg-gray-800 border border-gray-700">
+      <div className="w-7 h-7 shrink-0">
+        <PokemonImage pokemon={pokemon} className="w-full h-full" disableCycling />
+      </div>
+      <span className="text-[11px] text-gray-300">{name}</span>
+    </div>
+  );
+}
+
+// Fetches and caches name → pokemon_master row lookups for route Pokémon lists.
+function usePokemonLookup(names) {
+  const [lookup, setLookup] = useState({});
+  const key = useMemo(() => [...new Set(names)].sort().join(','), [names]);
+
+  useEffect(() => {
+    if (!key) return;
+    let cancelled = false;
+    fetch(`/api/radar/pokemon-lookup?names=${encodeURIComponent(key)}`)
+      .then(res => res.ok ? res.json() : {})
+      .then(data => { if (!cancelled) setLookup(prev => ({ ...prev, ...data })); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [key]);
+
+  return lookup;
+}
+
+function RouteAccordionRow({ route, isExpanded, mapData, mapLoading, onToggle, onUseMap, pokemonLookup }) {
   const gt = GRASS_TYPE_INFO[route.grassType];
   const di = getDifficultyInfo(route.difficulty);
 
@@ -240,7 +381,7 @@ function RouteAccordionRow({ route, isExpanded, mapData, mapLoading, onToggle, o
                 <p className="text-[10px] font-bold uppercase tracking-widest text-gray-500 mb-1.5">Available Pokémon</p>
                 <div className="flex flex-wrap gap-1">
                   {route.pokemon.map(p => (
-                    <span key={p} className="text-[11px] px-2 py-0.5 rounded-full bg-gray-800 text-gray-300 border border-gray-700">{p}</span>
+                    <PokemonChip key={p} name={p} pokemon={pokemonLookup[p]} />
                   ))}
                 </div>
               </div>
@@ -297,9 +438,12 @@ const DIFF_FILTERS = [
 const GRASS_FILTERS = ['All', 'Grass', 'Red Flowers', 'Yellow Flowers', 'Purple Flowers'];
 const GRASS_TYPE_MAP = { 'Grass': 'grass', 'Red Flowers': 'red-flowers', 'Yellow Flowers': 'yellow-flowers', 'Purple Flowers': 'purple-flowers' };
 
+const ALL_ROUTE_POKEMON = [...new Set(XY_ROUTES.flatMap(r => r.pokemon))];
+
 function RouteBrowser({ expandedId, mapCache, loadingIds, onToggle, onUseMap }) {
   const [diffFilter, setDiffFilter] = useState(DIFF_FILTERS[0]);
   const [grassFilter, setGrassFilter] = useState('All');
+  const pokemonLookup = usePokemonLookup(ALL_ROUTE_POKEMON);
 
   const filtered = useMemo(() => XY_ROUTES.filter(r => {
     if (r.difficulty < diffFilter.min || r.difficulty > diffFilter.max) return false;
@@ -349,6 +493,7 @@ function RouteBrowser({ expandedId, mapCache, loadingIds, onToggle, onUseMap }) 
             mapLoading={loadingIds.has(route.id)}
             onToggle={() => onToggle(route.id)}
             onUseMap={() => onUseMap(route.id)}
+            pokemonLookup={pokemonLookup}
           />
         ))}
         {filtered.length === 0 && (
@@ -378,13 +523,14 @@ function HeroChip({ route, onClear }) {
 // ── Interactive sidebar ───────────────────────────────────────────────────────
 
 function InteractiveSidebar({ route, hoverStats, playerSet }) {
+  const pokemonLookup = usePokemonLookup(route.pokemon);
   return (
     <div className="space-y-4">
       <div className="rounded-xl p-4" style={CARD_STYLE}>
         <p className="text-[10px] font-bold uppercase tracking-widest text-gray-500 mb-2">Available Pokémon</p>
         <div className="flex flex-wrap gap-1">
           {route.pokemon.map(p => (
-            <span key={p} className="text-[11px] px-2 py-0.5 rounded-full bg-gray-800 text-gray-300 border border-gray-700">{p}</span>
+            <PokemonChip key={p} name={p} pokemon={pokemonLookup[p]} />
           ))}
         </div>
       </div>
@@ -395,7 +541,7 @@ function InteractiveSidebar({ route, hoverStats, playerSet }) {
         </div>
       )}
 
-      {/* Hover stats — only shown in interactive mode once player is placed */}
+      {/* Hover stats - only shown in interactive mode once player is placed */}
       {playerSet && (
         <div className="rounded-xl p-4 transition-all" style={hoverStats
           ? { background: 'linear-gradient(160deg, #161820 0%, #1b1d25 100%)', border: `1px solid ${ACCENT_BORDER}` }
@@ -438,16 +584,16 @@ function InteractiveSidebar({ route, hoverStats, playerSet }) {
                   <div className="mt-3 rounded-lg px-3 py-2"
                     style={{ background: `${safeLabel(hoverStats.chainBreak).color}14`, border: `1px solid ${safeLabel(hoverStats.chainBreak).color}40` }}>
                     <p className="text-[11px] font-semibold" style={{ color: safeLabel(hoverStats.chainBreak).color }}>
-                      {safeLabel(hoverStats.chainBreak).text}{hoverStats.isEdge && ' — edge patch risk'}
+                      {safeLabel(hoverStats.chainBreak).text}{hoverStats.isEdge && ' - edge patch risk'}
                     </p>
-                    {hoverStats.zone === 1 && <p className="text-[10px] text-gray-500 mt-0.5">Zone 1 patches are too close — don't enter.</p>}
+                    {hoverStats.zone === 1 && <p className="text-[10px] text-gray-500 mt-0.5">Zone 1 patches are too close - don't enter.</p>}
                     {hoverStats.zone === 2 && <p className="text-[10px] text-gray-500 mt-0.5">Zone 2 patches can work but Zone 3–4 are safer.</p>}
                   </div>
                 </>
               ) : hoverStats.zone === 0 ? (
                 <p className="text-xs text-gray-500 mt-2">This is your standing position.</p>
               ) : (
-                <p className="text-xs text-gray-500 mt-2">Outside zone range — patches can't spawn here.</p>
+                <p className="text-xs text-gray-500 mt-2">Outside zone range - patches can't spawn here.</p>
               )}
             </>
           ) : (
@@ -474,7 +620,7 @@ function MobileStatsBar({ hoverStats }) {
   if (hoverStats.zone > 4) {
     return (
       <div className="rounded-xl px-4 py-3 text-center text-xs text-gray-500" style={CARD_STYLE}>
-        Outside zone range — patches can't spawn here
+        Outside zone range - patches can't spawn here
       </div>
     );
   }
@@ -597,15 +743,33 @@ export default function XYRadar() {
     </div>
   );
 
-  const ZoneLegend = playerPos ? (
-    <div className="flex flex-wrap gap-x-4 gap-y-1 text-[10px] text-gray-500 px-1">
-      <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm inline-block" style={{ background: ACCENT }} /> You</span>
-      <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm inline-block" style={{ background: ZONE_COLORS[1] }} /> Zone 1 (avoid)</span>
-      <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm inline-block" style={{ background: ZONE_COLORS[2] }} /> Zone 2</span>
-      <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm inline-block" style={{ background: ZONE_COLORS[3] }} /> Zone 3</span>
-      <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm inline-block" style={{ background: ZONE_COLORS[4] }} /> Zone 4</span>
+  const hasChainSpots = (lockedMapData?.chain_spot?.length ?? 0) > 0;
+  const hasShinySpots = (lockedMapData?.shiny_spot?.length ?? 0) > 0;
+
+  const ZoneLegend = (
+    <div className="space-y-1.5 px-1">
+      {playerPos && (
+        <div className="flex flex-wrap gap-x-4 gap-y-1 text-[10px] text-gray-500">
+          <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm inline-block" style={{ background: ACCENT }} /> You</span>
+          <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm inline-block" style={{ background: ZONE_COLORS[1] }} /> Zone 1 (avoid)</span>
+          <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm inline-block" style={{ background: ZONE_COLORS[2] }} /> Zone 2</span>
+          <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm inline-block" style={{ background: ZONE_COLORS[3] }} /> Zone 3</span>
+          <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm inline-block" style={{ background: ZONE_COLORS[4] }} /> Zone 4</span>
+        </div>
+      )}
+      {(hasChainSpots || hasShinySpots) && (
+        <div className="flex flex-wrap gap-x-4 gap-y-1 text-[10px] text-gray-500">
+          {hasChainSpots && <span className="flex items-center gap-1">⭐ Best chaining spot</span>}
+          {hasShinySpots && <span className="flex items-center gap-1">✨ Best shiny reset spot</span>}
+          {hasChainSpots && hasShinySpots && <span className="text-gray-600">(diagonal split = both)</span>}
+        </div>
+      )}
+      <p className="text-[10px] text-gray-600">
+        {playerPos && <>Numbers show chain continuation chance (%) if you enter that patch · </>}
+        <span className="text-gray-500">Ctrl+Scroll to zoom</span>
+      </p>
     </div>
-  ) : null;
+  );
 
   const MapArea = lockedMapData ? (
     <InteractiveTileMap
@@ -688,6 +852,18 @@ export default function XYRadar() {
           </>
         )}
       </div>
+      <p className="text-center text-[10px] text-gray-700 py-4">
+        Odds &amp; mechanics data sourced from{' '}
+        <a
+          href="https://www.youtube.com/@HP4003"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="hover:text-gray-500 transition-colors underline underline-offset-2"
+        >
+          HP4003
+        </a>{' '}
+        on YouTube
+      </p>
     </div>
   );
 }
