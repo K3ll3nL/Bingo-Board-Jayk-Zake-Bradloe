@@ -101,6 +101,11 @@ const Approvals = () => {
     }
   }, [isModerator, approvalsLoaded]);
 
+  // Preload historical count so the chip always shows a number, even before its tab is opened
+  useEffect(() => {
+    if (isModerator && !historicalLoaded) loadHistoricalApprovals();
+  }, [isModerator, historicalLoaded]);
+
   // Live queue updates — reload whichever tab is active
   useEffect(() => {
     if (!isModerator) return;
@@ -648,11 +653,9 @@ const Approvals = () => {
               }`}
             >
               Pending Approvals
-              {approvals.length > 0 && (
-                <span className="ml-2 bg-purple-700 text-white text-xs rounded-full px-1.5 py-0.5">
-                  {approvals.length}
-                </span>
-              )}
+              <span className="ml-2 bg-purple-700 text-white text-xs rounded-full px-1.5 py-0.5">
+                {approvals.length}
+              </span>
             </button>
             <button
               onClick={() => {
@@ -664,11 +667,9 @@ const Approvals = () => {
               }`}
             >
               Historical
-              {historicalApprovals.length > 0 && (
-                <span className="ml-2 bg-purple-700/60 text-purple-200 text-xs rounded-full px-1.5 py-0.5">
-                  {historicalApprovals.length}
-                </span>
-              )}
+              <span className="ml-2 bg-purple-700/60 text-purple-200 text-xs rounded-full px-1.5 py-0.5">
+                {historicalApprovals.length}
+              </span>
             </button>
             <button
               onClick={() => {

@@ -72,19 +72,17 @@ const AppLayout = () => {
     const loadPending = async () => {
       try {
         const headers = await getAuthHeaders();
-        const [normalRes, histRes] = await Promise.all([
-          fetch('/api/approvals/pending', { headers }),
-          fetch('/api/approvals/pending?historical=true', { headers }),
-        ]);
-        const normal = normalRes.ok ? await normalRes.json() : [];
-        const hist = histRes.ok ? await histRes.json() : [];
-        const count = (Array.isArray(normal) ? normal.length : 0) + (Array.isArray(hist) ? hist.length : 0);
+        const res = await fetch('/api/approvals/pending?count=true', { headers });
+        const data = res.ok ? await res.json() : { pending: 0, historical: 0 };
+        const count = (data.pending || 0) + (data.historical || 0);
         if (!cancelled) setPendingApprovals(count);
       } catch { /* ignore */ }
     };
     loadPending();
+    // Subscribe to the queue-changed topic the API actually broadcasts to
+    // ('approvals-updates') so the badge count stays live without a refresh.
     const channel = supabase
-      .channel('header-approvals-count')
+      .channel('approvals-updates')
       .on('broadcast', { event: 'queue-changed' }, loadPending)
       .subscribe();
     return () => { cancelled = true; supabase.removeChannel(channel); };

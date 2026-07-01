@@ -49,6 +49,7 @@ const POKEMON_IMAGE_FIELDS = 'id, name, display_name, national_dex_id, genderles
 // know exactly when it's stale — no arbitrary TTL needed. Mod users with a
 // time_offset_days bypass the cache since their effective date differs.
 let activeMonthCache = null; // { id, month_year_display, start_date, end_date }
+let activeMonthPromise = null; // in-flight fetch shared by concurrent callers (prevents cold-start race)
 
 // Pokemon pool: the 24 pokemon assigned to a month never change mid-month.
 // Keyed on month ID — auto-invalidates when a new month becomes active.
@@ -711,23 +712,34 @@ async function getActiveMonth(userId = null) {
     return activeMonthCache;
   }
 
-  // Cache miss or expired — fetch from DB and cache the result
+  // Cache miss or expired. Share a single in-flight fetch so concurrent callers
+  // don't each hit the DB (fixes the cold-start double-query race).
+  if (activeMonthPromise) return activeMonthPromise;
+
   console.log('Fetching active month from DB - date:', nowISO);
-  const { data: activeMonthData, error: monthError } = await supabase
-    .from('bingo_months')
-    .select('id, month_year_display, start_date, end_date')
-    .lte('start_date', nowISO)
-    .gte('end_date', nowISO)
-    .single();
+  activeMonthPromise = (async () => {
+    const { data: activeMonthData, error: monthError } = await supabase
+      .from('bingo_months')
+      .select('id, month_year_display, start_date, end_date')
+      .lte('start_date', nowISO)
+      .gte('end_date', nowISO)
+      .single();
 
-  if (monthError || !activeMonthData) {
-    console.error('No active month found for date:', nowISO, monthError);
-    return null;
+    if (monthError || !activeMonthData) {
+      console.error('No active month found for date:', nowISO, monthError);
+      return null;
+    }
+
+    activeMonthCache = activeMonthData;
+    console.log('Active month cached:', activeMonthData.id);
+    return activeMonthData;
+  })();
+
+  try {
+    return await activeMonthPromise;
+  } finally {
+    activeMonthPromise = null;
   }
-
-  activeMonthCache = activeMonthData;
-  console.log('Active month cached:', activeMonthData.id);
-  return activeMonthData;
 }
 
 // Convenience wrapper for callers that only need the month ID
@@ -3401,6 +3413,15 @@ app.get('/api/approvals/pending', async (req, res) => {
 
     if (modError || !ambassador) {
       return res.status(403).json({ error: 'Forbidden' });
+    }
+
+    // Lightweight count path for the header badge — no joins, one round-trip for both queues.
+    if (req.query.count === 'true') {
+      const [{ count: pending }, { count: historical }] = await Promise.all([
+        supabase.from('approvals').select('id', { count: 'exact', head: true }).eq('historical', false),
+        supabase.from('approvals').select('id', { count: 'exact', head: true }).eq('historical', true),
+      ]);
+      return res.json({ pending: pending || 0, historical: historical || 0 });
     }
 
     const historical = req.query.historical === 'true';
