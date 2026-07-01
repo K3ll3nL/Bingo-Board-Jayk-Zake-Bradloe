@@ -3,11 +3,10 @@ import { useNavigate } from 'react-router-dom';
 import { api } from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
 import AchievementIcon from './AchievementIcon';
-import { isRestrictedEnabled } from '../featureFlags';
 
 const Leaderboard = () => {
   const navigate = useNavigate();
-  const { leaderboardVersion, isModerator } = useAuth();
+  const { leaderboardVersion } = useAuth();
   const [leaderboard, setLeaderboard] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -18,9 +17,39 @@ const Leaderboard = () => {
   const prevModeIndex = useRef(0);
   const shouldRunFlip = useRef(false);
   const MODES = ['monthly', 'season', 'year', 'alltime'];
-  const MODE_LABELS = { monthly: 'This Month', season: 'This Season', year: 'This Year', alltime: 'All Time' };
+  const MODE_LABELS = { monthly: 'Monthly', season: 'Season', year: 'Year', alltime: 'All Time' };
   const [modeIndex, setModeIndex] = useState(0);
   const viewMode = MODES[modeIndex];
+
+  // Historical period navigation
+  const [periods, setPeriods] = useState(null);
+  const [periodIdx, setPeriodIdx] = useState(0); // 0 = current/active
+
+  useEffect(() => {
+    api.getLeaderboardPeriods().then(setPeriods).catch(() => {});
+  }, []);
+
+  const getPeriodList = () => {
+    if (!periods) return [];
+    if (viewMode === 'monthly') return periods.months || [];
+    if (viewMode === 'season') return periods.seasons || [];
+    if (viewMode === 'year') return periods.years || [];
+    return [];
+  };
+
+  const getPeriodMonthId = () => {
+    if (periodIdx === 0 || !periods) return null;
+    const list = getPeriodList();
+    const item = list[periodIdx];
+    if (!item) return null;
+    return viewMode === 'monthly' ? item.id : item.anchor_month_id;
+  };
+
+  const getPeriodLabel = () => {
+    const list = getPeriodList();
+    if (!list.length) return null;
+    return list[periodIdx]?.label || null;
+  };
 
   const capturePositions = () => {
     const positions = {};
@@ -30,9 +59,9 @@ const Leaderboard = () => {
     prevTops.current = positions;
   };
 
-  const loadLeaderboard = async (key, mode, version) => {
+  const loadLeaderboard = async (key, mode, version, periodMonthId) => {
     try {
-      const data = await api.getLeaderboard(mode, version);
+      const data = await api.getLeaderboard(mode, version, periodMonthId);
       loadedKeys.current.add(key);
       setLeaderboard(data);
       setError(null);
@@ -46,7 +75,8 @@ const Leaderboard = () => {
   };
 
   useEffect(() => {
-    const key = `${viewMode}_${leaderboardVersion}`;
+    const periodMonthId = getPeriodMonthId();
+    const key = `${viewMode}_${leaderboardVersion}_${periodIdx}`;
     const isCached = loadedKeys.current.has(key);
     const modeChanged = prevModeIndex.current !== modeIndex;
     prevModeIndex.current = modeIndex;
@@ -60,12 +90,10 @@ const Leaderboard = () => {
       setRefreshing(true);
     }
 
-    // Capture positions NOW (synchronously, before the async fetch) so the DOM
-    // still reflects the old order when we record the "First" positions for FLIP.
     if (shouldRunFlip.current) capturePositions();
 
-    loadLeaderboard(key, viewMode, leaderboardVersion);
-  }, [modeIndex, leaderboardVersion]); // eslint-disable-line react-hooks/exhaustive-deps
+    loadLeaderboard(key, viewMode, leaderboardVersion, periodMonthId);
+  }, [modeIndex, leaderboardVersion, periodIdx]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // FLIP animation: only runs when a live version update changed the current view
   useLayoutEffect(() => {
@@ -118,8 +146,27 @@ const Leaderboard = () => {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <div className="text-lg text-gray-600">Loading leaderboard...</div>
+      <div className="w-full h-full flex flex-col animate-pulse">
+        <div className="flex items-center justify-center gap-1 mb-2">
+          {MODES.map((mode, i) => (
+            <div key={mode} className={`px-3 py-1.5 rounded-lg text-sm font-medium ${i === 0 ? 'bg-purple-600/40' : 'bg-gray-700/40'}`} style={{ minWidth: 60 }}>&nbsp;</div>
+          ))}
+        </div>
+        <div className="mb-3 h-6" />
+        <div className="rounded-lg overflow-hidden flex-1" style={{ background: '#0d0f14' }}>
+          {Array.from({ length: 8 }).map((_, i) => (
+            <div key={i} className="p-2 flex items-center justify-between border-b border-gray-700/50">
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 rounded-full bg-gray-700/60" />
+                <div>
+                  <div className="h-3.5 rounded bg-gray-700/60 mb-1.5" style={{ width: 80 + (i % 3) * 30 }} />
+                  <div className="h-2.5 rounded bg-gray-700/40" style={{ width: 50 + (i % 2) * 20 }} />
+                </div>
+              </div>
+              <div className="h-5 w-12 rounded bg-gray-700/60" />
+            </div>
+          ))}
+        </div>
       </div>
     );
   }
@@ -140,53 +187,57 @@ const Leaderboard = () => {
   };
 
   return (
-    <div className="w-full">
-      {/* Header with Tab Switcher */}
-      <div className="flex items-center justify-between mb-3">
-        <button
-          onClick={() => setModeIndex((modeIndex - 1 + MODES.length) % MODES.length)}
-          className="text-gray-400 hover:text-white transition-colors"
-        >
-          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-          </svg>
-        </button>
-
-        <div className="text-center">
-          <h2 className="text-2xl font-bold text-white h-6">{MODE_LABELS[viewMode]}</h2>
-          <div className="flex justify-center gap-1 mt-1">
-            {MODES.map((_, i) => (
-              <button
-                key={i}
-                onClick={() => setModeIndex(i)}
-                className={`w-1.5 h-1.5 rounded-full transition-colors ${i === modeIndex ? 'bg-purple-400' : 'bg-gray-600 hover:bg-gray-500'}`}
-              />
-            ))}
-          </div>
-        </div>
-
-        <button
-          onClick={() => setModeIndex((modeIndex + 1) % MODES.length)}
-          className="text-gray-400 hover:text-white transition-colors"
-        >
-          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-          </svg>
-        </button>
+    <div className="w-full h-full flex flex-col">
+      {/* Mode tabs */}
+      <div className="flex items-center justify-center gap-1 mb-2">
+        {MODES.map((mode, i) => (
+          <button
+            key={mode}
+            onClick={() => { setModeIndex(i); setPeriodIdx(0); }}
+            className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${i === modeIndex ? 'bg-purple-600 text-white' : 'text-gray-400 hover:text-white hover:bg-gray-700'}`}
+          >
+            {MODE_LABELS[mode]}
+          </button>
+        ))}
       </div>
+
+      {/* Period navigator — only for non-alltime modes */}
+      {viewMode !== 'alltime' && (
+        <div className="flex items-center justify-center gap-2 mb-3">
+          <button
+            onClick={() => setPeriodIdx(i => i + 1)}
+            disabled={!periods || periodIdx >= getPeriodList().length - 1}
+            className="p-2 -m-2 text-gray-500 hover:text-white disabled:opacity-20 disabled:cursor-default transition-colors"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
+          </button>
+          <span className="text-sm text-gray-300 min-w-[110px] text-center">
+            {getPeriodLabel() || (periodIdx === 0 ? 'Current' : '…')}
+            {periodIdx === 0 && <span className="ml-1 text-xs text-purple-400">(live)</span>}
+          </span>
+          <button
+            onClick={() => setPeriodIdx(i => Math.max(0, i - 1))}
+            disabled={periodIdx === 0}
+            className="p-2 -m-2 text-gray-500 hover:text-white disabled:opacity-20 disabled:cursor-default transition-colors"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
+          </button>
+        </div>
+      )}
+      {viewMode === 'alltime' && <div className="mb-3 text-center text-sm text-gray-400 font-medium">All Time</div>}
       
-      <div className="rounded-lg shadow-lg overflow-hidden relative" style={{ backgroundColor: '#212326' }}>
+      <div className={`rounded-lg shadow-lg overflow-hidden relative flex flex-col ${leaderboard.length >= 10 ? 'flex-1' : ''}`} style={{ background: '#0d0f14' }}>
         {refreshing && (
           <div className="absolute top-0 left-0 right-0 h-0.5 bg-gray-700 overflow-hidden z-10">
             <div className="h-full bg-purple-500 animate-pulse" style={{ width: '100%' }} />
           </div>
         )}
         {leaderboard.length === 0 ? (
-          <div className="p-8 text-center text-gray-400">
+          <div className="flex-1 flex items-center justify-center p-8 text-center text-gray-400">
             No players yet
           </div>
         ) : (
-          <div className={`divide-y overflow-y-auto transition-opacity duration-150 ${refreshing ? 'opacity-50' : 'opacity-100'}`} style={{ borderColor: '#404040', maxHeight: '610px' }}>
+          <div className={`divide-y overflow-y-auto flex-1 transition-opacity duration-150 ${refreshing ? 'opacity-50' : 'opacity-100'}`} style={{ borderColor: '#404040' }}>
             {leaderboard.map((user, index) => {
               const position = user.rank ?? (index + 1);
               const medal = getMedalEmoji(position);
@@ -197,7 +248,7 @@ const Leaderboard = () => {
                   key={user.user_id}
                   ref={el => { rowRefs.current[user.user_id] = el; }}
                   onClick={() => navigate(`/profile/${user.user_id}`)}
-                  className="p-2 flex items-center justify-between transition-colors cursor-pointer hover:bg-gray-600"
+                  className="p-2 flex items-center justify-between transition-colors cursor-pointer hover:bg-white/5"
                 >
                   <div className="flex items-center gap-3">
                     <div className="flex items-center justify-center w-8 h-8">
@@ -225,25 +276,19 @@ const Leaderboard = () => {
                           </a>
                         )}
                       </div>
-                      {isRestrictedEnabled(isModerator) ? (
-                        <div className="flex items-center gap-1 mt-0 min-h-[16px]">
-                          {(user.badge_slots || []).map((badge, i) => {
-                            const isSubmissionFamily = badge?.family === 'submission_standard' || badge?.family === 'submission_restricted';
-                            return badge?.image_url && (
-                              <img
-                                key={i}
-                                src={badge.image_url}
-                                alt={badge.name}
-                                style={isSubmissionFamily ? { width: '25px', height: '28px' } : { width: '28px', height: '28px' }}
-                              />
-                            );
-                          })}
-                        </div>
-                      ) : (
-                        <div className={`text-xs text-gray-400`}>
-                          Joined {formatDate(user.created_at)}
-                        </div>
-                      )}
+                      <div className="flex items-center gap-1 mt-0 min-h-[16px]">
+                        {(user.badge_slots || []).map((badge, i) => {
+                          const isSubmissionFamily = badge?.family === 'submission_standard' || badge?.family === 'submission_restricted';
+                          return badge?.image_url && (
+                            <img
+                              key={i}
+                              src={badge.image_url}
+                              alt={badge.name}
+                              style={isSubmissionFamily ? { width: '25px', height: '28px' } : { width: '28px', height: '28px' }}
+                            />
+                          );
+                        })}
+                      </div>
                     </div>
                   </div>
                   
@@ -271,7 +316,7 @@ const Leaderboard = () => {
                           )
                         )
                       ))}
-                      {isRestrictedEnabled(isModerator) && ['row', 'column', 'x', 'blackout'].map(type => (
+                      {['row', 'column', 'x', 'blackout'].map(type => (
                         user.achievement_counts?.[`${type}_restricted`] > 0 && (
                           viewMode === 'monthly' ? (
                             <AchievementIcon

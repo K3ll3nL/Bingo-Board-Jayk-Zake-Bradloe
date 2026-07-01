@@ -24,12 +24,30 @@ const TwitchAmbassadors = () => {
     }
   };
 
-  if (loading || ambassadors.length === 0) {
+  if (loading) {
+    return (
+      <div className="w-full animate-pulse" style={{ background: '#0d0f14' }}>
+        <div className="max-w-7xl mx-auto px-4 py-8">
+          <div className="h-7 bg-gray-700/60 rounded mb-4" style={{ width: 220 }} />
+          <div className="flex pb-4 overflow-hidden" style={{ gap: '10.9px' }}>
+            {Array.from({ length: 6 }).map((_, i) => (
+              <div key={i} className="flex-shrink-0 flex flex-col items-center" style={{ width: 110 }}>
+                <div className="w-20 h-20 rounded-full bg-gray-700/50" />
+                <div className="h-5 rounded bg-gray-700/40 mt-2" style={{ width: 70 }} />
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (ambassadors.length === 0) {
     return null;
   }
 
   return (
-    <div className="w-full" style={{ backgroundColor: '#212326' }}>
+    <div className="w-full" style={{ background: '#0d0f14' }}>
       <div className="max-w-7xl mx-auto px-4 py-8">
         <h2 className="text-xl font-bold text-white mb-4">Check out these streamers!</h2>
         
@@ -50,7 +68,7 @@ const TwitchAmbassadors = () => {
                   style={{
                     border: `3px solid ${ambassador.is_live ? ambassador.brand_color || '#9147ff' : '#808080'}`,
                     padding: '2px',
-                    backgroundColor: '#212326'
+                    backgroundColor: '#0d0f14'
                   }}
                 >
                   <img

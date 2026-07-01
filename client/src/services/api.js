@@ -38,11 +38,18 @@ export const api = {
   },
 
   // Leaderboard endpoints
-  getLeaderboard: async (viewMode = 'monthly', version = 0) => {
+  getLeaderboard: async (viewMode = 'monthly', version = 0, periodMonthId = null) => {
     const VALID_MODES = ['monthly', 'alltime', 'season', 'year'];
     const mode = VALID_MODES.includes(viewMode) ? viewMode : 'monthly';
-    const response = await fetch(`${API_BASE_URL}/leaderboard?mode=${mode}&v=${version}`, { cache: 'no-store' });
+    const periodParam = periodMonthId ? `&period_month_id=${periodMonthId}` : '';
+    const response = await fetch(`${API_BASE_URL}/leaderboard?mode=${mode}&v=${version}${periodParam}`, { cache: 'no-store' });
     if (!response.ok) throw new Error('Failed to fetch leaderboard');
+    return response.json();
+  },
+
+  getLeaderboardPeriods: async () => {
+    const response = await fetch(`${API_BASE_URL}/leaderboard/periods`, { cache: 'no-store' });
+    if (!response.ok) throw new Error('Failed to fetch periods');
     return response.json();
   },
 };

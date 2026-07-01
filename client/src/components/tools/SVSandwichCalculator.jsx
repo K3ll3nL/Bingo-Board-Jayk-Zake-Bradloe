@@ -538,7 +538,7 @@ function TargetRow({ target, index, onChange, onRemove, canRemove }) {
   const pc = POWER_COLORS[POWER_ALIAS[target.power]] || '#aaa';
 
   return (
-    <div className="rounded-lg border border-gray-700 p-3 space-y-3" style={{ backgroundColor: '#1e2023' }}>
+    <div className="rounded-xl p-3 space-y-3" style={{ background: 'linear-gradient(160deg, #1a1c23 0%, #1f2128 100%)', border: '1px solid rgba(255,255,255,0.07)' }}>
       <div className="flex items-center justify-between">
         <span className="text-xs font-bold uppercase tracking-wider text-gray-500">Target {index + 1}</span>
         {canRemove && (
@@ -557,7 +557,7 @@ function TargetRow({ target, index, onChange, onRemove, canRemove }) {
             return (
               <button key={p} onClick={() => onChange({ ...target, power: p, type: NO_TYPE_POWERS.has(p) ? null : (target.type || 'Dragon') })}
                 className="text-xs px-2 py-0.5 rounded-full border transition-all"
-                style={{ backgroundColor: active ? c+'33' : 'transparent', borderColor: active ? c : '#374151', color: active ? c : '#6b7280' }}>
+                style={{ backgroundColor: active ? c+'33' : 'transparent', borderColor: active ? c : 'rgba(255,255,255,0.1)', color: active ? c : '#6b7280' }}>
                 {POWER_EFFECT_NAME[p].replace(' Power', '')}
               </button>
             );
@@ -759,7 +759,7 @@ function TargetPowerTab({ fillings, condiments, playerCount = 1 }) {
         ))}
         {targets.length < 3 && (
           <button onClick={addTarget}
-            className="w-full py-2 rounded-lg border border-dashed border-gray-700 text-gray-600 hover:text-gray-400 hover:border-gray-600 text-sm transition-colors">
+            className="w-full py-2 rounded-lg text-gray-600 hover:text-gray-400 text-sm transition-colors" style={{ border: '1px dashed rgba(255,255,255,0.1)' }}>
             + Add another target
           </button>
         )}
@@ -768,7 +768,7 @@ function TargetPowerTab({ fillings, condiments, playerCount = 1 }) {
       {/* Right: Results */}
       <div>
         {/* Sub-tabs */}
-        <div className="flex gap-1 mb-4 p-1 rounded-lg w-fit" style={{ backgroundColor: '#1a1c1f' }}>
+        <div className="flex gap-1 mb-4 p-1 rounded-lg w-fit" style={{ background: 'rgba(0,0,0,0.3)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: '0.5rem' }}>
           {[
             { key: 'presets', label: `Presets (${matches.length})` },
             { key: 'meals',   label: `Restaurants (${mealMatches.length})` },
@@ -790,17 +790,17 @@ function TargetPowerTab({ fillings, condiments, playerCount = 1 }) {
         {/* Preset results */}
         {resultsTab === 'presets' && (
           matches.length === 0 ? (
-            <div className="rounded-xl border border-dashed border-gray-700 flex items-center justify-center py-16 text-gray-600 text-sm">
+            <div className="rounded-xl flex items-center justify-center py-16 text-gray-600 text-sm" style={{ border: '1px dashed rgba(255,255,255,0.1)' }}>
               No preset sandwiches match all targets
             </div>
           ) : (
             <div className="space-y-3 overflow-y-auto" style={{ maxHeight: '65vh' }}>
               {matches.map(sw => (
-                <div key={sw.number} className="rounded-xl border border-gray-700 p-3" style={{ backgroundColor: '#25272b' }}>
+                <div key={sw.number} className="rounded-xl p-3" style={{ background: 'linear-gradient(160deg, #1a1c23 0%, #1f2128 100%)', border: '1px solid rgba(255,255,255,0.07)' }}>
                   <div className="flex items-start gap-3">
                     {sw.imageUrl && (
                       <img src={sw.imageUrl} alt={sw.name}
-                        className="w-12 h-12 rounded-lg object-cover shrink-0 border border-gray-700"
+                        className="w-12 h-12 rounded-lg object-cover shrink-0" style={{ border: '1px solid rgba(255,255,255,0.08)' }}
                         onError={e => { e.target.style.display = 'none'; }} />
                     )}
                     <div className="flex-1 min-w-0">
@@ -841,17 +841,17 @@ function TargetPowerTab({ fillings, condiments, playerCount = 1 }) {
         {/* Restaurant meals */}
         {resultsTab === 'meals' && (
           mealMatches.length === 0 ? (
-            <div className="rounded-xl border border-dashed border-gray-700 flex items-center justify-center py-16 text-gray-600 text-sm">
+            <div className="rounded-xl flex items-center justify-center py-16 text-gray-600 text-sm" style={{ border: '1px dashed rgba(255,255,255,0.1)' }}>
               No restaurant meals match all targets
             </div>
           ) : (
             <div className="space-y-3 overflow-y-auto" style={{ maxHeight: '65vh' }}>
               {mealMatches.map((meal, mi) => (
-                <div key={mi} className="rounded-xl border border-gray-700 p-3" style={{ backgroundColor: '#25272b' }}>
+                <div key={mi} className="rounded-xl p-3" style={{ background: 'linear-gradient(160deg, #1a1c23 0%, #1f2128 100%)', border: '1px solid rgba(255,255,255,0.07)' }}>
                   <div className="flex items-start gap-3">
                     {meal.imageUrl && (
                       <img src={meal.imageUrl} alt={meal.name}
-                        className="w-12 h-12 rounded-lg object-cover shrink-0 border border-gray-700"
+                        className="w-12 h-12 rounded-lg object-cover shrink-0" style={{ border: '1px solid rgba(255,255,255,0.08)' }}
                         onError={e => { e.target.style.display = 'none'; }} />
                     )}
                     <div className="flex-1 min-w-0">
@@ -918,7 +918,7 @@ function TargetPowerTab({ fillings, condiments, playerCount = 1 }) {
           ) : customResults.length > 0 ? (
             <div className="space-y-3 overflow-y-auto" style={{ maxHeight: '65vh' }}>
               {customResults.map((res, ri) => (
-                <div key={ri} className="rounded-xl border border-emerald-800/40 p-4 space-y-3" style={{ backgroundColor: '#25272b' }}>
+                <div key={ri} className="rounded-xl p-4 space-y-3" style={{ background: 'linear-gradient(160deg, #1a1c23 0%, #1f2128 100%)', border: '1px solid rgba(52,211,153,0.2)' }}>
                   <p className="text-xs font-bold uppercase tracking-wider text-emerald-400">
                     {res.fillings.length} filling{res.fillings.length !== 1 ? 's' : ''}, {res.condiments.length} condiment{res.condiments.length !== 1 ? 's' : ''}
                     {res.totalPieces != null && (
@@ -1065,16 +1065,32 @@ export default function SVSandwichCalculator() {
   const maxTypeScore  = results ? Math.max(1, ...results.sortedTypes.slice(0, 8).map(t => t.power)) : 1;
 
   return (
-    <div className="max-w-6xl mx-auto px-4 py-8">
-      {/* Page header */}
-      <div className="mb-4">
-        <h1 className="text-2xl font-bold text-white mb-1">S/V Sandwich Calculator</h1>
-        <p className="text-gray-400 text-sm">Find sandwich recipes for Encounter, Egg, and other meal powers.</p>
+    <div className="min-h-screen text-white" style={{ isolation: 'isolate', position: 'relative' }}>
+
+      {/* Sticky header */}
+      <div className="sticky top-0 z-30 border-b"
+        style={{ background: 'rgba(13,15,20,0.85)', backdropFilter: 'blur(10px)', borderColor: 'rgba(255,255,255,0.06)' }}>
+        <div className="max-w-5xl mx-auto px-4 py-2.5 flex items-center gap-3">
+          <button onClick={() => navigate('/tools')}
+            className="flex items-center gap-1.5 text-sm transition-colors"
+            style={{ color: 'rgba(255,255,255,0.4)' }}
+            onMouseEnter={e => e.currentTarget.style.color = '#fff'}
+            onMouseLeave={e => e.currentTarget.style.color = 'rgba(255,255,255,0.4)'}>
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
+            </svg>
+            <span className="hidden sm:inline">Shiny Tools</span>
+          </button>
+          <span style={{ color: 'rgba(255,255,255,0.15)' }}>|</span>
+          <span className="text-sm font-semibold text-white">S/V Sandwich Calculator</span>
+        </div>
       </div>
+
+    <div className="max-w-5xl mx-auto px-4 py-8">
 
       {/* Top-level tabs + player count */}
       <div className="flex items-center gap-4 mb-6 flex-wrap">
-      <div className="flex gap-1 p-1 rounded-lg w-fit" style={{ backgroundColor: '#1a1c1f' }}>
+      <div className="flex gap-1 p-1 rounded-lg w-fit" style={{ background: 'rgba(0,0,0,0.3)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: '0.5rem' }}>
         {[
           { key: 'builder', label: '🥪 Custom Builder' },
           { key: 'target',  label: '🎯 Target Power' },
@@ -1084,7 +1100,7 @@ export default function SVSandwichCalculator() {
             onClick={() => setPageMode(key)}
             className="px-4 py-1.5 rounded-md text-sm font-medium transition-all flex items-center gap-1.5"
             style={pageMode === key
-              ? { backgroundColor: '#35373b', color: '#fff' }
+              ? { background: 'rgba(255,255,255,0.09)', color: '#fff' }
               : { color: '#6b7280' }
             }
           >
@@ -1106,8 +1122,8 @@ export default function SVSandwichCalculator() {
               <button key={n} onClick={() => setPlayerCount(n)}
                 className="w-7 h-7 rounded text-xs font-bold transition-all"
                 style={playerCount === n
-                  ? { backgroundColor: '#35373b', color: '#fff' }
-                  : { backgroundColor: 'transparent', color: '#6b7280', border: '1px solid #374151' }}>
+                  ? { background: 'rgba(255,255,255,0.09)', color: '#fff', border: '1px solid rgba(255,255,255,0.12)' }
+                  : { background: 'transparent', color: '#6b7280', border: '1px solid rgba(255,255,255,0.08)' }}>
                 {n}
               </button>
             ))}
@@ -1144,10 +1160,10 @@ export default function SVSandwichCalculator() {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
 
           {/* ── Left: Ingredient picker ── */}
-          <div className="rounded-xl border border-gray-700 overflow-hidden" style={{ backgroundColor: '#25272b' }}>
+          <div className="rounded-xl overflow-hidden" style={{ background: 'linear-gradient(160deg, #1a1c23 0%, #1f2128 100%)', border: '1px solid rgba(255,255,255,0.07)' }}>
 
             {/* Tabs */}
-            <div className="flex border-b border-gray-700">
+            <div className="flex border-b" style={{ borderColor: 'rgba(255,255,255,0.07)' }}>
               {['fillings', 'condiments'].map(t => (
                 <button
                   key={t}
@@ -1162,13 +1178,14 @@ export default function SVSandwichCalculator() {
             </div>
 
             {/* Search */}
-            <div className="px-3 pt-2 pb-1.5 space-y-2 border-b border-gray-700/60">
+            <div className="px-3 pt-2 pb-1.5 space-y-2 border-b" style={{ borderColor: 'rgba(255,255,255,0.06)' }}>
               <input
                 type="text"
                 value={search}
                 onChange={e => setSearch(e.target.value)}
                 placeholder={`Search ${tab}…`}
-                className="w-full bg-white/5 border border-gray-700 rounded-lg px-3 py-1.5 text-sm text-white placeholder-gray-600 outline-none focus:border-gray-500"
+                className="w-full rounded-lg px-3 py-1.5 text-sm text-white placeholder-gray-600 outline-none focus:border-white/20"
+                style={{ background: '#0d0f14', border: '1px solid rgba(255,255,255,0.07)' }}
               />
 
               {/* Flavor filters */}
@@ -1217,7 +1234,7 @@ export default function SVSandwichCalculator() {
                 Flavor → Power guide
               </button>
               {showKey && (
-                <div className="rounded-lg border border-gray-700/60 p-2 space-y-1" style={{ backgroundColor: '#1e2023' }}>
+                <div className="rounded-lg p-2 space-y-1" style={{ background: '#0d0f14', border: '1px solid rgba(255,255,255,0.06)' }}>
                   {[
                     { flavors: ['Sweet'],          power: 'Egg',       label: 'Sweet dominant' },
                     { flavors: ['Sweet','Sour'],   power: 'Catch',     label: 'Sweet + Sour' },
@@ -1272,7 +1289,7 @@ export default function SVSandwichCalculator() {
 
             {/* Clear button */}
             {(selFillings.length > 0 || selCondiments.length > 0) && (
-              <div className="border-t border-gray-700 px-3 py-2" style={{ backgroundColor: '#1e2023' }}>
+              <div className="border-t px-3 py-2" style={{ background: '#0d0f14', borderColor: 'rgba(255,255,255,0.06)' }}>
                 <button
                   onClick={() => { setSelFillings([]); setSelCondiments([]); }}
                   className="text-xs text-gray-600 hover:text-red-400 transition-colors"
@@ -1286,7 +1303,7 @@ export default function SVSandwichCalculator() {
           {/* ── Right: Results ── */}
           <div className="space-y-4">
             {!results ? (
-              <div className="rounded-xl border border-dashed border-gray-700 flex flex-col items-center justify-center py-20 text-gray-600">
+              <div className="rounded-xl flex flex-col items-center justify-center py-20 text-gray-600" style={{ border: '1px dashed rgba(255,255,255,0.1)' }}>
                 <span className="text-4xl mb-3">🥪</span>
                 <p className="text-sm">Add at least one filling and one condiment</p>
               </div>
@@ -1294,7 +1311,7 @@ export default function SVSandwichCalculator() {
               <>
                 {/* Meal powers — only shown once sandwich is completable */}
                 {sandwichComplete ? (
-                  <div className="rounded-xl border border-gray-700 p-4 space-y-2" style={{ backgroundColor: '#25272b' }}>
+                  <div className="rounded-xl p-4 space-y-2" style={{ background: 'linear-gradient(160deg, #1a1c23 0%, #1f2128 100%)', border: '1px solid rgba(255,255,255,0.07)' }}>
                     <p className="text-xs font-bold uppercase tracking-wider text-gray-500 mb-3">Meal Powers</p>
                     {results.mealPowers.length === 0 ? (
                       <p className="text-gray-600 text-sm">No active powers yet</p>
@@ -1303,14 +1320,14 @@ export default function SVSandwichCalculator() {
                     ))}
                   </div>
                 ) : (
-                  <div className="rounded-xl border border-dashed border-gray-700 p-4 text-center text-gray-600 text-xs">
+                  <div className="rounded-xl p-4 text-center text-gray-600 text-xs" style={{ border: '1px dashed rgba(255,255,255,0.1)' }}>
                     Add at least 1 filling and 1 condiment to see Meal Powers
                   </div>
                 )}
 
                 {/* Flavor breakdown */}
                 {results.sortedTastes.length > 0 && (
-                  <div className="rounded-xl border border-gray-700 p-4" style={{ backgroundColor: '#25272b' }}>
+                  <div className="rounded-xl p-4" style={{ background: 'linear-gradient(160deg, #1a1c23 0%, #1f2128 100%)', border: '1px solid rgba(255,255,255,0.07)' }}>
                     <p className="text-xs font-bold uppercase tracking-wider text-gray-500 mb-3">Flavor Profile</p>
                     <div className="space-y-1.5">
                       {results.sortedTastes.filter(t => t.amount > 0).map(t => (
@@ -1327,7 +1344,7 @@ export default function SVSandwichCalculator() {
                 )}
 
                 {/* Top types */}
-                <div className="rounded-xl border border-gray-700 p-4" style={{ backgroundColor: '#25272b' }}>
+                <div className="rounded-xl p-4" style={{ background: 'linear-gradient(160deg, #1a1c23 0%, #1f2128 100%)', border: '1px solid rgba(255,255,255,0.07)' }}>
                   <p className="text-xs font-bold uppercase tracking-wider text-gray-500 mb-3">Top Types</p>
                   <div className="space-y-1.5">
                     {results.sortedTypes.slice(0, 8).map(t => (
@@ -1347,6 +1364,7 @@ export default function SVSandwichCalculator() {
 
         </div>
       )}
+    </div>
     </div>
   );
 }

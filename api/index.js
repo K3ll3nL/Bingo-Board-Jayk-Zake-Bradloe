@@ -56,6 +56,12 @@ const pokeR2Url = (national_dex_id) => {
   return `${R2_BASE}/poke_capture_${dex}_000_mf_n_00000000_f_r.png`;
 };
 
+// Required pokemon_master fields for PokemonImage to render correctly (gender + form resolution).
+// Always use this when querying pokemon_master for display via the PokemonImage component.
+// Without genderless/gender_difference fields, resolveGenderCodes() defaults to 'mf' and
+// genderless pokemon get broken image URLs.
+const POKEMON_IMAGE_FIELDS = 'id, name, display_name, national_dex_id, genderless, has_gender_difference, has_major_gender_difference, custom_gender_code, forms_count, form_id';
+
 // ── Module-level caches ───────────────────────────────────────────────────────
 // Active month: only changes once a month. Cache the result and use end_date to
 // know exactly when it's stale — no arbitrary TTL needed. Mod users with a
@@ -627,29 +633,56 @@ app.use((req, res, next) => {
   next();
 });
 
-// When avatar_url is null on a profile fetch, look up the user's Discord identity via the
-// Supabase admin API and reconstruct the Discord CDN URL from their stored identity data.
-// Updates the users table and returns the fresh URL (or null if unavailable).
-async function refreshAvatarFromDiscord(userId) {
+// Looks up the user's linked OAuth identities, finds the best available avatar_url
+// (prefers Discord, then Twitch, then Google), updates the users table, and returns it.
+async function refreshAvatarFromProvider(userId) {
   try {
     const { data: { user }, error } = await supabase.auth.admin.getUserById(userId);
     if (error || !user) return null;
 
-    const discordIdentity = user.identities?.find(i => i.provider === 'discord');
-    if (!discordIdentity) return null;
-
-    // identity_data.avatar_url is set by Supabase from the last Discord OAuth exchange
-    const avatarUrl = discordIdentity.identity_data?.avatar_url;
+    const PROVIDER_PRIORITY = ['discord', 'twitch', 'google'];
+    let avatarUrl = null;
+    for (const provider of PROVIDER_PRIORITY) {
+      const identity = user.identities?.find(i => i.provider === provider);
+      if (identity?.identity_data?.avatar_url) {
+        avatarUrl = identity.identity_data.avatar_url;
+        break;
+      }
+    }
     if (!avatarUrl) return null;
 
     await supabase.from('users').update({ avatar_url: avatarUrl }).eq('id', userId);
-    console.log(`[avatar-sync] Refreshed Discord avatar for user ${userId}`);
+    console.log(`[avatar-sync] Refreshed avatar for user ${userId}`);
     return avatarUrl;
   } catch (err) {
-    console.error('[avatar-sync] Discord refresh failed (non-fatal):', err.message);
+    console.error('[avatar-sync] Avatar refresh failed (non-fatal):', err.message);
     return null;
   }
 }
+
+// Returns the list of OAuth providers linked to the authenticated user's account.
+// Each entry has: { provider, identity_id, email, created_at }
+app.get('/api/user/identities', async (req, res) => {
+  try {
+    const userId = await getAuthenticatedUserId(req);
+    if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+
+    const { data: { user }, error } = await supabase.auth.admin.getUserById(userId);
+    if (error || !user) return res.status(404).json({ error: 'User not found' });
+
+    const identities = (user.identities || []).map(i => ({
+      provider: i.provider,
+      identity_id: i.id,
+      email: i.identity_data?.email ?? null,
+      created_at: i.created_at,
+    }));
+
+    res.json({ identities });
+  } catch (err) {
+    console.error('identities error:', err.message);
+    res.status(500).json({ error: 'Failed to fetch identities' });
+  }
+});
 
 // Helper function to get authenticated user ID
 async function getAuthenticatedUserId(req) {
@@ -1043,16 +1076,79 @@ async function enrichWithBadgeSlots(users) {
   }));
 }
 
+// List available historical leaderboard periods
+app.get('/api/leaderboard/periods', async (req, res) => {
+  try {
+    const today = new Date().toISOString().split('T')[0];
+    const { data: months, error } = await supabase
+      .from('bingo_months')
+      .select('id, month_year_display, start_date')
+      .lte('start_date', today)
+      .order('id', { ascending: false });
+
+    if (error) throw error;
+
+    const seenSeasons = new Set();
+    const seenYears = new Set();
+    const seasons = [];
+    const years = [];
+    const SEASON_NAMES = ['Winter', 'Spring', 'Summer', 'Fall'];
+
+    months.forEach(m => {
+      const d = new Date(m.start_date + 'T00:00:00Z');
+      const mon = d.getUTCMonth() + 1;
+      const yr = d.getUTCFullYear();
+      const gameYear = mon >= 3 ? yr : yr - 1;
+      const q = mon >= 3 && mon <= 5 ? 1 : mon >= 6 && mon <= 8 ? 2 : mon >= 9 && mon <= 11 ? 3 : 0;
+      const seasonKey = `${gameYear}-${q}`;
+      const yearKey = `${gameYear}`;
+
+      if (!seenSeasons.has(seasonKey)) {
+        seenSeasons.add(seasonKey);
+        seasons.push({ key: seasonKey, label: `${SEASON_NAMES[q]} ${gameYear}`, anchor_month_id: m.id });
+      }
+      if (!seenYears.has(yearKey)) {
+        seenYears.add(yearKey);
+        years.push({ key: yearKey, label: `${gameYear}–${String(gameYear + 1).slice(-2)}`, anchor_month_id: m.id });
+      }
+    });
+
+    res.json({
+      months: months
+        .filter(m => new Date(m.start_date + 'T00:00:00Z').getUTCMonth() !== 0)
+        .map(m => ({ id: m.id, label: m.month_year_display })),
+      seasons,
+      years,
+    });
+  } catch (err) {
+    console.error('Error fetching leaderboard periods:', err);
+    res.status(500).json({ error: 'Failed to fetch periods' });
+  }
+});
+
 // Get leaderboard
 app.get('/api/leaderboard', async (req, res) => {
   try {
     const userId = await getAuthenticatedUserId(req);
     const VALID_MODES = ['monthly', 'alltime', 'season', 'year'];
     const mode = VALID_MODES.includes(req.query.mode) ? req.query.mode : 'monthly';
+    const periodMonthId = req.query.period_month_id ? parseInt(req.query.period_month_id) : null;
 
-    // Pre-fetch the active month for non-alltime modes — getActiveMonth is module-level
-    // cached so this is cheap, and we need it for both the cache key and branch logic.
-    const preloadedMonth = (mode !== 'alltime') ? await getActiveMonth(userId) : null;
+    // Pre-fetch the reference month — either a specific historical month or the active one.
+    let preloadedMonth = null;
+    if (mode !== 'alltime') {
+      if (periodMonthId) {
+        const { data: historicalMonth } = await supabase
+          .from('bingo_months')
+          .select('id, start_date, month_year_display')
+          .eq('id', periodMonthId)
+          .single();
+        preloadedMonth = historicalMonth;
+      } else {
+        preloadedMonth = await getActiveMonth(userId);
+      }
+    }
+
     if (mode !== 'alltime' && !preloadedMonth) {
       return res.status(404).json({ error: 'No active month found' });
     }
@@ -1449,7 +1545,7 @@ app.get('/api/profile/:userId', async (req, res) => {
       { data: allEntries },
       { data: allPokemonData },
     ] = await Promise.all([
-      supabase.from('users').select('username, display_name, avatar_url, created_at').eq('id', userId).single(),
+      supabase.from('users').select('username, display_name, avatar_url, created_at, twitch_url, youtube_url, shinydex_url').eq('id', userId).single(),
       supabase.from('entries').select('*', { count: 'exact', head: true }).eq('user_id', userId),
       supabase.from('user_monthly_points').select('points, month_id, bingo_months!inner(month_year_display)').eq('user_id', userId).order('month_id', { ascending: true }),
       supabase.from('user_monthly_points').select('user_id, month_id, points, last_updated, bingo_months!inner(month_year_display)'),
@@ -1465,7 +1561,7 @@ app.get('/api/profile/:userId', async (req, res) => {
 
     // If avatar_url is missing, try to recover it from the user's Discord identity
     if (userData && !userData.avatar_url) {
-      const refreshed = await refreshAvatarFromDiscord(userId);
+      const refreshed = await refreshAvatarFromProvider(userId);
       if (refreshed) userData.avatar_url = refreshed;
     }
 
@@ -1546,6 +1642,41 @@ app.get('/api/profile/:userId', async (req, res) => {
     const monthsParticipated = monthlyPoints.length;
     const avgPointsPerMonth = monthsParticipated > 0 ? Math.round(totalPoints / monthsParticipated) : 0;
 
+    // Recent catches — fetch more than needed to deduplicate by pokemon_id,
+    // keeping only the most recent entry per unique pokemon.
+    const { data: recentEntries } = await supabase
+      .from('entries')
+      .select('pokemon_id, restricted_submission')
+      .eq('user_id', userId)
+      .eq('historical', false)
+      .order('created_at', { ascending: false })
+      .limit(40);
+
+    // Deduplicate: keep first (most recent) occurrence of each pokemon_id
+    const seenPokemonIds = new Set();
+    const uniqueRecentEntries = [];
+    for (const e of (recentEntries || [])) {
+      if (!seenPokemonIds.has(e.pokemon_id)) {
+        seenPokemonIds.add(e.pokemon_id);
+        uniqueRecentEntries.push(e);
+        if (uniqueRecentEntries.length === 8) break;
+      }
+    }
+
+    let recentPokemonData2 = [];
+    if (uniqueRecentEntries.length) {
+      const recentIds = uniqueRecentEntries.map(e => e.pokemon_id);
+      const { data } = await supabase
+        .from('pokemon_master')
+        .select(POKEMON_IMAGE_FIELDS)
+        .in('id', recentIds);
+      recentPokemonData2 = data || [];
+    }
+    const pokemonById = Object.fromEntries(recentPokemonData2.map(p => [p.id, p]));
+    const recentCatches = uniqueRecentEntries
+      .map(e => ({ ...pokemonById[e.pokemon_id], restricted: e.restricted_submission }))
+      .filter(e => e.national_dex_id);
+
     const response = {
       user: userData,
       stats: {
@@ -1573,7 +1704,8 @@ app.get('/api/profile/:userId', async (req, res) => {
         dexByType,
         dexByGen,
       },
-      monthlyData
+      monthlyData,
+      recentCatches,
     };
     
     console.log('Sending response with stats:', JSON.stringify(response.stats));
@@ -1835,7 +1967,7 @@ app.get('/api/pokedex', async (req, res) => {
     // Get all pokemon
     const { data: allPokemon, error: pokemonError } = await supabase
       .from('pokemon_master')
-      .select('id, national_dex_id, name, display_name, form_id, forms_count, custom_gender_code, genderless, has_gender_difference, has_major_gender_difference')
+      .select('id, national_dex_id, name, display_name, form_id, forms_count, custom_gender_code, genderless, has_gender_difference, has_major_gender_difference, generation')
       .eq('shiny_available', true)
       .order('national_dex_id', { ascending: true })
       .order('id', { ascending: true });
@@ -1873,10 +2005,17 @@ app.get('/api/pokedex', async (req, res) => {
     
     // Create set of caught pokemon_ids
     const caughtIds = new Set(entries.map(e => e.pokemon_id));
-    
+
     // Create set of pokemon_ids that have been in pools
     const poolIds = new Set(poolPokemon.map(p => p.pokemon_id));
-    
+
+    // Build current-month pool set so client can route to regular vs historical upload
+    const ACTIVE_MONTH_ID = await getActiveMonthId(userId);
+    const { data: currentPoolPokemon } = ACTIVE_MONTH_ID
+      ? await supabase.from('monthly_pokemon_pool').select('pokemon_id').eq('month_id', ACTIVE_MONTH_ID)
+      : { data: [] };
+    const currentPoolIds = new Set((currentPoolPokemon || []).map(p => p.pokemon_id));
+
     // Mark pokemon as caught or not, and if they've been in a pool
     const pokemon = allPokemon.map(p => ({
       id: p.id,
@@ -1889,8 +2028,10 @@ app.get('/api/pokedex', async (req, res) => {
       genderless: p.genderless,
       has_gender_difference: p.has_gender_difference,
       has_major_gender_difference: p.has_major_gender_difference,
-      caught: caughtIds.has(p.id),  // Check by pokemon_master.id
-      in_pool: poolIds.has(p.id)     // Check if ever in monthly pool
+      generation: p.generation,
+      caught: caughtIds.has(p.id),
+      in_pool: poolIds.has(p.id),
+      in_current_pool: currentPoolIds.has(p.id),
     }));
     
     const caughtCount = pokemon.filter(p => p.caught).length;
@@ -2166,7 +2307,7 @@ app.get('/api/upload/available-pokemon-historical', async (req, res) => {
       { data: allEntries,      error: entriesError },
       { data: pendingApprovals,  error: approvalsError },
     ] = await Promise.all([
-      supabase.from('bingo_months').select('id, start_date').lt('id', ACTIVE_MONTH_ID).order('id', { ascending: false }),
+      supabase.from('bingo_months').select('id, start_date, month_year_display').lt('id', ACTIVE_MONTH_ID).order('id', { ascending: false }),
       supabase.from('monthly_pokemon_pool').select('pokemon_id').eq('month_id', ACTIVE_MONTH_ID),
       supabase.from('entries').select('pokemon_id, month_id, restricted_submission').eq('user_id', userId),
       supabase.from('approvals').select('pokemon_id, month_id').eq('user_id', userId),
@@ -2217,6 +2358,7 @@ app.get('/api/upload/available-pokemon-historical', async (req, res) => {
 
     const pokemonIds = available.map(([id]) => parseInt(id));
     const monthById = Object.fromEntries((pastMonths).map(m => [m.id, m.start_date]));
+    const monthDisplayById = Object.fromEntries((pastMonths).map(m => [m.id, m.month_year_display]));
 
     const { data: pokemon, error: pokemonError } = await supabase
       .from('pokemon_master')
@@ -2235,9 +2377,9 @@ app.get('/api/upload/available-pokemon-historical', async (req, res) => {
       return {
         ...p,
         month_id: monthId,
-        month_label: startDate
-          ? new Date(startDate).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
-          : `Month ${monthId}`,
+        month_label: monthDisplayById[monthId] || (startDate
+          ? new Date(startDate + 'T12:00:00Z').toLocaleDateString('en-US', { month: 'long', year: 'numeric', timeZone: 'UTC' })
+          : `Month ${monthId}`),
         has_standard_entry: standardOnlyKeys.has(key),
       };
     });
@@ -2280,6 +2422,7 @@ app.post('/api/upload/submission', uploadRateLimit, upload.fields([
     const game = req.body.game?.trim();
     const restricted_submission = req.body.restricted_submission === 'true';
     const caught_in_game = req.body.caught_in_game?.trim() || null;
+    const note = req.body.note?.trim() || null;
     const file = req.files?.file?.[0];
     const file2 = req.files?.file2?.[0];
     const evolutionFile = req.files?.evolutionFile?.[0];
@@ -2397,10 +2540,11 @@ app.post('/api/upload/submission', uploadRateLimit, upload.fields([
         game,
         caught_in_game,
         restricted_submission,
+        note,
       })
       .select()
       .single();
-    
+
     if (approvalError) throw approvalError;
 
     // Note: pending notification is created automatically via DB trigger on approvals insert
@@ -2438,6 +2582,7 @@ app.post('/api/upload/historical-submission', uploadRateLimit, upload.fields([
     const month_id      = parseInt(req.body.month_id);
     const isRestricted  = req.body.restricted_submission === 'true';
     const caught_in_game = req.body.caught_in_game?.trim() || null;
+    const note          = req.body.note?.trim() || null;
     const file       = req.files?.file?.[0];
     const file2      = req.files?.file2?.[0];
     const evolutionFile = req.files?.evolutionFile?.[0];
@@ -2530,6 +2675,7 @@ app.post('/api/upload/historical-submission', uploadRateLimit, upload.fields([
         caught_in_game,
         restricted_submission: isRestricted,
         historical: true,
+        note,
       })
       .select()
       .single();
@@ -2553,12 +2699,11 @@ app.get('/api/pokemon/:pokemonId/recent-catches', async (req, res) => {
   try {
     const { pokemonId } = req.params;
     const userId = await getAuthenticatedUserId(req);
-    
-    console.log('Fetching recent catches for Pokemon ID:', pokemonId);
-    
+    const requestedMonthId = req.query.monthId ? parseInt(req.query.monthId) : null;
+
     const ACTIVE_MONTH_ID = await getActiveMonthId(userId);
-    if (!ACTIVE_MONTH_ID) {
-      console.log('No active month found');
+    const pointsMonthId = requestedMonthId || ACTIVE_MONTH_ID;
+    if (!pointsMonthId) {
       return res.json([]);
     }
     
@@ -2591,26 +2736,26 @@ app.get('/api/pokemon/:pokemonId/recent-catches', async (req, res) => {
     
     const userIds = entries.map(e => e.user_id);
     
-    // Get user points for this month
+    // Get user points for the relevant month
     const { data: userPoints, error: pointsError } = await supabase
       .from('user_monthly_points')
       .select('user_id, points')
       .in('user_id', userIds)
-      .eq('month_id', ACTIVE_MONTH_ID);
-    
+      .eq('month_id', pointsMonthId);
+
     const pointsMap = {};
     if (!pointsError && userPoints) {
       userPoints.forEach(up => {
         pointsMap[up.user_id] = up.points;
       });
     }
-    
-    // Get user achievements for this month
+
+    // Get user achievements for the relevant month
     const { data: achievements, error: achievementsError } = await supabase
       .from('bingo_achievements')
       .select('user_id, bingo_type')
       .in('user_id', userIds)
-      .eq('month_id', ACTIVE_MONTH_ID);
+      .eq('month_id', pointsMonthId);
     
     const achievementsMap = {};
     if (!achievementsError && achievements) {
@@ -3068,7 +3213,7 @@ app.post('/api/user/sync-avatar', async (req, res) => {
   try {
     const userId = await getAuthenticatedUserId(req);
     if (!userId) return res.status(401).json({ error: 'Unauthorized' });
-    const avatarUrl = await refreshAvatarFromDiscord(userId);
+    const avatarUrl = await refreshAvatarFromProvider(userId);
     res.json({ success: true, avatar_url: avatarUrl });
   } catch (err) {
     console.error('sync-avatar error:', err.message);
@@ -3341,6 +3486,7 @@ app.get('/api/approvals/pending', async (req, res) => {
         month_id,
         restricted_submission,
         historical,
+        note,
         users!apptovals_user_id_fkey (
           display_name,
           restricted_strikes
@@ -5808,6 +5954,28 @@ app.put('/api/users/:userId/badge-slots', async (req, res) => {
   }
 });
 
+// Update a user's social links (authenticated, own user only)
+app.put('/api/users/:userId/socials', async (req, res) => {
+  try {
+    const requestingUserId = await getAuthenticatedUserId(req);
+    if (!requestingUserId) return res.status(401).json({ error: 'Unauthorized' });
+    const { userId } = req.params;
+    if (requestingUserId !== userId) return res.status(403).json({ error: 'Forbidden' });
+
+    const update = {};
+    if ('twitch_url' in req.body) update.twitch_url = req.body.twitch_url || null;
+    if ('youtube_url' in req.body) update.youtube_url = req.body.youtube_url || null;
+    if ('shinydex_url' in req.body) update.shinydex_url = req.body.shinydex_url || null;
+
+    const { error } = await supabase.from('users').update(update).eq('id', userId);
+    if (error) throw error;
+    res.json({ ok: true });
+  } catch (error) {
+    console.error('Error updating socials:', error);
+    res.status(500).json({ error: 'Failed to update socials', details: error.message });
+  }
+});
+
 // Create a new badge (moderator only) — uploads image to R2 and inserts DB record
 app.post('/api/badges', upload.single('image'), async (req, res) => {
   try {
@@ -6019,6 +6187,55 @@ app.patch('/api/admin/badge-families/:id', async (req, res) => {
       .eq('id', req.params.id);
     if (error) throw error;
     res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// PATCH /api/admin/badges/:id/image — replace a badge's image in R2 (mod only)
+app.patch('/api/admin/badges/:id/image', upload.single('image'), async (req, res) => {
+  try {
+    const userId = await getAuthenticatedUserId(req);
+    if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+    const { data: mod } = await supabase.from('moderators').select('id').eq('id', userId).single();
+    if (!mod) return res.status(403).json({ error: 'Moderators only' });
+
+    const file = req.file;
+    if (!file) return res.status(400).json({ error: 'Image file is required' });
+
+    const { data: badge, error: fetchErr } = await supabase
+      .from('badges').select('key').eq('id', req.params.id).single();
+    if (fetchErr || !badge) return res.status(404).json({ error: 'Badge not found' });
+
+    const R2_ACCESS_KEY_ID     = process.env.R2_ACCESS_KEY_ID;
+    const R2_SECRET_ACCESS_KEY = process.env.R2_SECRET_ACCESS_KEY;
+    const R2_ACCOUNT_ID        = process.env.R2_ACCOUNT_ID;
+    const R2_BUCKET_NAME       = process.env.R2_BUCKET_NAME || 'shiny-sprites';
+    const R2_BUCKET_URL        = process.env.R2_BUCKET_URL;
+
+    if (!R2_ACCESS_KEY_ID || !R2_SECRET_ACCESS_KEY || !R2_ACCOUNT_ID || !R2_BUCKET_URL) {
+      return res.status(500).json({ error: 'R2 credentials not configured' });
+    }
+
+    const { S3Client, PutObjectCommand } = require('@aws-sdk/client-s3');
+    const s3Client = new S3Client({
+      region: 'auto',
+      endpoint: `https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com`,
+      credentials: { accessKeyId: R2_ACCESS_KEY_ID, secretAccessKey: R2_SECRET_ACCESS_KEY },
+    });
+
+    const r2Key = `assets/badges/${badge.key}.png`;
+    await s3Client.send(new PutObjectCommand({
+      Bucket: R2_BUCKET_NAME,
+      Key: r2Key,
+      Body: file.buffer,
+      ContentType: 'image/png',
+    }));
+
+    const image_url = `${R2_BUCKET_URL}/${r2Key}`;
+    await supabase.from('badges').update({ image_url }).eq('id', req.params.id);
+
+    res.json({ success: true, image_url });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -6478,6 +6695,105 @@ app.get('/api/approvals/history', async (req, res) => {
   } catch (err) {
     console.error('Error fetching approval history:', err);
     res.status(500).json({ error: 'Failed to fetch approval history' });
+  }
+});
+
+// ── XY Radar Route Maps ────────────────────────────────────────────────────────
+
+// Flabébé's flower color is stored as a form index on the shared "Flabébé" row.
+const FLABEBE_FORM_INDEX = { Red: 0, Yellow: 1, Orange: 2, Blue: 3, White: 4 };
+
+// GET /api/radar/pokemon-lookup?names=Pikachu,Flabébé (Blue)
+// Public, read-only — resolves species names (with optional " (Form)" suffix) to
+// pokemon_master rows so the client can render PokemonImage thumbnails.
+app.get('/api/radar/pokemon-lookup', async (req, res) => {
+  try {
+    const namesParam = (req.query.names || '').trim();
+    if (!namesParam) return res.json({});
+
+    const rawNames = [...new Set(namesParam.split(',').map(n => n.trim()).filter(Boolean))];
+    const baseNames = [...new Set(rawNames.map(n => n.replace(/\s*\([^)]*\)\s*$/, '').trim()))];
+
+    const { data, error } = await supabase
+      .from('pokemon_master')
+      .select(POKEMON_IMAGE_FIELDS)
+      .in('name', baseNames);
+    if (error) throw error;
+
+    const byName = {};
+    for (const row of data || []) {
+      if (!byName[row.name]) byName[row.name] = row;
+    }
+
+    const result = {};
+    for (const raw of rawNames) {
+      const match = raw.match(/^(.*?)\s*\(([^)]*)\)\s*$/);
+      const base = match ? match[1].trim() : raw;
+      const form = match ? match[2].trim() : null;
+      const row = byName[base];
+      if (!row) continue;
+
+      if (base === 'Flabébé' && form in FLABEBE_FORM_INDEX) {
+        result[raw] = { ...row, form_id: FLABEBE_FORM_INDEX[form] };
+      } else {
+        result[raw] = row;
+      }
+    }
+    res.json(result);
+  } catch (err) {
+    console.error('Error fetching radar pokemon lookup:', err);
+    res.status(500).json({ error: 'Failed to fetch pokemon lookup' });
+  }
+});
+
+app.get('/api/radar/routes/:routeId', async (req, res) => {
+  try {
+    const { routeId } = req.params;
+    const { data, error } = await supabase
+      .from('radar_route_maps')
+      .select('route_id, width, height, tiles, chain_spot, shiny_spot')
+      .eq('route_id', routeId)
+      .single();
+    if (error && error.code !== 'PGRST116') throw error;
+    if (!data) return res.status(404).json({ error: 'Not found' });
+    res.json(data);
+  } catch (err) {
+    console.error('Error fetching radar route map:', err);
+    res.status(500).json({ error: 'Failed to fetch route map' });
+  }
+});
+
+app.put('/api/radar/routes/:routeId', async (req, res) => {
+  try {
+    const userId = await getAuthenticatedUserId(req);
+    if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+    const { data: mod } = await supabase.from('moderators').select('id').eq('id', userId).single();
+    if (!mod) return res.status(403).json({ error: 'Moderators only' });
+
+    const { routeId } = req.params;
+    const { width, height, tiles, chain_spot, shiny_spot } = req.body;
+    if (!width || !height || !Array.isArray(tiles)) {
+      return res.status(400).json({ error: 'width, height, and tiles array required' });
+    }
+    if (tiles.length !== width * height) {
+      return res.status(400).json({ error: 'tiles length must equal width * height' });
+    }
+
+    const { error } = await supabase.from('radar_route_maps').upsert({
+      route_id: routeId,
+      width,
+      height,
+      tiles,
+      chain_spot: chain_spot ?? null,
+      shiny_spot: shiny_spot ?? null,
+      updated_at: new Date().toISOString(),
+      updated_by: userId,
+    }, { onConflict: 'route_id' });
+    if (error) throw error;
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('Error saving radar route map:', err);
+    res.status(500).json({ error: 'Failed to save route map' });
   }
 });
 
