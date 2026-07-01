@@ -345,7 +345,7 @@ const HistoricalUploadSection = () => {
           </button>
           {dropdownOpen && (
             <div className="absolute z-10 w-full mt-1 bg-gray-700 border border-gray-600 rounded-lg shadow-lg max-h-96 overflow-y-auto">
-              <div className="sticky top-0 bg-gray-700 p-2 border-b border-gray-600">
+              <div className="sticky top-0 z-10 bg-gray-700 p-2 border-b border-gray-600">
                 <input
                   type="text"
                   autoFocus
@@ -427,7 +427,7 @@ const HistoricalUploadSection = () => {
           </button>
           {gameDropdownOpen && (
             <div className="absolute z-20 w-full mt-1 bg-gray-700 border border-gray-600 rounded-lg shadow-lg max-h-72 overflow-y-auto">
-              <div className="sticky top-0 bg-gray-700 p-2 border-b border-gray-600">
+              <div className="sticky top-0 z-10 bg-gray-700 p-2 border-b border-gray-600">
                 <input
                   type="text"
                   autoFocus
@@ -1185,7 +1185,7 @@ const Upload = () => {
 
                   {dropdownOpen && (
                     <div className="absolute z-10 w-full mt-1 bg-gray-700 border border-gray-600 rounded-lg shadow-lg max-h-96 overflow-y-auto">
-                      <div className="sticky top-0 bg-gray-700 p-2 border-b border-gray-600">
+                      <div className="sticky top-0 z-10 bg-gray-700 p-2 border-b border-gray-600">
                         <input
                           type="text"
                           autoFocus
@@ -1271,7 +1271,7 @@ const Upload = () => {
 
                   {gameDropdownOpen && (
                     <div className="absolute z-20 w-full mt-1 bg-gray-700 border border-gray-600 rounded-lg shadow-lg max-h-72 overflow-y-auto">
-                      <div className="sticky top-0 bg-gray-700 p-2 border-b border-gray-600">
+                      <div className="sticky top-0 z-10 bg-gray-700 p-2 border-b border-gray-600">
                         <input
                           type="text"
                           autoFocus
