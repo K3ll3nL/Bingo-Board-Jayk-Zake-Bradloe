@@ -17,7 +17,6 @@ export default function PrivacyPolicy() {
   React.useEffect(() => { window.scrollTo(0, 0); }, []);
 
   return (
-    <div className="min-h-screen" style={{ isolation: 'isolate', position: 'relative' }}>
     <PageBackground />
     <main className="max-w-3xl mx-auto px-4 py-8 space-y-5">
       <PageHeader title="Privacy Policy" />
@@ -180,6 +179,5 @@ export default function PrivacyPolicy() {
         </p>
       </Section>
     </main>
-    </div>
   );
 }

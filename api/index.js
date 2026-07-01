@@ -9,11 +9,11 @@ const { createClient } = require('@supabase/supabase-js');
 const multer = require('multer');
 
 // Multer config with file size limits
-const upload = multer({ 
+const upload = multer({
   storage: multer.memoryStorage(),
-  limits: { 
-    fileSize: 4 * 1024 * 1024, // 4MB per file (Vercel limit is 4.5MB total)
-    files: 2 // Max 2 files
+  limits: {
+    fileSize: 4 * 1024 * 1024, // 4MB per file
+    files: 10 // file + file2 + evolutionFile + evolutionSummaryFile + up to 5 extraFile
   }
 });
 
@@ -486,6 +486,23 @@ async function deleteR2Images(imageUrls) {
   } catch (r2Error) {
     console.error('Error deleting images from R2 (non-fatal):', r2Error);
   }
+}
+
+// ── R2 image upload helper ────────────────────────────────────────────────────
+async function uploadToR2(file, key) {
+  const { S3Client, PutObjectCommand } = require('@aws-sdk/client-s3');
+  const s3Client = new S3Client({
+    region: 'auto',
+    endpoint: `https://${process.env.R2_ACCOUNT_ID}.r2.cloudflarestorage.com`,
+    credentials: { accessKeyId: process.env.R2_ACCESS_KEY_ID, secretAccessKey: process.env.R2_SECRET_ACCESS_KEY },
+  });
+  await s3Client.send(new PutObjectCommand({
+    Bucket: process.env.R2_BUCKET_NAME || 'shiny-sprites',
+    Key: key,
+    Body: file.buffer,
+    ContentType: file.mimetype,
+  }));
+  return `${process.env.R2_BUCKET_URL}/${key}`;
 }
 
 // ── Period-end processors ─────────────────────────────────────────────────────
@@ -2384,7 +2401,13 @@ const uploadRateLimit = rateLimit({
   message: { error: 'Too many submissions. Please wait a few minutes before trying again.' },
 });
 
-app.post('/api/upload/submission', uploadRateLimit, upload.fields([{ name: 'file', maxCount: 1 }, { name: 'file2', maxCount: 1 }]), async (req, res) => {
+app.post('/api/upload/submission', uploadRateLimit, upload.fields([
+  { name: 'file', maxCount: 1 },
+  { name: 'file2', maxCount: 1 },
+  { name: 'evolutionFile', maxCount: 1 },
+  { name: 'evolutionSummaryFile', maxCount: 1 },
+  { name: 'extraFile', maxCount: 5 },
+]), async (req, res) => {
   try {
     console.log('Request body:', req.body);
     console.log('Request files:', req.files);
@@ -2402,6 +2425,9 @@ app.post('/api/upload/submission', uploadRateLimit, upload.fields([{ name: 'file
     const note = req.body.note?.trim() || null;
     const file = req.files?.file?.[0];
     const file2 = req.files?.file2?.[0];
+    const evolutionFile = req.files?.evolutionFile?.[0];
+    const evolutionSummaryFile = req.files?.evolutionSummaryFile?.[0];
+    const extraFiles = req.files?.extraFile ?? [];
     // link may arrive as a single string or a string[] when multiple are submitted
     const rawLink = req.body.link;
     const proofLinks = Array.isArray(rawLink)
@@ -2469,82 +2495,35 @@ app.post('/api/upload/submission', uploadRateLimit, upload.fields([{ name: 'file
     
     let proofUrl = null;
     let proofUrl2 = null;
+    let proofUrl3 = null;
+    let proofUrl4 = null;
+    let extraImageUrls = [];
     // proof_link: array of video links (required for restricted, optional for normal)
     const proofLink = proofLinks.length > 0 ? proofLinks : null;
 
-    // Upload both image files to R2 (normal submissions only)
-    if (file && file2) {
+    const hasAnyFile = file || file2 || evolutionFile || evolutionSummaryFile || extraFiles.length > 0;
+    if (hasAnyFile) {
+      if (!process.env.R2_ACCESS_KEY_ID || !process.env.R2_SECRET_ACCESS_KEY || !process.env.R2_ACCOUNT_ID) {
+        return res.status(500).json({ error: 'R2 credentials not configured' });
+      }
+      if (!process.env.R2_BUCKET_URL) {
+        return res.status(500).json({ error: 'R2_BUCKET_URL not configured' });
+      }
       try {
-        const R2_BUCKET_URL = process.env.R2_BUCKET_URL;
-        const R2_ACCESS_KEY_ID = process.env.R2_ACCESS_KEY_ID;
-        const R2_SECRET_ACCESS_KEY = process.env.R2_SECRET_ACCESS_KEY;
-        const R2_ACCOUNT_ID = process.env.R2_ACCOUNT_ID;
-        const R2_BUCKET_NAME = process.env.R2_BUCKET_NAME || 'shiny-sprites';
-        
-        console.log('R2 Config check:', {
-          hasUrl: !!R2_BUCKET_URL,
-          hasAccessKey: !!R2_ACCESS_KEY_ID,
-          hasSecretKey: !!R2_SECRET_ACCESS_KEY,
-          hasAccountId: !!R2_ACCOUNT_ID
-        });
-        
-        if (!R2_ACCESS_KEY_ID || !R2_SECRET_ACCESS_KEY || !R2_ACCOUNT_ID) {
-          throw new Error('R2 credentials not configured. Please add R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, and R2_ACCOUNT_ID to Vercel environment variables.');
+        const ts = Date.now();
+        if (file)  proofUrl  = await uploadToR2(file,  `approval/${userId}-${pokemon_id}-${ts}-shiny-${file.originalname}`);
+        if (file2) proofUrl2 = await uploadToR2(file2, `approval/${userId}-${pokemon_id}-${ts}-date-${file2.originalname}`);
+        if (evolutionFile)        proofUrl3 = await uploadToR2(evolutionFile,        `approval/${userId}-${pokemon_id}-${ts}-evo-${evolutionFile.originalname}`);
+        if (evolutionSummaryFile) proofUrl4 = await uploadToR2(evolutionSummaryFile, `approval/${userId}-${pokemon_id}-${ts}-evo-summary-${evolutionSummaryFile.originalname}`);
+        for (const ef of extraFiles) {
+          extraImageUrls.push(await uploadToR2(ef, `approval/${userId}-${pokemon_id}-${ts}-extra-${ef.originalname}`));
         }
-        
-        if (!R2_BUCKET_URL) {
-          throw new Error('R2_BUCKET_URL not configured');
-        }
-        
-        const { S3Client, PutObjectCommand } = require('@aws-sdk/client-s3');
-        
-        const s3Client = new S3Client({
-          region: 'auto',
-          endpoint: `https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com`,
-          credentials: {
-            accessKeyId: R2_ACCESS_KEY_ID,
-            secretAccessKey: R2_SECRET_ACCESS_KEY,
-          },
-        });
-        
-        // Upload first file (Proof of Shiny)
-        const fileName1 = `approval/${userId}-${pokemon_id}-${Date.now()}-shiny-${file.originalname}`;
-        
-        console.log('Uploading file 1 to R2:', fileName1);
-        
-        await s3Client.send(new PutObjectCommand({
-          Bucket: R2_BUCKET_NAME,
-          Key: fileName1,
-          Body: file.buffer,
-          ContentType: file.mimetype,
-        }));
-        
-        proofUrl = `${R2_BUCKET_URL}/${fileName1}`;
-        console.log('Upload 1 successful:', proofUrl);
-        
-        // Upload second file (Proof of Date)
-        const fileName2 = `approval/${userId}-${pokemon_id}-${Date.now()}-date-${file2.originalname}`;
-        
-        console.log('Uploading file 2 to R2:', fileName2);
-        
-        await s3Client.send(new PutObjectCommand({
-          Bucket: R2_BUCKET_NAME,
-          Key: fileName2,
-          Body: file2.buffer,
-          ContentType: file2.mimetype,
-        }));
-        
-        proofUrl2 = `${R2_BUCKET_URL}/${fileName2}`;
-        console.log('Upload 2 successful:', proofUrl2);
       } catch (r2Error) {
         console.error('R2 upload error:', r2Error);
-        return res.status(500).json({ 
-          error: 'File upload failed', 
-          details: r2Error.message 
-        });
+        return res.status(500).json({ error: 'File upload failed', details: r2Error.message });
       }
     }
-    
+
     // Create approval entry
     const { data: approval, error: approvalError } = await supabase
       .from('approvals')
@@ -2554,8 +2533,12 @@ app.post('/api/upload/submission', uploadRateLimit, upload.fields([{ name: 'file
         month_id: activeMonth.id,
         proof_url: proofUrl,
         proof_url2: proofUrl2,
+        proof_url3: proofUrl3,
+        proof_url4: proofUrl4,
+        extra_images: extraImageUrls.length > 0 ? extraImageUrls : null,
         proof_link: proofLink,
         game,
+        caught_in_game,
         restricted_submission,
         note,
       })
@@ -2583,7 +2566,13 @@ app.post('/api/upload/submission', uploadRateLimit, upload.fields([{ name: 'file
 
 // Historical submission — queues a past-month catch for mod review.
 // No points are awarded on approval; board state is not affected.
-app.post('/api/upload/historical-submission', uploadRateLimit, upload.fields([{ name: 'file', maxCount: 1 }, { name: 'file2', maxCount: 1 }]), async (req, res) => {
+app.post('/api/upload/historical-submission', uploadRateLimit, upload.fields([
+  { name: 'file', maxCount: 1 },
+  { name: 'file2', maxCount: 1 },
+  { name: 'evolutionFile', maxCount: 1 },
+  { name: 'evolutionSummaryFile', maxCount: 1 },
+  { name: 'extraFile', maxCount: 5 },
+]), async (req, res) => {
   try {
     const userId = await getAuthenticatedUserId(req);
     if (!userId) return res.status(401).json({ error: 'Authentication required' });
@@ -2596,6 +2585,9 @@ app.post('/api/upload/historical-submission', uploadRateLimit, upload.fields([{ 
     const note          = req.body.note?.trim() || null;
     const file       = req.files?.file?.[0];
     const file2      = req.files?.file2?.[0];
+    const evolutionFile = req.files?.evolutionFile?.[0];
+    const evolutionSummaryFile = req.files?.evolutionSummaryFile?.[0];
+    const extraFiles = req.files?.extraFile ?? [];
     const rawLink    = req.body.link;
     const proofLinks = Array.isArray(rawLink)
       ? rawLink.map(u => u?.trim()).filter(Boolean)
@@ -2645,24 +2637,23 @@ app.post('/api/upload/historical-submission', uploadRateLimit, upload.fields([{ 
     if (file2 && file2.size > MAX_FILE_SIZE) return res.status(413).json({ error: `Proof of Date is too large (${(file2.size / 1048576).toFixed(1)}MB). Compress to under 4MB.`, fileTooBig: true });
     if (file && file2 && (file.size + file2.size) > MAX_FILE_SIZE) return res.status(413).json({ error: `Combined images too large. Compress both to under 4MB total.`, fileTooBig: true });
 
-    // Upload images to R2 (same as regular submission)
+    // Upload images to R2
     let proofUrl = null;
     let proofUrl2 = null;
-    if (file && file2) {
+    let proofUrl3 = null;
+    let proofUrl4 = null;
+    let extraImageUrls = [];
+    const hasAnyFile = file || file2 || evolutionFile || evolutionSummaryFile || extraFiles.length > 0;
+    if (hasAnyFile) {
       try {
-        const { S3Client, PutObjectCommand } = require('@aws-sdk/client-s3');
-        const s3Client = new S3Client({
-          region: 'auto',
-          endpoint: `https://${process.env.R2_ACCOUNT_ID}.r2.cloudflarestorage.com`,
-          credentials: { accessKeyId: process.env.R2_ACCESS_KEY_ID, secretAccessKey: process.env.R2_SECRET_ACCESS_KEY },
-        });
         const ts = Date.now();
-        const key1 = `approval/${userId}-${pokemon_id}-${ts}-hist-shiny-${file.originalname}`;
-        const key2 = `approval/${userId}-${pokemon_id}-${ts}-hist-date-${file2.originalname}`;
-        await s3Client.send(new PutObjectCommand({ Bucket: process.env.R2_BUCKET_NAME || 'shiny-sprites', Key: key1, Body: file.buffer, ContentType: file.mimetype }));
-        proofUrl = `${process.env.R2_BUCKET_URL}/${key1}`;
-        await s3Client.send(new PutObjectCommand({ Bucket: process.env.R2_BUCKET_NAME || 'shiny-sprites', Key: key2, Body: file2.buffer, ContentType: file2.mimetype }));
-        proofUrl2 = `${process.env.R2_BUCKET_URL}/${key2}`;
+        if (file)  proofUrl  = await uploadToR2(file,  `approval/${userId}-${pokemon_id}-${ts}-hist-shiny-${file.originalname}`);
+        if (file2) proofUrl2 = await uploadToR2(file2, `approval/${userId}-${pokemon_id}-${ts}-hist-date-${file2.originalname}`);
+        if (evolutionFile)        proofUrl3 = await uploadToR2(evolutionFile,        `approval/${userId}-${pokemon_id}-${ts}-hist-evo-${evolutionFile.originalname}`);
+        if (evolutionSummaryFile) proofUrl4 = await uploadToR2(evolutionSummaryFile, `approval/${userId}-${pokemon_id}-${ts}-hist-evo-summary-${evolutionSummaryFile.originalname}`);
+        for (const ef of extraFiles) {
+          extraImageUrls.push(await uploadToR2(ef, `approval/${userId}-${pokemon_id}-${ts}-hist-extra-${ef.originalname}`));
+        }
       } catch (r2Error) {
         return res.status(500).json({ error: 'File upload failed', details: r2Error.message });
       }
@@ -2676,8 +2667,12 @@ app.post('/api/upload/historical-submission', uploadRateLimit, upload.fields([{ 
         month_id,
         proof_url: proofUrl,
         proof_url2: proofUrl2,
+        proof_url3: proofUrl3,
+        proof_url4: proofUrl4,
+        extra_images: extraImageUrls.length > 0 ? extraImageUrls : null,
         proof_link: proofLinks.length > 0 ? proofLinks : null,
         game,
+        caught_in_game,
         restricted_submission: isRestricted,
         historical: true,
         note,
@@ -2836,7 +2831,7 @@ app.post('/api/approvals/:id/approve', async (req, res) => {
     // Get approval details including image URLs BEFORE deleting the record
     const { data: approval, error: approvalFetchError } = await supabase
       .from('approvals')
-      .select('user_id, pokemon_id, proof_url, proof_url2, proof_link, game, historical, month_id, restricted_submission, created_at')
+      .select('user_id, pokemon_id, proof_url, proof_url2, proof_url3, proof_url4, extra_images, proof_link, game, caught_in_game, historical, month_id, restricted_submission, created_at')
       .eq('id', id)
       .single();
 
@@ -2897,7 +2892,11 @@ app.post('/api/approvals/:id/approve', async (req, res) => {
           restricted_submission: isUpgradedHistorical || (!isDowngradedHistorical && !!approval.restricted_submission),
           proof_url: approval.proof_url,
           proof_url2: approval.proof_url2,
+          proof_url3: approval.proof_url3,
+          proof_url4: approval.proof_url4,
+          extra_images: approval.extra_images,
           proof_link: approval.proof_link,
+          caught_in_game: approval.caught_in_game,
           had_images: !!(approval.proof_url || approval.proof_url2),
           status: historicalStatus,
           moderator_id: moderatorId,
@@ -2973,7 +2972,11 @@ app.post('/api/approvals/:id/approve', async (req, res) => {
         restricted_submission: !!approval.restricted_submission,
         proof_url: approval.proof_url,
         proof_url2: approval.proof_url2,
+        proof_url3: approval.proof_url3,
+        proof_url4: approval.proof_url4,
+        extra_images: approval.extra_images,
         proof_link: approval.proof_link,
+        caught_in_game: approval.caught_in_game,
         had_images: !!(approval.proof_url || approval.proof_url2),
         status: approvalStatus || 'accepted',
         moderator_id: moderatorId,
@@ -3021,7 +3024,7 @@ app.post('/api/approvals/:id/reject', async (req, res) => {
     // Get approval details including image URLs BEFORE deleting the record
     const { data: approval, error: approvalFetchError } = await supabase
       .from('approvals')
-      .select('user_id, pokemon_id, proof_url, proof_url2, proof_link, game, historical, month_id, restricted_submission, created_at')
+      .select('user_id, pokemon_id, proof_url, proof_url2, proof_url3, proof_url4, extra_images, proof_link, game, caught_in_game, historical, month_id, restricted_submission, created_at')
       .eq('id', id)
       .single();
 
@@ -3078,7 +3081,11 @@ app.post('/api/approvals/:id/reject', async (req, res) => {
           restricted_submission: !!approval.restricted_submission,
           proof_url: approval.proof_url,
           proof_url2: approval.proof_url2,
+          proof_url3: approval.proof_url3,
+          proof_url4: approval.proof_url4,
+          extra_images: approval.extra_images,
           proof_link: approval.proof_link,
+          caught_in_game: approval.caught_in_game,
           had_images: !!(approval.proof_url || approval.proof_url2),
           status: historicalNotifStatus,
           moderator_id: moderatorId,
@@ -3145,7 +3152,11 @@ app.post('/api/approvals/:id/reject', async (req, res) => {
         restricted_submission: !!approval.restricted_submission,
         proof_url: approval.proof_url,
         proof_url2: approval.proof_url2,
+        proof_url3: approval.proof_url3,
+        proof_url4: approval.proof_url4,
+        extra_images: approval.extra_images,
         proof_link: approval.proof_link,
+        caught_in_game: approval.caught_in_game,
         had_images: !!(approval.proof_url || approval.proof_url2),
         status: rpcStatus,
         moderator_id: moderatorId,
@@ -3207,6 +3218,38 @@ app.post('/api/user/sync-avatar', async (req, res) => {
   } catch (err) {
     console.error('sync-avatar error:', err.message);
     res.status(500).json({ error: 'Failed to sync avatar' });
+  }
+});
+
+app.post('/api/user/accept-tos', async (req, res) => {
+  try {
+    const userId = await getAuthenticatedUserId(req);
+    if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+    const { error } = await supabase
+      .from('users')
+      .update({ tos_accepted_at: new Date().toISOString() })
+      .eq('id', userId);
+    if (error) return res.status(500).json({ error: error.message });
+    res.json({ ok: true });
+  } catch (error) {
+    console.error('Error accepting ToS:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+app.get('/api/user/tos-status', async (req, res) => {
+  try {
+    const userId = await getAuthenticatedUserId(req);
+    if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+    const { data } = await supabase
+      .from('users')
+      .select('tos_accepted_at')
+      .eq('id', userId)
+      .single();
+    res.json({ accepted: !!data?.tos_accepted_at });
+  } catch (error) {
+    console.error('Error checking ToS status:', error);
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -3432,8 +3475,12 @@ app.get('/api/approvals/pending', async (req, res) => {
         created_at,
         proof_url,
         proof_url2,
+        proof_url3,
+        proof_url4,
+        extra_images,
         proof_link,
         game,
+        caught_in_game,
         user_id,
         pokemon_id,
         month_id,
@@ -3475,8 +3522,12 @@ app.get('/api/approvals/pending', async (req, res) => {
       created_at: approval.created_at,
       proof_url: approval.proof_url,
       proof_url2: approval.proof_url2,
+      proof_url3: approval.proof_url3 ?? null,
+      proof_url4: approval.proof_url4 ?? null,
+      extra_images: approval.extra_images ?? null,
       proof_link: approval.proof_link ?? null,
       game: approval.game || null,
+      caught_in_game: approval.caught_in_game ?? null,
       user_id: approval.user_id,
       display_name: approval.users?.display_name || 'Unknown',
       pokemon_name: approval.pokemon_master?.name || 'Unknown',
@@ -6609,7 +6660,7 @@ app.get('/api/approvals/history', async (req, res) => {
 
     const { data: history, error } = await supabase
       .from('approval_history')
-      .select('id, user_id, pokemon_id, month_id, game, historical, restricted_submission, proof_url, proof_url2, proof_link, had_images, status, moderator_id, created_at, processed_at')
+      .select('id, user_id, pokemon_id, month_id, game, caught_in_game, historical, restricted_submission, proof_url, proof_url2, proof_url3, proof_url4, extra_images, proof_link, had_images, status, moderator_id, created_at, processed_at')
       .order('processed_at', { ascending: false })
       .range(offset, offset + limit - 1);
 

@@ -33,7 +33,7 @@ function formatTime(secs) {
 }
 
 function formatPct(p) {
-  if (p >= 99.995) return '≈100%';
+  if (p >= 99.995) return '100%';
   if (p < 0.0005) return '<0.001%';
   if (p >= 10) return `${p.toFixed(1)}%`;
   if (p >= 1) return `${p.toFixed(2)}%`;

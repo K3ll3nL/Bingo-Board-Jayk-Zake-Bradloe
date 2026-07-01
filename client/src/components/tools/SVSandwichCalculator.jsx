@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
+
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -982,8 +982,6 @@ function TargetPowerTab({ fillings, condiments, playerCount = 1 }) {
 // ─── Main component ───────────────────────────────────────────────────────────
 
 export default function SVSandwichCalculator() {
-  const navigate = useNavigate();
-
   const [pageMode, setPageMode] = useState('builder'); // 'builder' | 'target'
   const [playerCount, setPlayerCount] = useState(1); // 1–4
 

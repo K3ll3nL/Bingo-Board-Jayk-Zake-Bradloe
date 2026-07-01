@@ -17,7 +17,6 @@ export default function TermsOfService() {
   React.useEffect(() => { window.scrollTo(0, 0); }, []);
 
   return (
-    <div className="min-h-screen" style={{ isolation: 'isolate', position: 'relative' }}>
     <PageBackground />
     <main className="max-w-3xl mx-auto px-4 py-8 space-y-5">
       <PageHeader title="Terms of Service" />
@@ -150,6 +149,5 @@ export default function TermsOfService() {
         </p>
       </Section>
     </main>
-    </div>
   );
 }
