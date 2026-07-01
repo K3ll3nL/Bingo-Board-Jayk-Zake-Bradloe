@@ -34,6 +34,10 @@ import CatchRateCalculator from './components/tools/CatchRateCalculator';
 import XYRadar from './components/tools/XYRadar';
 import XYRadarBuilder from './components/tools/XYRadarBuilder';
 import Login from './components/Login';
+import SafariZone from './components/tools/SafariZone';
+import PrivacyPolicy from './components/PrivacyPolicy';
+import TermsOfService from './components/TermsOfService';
+import ConsentModal from './components/ConsentModal';
 import logoImage from './Icons/pokemon-bounty-board.png';
 import logoIcon from './Icons/logo-mobile.png';
 
@@ -588,7 +592,10 @@ function App() {
             <Route path="/tools/catch-rate" element={<CatchRateCalculator />} />
             <Route path="/tools/xy-radar" element={<XYRadar />} />
             <Route path="/tools/xy-radar/builder" element={<XYRadarBuilder />} />
+            <Route path="/tools/safari-zone" element={<SafariZone />} />
             <Route path="/tools/:toolId" element={<ShinyTools />} />
+            <Route path="/privacy" element={<PrivacyPolicy />} />
+            <Route path="/terms" element={<TermsOfService />} />
             <Route path="*" element={<HomePage />} />
           </Route>
         </Routes>
