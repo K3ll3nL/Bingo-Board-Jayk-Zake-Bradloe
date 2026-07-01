@@ -32,6 +32,8 @@ const HistoricalUploadSection = () => {
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [game, setGame] = useState('');
   const [gameDropdownOpen, setGameDropdownOpen] = useState(false);
+  const [pokemonSearch, setPokemonSearch] = useState('');
+  const [gameSearch, setGameSearch] = useState('');
   const [mediaUrls, setMediaUrls] = useState(['']);
   const [mediaFile, setMediaFile] = useState(null);
   const [mediaFile2, setMediaFile2] = useState(null);
@@ -150,6 +152,15 @@ const HistoricalUploadSection = () => {
     return sortBy === 'dex' ? a.national_dex_id - b.national_dex_id : a.name.localeCompare(b.name);
   });
 
+  const pokemonQuery = pokemonSearch.trim().toLowerCase();
+  const searchedPokemon = pokemonQuery
+    ? sortedPokemon.filter(p => p.name.toLowerCase().includes(pokemonQuery) || String(p.national_dex_id).includes(pokemonQuery))
+    : sortedPokemon;
+  const gameQuery = gameSearch.trim().toLowerCase();
+  const searchedGames = gameQuery
+    ? filteredGames.filter(g => g.label.toLowerCase().includes(gameQuery))
+    : filteredGames;
+
   useEffect(() => {
     if (isLockedRestricted && !isRestricted) {
       setIsRestricted(true);
@@ -168,6 +179,7 @@ const HistoricalUploadSection = () => {
   const handleSelectPokemon = (pokeId) => {
     setSelectedPokemon(String(pokeId));
     setDropdownOpen(false);
+    setPokemonSearch('');
     const poke = (pokemon || []).find(p => p.id === pokeId);
     if (game) {
       const gameKey = ALLOWED_GAMES.find(g => g.label === game)?.key;
@@ -179,6 +191,7 @@ const HistoricalUploadSection = () => {
     const gameKey = ALLOWED_GAMES.find(g => g.label === gameLabel)?.key;
     setGame(gameLabel);
     setGameDropdownOpen(false);
+    setGameSearch('');
     if (selectedPokemon && gameKey && !(selectedPokeData?.[slugField] ?? []).includes(gameKey)) {
       setSelectedPokemon('');
     }
@@ -186,6 +199,7 @@ const HistoricalUploadSection = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    window.scrollTo({ top: 0, behavior: 'smooth' });
     if (!selectedPokemon)    { setError('Please select a Pokemon'); return; }
     if (!game.trim())        { setError('Please select the game you hunted in'); return; }
     if (isRestricted && activeChecklist.length > 0 && !activeChecklist.every(item => !!checkedItems[item.id])) {
@@ -331,7 +345,19 @@ const HistoricalUploadSection = () => {
           </button>
           {dropdownOpen && (
             <div className="absolute z-10 w-full mt-1 bg-gray-700 border border-gray-600 rounded-lg shadow-lg max-h-96 overflow-y-auto">
-              {sortedPokemon.map(poke => (
+              <div className="sticky top-0 bg-gray-700 p-2 border-b border-gray-600">
+                <input
+                  type="text"
+                  autoFocus
+                  value={pokemonSearch}
+                  onChange={(e) => setPokemonSearch(e.target.value)}
+                  placeholder="Search by name or dex #..."
+                  className="w-full p-2 bg-gray-800 text-white text-sm rounded border border-gray-600 focus:border-purple-500 focus:outline-none"
+                />
+              </div>
+              {searchedPokemon.length === 0 ? (
+                <div className="p-4 text-center text-gray-400 text-sm">No Pokémon found</div>
+              ) : searchedPokemon.map(poke => (
                 <button
                   key={poke.id}
                   type="button"
@@ -401,9 +427,19 @@ const HistoricalUploadSection = () => {
           </button>
           {gameDropdownOpen && (
             <div className="absolute z-20 w-full mt-1 bg-gray-700 border border-gray-600 rounded-lg shadow-lg max-h-72 overflow-y-auto">
-              {filteredGames.length === 0 ? (
-                <div className="p-4 text-center text-gray-400 text-sm">No games available for this Pokémon</div>
-              ) : filteredGames.map(g => (
+              <div className="sticky top-0 bg-gray-700 p-2 border-b border-gray-600">
+                <input
+                  type="text"
+                  autoFocus
+                  value={gameSearch}
+                  onChange={(e) => setGameSearch(e.target.value)}
+                  placeholder="Search games..."
+                  className="w-full p-2 bg-gray-800 text-white text-sm rounded border border-gray-600 focus:border-purple-500 focus:outline-none"
+                />
+              </div>
+              {searchedGames.length === 0 ? (
+                <div className="p-4 text-center text-gray-400 text-sm">No games found</div>
+              ) : searchedGames.map(g => (
                 <button
                   key={g.key}
                   type="button"
@@ -696,6 +732,8 @@ const Upload = () => {
   // game state stores the label string (human-readable, written to DB)
   const [game, setGame] = useState('');
   const [gameDropdownOpen, setGameDropdownOpen] = useState(false);
+  const [pokemonSearch, setPokemonSearch] = useState('');
+  const [gameSearch, setGameSearch] = useState('');
   const [mediaUrls, setMediaUrls] = useState(['']);
   const [mediaFile, setMediaFile] = useState(null);
   const [mediaFile2, setMediaFile2] = useState(null);
@@ -861,6 +899,16 @@ const Upload = () => {
     filteredGames = ALLOWED_GAMES;
   }
 
+  // ── Type-to-filter search over the dropdown lists ───────────────────────────
+  const pokemonQuery = pokemonSearch.trim().toLowerCase();
+  const searchedPokemon = pokemonQuery
+    ? sortedPokemon.filter(p => p.name.toLowerCase().includes(pokemonQuery) || String(p.national_dex_id).includes(pokemonQuery))
+    : sortedPokemon;
+  const gameQuery = gameSearch.trim().toLowerCase();
+  const searchedGames = gameQuery
+    ? filteredGames.filter(g => g.label.toLowerCase().includes(gameQuery))
+    : filteredGames;
+
   // ── Restricted button availability ──────────────────────────────────────────
   let isRestrictedAvailable;
   if (selectedPokemon && selectedGameKey) {
@@ -894,6 +942,7 @@ const Upload = () => {
     const poke = currentPokemonList.find(p => p.id === pokeId);
     setSelectedPokemon(String(pokeId));
     setDropdownOpen(false);
+    setPokemonSearch('');
     if (game && selectedGameKey && !(poke?.game_slugs ?? []).includes(selectedGameKey)) {
       setGame('');
     }
@@ -903,6 +952,7 @@ const Upload = () => {
     const gameKey = ALLOWED_GAMES.find(g => g.label === gameLabel)?.key;
     setGame(gameLabel);
     setGameDropdownOpen(false);
+    setGameSearch('');
     if (selectedPokemon && gameKey && !(selectedPokemonData?.game_slugs ?? []).includes(gameKey)) {
       setSelectedPokemon('');
     }
@@ -922,6 +972,7 @@ const Upload = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    window.scrollTo({ top: 0, behavior: 'smooth' });
 
     if (!selectedPokemon) { setError('Please select a Pokemon'); return; }
     if (!game.trim())     { setError('Please select the game you hunted in'); return; }
@@ -1134,9 +1185,19 @@ const Upload = () => {
 
                   {dropdownOpen && (
                     <div className="absolute z-10 w-full mt-1 bg-gray-700 border border-gray-600 rounded-lg shadow-lg max-h-96 overflow-y-auto">
-                      {sortedPokemon.length === 0 ? (
-                        <div className="p-4 text-center text-gray-400 text-sm">No Pokémon available for this game</div>
-                      ) : sortedPokemon.map((poke) => (
+                      <div className="sticky top-0 bg-gray-700 p-2 border-b border-gray-600">
+                        <input
+                          type="text"
+                          autoFocus
+                          value={pokemonSearch}
+                          onChange={(e) => setPokemonSearch(e.target.value)}
+                          placeholder="Search by name or dex #..."
+                          className="w-full p-2 bg-gray-800 text-white text-sm rounded border border-gray-600 focus:border-purple-500 focus:outline-none"
+                        />
+                      </div>
+                      {searchedPokemon.length === 0 ? (
+                        <div className="p-4 text-center text-gray-400 text-sm">No Pokémon found</div>
+                      ) : searchedPokemon.map((poke) => (
                         <button
                           key={poke.id}
                           type="button"
@@ -1210,9 +1271,19 @@ const Upload = () => {
 
                   {gameDropdownOpen && (
                     <div className="absolute z-20 w-full mt-1 bg-gray-700 border border-gray-600 rounded-lg shadow-lg max-h-72 overflow-y-auto">
-                      {filteredGames.length === 0 ? (
-                        <div className="p-4 text-center text-gray-400 text-sm">No games available for this Pokémon</div>
-                      ) : filteredGames.map((g) => (
+                      <div className="sticky top-0 bg-gray-700 p-2 border-b border-gray-600">
+                        <input
+                          type="text"
+                          autoFocus
+                          value={gameSearch}
+                          onChange={(e) => setGameSearch(e.target.value)}
+                          placeholder="Search games..."
+                          className="w-full p-2 bg-gray-800 text-white text-sm rounded border border-gray-600 focus:border-purple-500 focus:outline-none"
+                        />
+                      </div>
+                      {searchedGames.length === 0 ? (
+                        <div className="p-4 text-center text-gray-400 text-sm">No games found</div>
+                      ) : searchedGames.map((g) => (
                         <button
                           key={g.key}
                           type="button"

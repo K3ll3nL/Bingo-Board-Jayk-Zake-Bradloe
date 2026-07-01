@@ -4216,18 +4216,60 @@ app.get('/api/mod/board-builder', async (req, res) => {
 
     // Fetch pokemon data for all pokemon on the board to count categories
     const boardPokemonIds = tiles.map(t => t.pokemon?.id || t.pokemon_id).filter(Boolean);
+    const gameSlugsMap = {};       // pokemon_id -> game_slugs[]
+    const restrictedSlugsMap = {}; // pokemon_id -> restricted_game_slugs[]
     if (boardPokemonIds.length > 0) {
       const { data: boardPokemon } = await supabase
         .from('pokemon_master')
-        .select('id, legendary, baby, ultra_beast, paradox, starter, fossil, regional_alt, pseudo_legendary')
+        .select('id, game_slugs, restricted_game_slugs, legendary, baby, ultra_beast, paradox, starter, fossil, regional_alt, pseudo_legendary')
         .in('id', boardPokemonIds);
 
       (boardPokemon || []).forEach(p => {
+        gameSlugsMap[p.id] = p.game_slugs || [];
+        restrictedSlugsMap[p.id] = p.restricted_game_slugs || [];
         categories.forEach(cat => {
           if (p[cat] === true) boardCategoryCounts[cat]++;
         });
       });
     }
+
+    // ── Per-game utilization stats ───────────────────────────────────────────
+    // Compares each game's share of the board against its share of the full
+    // dex, so mods can spot games that are over/under-represented (e.g. a small
+    // dex like Legends: Arceus filling half the board). Computed for both the
+    // standard pool (game_slugs) and the restricted pool (restricted_game_slugs).
+    let boardMonTotal = 0;
+    tiles.forEach(t => { if (t.pokemon?.id || t.pokemon_id) boardMonTotal++; });
+
+    const { count: dexTotal } = await supabase
+      .from('pokemon_master')
+      .select('*', { count: 'exact', head: true });
+
+    // Build { gameKey: { boardCount, dexCount } } for a given slug map + column.
+    const buildGameStats = async (slugMap, slugColumn) => {
+      const boardCounts = {};
+      tiles.forEach(t => {
+        const pid = t.pokemon?.id || t.pokemon_id;
+        if (!pid) return;
+        (slugMap[pid] || []).forEach(g => { boardCounts[g] = (boardCounts[g] || 0) + 1; });
+      });
+      const keys = Object.keys(boardCounts);
+      const dexCounts = await Promise.all(
+        keys.map(g =>
+          supabase.from('pokemon_master').select('*', { count: 'exact', head: true }).contains(slugColumn, [g])
+        )
+      );
+      const stats = {};
+      keys.forEach((g, i) => {
+        stats[g] = { boardCount: boardCounts[g], dexCount: dexCounts[i].count || 0 };
+      });
+      return stats;
+    };
+
+    const [gameStats, restrictedGameStats] = await Promise.all([
+      buildGameStats(gameSlugsMap, 'game_slugs'),
+      buildGameStats(restrictedSlugsMap, 'restricted_game_slugs'),
+    ]);
 
     // Build category stats with actual board counts + expected distribution
     const categoryStats = {};
@@ -4262,7 +4304,7 @@ app.get('/api/mod/board-builder', async (req, res) => {
       }
     }
 
-    res.json({ nextMonth, tiles, categoryStats, lockedPositions });
+    res.json({ nextMonth, tiles, categoryStats, lockedPositions, gameStats, restrictedGameStats, boardMonTotal, dexTotal });
 
   } catch (err) {
     console.error('[BoardBuilder] Unexpected error:', err);

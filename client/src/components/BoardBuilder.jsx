@@ -7,6 +7,116 @@ import logoImage from '../Icons/pokemon-bounty-board.png';
 import PageBackground from './PageBackground';
 import PageHeader from './PageHeader';
 import PokemonImage from './PokemonImage';
+import { ALLOWED_GAMES } from '../constants/games';
+
+// key -> { label, shortLabel, img }
+const GAME_META = ALLOWED_GAMES.reduce((acc, g) => {
+  acc[g.key] = {
+    label: g.label,
+    shortLabel: g.label.replace(/^Pokémon\s+/, ''),
+    img: g.img_urls?.[0] ?? null,
+  };
+  return acc;
+}, {});
+
+// ─── Game Utilization visualizer ──────────────────────────────────────────────
+// Compares each game's share of the board vs its share of the full dex.
+// A small-dex game filling lots of slots is "over-utilized"; a big-dex game
+// with few slots is "under-utilized".
+function GameUtilization({ gameStats, restrictedGameStats, boardMonTotal, dexTotal }) {
+  const [mode, setMode] = useState('standard'); // 'standard' | 'restricted'
+
+  if (!gameStats || !boardMonTotal || !dexTotal) return null;
+
+  const activeStats = mode === 'restricted' ? (restrictedGameStats || {}) : gameStats;
+
+  const rows = Object.entries(activeStats)
+    .map(([key, { boardCount, dexCount }]) => {
+      const boardShare = boardCount / boardMonTotal;
+      const dexShare   = dexCount / dexTotal;
+      const ratio      = dexShare > 0 ? boardShare / dexShare : Infinity;
+      return { key, boardCount, dexCount, boardShare, dexShare, ratio };
+    })
+    .filter(r => r.boardCount > 0)
+    .sort((a, b) => b.ratio - a.ratio);
+
+  const OVER = '#f87171';
+  const UNDER = '#60a5fa';
+  const GRAY = '#9ca3af';
+
+  const pct = (n) => `${Math.round(n * 100)}%`;
+  // Signed deviation from balanced (ratio 1), clamped to ±1 → half-bar fraction
+  const half = (ratio) => Math.min(Math.abs((ratio === Infinity ? 3 : ratio) - 1), 1) * 50;
+  const color = (ratio) => (ratio >= 1.25 ? OVER : ratio <= 0.8 ? UNDER : GRAY);
+
+  return (
+    <div className="p-4 bg-gray-900/50 rounded-lg border border-gray-700">
+      <div className="flex items-center justify-between gap-2 mb-2">
+        <h3 className="text-sm font-semibold text-gray-200">Game Utilization</h3>
+        <div className="flex rounded-md overflow-hidden border border-gray-600 divide-x divide-gray-600 flex-shrink-0">
+          <button
+            type="button"
+            onClick={() => setMode('standard')}
+            className={`px-2 py-0.5 text-[10px] font-medium transition-colors ${mode === 'standard' ? 'bg-purple-500 text-white' : 'bg-gray-800 text-gray-300 hover:text-white'}`}
+          >
+            Standard
+          </button>
+          <button
+            type="button"
+            onClick={() => setMode('restricted')}
+            className={`px-2 py-0.5 text-[10px] font-medium transition-colors ${mode === 'restricted' ? 'bg-[#78150a] text-white' : 'bg-gray-800 text-gray-300 hover:text-white'}`}
+          >
+            Restricted
+          </button>
+        </div>
+      </div>
+      <p className="text-[11px] text-gray-500 mb-2 leading-snug">
+        Board share ÷ dex share. Bars grow right if a game is
+        <span style={{ color: OVER }}> over-</span> and left if
+        <span style={{ color: UNDER }}> under-</span>represented.
+      </p>
+      {rows.length === 0 ? (
+        <p className="text-[11px] text-gray-500 py-3 text-center">
+          No {mode === 'restricted' ? 'restricted-eligible ' : ''}Pokémon on the board.
+        </p>
+      ) : (
+      <div className="space-y-1">
+        {rows.map(r => {
+          const over = r.ratio >= 1;
+          const w = half(r.ratio);
+          const c = color(r.ratio);
+          const meta = GAME_META[r.key] ?? { shortLabel: r.key, img: null };
+          return (
+            <div
+              key={r.key}
+              className="flex items-center gap-2"
+              title={`Board ${pct(r.boardShare)} of slots · Dex ${pct(r.dexShare)} of Pokédex`}
+            >
+              <div className="flex items-center gap-1 w-28 flex-shrink-0 min-w-0">
+                {meta.img && <img src={meta.img} alt="" className="w-3.5 h-3.5 object-contain flex-shrink-0" />}
+                <span className="text-[11px] text-gray-300 truncate" title={meta.label}>{meta.shortLabel}</span>
+              </div>
+              {/* Diverging bar: center = balanced */}
+              <div className="relative flex-1 h-3 rounded bg-gray-800/60">
+                <div className="absolute top-0 bottom-0 left-1/2 w-px bg-gray-600" />
+                <div
+                  className="absolute top-0.5 bottom-0.5 rounded-sm"
+                  style={over
+                    ? { left: '50%', width: `${w}%`, background: c }
+                    : { left: `${50 - w}%`, width: `${w}%`, background: c }}
+                />
+              </div>
+              <span className="text-[11px] font-semibold w-9 text-right tabular-nums flex-shrink-0" style={{ color: c }}>
+                {r.ratio === Infinity ? '∞' : `${r.ratio.toFixed(1)}×`}
+              </span>
+            </div>
+          );
+        })}
+      </div>
+      )}
+    </div>
+  );
+}
 
 const supabaseClient = createClient(
   import.meta.env.VITE_SUPABASE_URL,
@@ -79,6 +189,9 @@ export default function BoardBuilder() {
 
   const [tiles, setTiles]           = useState([]);
   const [categoryStats, setCategoryStats] = useState(null);
+  const [gameStats, setGameStats]   = useState(null);
+  const [restrictedGameStats, setRestrictedGameStats] = useState(null);
+  const [boardMeta, setBoardMeta]   = useState({ boardMonTotal: 0, dexTotal: 0 });
   const [nextMonth, setNextMonth]   = useState(null);
   const [loading, setLoading]       = useState(true);
   const [error, setError]           = useState(null);
@@ -124,12 +237,30 @@ export default function BoardBuilder() {
       const enrichedTiles = data.tiles.map(tile => enrichTileWithPokemon(tile, data.tiles));
       setTiles(enrichedTiles);
       setCategoryStats(data.categoryStats);
+      setGameStats(data.gameStats || null);
+      setRestrictedGameStats(data.restrictedGameStats || null);
+      setBoardMeta({ boardMonTotal: data.boardMonTotal || 0, dexTotal: data.dexTotal || 0 });
       setLockedPositions(data.lockedPositions || Array(26).fill(false));
     } catch (err) {
       setError(err.message);
     } finally {
       setLoading(false);
     }
+  };
+
+  // Silently re-fetch just the utilization stats (board composition changed).
+  // Doesn't touch tiles/locks, so it won't disrupt in-flight animations.
+  const refreshGameStats = async () => {
+    try {
+      const res = await fetch('/api/mod/board-builder', {
+        headers: { Authorization: await getAuthHeader() },
+      });
+      if (!res.ok) return;
+      const data = await res.json();
+      setGameStats(data.gameStats || null);
+      setRestrictedGameStats(data.restrictedGameStats || null);
+      setBoardMeta({ boardMonTotal: data.boardMonTotal || 0, dexTotal: data.dexTotal || 0 });
+    } catch { /* non-critical */ }
   };
 
   // ── Realtime ──────────────────────────────────────────────────────────────
@@ -158,6 +289,7 @@ export default function BoardBuilder() {
         setTiles(prev => prev.map(t => t.position === tile.position ? enrichTileWithPokemon(tile, prev) : t));
         setFadingOut(prev => { const n = new Set(prev); n.delete(tile.position); return n; });
       }, 300);
+      refreshGameStats();
     } else if (payload.type === 'refresh-all') {
       const allPositions = new Set(payload.tiles.map(t => t.position));
       setFadingOut(prev => new Set([...prev, ...allPositions]));
@@ -170,6 +302,7 @@ export default function BoardBuilder() {
         if (payload.categoryStats) setCategoryStats(payload.categoryStats);
         setFadingOut(new Set());
       }, 300);
+      refreshGameStats();
     } else if (payload.type === 'shuffle') {
       const positionsToFade = new Set(payload.updates.map(u => u.newPosition));
       setFadingOut(prev => new Set([...prev, ...positionsToFade]));
@@ -218,6 +351,7 @@ export default function BoardBuilder() {
         setTiles(prev => prev.map(t => t.position === position ? enrichTileWithPokemon(tile, prev) : t));
         setFadingOut(prev => { const n = new Set(prev); n.delete(position); return n; });
       }, 300);
+      refreshGameStats();
     } catch (err) {
       console.error('Reroll failed:', err);
       pendingOps.current.delete(opId);
@@ -379,6 +513,7 @@ export default function BoardBuilder() {
         });
         setFadingOut(new Set());
       }, 300);
+      refreshGameStats();
     } catch (err) {
       console.error('Refresh all failed:', err);
       pendingOps.current.delete(opId);
@@ -489,6 +624,11 @@ export default function BoardBuilder() {
       <PageBackground />
       {/* Header */}
       <PageHeader title="Board Builder" badge="mod" />
+
+      {/* Right-docked utilization panel (large screens) — doesn't shift the board */}
+      <aside className="hidden xl:block xl:absolute xl:top-24 xl:right-6 xl:w-80 2xl:w-96">
+        <GameUtilization gameStats={gameStats} restrictedGameStats={restrictedGameStats} boardMonTotal={boardMeta.boardMonTotal} dexTotal={boardMeta.dexTotal} />
+      </aside>
 
       {/* Grid */}
       <div className="max-w-2xl mx-auto px-4 pt-6 pb-8">
@@ -674,6 +814,11 @@ export default function BoardBuilder() {
             </div>
           </div>
         )}
+
+        {/* Utilization panel inline for smaller screens */}
+        <div className="mt-6 xl:hidden">
+          <GameUtilization gameStats={gameStats} restrictedGameStats={restrictedGameStats} boardMonTotal={boardMeta.boardMonTotal} dexTotal={boardMeta.dexTotal} />
+        </div>
       </div>
     </div>
   );

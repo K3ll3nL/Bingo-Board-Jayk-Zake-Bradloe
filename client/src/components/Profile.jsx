@@ -598,6 +598,35 @@ const HistoryTab = ({ userId, monthlyData, stats, onPokemonClick, accentColor })
   );
 };
 
+// ── Social handles ───────────────────────────────────────────
+// Users enter only their handle; we store/display full URLs so Twitch
+// live-status (which does twitch_url.split('/').pop()) keeps working.
+const SOCIAL_PREFIX = {
+  twitch_url:   'https://twitch.tv/',
+  youtube_url:  'https://youtube.com/@',
+  shinydex_url: 'https://shinydex.com/',
+};
+
+const handleFromUrl = (key, value) => {
+  if (!value) return '';
+  let h = String(value).trim();
+  const prefix = SOCIAL_PREFIX[key];
+  if (prefix && h.toLowerCase().startsWith(prefix.toLowerCase())) {
+    h = h.slice(prefix.length);
+  } else if (/^https?:\/\//i.test(h)) {
+    // Unknown full URL — fall back to the last path segment
+    h = h.replace(/\/+$/, '').split('/').pop();
+  }
+  return h.replace(/^@/, '');
+};
+
+const urlFromHandle = (key, handle) => {
+  const h = String(handle || '').trim().replace(/^@/, '').replace(/^\/+/, '');
+  if (!h) return '';
+  if (/^https?:\/\//i.test(h)) return h; // user pasted a full URL anyway
+  return (SOCIAL_PREFIX[key] || '') + h;
+};
+
 // ── Main ──────────────────────────────────────────────────────
 const Profile = () => {
   const { user, identities, linkIdentity, unlinkIdentity, refreshIdentities } = useAuth();
@@ -641,9 +670,9 @@ const Profile = () => {
       .then(data => {
         setProfile(data);
         setSocialForm({
-          twitch_url: data.user.twitch_url || '',
-          youtube_url: data.user.youtube_url || '',
-          shinydex_url: data.user.shinydex_url || '',
+          twitch_url: handleFromUrl('twitch_url', data.user.twitch_url),
+          youtube_url: handleFromUrl('youtube_url', data.user.youtube_url),
+          shinydex_url: handleFromUrl('shinydex_url', data.user.shinydex_url),
         });
       })
       .catch(() => setError('Failed to load profile'))
@@ -654,13 +683,18 @@ const Profile = () => {
     setSocialSaving(true);
     try {
       const headers = await getAuthHeaders();
+      const payload = {
+        twitch_url: urlFromHandle('twitch_url', socialForm.twitch_url),
+        youtube_url: urlFromHandle('youtube_url', socialForm.youtube_url),
+        shinydex_url: urlFromHandle('shinydex_url', socialForm.shinydex_url),
+      };
       const res = await fetch(`/api/users/${profileUserId}/socials`, {
         method: 'PUT',
         headers,
-        body: JSON.stringify(socialForm),
+        body: JSON.stringify(payload),
       });
       if (res.ok) {
-        setProfile(p => ({ ...p, user: { ...p.user, ...socialForm } }));
+        setProfile(p => ({ ...p, user: { ...p.user, ...payload } }));
         setEditingSocials(false);
       }
     } catch {}
@@ -806,7 +840,7 @@ const Profile = () => {
                 )}
                 {isOwnProfile && (
                   <>
-                    <button onClick={() => { setSocialForm({ twitch_url: profile.user.twitch_url || '', youtube_url: profile.user.youtube_url || '', shinydex_url: profile.user.shinydex_url || '' }); setEditingSocials(e => !e); }}
+                    <button onClick={() => { setSocialForm({ twitch_url: handleFromUrl('twitch_url', profile.user.twitch_url), youtube_url: handleFromUrl('youtube_url', profile.user.youtube_url), shinydex_url: handleFromUrl('shinydex_url', profile.user.shinydex_url) }); setEditingSocials(e => !e); }}
                       className="flex justify-center items-center gap-1.5 px-3 py-2 rounded-lg text-sm transition-all"
                       style={{ color: editingSocials ? '#fff' : 'rgba(255,255,255,0.35)', border: `1px solid ${editingSocials ? 'rgba(255,255,255,0.15)' : CARD.border}`, backgroundColor: editingSocials ? 'rgba(255,255,255,0.08)' : 'transparent' }}>
                       <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -873,20 +907,23 @@ const Profile = () => {
               {editingSocials && (
                 <div className="mt-2 rounded-xl p-3 border space-y-2" style={{ background: CARD.inner, borderColor: CARD.border }}>
                   {[
-                    { key: 'twitch_url', label: 'Twitch URL', placeholder: 'https://twitch.tv/yourname', color: '#9147ff' },
-                    { key: 'youtube_url', label: 'YouTube URL', placeholder: 'https://youtube.com/@yourname', color: '#ff4444' },
-                    { key: 'shinydex_url', label: 'Shinydex URL', placeholder: 'https://shinydex.com/...', color: '#eab308' },
-                  ].map(({ key, label, placeholder, color }) => (
+                    { key: 'twitch_url', label: 'Twitch Handle', prefix: 'twitch.tv/', placeholder: 'yourname', color: '#9147ff' },
+                    { key: 'youtube_url', label: 'YouTube Handle', prefix: 'youtube.com/@', placeholder: 'yourname', color: '#ff4444' },
+                    { key: 'shinydex_url', label: 'Shinydex Handle', prefix: 'shinydex.com/', placeholder: 'yourname', color: '#eab308' },
+                  ].map(({ key, label, prefix, placeholder, color }) => (
                     <div key={key}>
                       <label className="text-[10px] uppercase tracking-wider mb-1 block" style={{ color }}>{label}</label>
-                      <input
-                        type="url"
-                        value={socialForm[key]}
-                        onChange={e => setSocialForm(f => ({ ...f, [key]: e.target.value }))}
-                        placeholder={placeholder}
-                        className="w-full rounded-lg px-3 py-2 text-sm text-white placeholder-gray-600 outline-none transition-colors"
-                        style={{ background: CARD.bg, border: `1px solid ${CARD.border}` }}
-                      />
+                      <div className="flex items-stretch rounded-lg overflow-hidden" style={{ border: `1px solid ${CARD.border}` }}>
+                        <span className="flex items-center px-2 text-xs whitespace-nowrap select-none" style={{ background: CARD.inner, color: 'rgba(255,255,255,0.4)' }}>{prefix}</span>
+                        <input
+                          type="text"
+                          value={socialForm[key]}
+                          onChange={e => setSocialForm(f => ({ ...f, [key]: e.target.value }))}
+                          placeholder={placeholder}
+                          className="flex-1 min-w-0 px-3 py-2 text-sm text-white placeholder-gray-600 outline-none transition-colors"
+                          style={{ background: CARD.bg }}
+                        />
+                      </div>
                     </div>
                   ))}
                   <button onClick={handleSaveSocials} disabled={socialSaving}

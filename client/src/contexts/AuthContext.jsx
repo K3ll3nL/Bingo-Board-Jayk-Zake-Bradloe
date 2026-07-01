@@ -55,8 +55,11 @@ export const AuthProvider = ({ children }) => {
     } catch { setIdentities([]); }
   };
 
-  // Check pro status whenever the user changes
+  // Check pro status whenever the user changes.
+  // Wait for auth to finish loading before resolving — otherwise a page refresh
+  // briefly sees user=null and flips these flags to false, bouncing gated pages home.
   useEffect(() => {
+    if (loading) return;
     if (!user) { setIsPro(false); return; }
     const checkPro = async () => {
       try {
@@ -74,10 +77,12 @@ export const AuthProvider = ({ children }) => {
       } catch { setIsPro(false); }
     };
     checkPro();
-  }, [user]);
+  }, [user, loading]);
 
-  // Check moderator status whenever the user changes
+  // Check moderator status whenever the user changes.
+  // Gated on `loading` for the same reason as the pro check above.
   useEffect(() => {
+    if (loading) return;
     if (!user) { setIsModerator(false); return; }
     const checkMod = async () => {
       try {
@@ -95,7 +100,7 @@ export const AuthProvider = ({ children }) => {
       } catch { setIsModerator(false); }
     };
     checkMod();
-  }, [user]);
+  }, [user, loading]);
 
   // Realtime subscriptions live here so they survive route changes
   useEffect(() => {
