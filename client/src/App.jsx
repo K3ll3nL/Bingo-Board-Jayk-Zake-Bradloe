@@ -40,6 +40,7 @@ import TermsOfService from './components/TermsOfService';
 import ConsentModal from './components/ConsentModal';
 import logoImage from './Icons/pokemon-bounty-board.png';
 import logoIcon from './Icons/logo-mobile.png';
+import { getAuthHeaders } from './services/api';
 
 
 // Scroll to top on every route change
@@ -59,9 +60,35 @@ const AppLayout = () => {
   const [drawerOpen, setDrawerOpen] = React.useState(false);
   const [feedbackOpen, setFeedbackOpen] = React.useState(false);
   const [bannerManagerOpen, setBannerManagerOpen] = React.useState(false);
+  const [pendingApprovals, setPendingApprovals] = React.useState(0);
   const menuRef = React.useRef(null);
 
   const isHome = location.pathname === '/';
+
+  // Moderator-only: track pending approval count for the header badge
+  React.useEffect(() => {
+    if (!isModerator) { setPendingApprovals(0); return; }
+    let cancelled = false;
+    const loadPending = async () => {
+      try {
+        const headers = await getAuthHeaders();
+        const [normalRes, histRes] = await Promise.all([
+          fetch('/api/approvals/pending', { headers }),
+          fetch('/api/approvals/pending?historical=true', { headers }),
+        ]);
+        const normal = normalRes.ok ? await normalRes.json() : [];
+        const hist = histRes.ok ? await histRes.json() : [];
+        const count = (Array.isArray(normal) ? normal.length : 0) + (Array.isArray(hist) ? hist.length : 0);
+        if (!cancelled) setPendingApprovals(count);
+      } catch { /* ignore */ }
+    };
+    loadPending();
+    const channel = supabase
+      .channel('header-approvals-count')
+      .on('broadcast', { event: 'queue-changed' }, loadPending)
+      .subscribe();
+    return () => { cancelled = true; supabase.removeChannel(channel); };
+  }, [isModerator]);
 
   // Close drawer on route change
   React.useEffect(() => { setDrawerOpen(false); }, [location.pathname]);
@@ -237,6 +264,16 @@ const AppLayout = () => {
   /* ── Shared action buttons (upload + bell) ── */
   const actionButtons = user && (
     <>
+      {isModerator && (
+        <button onClick={() => navigate('/approvals')} className="relative p-2 text-gray-400 hover:text-white hover:bg-gray-700 rounded-lg transition-colors" title="Approvals">
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+          {pendingApprovals > 0 && (
+            <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] px-1 flex items-center justify-center rounded-full bg-red-500 text-white text-[10px] font-bold leading-none">
+              {pendingApprovals > 99 ? '99+' : pendingApprovals}
+            </span>
+          )}
+        </button>
+      )}
       <button onClick={() => navigate('/upload')} className="p-2 text-gray-400 hover:text-white hover:bg-gray-700 rounded-lg transition-colors" title="Upload">
         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" /></svg>
       </button>
