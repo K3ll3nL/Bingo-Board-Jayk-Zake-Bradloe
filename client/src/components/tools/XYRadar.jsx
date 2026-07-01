@@ -268,7 +268,7 @@ function InteractiveTileMap({ mapData, playerPos, onPlacePlayer, onHoverTile, ma
                 onMouseEnter={() => handleMouseEnter(x, y)}
                 onClick={() => handleClick(x, y)}
               >
-                {showLabels && !isPlayer && cont !== undefined && (
+                {showLabels && !isPlayer && cont !== undefined && cont < 100 && (
                   <span style={{
                     fontSize: Math.min(12, Math.floor(tileSize * 0.32)) + 'px',
                     fontWeight: 700,
@@ -765,7 +765,7 @@ export default function XYRadar() {
         </div>
       )}
       <p className="text-[10px] text-gray-600">
-        {playerPos && <>Numbers show chain continuation chance (%) if you enter that patch · </>}
+        {playerPos && <>Numbers show chain continuation chance (%) · blank = 100% continue · </>}
         <span className="text-gray-500">Ctrl+Scroll to zoom</span>
       </p>
     </div>
