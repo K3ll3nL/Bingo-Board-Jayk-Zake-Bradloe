@@ -16,7 +16,10 @@ const PokemonModal = ({ pokemon, onClose, monthId = null }) => {
 
   const loadRecentCatches = async () => {
     try {
-      const response = await fetch(`/api/pokemon/${pokemon.pokemon_id}/recent-catches`);
+      const url = monthId
+        ? `/api/pokemon/${pokemon.pokemon_id}/recent-catches?monthId=${monthId}`
+        : `/api/pokemon/${pokemon.pokemon_id}/recent-catches`;
+      const response = await fetch(url);
       if (!response.ok) throw new Error('Failed to load recent catches');
       const data = await response.json();
       setRecentCatches(data);
@@ -81,7 +84,7 @@ const PokemonModal = ({ pokemon, onClose, monthId = null }) => {
   } else {
     submitLabel = 'Submit Catch';
     isDisabled = false;
-    submitBtnClass = 'bg-gray-700 hover:bg-gray-600 text-white cursor-pointer';
+    submitBtnClass = 'bg-purple-600 hover:bg-purple-700 text-white cursor-pointer';
     submitIconContent = <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />;
   }
 
@@ -91,12 +94,12 @@ const PokemonModal = ({ pokemon, onClose, monthId = null }) => {
       onClick={onClose}
     >
       <div
-        className="rounded-lg shadow-xl w-full max-w-2xl flex flex-col"
-        style={{ backgroundColor: '#35373b', height: '80vh', maxHeight: '640px' }}
+        className="rounded-2xl shadow-xl w-full max-w-2xl flex flex-col"
+        style={{ background: 'linear-gradient(160deg, #13151a 0%, #181a21 100%)', border: '1px solid rgba(255,255,255,0.07)', height: '80vh', maxHeight: '640px' }}
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header — fixed */}
-        <div className="flex-shrink-0 p-6 border-b border-gray-600">
+        <div className="flex-shrink-0 p-6 border-b border-white/[0.07]">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
               <img
@@ -128,7 +131,7 @@ const PokemonModal = ({ pokemon, onClose, monthId = null }) => {
           ) : recentCatches.length === 0 ? (
             <div className="text-gray-400 text-center py-4">No catches yet</div>
           ) : (
-            <div className="divide-y" style={{ borderColor: '#404040' }}>
+            <div className="divide-y divide-gray-800">
               {recentCatches.map((entry, index) => (
                 <div
                   key={entry.id}
@@ -136,7 +139,7 @@ const PokemonModal = ({ pokemon, onClose, monthId = null }) => {
                     navigate(`/profile/${entry.user_id}`);
                     onClose();
                   }}
-                  className="p-2 flex items-center justify-between transition-colors cursor-pointer hover:bg-gray-600"
+                  className="p-2 flex items-center justify-between transition-colors cursor-pointer hover:bg-white/[0.04]"
                 >
                   <div className="flex items-center gap-3">
                     <div className="flex items-center justify-center w-8 h-8">
@@ -177,12 +180,12 @@ const PokemonModal = ({ pokemon, onClose, monthId = null }) => {
         </div>
 
         {/* Footer buttons — always pinned */}
-        <div className="flex-shrink-0 grid grid-cols-2 gap-px bg-gray-600">
+        <div className="flex-shrink-0 grid grid-cols-2 gap-px border-t border-white/[0.07]">
           <a
             href={`https://bulbapedia.bulbagarden.net/wiki/${pokemon.pokemon_name}_(Pok%C3%A9mon)#Game_locations`}
             target="_blank"
             rel="noopener noreferrer"
-            className="p-4 bg-gray-700 hover:bg-gray-600 text-white text-center font-medium transition-colors flex items-center justify-center gap-2"
+            className="p-4 bg-transparent hover:bg-white/[0.04] text-white text-center font-medium transition-colors flex items-center justify-center gap-2"
           >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />

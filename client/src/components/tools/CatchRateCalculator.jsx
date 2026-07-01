@@ -1,10 +1,12 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import PageBackground from '../PageBackground';
+import { POKEMON_CATCH_DATA } from '../../data/pokemonCatchData';
 
 // ─── Formula functions ────────────────────────────────────────────────────────
 
 function clamp(v, lo, hi) { return Math.min(Math.max(v, lo), hi); }
 
-// Gen I: 4 shake checks at (modified/255) each
 function calcGen1(catchRate, maxHP, currentHP, ballMult, statusAdd) {
   if (ballMult === null) return 1;
   const f = Math.floor((3 * maxHP - 2 * currentHP) * catchRate / (3 * maxHP));
@@ -13,7 +15,6 @@ function calcGen1(catchRate, maxHP, currentHP, ballMult, statusAdd) {
   return Math.pow(modified / 255, 4);
 }
 
-// Gen II: multiplicative ball/status but same shake structure as Gen I
 function calcGen2(catchRate, maxHP, currentHP, ballBonus, statusMult, heavyAdd = 0) {
   if (ballBonus === null) return 1;
   const effectiveRate = clamp(catchRate + heavyAdd, 1, 255);
@@ -25,7 +26,6 @@ function calcGen2(catchRate, maxHP, currentHP, ballBonus, statusMult, heavyAdd =
   return Math.pow(a / 255, 4);
 }
 
-// Gen III–IX standard: Bulbapedia shake formula
 function calcStandard(catchRate, maxHP, currentHP, ballBonus, statusMult, shakes = 4) {
   if (ballBonus === null) return 1;
   const a = clamp(
@@ -37,27 +37,18 @@ function calcStandard(catchRate, maxHP, currentHP, ballBonus, statusMult, shakes
   return Math.pow(b / 65536, shakes);
 }
 
-// Legends: Arceus — approximate; game uses a fundamentally different catch model
 function calcPLA(catchRate, maxHP, currentHP, ballBonus, statusMult) {
   if (ballBonus === null) return 1;
-  const hpRatio = currentHP / maxHP;
-  // rough approximation of PLA catch probability
   const a = clamp(
     Math.floor((3 * maxHP - 2 * currentHP) * catchRate * ballBonus * statusMult / (3 * maxHP)),
     0, 255
   );
   if (a >= 255) return 1;
   const b = Math.floor(65536 / Math.pow(255 / a, 0.75));
-  return Math.pow(b / 65536, 3); // PLA uses 3 shake checks
+  return Math.pow(b / 65536, 3);
 }
 
 // ─── Ball definitions ─────────────────────────────────────────────────────────
-
-// getBonus(ctx) returns a numeric multiplier, or null for guaranteed catch.
-// Special: Heavy Ball Gen II returns { add: N } instead of a multiplier.
-// ctx fields: turn, isNight, isCave, isFishing, isSurfing, isWater, isBug,
-//   caughtBefore, level, playerLevel, baseSpeed, isMoonEvo,
-//   isSameSpeciesOppositeGender, weightKg, isUltraBeast, formula
 
 const BALLS = {
   master:  { name: 'Master Ball',  short: 'MB',  color: '#9b5de5', getBonus: () => null },
@@ -73,7 +64,12 @@ const BALLS = {
   park:    { name: 'Park Ball',    short: 'PkB', color: '#facc15', getBonus: () => Infinity },
   dream:   { name: 'Dream Ball',   short: 'DrB', color: '#a78bfa', getBonus: () => 1, note: 'Only works on sleeping Pokémon in Dream World / Poké Transfer' },
   friend:  { name: 'Friend Ball',  short: 'FrB', color: '#86efac', getBonus: () => 1, note: 'Sets high friendship' },
-
+  feather: { name: 'Feather Ball', short: 'FeB', color: '#bae6fd', getBonus: () => 1 },
+  wing:    { name: 'Wing Ball',    short: 'WiB', color: '#7dd3fc', getBonus: () => 1.5 },
+  jet:     { name: 'Jet Ball',     short: 'JtB', color: '#38bdf8', getBonus: () => 2 },
+  heavy_pla: { name: 'Heavy Ball (PLA)', short: 'HvB', color: '#94a3b8', getBonus: () => 1 },
+  leaden:  { name: 'Leaden Ball',  short: 'LdB', color: '#64748b', getBonus: () => 1.5 },
+  gigaton: { name: 'Gigaton Ball', short: 'GgB', color: '#475569', getBonus: () => 2 },
   net: {
     name: 'Net Ball', short: 'NB', color: '#38bdf8',
     getBonus: (ctx) => (ctx.isWater || ctx.isBug) ? 3.5 : 1,
@@ -89,7 +85,6 @@ const BALLS = {
   nest: {
     name: 'Nest Ball', short: 'NeB', color: '#4ade80',
     getBonus: (ctx) => {
-      // Gen III: floor((41 - level) / 10), min 1; Gen V+: (41 - level) / 10, min 1
       const bonus = ctx.formula === 'standard' && ctx.ballSet === 'gen3'
         ? Math.max(1, Math.floor((41 - ctx.level) / 10))
         : Math.max(1, (41 - ctx.level) / 10);
@@ -111,63 +106,57 @@ const BALLS = {
     bonusDesc: 'Increases each 10 turns, max 4× at turn 30+',
   },
   quick: {
-    name: 'Quick Ball', short: 'QB', color: '#fde047',
+    name: 'Quick Ball', short: 'QB', color: '#fde68a',
     getBonus: (ctx) => ctx.turn === 1 ? 5 : 1,
     contexts: ['turn'],
     bonusDesc: '5× on turn 1 only (4× in Gen IV)',
   },
   dusk: {
-    name: 'Dusk Ball', short: 'DkB', color: '#374151',
+    name: 'Dusk Ball', short: 'DkB', color: '#6b7280',
     getBonus: (ctx) => (ctx.isNight || ctx.isCave) ? 3.5 : 1,
     contexts: ['time'],
     bonusDesc: '3.5× at night or inside caves/buildings',
   },
   moon: {
-    name: 'Moon Ball', short: 'MoB', color: '#c4b5fd',
-    // Gen II: 4× if moon-stone evo; Gen IV HGSS/Gen VIII: same
+    name: 'Moon Ball', short: 'MnB', color: '#c4b5fd',
     getBonus: (ctx) => ctx.isMoonEvo ? 4 : 1,
     contexts: ['moonevo'],
     bonusDesc: '4× if target evolves with a Moon Stone',
   },
   love: {
-    name: 'Love Ball', short: 'LoB', color: '#f9a8d4',
+    name: 'Love Ball', short: 'LoB', color: '#fb7185',
     getBonus: (ctx) => ctx.isSameSpeciesOppositeGender ? 8 : 1,
     contexts: ['love'],
     bonusDesc: '8× if target is same species & opposite gender as your lead',
   },
   level: {
-    name: 'Level Ball', short: 'LvB', color: '#fb923c',
+    name: 'Level Ball', short: 'LvB', color: '#fbbf24',
     getBonus: (ctx) => {
-      const ratio = ctx.playerLevel / Math.max(1, ctx.level);
+      const ratio = ctx.playerLevel / ctx.level;
       if (ratio >= 4) return 8;
       if (ratio >= 2) return 4;
-      if (ratio > 1) return 2;
+      if (ratio > 1)  return 2;
       return 1;
     },
     contexts: ['level', 'playerLevel'],
     bonusDesc: 'Up to 8× if your Pokémon is 4× higher level',
   },
   lure: {
-    name: 'Lure Ball', short: 'LrB', color: '#38bdf8',
+    name: 'Lure Ball', short: 'LrB', color: '#2dd4bf',
     getBonus: (ctx) => ctx.isFishing ? 3 : 1,
     contexts: ['encounter'],
     bonusDesc: '3× when using a fishing rod',
   },
   fast: {
-    name: 'Fast Ball', short: 'FsB', color: '#e2e8f0',
+    name: 'Fast Ball', short: 'FsB', color: '#f472b6',
     getBonus: (ctx) => ctx.baseSpeed >= 100 ? 4 : 1,
     contexts: ['speed'],
     bonusDesc: '4× if target\'s base Speed is 100 or higher',
   },
   heavy: {
-    name: 'Heavy Ball', short: 'HvB', color: '#6b7280',
-    // Gen II: additive to catch rate; Gen VIII: multiplier
-    getBonus: (ctx) => {
-      if (ctx.formula === 'gen8heavy') return heavyBallGen8Mult(ctx.weightKg);
-      return 1; // Gen II handled via heavyAdd
-    },
+    name: 'Heavy Ball', short: 'HvB', color: '#94a3b8',
+    getBonus: () => 1,
     getHeavyAdd: (ctx) => {
-      // Gen II: additive modifier to base catch rate
       const kg = ctx.weightKg;
       if (kg >= 409.6) return 30;
       if (kg >= 307.2) return 20;
@@ -175,29 +164,15 @@ const BALLS = {
       return -20;
     },
     contexts: ['weight'],
-    bonusDesc: 'Gen II: ±20–30 additive to catch rate by weight; Gen VIII: multiplier by weight',
+    bonusDesc: 'Gen II: ±20–30 additive to catch rate by weight',
   },
   beast: {
-    name: 'Beast Ball', short: 'BsB', color: '#67e8f9',
+    name: 'Beast Ball', short: 'BsB', color: '#818cf8',
     getBonus: (ctx) => ctx.isUltraBeast ? 5 : 0.1,
     contexts: ['ub'],
     bonusDesc: '5× for Ultra Beasts, 0.1× for everything else',
   },
-  // PLA balls
-  feather: { name: 'Feather Ball', short: 'FeB', color: '#bae6fd', getBonus: () => 1 },
-  wing:    { name: 'Wing Ball',    short: 'WgB', color: '#7dd3fc', getBonus: () => 1.5 },
-  jet:     { name: 'Jet Ball',     short: 'JtB', color: '#38bdf8', getBonus: () => 2 },
-  heavy_pla: { name: 'Heavy Ball', short: 'HvB', color: '#6b7280', getBonus: () => 1, note: 'PLA variant — stationary throws' },
-  leaden:  { name: 'Leaden Ball',  short: 'LdB', color: '#9ca3af', getBonus: () => 1.5 },
-  gigaton: { name: 'Gigaton Ball', short: 'GgB', color: '#d1d5db', getBonus: () => 2 },
 };
-
-function heavyBallGen8Mult(kg) {
-  if (kg >= 300) return 30;
-  if (kg >= 200) return 20;
-  if (kg >= 100) return 0;
-  return -20;
-}
 
 // ─── Ball sets per game ───────────────────────────────────────────────────────
 
@@ -274,32 +249,15 @@ const STATUS_DEFS = {
     { id: 'psn',   label: 'Poison',    mult: 1.5 },
     { id: 'brn',   label: 'Burn',      mult: 1.5 },
   ],
+  gen9sv: [
+    { id: 'none',      label: 'None',       mult: 1 },
+    { id: 'sleep',     label: 'Sleep',      mult: 2.5 },
+    { id: 'par',       label: 'Paralysis',  mult: 1.5 },
+    { id: 'psn',       label: 'Poison',     mult: 1.5 },
+    { id: 'brn',       label: 'Burn',       mult: 1.5 },
+    { id: 'frostbite', label: 'Frostbite',  mult: 1 },
+  ],
 };
-// SV removed freeze; frostbite has no catch bonus
-STATUS_DEFS.gen9sv = [
-  { id: 'none',      label: 'None',       mult: 1 },
-  { id: 'sleep',     label: 'Sleep',      mult: 2.5 },
-  { id: 'par',       label: 'Paralysis',  mult: 1.5 },
-  { id: 'psn',       label: 'Poison',     mult: 1.5 },
-  { id: 'brn',       label: 'Burn',       mult: 1.5 },
-  { id: 'frostbite', label: 'Frostbite',  mult: 1 },
-];
-
-// ─── Common catch rates ───────────────────────────────────────────────────────
-
-const COMMON_RATES = [
-  { rate: 3,   label: '3 — Legendary (Mewtwo, birds, beasts, boxes)' },
-  { rate: 5,   label: '5 — Zygarde, Eternatus, Ruinous' },
-  { rate: 10,  label: '10 — Most box legendaries' },
-  { rate: 25,  label: '25 — Pseudo-legendary (Dragonite, Tyranitar, Garchomp)' },
-  { rate: 35,  label: '35 — Mythicals (Celebi, Jirachi, Manaphy)' },
-  { rate: 45,  label: '45 — Starters, common rare Pokémon' },
-  { rate: 70,  label: '70 — Mid-evolution common Pokémon' },
-  { rate: 100, label: '100 — Common fully evolved Pokémon' },
-  { rate: 120, label: '120 — Very common Pokémon' },
-  { rate: 190, label: '190 — Extremely common (Zubat, Tentacool)' },
-  { rate: 255, label: '255 — Easiest (Magikarp, Caterpie, Rattata)' },
-];
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -332,12 +290,9 @@ function getStatusDefs(formula, gameId) {
   return STATUS_DEFS.standard;
 }
 
-// ─── Core calculation ─────────────────────────────────────────────────────────
-
 function computeProb(formula, catchRate, maxHP, currentHP, ballId, statusId, ctx) {
   const ball = BALLS[ballId];
   if (!ball) return 0;
-
   const statusDefs = getStatusDefs(formula, ctx.gameId);
   const statusDef = statusDefs.find(s => s.id === statusId) || statusDefs[0];
 
@@ -347,7 +302,6 @@ function computeProb(formula, catchRate, maxHP, currentHP, ballId, statusId, ctx
     if (ballMult === null || ballMult === Infinity) return 1;
     return calcGen1(catchRate, maxHP, currentHP, ballMult, statusAdd);
   }
-
   if (formula === 'gen2') {
     const statusMult = statusDef.mult ?? 1;
     const isHeavy = ballId === 'heavy';
@@ -356,43 +310,30 @@ function computeProb(formula, catchRate, maxHP, currentHP, ballId, statusId, ctx
     const heavyAdd = isHeavy ? (ball.getHeavyAdd ? ball.getHeavyAdd(ctx) : 0) : 0;
     return calcGen2(catchRate, maxHP, currentHP, ballMult, statusMult, heavyAdd);
   }
-
   if (formula === 'pla') {
     const statusMult = statusDef.mult ?? 1;
     const ballBonus = ball.getBonus(ctx);
     if (ballBonus === null || ballBonus === Infinity) return 1;
     return calcPLA(catchRate, maxHP, currentHP, ballBonus, statusMult);
   }
-
-  // standard (gen3–gen9)
   const statusMult = statusDef.mult ?? 1;
   const ballBonus = ball.getBonus(ctx);
   if (ballBonus === null || ballBonus === Infinity) return 1;
   return calcStandard(catchRate, maxHP, currentHP, ballBonus, statusMult);
 }
 
-// ─── UI helpers ──────────────────────────────────────────────────────────────
+// ─── Accent ───────────────────────────────────────────────────────────────────
+const A  = '#fbbf24';
+const AB = 'rgba(251,191,36,0.10)';
+const ABorder = 'rgba(251,191,36,0.28)';
+const CARD = { background: 'linear-gradient(160deg, #1a1c23 0%, #1f2128 100%)', border: '1px solid rgba(255,255,255,0.07)' };
+const INPUT_STYLE = { background: '#0d0f14', border: '1px solid rgba(255,255,255,0.07)' };
 
-function Pill({ active, onClick, children, color }) {
-  return (
-    <button
-      onClick={onClick}
-      className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all border ${
-        active
-          ? 'border-opacity-80 text-white'
-          : 'border-white/10 text-gray-400 hover:border-white/20 hover:text-gray-300'
-      }`}
-      style={active ? { borderColor: color || '#6366f1', backgroundColor: (color || '#6366f1') + '22' } : {}}
-    >
-      {children}
-    </button>
-  );
-}
-
+// ─── Toggle ───────────────────────────────────────────────────────────────────
 function Toggle({ value, onChange, label }) {
   return (
     <label className="flex items-center gap-2 cursor-pointer select-none">
-      <span className="relative inline-block w-9 h-5">
+      <span className="relative inline-block w-9 h-5 shrink-0">
         <input type="checkbox" className="sr-only" checked={value} onChange={e => onChange(e.target.checked)} />
         <span className={`block w-9 h-5 rounded-full transition-colors ${value ? 'bg-amber-500' : 'bg-white/10'}`} />
         <span className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${value ? 'translate-x-4' : ''}`} />
@@ -402,89 +343,245 @@ function Toggle({ value, onChange, label }) {
   );
 }
 
-function NumberInput({ value, onChange, min = 0, max = 999, label, className = '' }) {
+// ─── NumInput ─────────────────────────────────────────────────────────────────
+function NumInput({ label, value, onChange, min = 1, max = 999, step = 1, wide = false }) {
   return (
-    <label className={`flex flex-col gap-1 ${className}`}>
-      <span className="text-xs text-gray-400">{label}</span>
+    <div>
+      <p className="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1">{label}</p>
+      <input type="number" min={min} max={max} step={step} value={value}
+        onChange={e => {
+          const v = parseFloat(e.target.value);
+          if (!isNaN(v)) onChange(Math.min(Math.max(v, min), max));
+        }}
+        className={`${wide ? 'w-32' : 'w-24'} rounded-lg px-2.5 py-1.5 text-sm text-white focus:outline-none`}
+        style={INPUT_STYLE} />
+    </div>
+  );
+}
+
+// ─── HPBar ────────────────────────────────────────────────────────────────────
+function HPBar({ pct: hpPct, onChange }) {
+  const barRef = useRef(null);
+  const dragging = useRef(false);
+
+  const updateFromX = React.useCallback((clientX) => {
+    if (!barRef.current) return;
+    const rect = barRef.current.getBoundingClientRect();
+    onChange(Math.round(clamp((clientX - rect.left) / rect.width * 100, 1, 100)));
+  }, [onChange]);
+
+  useEffect(() => {
+    const onMove = e => {
+      if (!dragging.current) return;
+      if (e.cancelable) e.preventDefault();
+      updateFromX(e.touches ? e.touches[0].clientX : e.clientX);
+    };
+    const onUp = () => { dragging.current = false; };
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+    document.addEventListener('touchmove', onMove, { passive: false });
+    document.addEventListener('touchend', onUp);
+    return () => {
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+      document.removeEventListener('touchmove', onMove);
+      document.removeEventListener('touchend', onUp);
+    };
+  }, [updateFromX]);
+
+  const color = hpPct > 50 ? '#22c55e' : hpPct > 25 ? '#fbbf24' : '#ef4444';
+  const thumbLeft = `calc(${hpPct}% - 10px)`;
+
+  return (
+    <div>
+      <div
+        ref={barRef}
+        className="relative rounded-lg select-none"
+        style={{ height: 44, background: 'rgba(255,255,255,0.06)', cursor: 'crosshair' }}
+        onMouseDown={e => { dragging.current = true; updateFromX(e.clientX); }}
+        onTouchStart={e => { dragging.current = true; updateFromX(e.touches[0].clientX); }}
+      >
+        {/* Filled bar */}
+        <div className="h-full rounded-lg transition-colors duration-150"
+          style={{ width: `${hpPct}%`, background: color }} />
+        {/* Thumb */}
+        <div className="absolute top-1/2 -translate-y-1/2 w-5 h-5 rounded-full bg-white shadow-lg pointer-events-none"
+          style={{ left: thumbLeft, border: `2.5px solid ${color}` }} />
+        {/* Label */}
+        <div className="absolute inset-0 flex items-center justify-end pr-3 pointer-events-none">
+          <span className="text-sm font-bold text-white drop-shadow-sm">{hpPct}%</span>
+        </div>
+      </div>
+      <div className="flex justify-between text-[10px] mt-1.5 px-0.5 select-none">
+        <span style={{ color: '#ef4444' }}>● Critical (&lt;25%)</span>
+        <span style={{ color: '#fbbf24' }}>● Low (25–50%)</span>
+        <span style={{ color: '#22c55e' }}>● Healthy (&gt;50%)</span>
+      </div>
+    </div>
+  );
+}
+
+// ─── PokemonSearch ────────────────────────────────────────────────────────────
+function PokemonSearch({ selectedPokemon, onSelect, onClear }) {
+  const [query, setQuery] = useState(selectedPokemon?.name || '');
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+
+  useEffect(() => {
+    if (selectedPokemon) setQuery(selectedPokemon.name);
+  }, [selectedPokemon]);
+
+  useEffect(() => {
+    const handler = e => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
+
+  const results = useMemo(() => {
+    if (!query.trim() || query === selectedPokemon?.name) return [];
+    const q = query.toLowerCase();
+    const prefix = POKEMON_CATCH_DATA.filter(([name]) => name.toLowerCase().startsWith(q));
+    const infix  = POKEMON_CATCH_DATA.filter(([name]) => !name.toLowerCase().startsWith(q) && name.toLowerCase().includes(q));
+    return [...prefix, ...infix].slice(0, 10);
+  }, [query, selectedPokemon]);
+
+  function handleSelect([name, catchRate, weightKg, baseSpeed, types]) {
+    setQuery(name);
+    setOpen(false);
+    onSelect({ name, catchRate, weightKg, baseSpeed, types });
+  }
+
+  function handleChange(e) {
+    setQuery(e.target.value);
+    setOpen(true);
+    if (!e.target.value) onClear();
+  }
+
+  return (
+    <div ref={ref} className="relative">
       <input
-        type="number"
-        min={min}
-        max={max}
-        value={value}
-        onChange={e => onChange(clamp(Number(e.target.value) || min, min, max))}
-        className="bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-white text-sm w-full focus:outline-none focus:border-amber-500/60"
+        type="text"
+        placeholder="Search Pokémon by name…"
+        value={query}
+        onChange={handleChange}
+        onFocus={() => results.length > 0 && setOpen(true)}
+        className="w-full rounded-lg px-3 py-2.5 text-sm text-white focus:outline-none transition-colors"
+        style={{ ...INPUT_STYLE, borderColor: selectedPokemon ? 'rgba(251,191,36,0.35)' : 'rgba(255,255,255,0.07)' }}
       />
-    </label>
+      {selectedPokemon && (
+        <button
+          onClick={() => { setQuery(''); onClear(); }}
+          className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-600 hover:text-gray-300 transition-colors text-lg leading-none"
+          tabIndex={-1}
+        >×</button>
+      )}
+      {open && results.length > 0 && (
+        <div className="absolute z-40 w-full mt-1 rounded-xl overflow-hidden shadow-2xl"
+          style={{ background: '#13151a', border: '1px solid rgba(255,255,255,0.1)', maxHeight: 280, overflowY: 'auto' }}>
+          {results.map(entry => {
+            const [name, catchRate, , , types] = entry;
+            return (
+              <button key={name}
+                className="w-full flex items-center justify-between px-3.5 py-2.5 hover:bg-white/[0.05] transition-colors text-left"
+                onMouseDown={() => handleSelect(entry)}>
+                <div>
+                  <span className="text-sm text-white font-medium">{name}</span>
+                  <span className="ml-2 text-[11px] text-gray-600">{types.join('/')}</span>
+                </div>
+                <span className="text-xs font-mono text-gray-500 shrink-0 ml-3">rate {catchRate}</span>
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </div>
   );
 }
 
 // ─── Main component ───────────────────────────────────────────────────────────
 
 export default function CatchRateCalculator() {
-  const [gameId,  setGameId]  = useState('sv');
+  const navigate = useNavigate();
+
+  // Core
+  const [gameId,    setGameId]    = useState('sv');
   const [catchRate, setCatchRate] = useState(45);
-  const [useHPPct, setUseHPPct] = useState(true);
-  const [hpPct,   setHpPct]   = useState(50);
-  const [maxHP,   setMaxHP]   = useState(200);
-  const [curHP,   setCurHP]   = useState(100);
-  const [statusId, setStatusId] = useState('none');
-  const [ballId,  setBallId]  = useState('ultra');
-  const [showCompare, setShowCompare] = useState(false);
+  const [statusId,  setStatusId]  = useState('none');
+  const [ballId,    setBallId]    = useState('ultra');
+  const [showNerdStats, setShowNerdStats] = useState(false);
 
-  // Contextual fields
-  const [turn,       setTurn]       = useState(1);
-  const [isNight,    setIsNight]    = useState(false);
-  const [isCave,     setIsCave]     = useState(false);
-  const [isFishing,  setIsFishing]  = useState(false);
-  const [isSurfing,  setIsSurfing]  = useState(false);
-  const [isWater,    setIsWater]    = useState(false);
-  const [isBug,      setIsBug]      = useState(false);
+  // Pokémon search
+  const [selectedPokemon,    setSelectedPokemon]    = useState(null);
+  const [catchRateOverridden, setCatchRateOverridden] = useState(false);
+
+  // HP
+  const [hpPct,      setHpPct]      = useState(50);
+  const [hpExactMode, setHpExactMode] = useState(false);
+  const [maxHP,      setMaxHP]      = useState(200);
+  const [curHP,      setCurHP]      = useState(100);
+
+  // Ball context inputs
+  const [turn,         setTurn]         = useState(1);
+  const [isNight,      setIsNight]      = useState(false);
+  const [isCave,       setIsCave]       = useState(false);
+  const [isFishing,    setIsFishing]    = useState(false);
+  const [isSurfing,    setIsSurfing]    = useState(false);
+  const [isWater,      setIsWater]      = useState(false);
+  const [isBug,        setIsBug]        = useState(false);
   const [caughtBefore, setCaughtBefore] = useState(false);
-  const [level,      setLevel]      = useState(50);
-  const [playerLevel, setPlayerLevel] = useState(50);
-  const [baseSpeed,  setBaseSpeed]  = useState(60);
-  const [isMoonEvo,  setIsMoonEvo]  = useState(false);
-  const [isSameSpeciesOppositeGender, setSSOG] = useState(false);
-  const [weightKg,   setWeightKg]   = useState(50);
-  const [isUltraBeast, setIsUB]     = useState(false);
+  const [level,        setLevel]        = useState(50);
+  const [playerLevel,  setPlayerLevel]  = useState(50);
+  const [baseSpeed,    setBaseSpeed]    = useState(60);
+  const [isMoonEvo,    setIsMoonEvo]    = useState(false);
+  const [isSSOG,       setSSOG]         = useState(false);
+  const [weightKg,     setWeightKg]     = useState(50);
+  const [isUltraBeast, setIsUB]         = useState(false);
 
+  // ── Derived ──────────────────────────────────────────────────────────────────
   const game = useMemo(() => GAMES.find(g => g.id === gameId), [gameId]);
   const { formula, ballSet } = game;
   const availableBalls = BALL_SETS[ballSet] || BALL_SETS.gen9;
   const statusDefs = useMemo(() => getStatusDefs(formula, gameId), [formula, gameId]);
 
-  // Ensure selected ball and status exist in current game
-  const activeBallId = availableBalls.includes(ballId) ? ballId : availableBalls[1] ?? availableBalls[0];
+  const activeBallId   = availableBalls.includes(ballId) ? ballId : availableBalls[1] ?? availableBalls[0];
   const activeStatusId = statusDefs.find(s => s.id === statusId) ? statusId : 'none';
 
-  const computedMaxHP = useHPPct ? 200 : maxHP;
-  const computedCurHP = useHPPct
-    ? Math.max(1, Math.round(200 * hpPct / 100))
-    : Math.max(1, Math.min(curHP, maxHP));
+  const computedMaxHP = hpExactMode ? maxHP : 200;
+  const computedCurHP = hpExactMode
+    ? Math.max(1, Math.min(curHP, maxHP))
+    : Math.max(1, Math.round(200 * hpPct / 100));
 
   const ctx = {
     formula, ballSet, gameId,
     turn, isNight, isCave, isFishing, isSurfing,
     isWater, isBug, caughtBefore,
     level, playerLevel, baseSpeed,
-    isMoonEvo, isSameSpeciesOppositeGender,
+    isMoonEvo, isSameSpeciesOppositeGender: isSSOG,
     weightKg, isUltraBeast,
   };
 
-  const prob = useMemo(() =>
-    computeProb(formula, catchRate, computedMaxHP, computedCurHP, activeBallId, activeStatusId, ctx),
-    [formula, catchRate, computedMaxHP, computedCurHP, activeBallId, activeStatusId,
-     turn, isNight, isCave, isFishing, isSurfing, isWater, isBug, caughtBefore,
-     level, playerLevel, baseSpeed, isMoonEvo, isSameSpeciesOppositeGender, weightKg, isUltraBeast]
+  const ctxDeps = [
+    formula, catchRate, computedMaxHP, computedCurHP, activeBallId, activeStatusId,
+    turn, isNight, isCave, isFishing, isSurfing, isWater, isBug, caughtBefore,
+    level, playerLevel, baseSpeed, isMoonEvo, isSSOG, weightKg, isUltraBeast,
+  ];
+
+  const prob = useMemo(
+    () => computeProb(formula, catchRate, computedMaxHP, computedCurHP, activeBallId, activeStatusId, ctx),
+    ctxDeps // eslint-disable-line react-hooks/exhaustive-deps
   );
 
-  // Determine which context inputs to show based on selected ball
   const activeBall = BALLS[activeBallId];
   const needsCtx = (key) => activeBall?.contexts?.includes(key);
 
-  // Compare all balls
+  const hasConditions =
+    needsCtx('turn') || needsCtx('time') || needsCtx('encounter') ||
+    needsCtx('type') || needsCtx('caught') || needsCtx('moonevo') ||
+    needsCtx('love') || needsCtx('ub') || needsCtx('level') ||
+    needsCtx('playerLevel') || needsCtx('speed') || needsCtx('weight');
+
   const ballComparison = useMemo(() => {
-    if (!showCompare) return [];
+    if (!showNerdStats) return [];
     return availableBalls
       .map(bid => ({
         id: bid,
@@ -492,291 +589,397 @@ export default function CatchRateCalculator() {
         prob: computeProb(formula, catchRate, computedMaxHP, computedCurHP, bid, activeStatusId, ctx),
       }))
       .sort((a, b) => b.prob - a.prob);
-  }, [showCompare, availableBalls, formula, catchRate, computedMaxHP, computedCurHP, activeStatusId,
-      turn, isNight, isCave, isFishing, isSurfing, isWater, isBug, caughtBefore,
-      level, playerLevel, baseSpeed, isMoonEvo, isSameSpeciesOppositeGender, weightKg, isUltraBeast]);
+  }, [showNerdStats, availableBalls, ...ctxDeps]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const probColor = prob >= 0.5 ? '#22c55e' : prob >= 0.2 ? '#f59e0b' : prob >= 0.05 ? '#f97316' : '#ef4444';
+  const probColor = prob >= 0.5 ? '#22c55e' : prob >= 0.2 ? '#fbbf24' : prob >= 0.05 ? '#f97316' : '#ef4444';
 
+  // ── Handlers ─────────────────────────────────────────────────────────────────
+  function handleSelectPokemon(p) {
+    setSelectedPokemon(p);
+    setCatchRate(p.catchRate);
+    setCatchRateOverridden(false);
+    setWeightKg(p.weightKg);
+    setBaseSpeed(p.baseSpeed);
+    setIsWater(p.types.includes('Water'));
+    setIsBug(p.types.includes('Bug'));
+  }
+
+  function handleClearPokemon() {
+    setSelectedPokemon(null);
+    setCatchRateOverridden(false);
+  }
+
+  function toggleHpExactMode() {
+    if (!hpExactMode) {
+      setMaxHP(200);
+      setCurHP(Math.max(1, Math.round(200 * hpPct / 100)));
+    } else {
+      setHpPct(Math.max(1, Math.min(100, Math.round((curHP / maxHP) * 100))));
+    }
+    setHpExactMode(v => !v);
+  }
+
+  // ── Render ───────────────────────────────────────────────────────────────────
   return (
-    <div className="max-w-3xl mx-auto px-4 py-8 space-y-5">
-      <div>
-        <h1 className="text-2xl font-bold text-white mb-1">Catch Rate Calculator</h1>
-        <p className="text-gray-400 text-sm">
-          Universal catch probability for every main-series game.
-          Formulas sourced from <a href="https://bulbapedia.bulbagarden.net/wiki/Catch_rate" target="_blank" rel="noopener noreferrer" className="text-amber-400 hover:underline">Bulbapedia</a>.
-          Legends: Arceus uses an approximate model.
-        </p>
+    <div className="min-h-screen text-white" style={{ isolation: 'isolate', position: 'relative' }}>
+      <PageBackground />
+
+      {/* ── Sticky header ──────────────────────────────────────────────────── */}
+      <div className="sticky top-0 z-30 border-b"
+        style={{ background: 'rgba(13,15,20,0.85)', backdropFilter: 'blur(10px)', borderColor: 'rgba(255,255,255,0.06)' }}>
+        <div className="max-w-5xl mx-auto px-4 py-2.5 flex items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <button onClick={() => navigate('/tools')}
+              className="flex items-center gap-1.5 text-sm transition-colors"
+              style={{ color: 'rgba(255,255,255,0.4)' }}
+              onMouseEnter={e => e.currentTarget.style.color = '#fff'}
+              onMouseLeave={e => e.currentTarget.style.color = 'rgba(255,255,255,0.4)'}>
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
+              </svg>
+              <span className="hidden sm:inline">Shiny Tools</span>
+            </button>
+            <span style={{ color: 'rgba(255,255,255,0.15)' }}>|</span>
+            <span className="text-sm font-semibold text-white">Catch Rate Calculator</span>
+          </div>
+          <button
+            onClick={() => setShowNerdStats(v => !v)}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold border transition-all"
+            style={showNerdStats
+              ? { background: AB, borderColor: ABorder, color: A }
+              : { background: 'transparent', borderColor: 'rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.4)' }}>
+            <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+              <path d="M9 2a1 1 0 000 2h2a1 1 0 100-2H9z" />
+              <path fillRule="evenodd" d="M4 5a2 2 0 012-2 3 3 0 003 3h2a3 3 0 003-3 2 2 0 012 2v11a2 2 0 01-2 2H6a2 2 0 01-2-2V5zm3 4a1 1 0 000 2h.01a1 1 0 100-2H7zm3 0a1 1 0 000 2h3a1 1 0 100-2h-3zm-3 4a1 1 0 100 2h.01a1 1 0 100-2H7zm3 0a1 1 0 100 2h3a1 1 0 100-2h-3z" clipRule="evenodd" />
+            </svg>
+            Stats for Nerds
+          </button>
+        </div>
       </div>
 
-      {/* Game selector */}
-      <Section title="Game">
-        <select
-          value={gameId}
-          onChange={e => setGameId(e.target.value)}
-          className="bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-white text-sm w-full max-w-xs focus:outline-none focus:border-amber-500/60"
-        >
-          {GAMES.map(g => <option key={g.id} value={g.id}>{g.label}</option>)}
-        </select>
-      </Section>
+      <div className="max-w-5xl mx-auto px-4 py-6 space-y-4">
 
-      {/* Pokémon info */}
-      <Section title="Pokémon">
-        <div className="flex flex-wrap gap-4 items-end">
-          <div className="flex flex-col gap-1">
-            <span className="text-xs text-gray-400">Catch Rate (0–255)</span>
-            <input
-              type="number"
-              min={1} max={255}
-              value={catchRate}
-              onChange={e => setCatchRate(clamp(Number(e.target.value) || 1, 1, 255))}
-              className="bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-white text-sm w-28 focus:outline-none focus:border-amber-500/60"
-            />
-          </div>
-          <div className="flex flex-col gap-1">
-            <span className="text-xs text-gray-400">Common presets</span>
-            <select
-              onChange={e => e.target.value && setCatchRate(Number(e.target.value))}
-              defaultValue=""
-              className="bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-gray-300 text-sm focus:outline-none focus:border-amber-500/60"
-            >
-              <option value="">Select species...</option>
-              {COMMON_RATES.map(r => (
-                <option key={r.rate} value={r.rate}>{r.label}</option>
-              ))}
-            </select>
-          </div>
-          {(needsCtx('level') || needsCtx('playerLevel')) && (
-            <NumberInput label="Target Level" value={level} onChange={setLevel} min={1} max={100} className="w-28" />
-          )}
-          {needsCtx('playerLevel') && (
-            <NumberInput label="Your Lead Level" value={playerLevel} onChange={setPlayerLevel} min={1} max={100} className="w-28" />
-          )}
-          {needsCtx('speed') && (
-            <NumberInput label="Base Speed" value={baseSpeed} onChange={setBaseSpeed} min={1} max={200} className="w-28" />
-          )}
-          {needsCtx('weight') && (
-            <NumberInput label="Weight (kg)" value={weightKg} onChange={setWeightKg} min={0.1} max={999} className="w-28" />
-          )}
+        {/* ── 1. Game ─────────────────────────────────────────────────────────── */}
+        <div className="rounded-xl p-4" style={CARD}>
+          <p className="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-2">Game</p>
+          <select value={gameId} onChange={e => setGameId(e.target.value)}
+            className="rounded-lg px-3 py-2 text-white text-sm w-full sm:max-w-xs focus:outline-none"
+            style={{ ...INPUT_STYLE, colorScheme: 'dark' }}>
+            {GAMES.map(g => <option key={g.id} value={g.id}>{g.label}</option>)}
+          </select>
         </div>
-      </Section>
 
-      {/* HP */}
-      <Section title="HP">
-        <div className="flex items-center gap-3 mb-3">
-          <Pill active={useHPPct} onClick={() => setUseHPPct(true)} color="#f59e0b">HP %</Pill>
-          <Pill active={!useHPPct} onClick={() => setUseHPPct(false)} color="#f59e0b">Exact HP</Pill>
-        </div>
-        {useHPPct ? (
-          <div className="flex items-center gap-4">
-            <input
-              type="range"
-              min={1} max={100}
-              value={hpPct}
-              onChange={e => setHpPct(Number(e.target.value))}
-              className="w-48 accent-amber-500"
-            />
-            <span className="text-white font-semibold w-12">{hpPct}%</span>
-            <span className="text-gray-400 text-xs">Lower HP = easier to catch</span>
-          </div>
-        ) : (
-          <div className="flex gap-4 flex-wrap">
-            <NumberInput label="Current HP" value={curHP} onChange={setCurHP} min={1} max={maxHP} className="w-28" />
-            <NumberInput label="Max HP" value={maxHP} onChange={setMaxHP} min={1} max={9999} className="w-28" />
-          </div>
-        )}
-      </Section>
+        {/* ── 2. Pokémon + Catch Rate ──────────────────────────────────────────── */}
+        <div className="rounded-xl p-4" style={CARD}>
+          <p className="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-3">Pokémon</p>
+          <div className="grid sm:grid-cols-[1fr_auto] gap-3 items-start min-w-0">
+            <div className="min-w-0">
+              <PokemonSearch
+                selectedPokemon={selectedPokemon}
+                onSelect={handleSelectPokemon}
+                onClear={handleClearPokemon}
+              />
+              {!selectedPokemon && (
+                <p className="text-[11px] text-gray-600 mt-1.5">
+                  Search to auto-fill catch rate, weight, and type — or set manually below.
+                </p>
+              )}
+            </div>
 
-      {/* Status */}
-      <Section title="Status Condition">
-        <div className="flex flex-wrap gap-2">
-          {statusDefs.map(s => (
-            <Pill key={s.id} active={activeStatusId === s.id} onClick={() => setStatusId(s.id)} color="#a78bfa">
-              {s.label}
-              {s.mult && s.mult !== 1 && <span className="ml-1 text-xs opacity-70">{s.mult}×</span>}
-              {s.add  && s.add  !== 0 && <span className="ml-1 text-xs opacity-70">+{s.add}</span>}
-            </Pill>
-          ))}
-        </div>
-      </Section>
-
-      {/* Ball selector */}
-      <Section title="Poké Ball">
-        <div className="flex flex-wrap gap-2">
-          {availableBalls.map(bid => {
-            const b = BALLS[bid];
-            if (!b) return null;
-            const isActive = bid === activeBallId;
-            return (
-              <button
-                key={bid}
-                onClick={() => setBallId(bid)}
-                title={b.bonusDesc || b.name}
-                className={`px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all border ${
-                  isActive ? 'text-white' : 'text-gray-400 border-white/10 hover:border-white/20 hover:text-gray-200'
-                }`}
-                style={isActive ? { borderColor: b.color, backgroundColor: b.color + '22' } : {}}
-              >
-                {b.name}
-              </button>
-            );
-          })}
-        </div>
-        {activeBall?.bonusDesc && (
-          <p className="text-xs text-gray-400 mt-2">{activeBall.bonusDesc}</p>
-        )}
-        {activeBall?.note && (
-          <p className="text-xs text-amber-400/80 mt-1">{activeBall.note}</p>
-        )}
-      </Section>
-
-      {/* Contextual inputs */}
-      {(needsCtx('turn') || needsCtx('time') || needsCtx('encounter') || needsCtx('type') ||
-        needsCtx('caught') || needsCtx('moonevo') || needsCtx('love') || needsCtx('ub')) && (
-        <Section title="Conditions">
-          <div className="flex flex-wrap gap-4">
-            {needsCtx('turn') && (
-              <NumberInput label="Turn Number" value={turn} onChange={setTurn} min={1} max={99} className="w-28" />
-            )}
-            {needsCtx('time') && (
-              <div className="flex flex-col gap-2">
-                <Toggle value={isNight} onChange={setIsNight} label="Nighttime" />
-                <Toggle value={isCave}  onChange={setIsCave}  label="Inside cave / building" />
+            <div className="shrink-0">
+              <p className="text-[10px] font-bold uppercase tracking-wider mb-1" style={{ color: 'rgba(255,255,255,0.3)' }}>
+                Catch Rate
+                {selectedPokemon && !catchRateOverridden && (
+                  <span className="ml-1.5 text-[10px] font-normal normal-case" style={{ color: A }}>auto-filled</span>
+                )}
+              </p>
+              <div className="flex items-center gap-2">
+                <input
+                  type="number" min={1} max={255} value={catchRate}
+                  onChange={e => {
+                    setCatchRate(clamp(Number(e.target.value) || 1, 1, 255));
+                    setCatchRateOverridden(true);
+                  }}
+                  className="w-24 rounded-lg px-2.5 py-2 text-2xl font-bold text-white focus:outline-none"
+                  style={{
+                    background: '#0d0f14',
+                    border: `1px solid ${selectedPokemon && !catchRateOverridden ? 'rgba(251,191,36,0.3)' : 'rgba(255,255,255,0.07)'}`,
+                  }}
+                />
+                <span className="text-xs text-gray-600">/ 255</span>
               </div>
-            )}
-            {needsCtx('encounter') && (
-              <div className="flex flex-col gap-2">
-                <Toggle value={isFishing} onChange={setIsFishing} label="Fishing" />
-                <Toggle value={isSurfing} onChange={setIsSurfing} label="Surfing" />
-              </div>
-            )}
-            {needsCtx('type') && (
-              <div className="flex flex-col gap-2">
-                <Toggle value={isWater} onChange={setIsWater} label="Water type" />
-                <Toggle value={isBug}   onChange={setIsBug}   label="Bug type" />
-              </div>
-            )}
-            {needsCtx('caught') && (
-              <Toggle value={caughtBefore} onChange={setCaughtBefore} label="Already caught this species" />
-            )}
-            {needsCtx('moonevo') && (
-              <Toggle value={isMoonEvo} onChange={setIsMoonEvo} label="Evolves with Moon Stone" />
-            )}
-            {needsCtx('love') && (
-              <Toggle value={isSameSpeciesOppositeGender} onChange={setSSOG} label="Same species, opposite gender as your lead" />
-            )}
-            {needsCtx('ub') && (
-              <Toggle value={isUltraBeast} onChange={setIsUB} label="Ultra Beast" />
-            )}
+              {catchRateOverridden && selectedPokemon && (
+                <button
+                  onClick={() => { setCatchRate(selectedPokemon.catchRate); setCatchRateOverridden(false); }}
+                  className="text-[10px] mt-1 transition-colors"
+                  style={{ color: A }}
+                >
+                  ↩ Reset to {selectedPokemon.name}'s rate ({selectedPokemon.catchRate})
+                </button>
+              )}
+            </div>
           </div>
-        </Section>
-      )}
+        </div>
 
-      {/* Result */}
-      <div className="rounded-xl border border-white/10 bg-white/3 p-5 space-y-4">
-        <div className="flex items-end gap-4">
-          <div>
-            <p className="text-xs text-gray-400 mb-1">Catch probability</p>
-            <p className="text-4xl font-bold" style={{ color: probColor }}>{pct(prob)}</p>
+        {/* ── 3. HP Remaining ──────────────────────────────────────────────────── */}
+        <div className="rounded-xl p-4" style={CARD}>
+          <div className="flex items-center justify-between mb-3">
+            <p className="text-[10px] font-bold uppercase tracking-wider text-gray-500">HP Remaining</p>
+            <button
+              onClick={toggleHpExactMode}
+              className="px-2.5 py-1 rounded-lg text-[10px] font-semibold border transition-all"
+              style={hpExactMode
+                ? { background: AB, borderColor: ABorder, color: A }
+                : { background: 'transparent', borderColor: 'rgba(255,255,255,0.1)', color: '#6b7280' }}>
+              {hpExactMode ? 'Bar mode' : 'Exact HP'}
+            </button>
           </div>
-          <div className="pb-1">
-            <p className="text-sm text-gray-400">
-              ~{prob >= 1 ? '1' : prob <= 0 ? '∞' : expectedAttempts(prob).toFixed(1)} attempts on average
+
+          {hpExactMode ? (
+            <div className="flex gap-4 items-end">
+              <NumInput label="Current HP" value={curHP} onChange={setCurHP} min={1} max={maxHP} wide />
+              <NumInput label="Max HP" value={maxHP} onChange={setMaxHP} min={1} max={9999} wide />
+              <div className="pb-1 text-sm text-gray-500">
+                = {Math.round((Math.max(1, Math.min(curHP, maxHP)) / maxHP) * 100)}%
+              </div>
+            </div>
+          ) : (
+            <HPBar pct={hpPct} onChange={setHpPct} />
+          )}
+        </div>
+
+        {/* ── 4. Status Condition ───────────────────────────────────────────────── */}
+        <div className="rounded-xl p-4" style={CARD}>
+          <p className="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-2.5">Status Condition</p>
+          <div className="flex flex-wrap gap-2">
+            {statusDefs.map(s => {
+              const active = activeStatusId === s.id;
+              const bonus = s.mult && s.mult !== 1 ? `${s.mult}×` : s.add && s.add !== 0 ? `+${s.add}` : null;
+              return (
+                <button key={s.id} onClick={() => setStatusId(s.id)}
+                  className="px-3 py-1.5 rounded-lg text-xs font-medium border transition-all"
+                  style={active
+                    ? { background: 'rgba(167,139,250,0.15)', borderColor: 'rgba(167,139,250,0.4)', color: '#a78bfa' }
+                    : { background: 'transparent', borderColor: 'rgba(255,255,255,0.08)', color: '#6b7280' }}>
+                  {s.label}
+                  {bonus && <span className="ml-1 opacity-70">{bonus}</span>}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* ── 5. Ball Selector ──────────────────────────────────────────────────── */}
+        <div className="rounded-xl p-4" style={CARD}>
+          <p className="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-2.5">Poké Ball</p>
+          <div className="flex flex-wrap gap-2">
+            {availableBalls.map(bid => {
+              const b = BALLS[bid];
+              if (!b) return null;
+              const isActive = bid === activeBallId;
+              return (
+                <button key={bid} onClick={() => setBallId(bid)}
+                  title={b.bonusDesc || b.name}
+                  className="px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all border"
+                  style={isActive
+                    ? { borderColor: b.color, backgroundColor: b.color + '22', color: '#fff' }
+                    : { borderColor: 'rgba(255,255,255,0.08)', color: '#6b7280' }}>
+                  {b.name}
+                </button>
+              );
+            })}
+          </div>
+          {activeBall?.bonusDesc && (
+            <p className="text-xs text-gray-500 mt-2">{activeBall.bonusDesc}</p>
+          )}
+          {activeBall?.note && (
+            <p className="text-xs mt-1" style={{ color: A, opacity: 0.8 }}>{activeBall.note}</p>
+          )}
+        </div>
+
+        {/* ── 6. Ball Conditions ────────────────────────────────────────────────── */}
+        {hasConditions && (
+          <div className="rounded-xl p-4" style={CARD}>
+            <p className="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-3">
+              Conditions for {activeBall?.name}
             </p>
-          </div>
-        </div>
-
-        {/* Probability bar */}
-        <div className="h-2.5 w-full bg-white/10 rounded-full overflow-hidden">
-          <div
-            className="h-full rounded-full transition-all duration-300"
-            style={{ width: `${Math.min(prob * 100, 100)}%`, backgroundColor: probColor }}
-          />
-        </div>
-
-        {/* Guarantee table */}
-        {prob > 0 && prob < 1 && (
-          <div>
-            <p className="text-xs text-gray-400 mb-2">Attempts needed to guarantee catch</p>
-            <div className="grid grid-cols-5 gap-2">
-              {[50, 75, 90, 95, 99].map(conf => (
-                <div key={conf} className="text-center bg-white/5 rounded-lg px-2 py-2">
-                  <p className="text-xs text-gray-400">{conf}%</p>
-                  <p className="text-white font-semibold text-sm">
-                    {attemptsForConfidence(prob, conf / 100).toLocaleString()}
-                  </p>
+            <div className="flex flex-wrap gap-x-5 gap-y-4">
+              {needsCtx('turn') && (
+                <NumInput label="Turn Number" value={turn} onChange={setTurn} min={1} max={99} />
+              )}
+              {(needsCtx('level') || needsCtx('playerLevel')) && (
+                <NumInput label="Target Level" value={level} onChange={setLevel} min={1} max={100} />
+              )}
+              {needsCtx('playerLevel') && (
+                <NumInput label="Your Lead Level" value={playerLevel} onChange={setPlayerLevel} min={1} max={100} />
+              )}
+              {needsCtx('speed') && (
+                <div>
+                  <NumInput label="Base Speed" value={baseSpeed} onChange={setBaseSpeed} min={1} max={200} />
+                  {selectedPokemon && (
+                    <p className="text-[10px] mt-0.5" style={{ color: A }}>auto-filled from {selectedPokemon.name}</p>
+                  )}
                 </div>
-              ))}
+              )}
+              {needsCtx('weight') && (
+                <div>
+                  <NumInput label="Weight (kg)" value={weightKg} onChange={setWeightKg} min={0.1} max={999.9} step={0.1} />
+                  {selectedPokemon && (
+                    <p className="text-[10px] mt-0.5" style={{ color: A }}>auto-filled from {selectedPokemon.name}</p>
+                  )}
+                </div>
+              )}
+              {needsCtx('time') && (
+                <div className="flex flex-col gap-2">
+                  <Toggle value={isNight} onChange={setIsNight} label="Nighttime" />
+                  <Toggle value={isCave}  onChange={setIsCave}  label="Inside cave / building" />
+                </div>
+              )}
+              {needsCtx('encounter') && (
+                <div className="flex flex-col gap-2">
+                  <Toggle value={isFishing} onChange={setIsFishing} label="Fishing" />
+                  <Toggle value={isSurfing} onChange={setIsSurfing} label="Surfing" />
+                </div>
+              )}
+              {needsCtx('type') && (
+                <div className="flex flex-col gap-2">
+                  <Toggle value={isWater} onChange={setIsWater} label="Water type" />
+                  <Toggle value={isBug}   onChange={setIsBug}   label="Bug type" />
+                </div>
+              )}
+              {needsCtx('caught')  && <Toggle value={caughtBefore} onChange={setCaughtBefore} label="Already caught this species" />}
+              {needsCtx('moonevo') && <Toggle value={isMoonEvo}    onChange={setIsMoonEvo}    label="Evolves with Moon Stone" />}
+              {needsCtx('love')    && <Toggle value={isSSOG}       onChange={setSSOG}         label="Same species, opposite gender as your lead" />}
+              {needsCtx('ub')      && <Toggle value={isUltraBeast} onChange={setIsUB}         label="Ultra Beast" />}
             </div>
           </div>
         )}
-      </div>
 
-      {/* Compare all balls */}
-      <div>
-        <button
-          onClick={() => setShowCompare(v => !v)}
-          className="text-sm text-amber-400 hover:text-amber-300 transition-colors font-medium"
-        >
-          {showCompare ? '▲ Hide' : '▼ Compare all balls'}
-        </button>
+        {/* ── 7. Result ─────────────────────────────────────────────────────────── */}
+        <div className="rounded-2xl p-5" style={CARD}>
+          <div className="flex flex-col sm:flex-row sm:items-end gap-4 mb-4">
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1">Catch probability</p>
+              <p className="text-6xl font-black leading-none" style={{ color: probColor }}>{pct(prob)}</p>
+            </div>
+            <div className="pb-0.5">
+              <p className="text-base text-gray-400">
+                ~{prob >= 1 ? '1' : prob <= 0 ? '∞' : expectedAttempts(prob).toFixed(1)} throws on average
+              </p>
+            </div>
+          </div>
 
-        {showCompare && (
-          <div className="mt-3 rounded-xl border border-white/10 bg-white/3 overflow-hidden">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-white/10">
-                  <th className="text-left px-4 py-2.5 text-xs text-gray-400 font-medium">Ball</th>
-                  <th className="text-right px-4 py-2.5 text-xs text-gray-400 font-medium">Probability</th>
-                  <th className="text-right px-4 py-2.5 text-xs text-gray-400 font-medium">Avg Attempts</th>
-                  <th className="px-4 py-2.5 w-32"></th>
-                </tr>
-              </thead>
-              <tbody>
-                {ballComparison.map((b, i) => {
-                  const isSelected = b.id === activeBallId;
-                  const rowColor = b.prob >= 0.5 ? '#22c55e' : b.prob >= 0.2 ? '#f59e0b' : b.prob >= 0.05 ? '#f97316' : '#ef4444';
-                  return (
-                    <tr
-                      key={b.id}
-                      onClick={() => setBallId(b.id)}
-                      className={`border-b border-white/5 cursor-pointer transition-colors hover:bg-white/5 ${isSelected ? 'bg-white/8' : ''}`}
-                    >
-                      <td className="px-4 py-2">
-                        <span className="font-medium" style={{ color: b.color }}>{b.name}</span>
-                        {isSelected && <span className="ml-2 text-xs text-gray-500">selected</span>}
-                      </td>
-                      <td className="px-4 py-2 text-right font-semibold" style={{ color: rowColor }}>{pct(b.prob)}</td>
-                      <td className="px-4 py-2 text-right text-gray-300">
-                        {b.prob >= 1 ? '1' : b.prob <= 0 ? '∞' : expectedAttempts(b.prob).toFixed(1)}
-                      </td>
-                      <td className="px-4 py-2">
-                        <div className="h-1.5 w-full bg-white/10 rounded-full overflow-hidden">
-                          <div
-                            className="h-full rounded-full"
-                            style={{ width: `${Math.min(b.prob * 100, 100)}%`, backgroundColor: rowColor }}
-                          />
-                        </div>
-                      </td>
+          <div className="h-3 w-full rounded-full overflow-hidden mb-4" style={{ background: 'rgba(255,255,255,0.07)' }}>
+            <div className="h-full rounded-full transition-all duration-300"
+              style={{ width: `${Math.min(prob * 100, 100)}%`, background: probColor }} />
+          </div>
+
+          {prob > 0 && prob < 1 && (
+            <div className="grid grid-cols-5 gap-2">
+              {[50, 75, 90, 95, 99].map(conf => (
+                <div key={conf} className="rounded-xl px-2 py-2.5 text-center" style={{ background: 'rgba(0,0,0,0.25)' }}>
+                  <p className="text-[10px] text-gray-500 mb-0.5">{conf}%</p>
+                  <p className="text-white font-bold text-sm">{attemptsForConfidence(prob, conf / 100).toLocaleString()}</p>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* ── 8. Stats for Nerds ────────────────────────────────────────────────── */}
+        {showNerdStats && (
+          <div className="space-y-4">
+            <div className="rounded-2xl overflow-hidden" style={CARD}>
+              <div className="px-4 py-3 border-b" style={{ borderColor: 'rgba(255,255,255,0.06)' }}>
+                <h2 className="text-sm font-bold text-white">All Balls Comparison</h2>
+                <p className="text-xs text-gray-500 mt-0.5">Current HP, status, and conditions applied · click a row to select</p>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b text-[10px] font-bold uppercase tracking-wider text-gray-500"
+                      style={{ borderColor: 'rgba(255,255,255,0.06)', background: 'rgba(255,255,255,0.02)' }}>
+                      <th className="text-left px-4 py-2.5">Ball</th>
+                      <th className="text-right px-4 py-2.5">Probability</th>
+                      <th className="text-right px-4 py-2.5">Avg Throws</th>
+                      <th className="px-4 py-2.5 w-28"></th>
                     </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+                  </thead>
+                  <tbody>
+                    {ballComparison.map((b) => {
+                      const isSelected = b.id === activeBallId;
+                      const rc = b.prob >= 0.5 ? '#22c55e' : b.prob >= 0.2 ? '#fbbf24' : b.prob >= 0.05 ? '#f97316' : '#ef4444';
+                      return (
+                        <tr key={b.id} onClick={() => setBallId(b.id)}
+                          className="border-b cursor-pointer transition-colors hover:bg-white/[0.025]"
+                          style={{ borderColor: 'rgba(255,255,255,0.04)', background: isSelected ? 'rgba(251,191,36,0.06)' : undefined }}>
+                          <td className="px-4 py-2.5">
+                            <span className="font-semibold" style={{ color: b.color }}>{b.name}</span>
+                            {isSelected && <span className="ml-2 text-[10px] text-gray-600">selected</span>}
+                          </td>
+                          <td className="text-right px-4 py-2.5 font-bold tabular-nums" style={{ color: rc }}>{pct(b.prob)}</td>
+                          <td className="text-right px-4 py-2.5 text-gray-400 tabular-nums">
+                            {b.prob >= 1 ? '1' : b.prob <= 0 ? '∞' : expectedAttempts(b.prob).toFixed(1)}
+                          </td>
+                          <td className="px-4 py-2.5">
+                            <div className="h-1.5 w-full rounded-full overflow-hidden" style={{ background: 'rgba(255,255,255,0.07)' }}>
+                              <div className="h-full rounded-full" style={{ width: `${Math.min(b.prob * 100, 100)}%`, background: rc }} />
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {prob > 0 && prob < 1 && (
+              <div className="rounded-2xl overflow-hidden" style={CARD}>
+                <div className="px-4 py-3 border-b" style={{ borderColor: 'rgba(255,255,255,0.06)' }}>
+                  <h2 className="text-sm font-bold text-white">Throws Needed by Confidence</h2>
+                  <p className="text-xs text-gray-500 mt-0.5">How many throws guarantee a catch at each probability threshold</p>
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b text-[10px] font-bold uppercase tracking-wider text-gray-500"
+                        style={{ borderColor: 'rgba(255,255,255,0.06)', background: 'rgba(255,255,255,0.02)' }}>
+                        <th className="text-left px-4 py-2.5">Confidence</th>
+                        <th className="text-right px-4 py-2.5">Throws needed</th>
+                        <th className="text-right px-4 py-2.5">Interpretation</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {[
+                        { conf: 50,   note: '50/50 — coin flip' },
+                        { conf: 75,   note: '3 in 4 chance' },
+                        { conf: 90,   note: 'Expected unlucky' },
+                        { conf: 95,   note: 'Very likely caught' },
+                        { conf: 99,   note: 'Almost guaranteed' },
+                        { conf: 99.9, note: 'Essentially certain' },
+                      ].map(({ conf, note }) => (
+                        <tr key={conf} className="border-b transition-colors hover:bg-white/[0.02]"
+                          style={{ borderColor: 'rgba(255,255,255,0.04)' }}>
+                          <td className="px-4 py-2.5 font-semibold" style={{ color: A }}>{conf}%</td>
+                          <td className="text-right px-4 py-2.5 text-white font-bold tabular-nums">
+                            {attemptsForConfidence(prob, conf / 100).toLocaleString()}
+                          </td>
+                          <td className="text-right px-4 py-2.5 text-gray-600 text-xs">{note}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+
+            <p className="text-[10px] text-gray-700 text-center pb-2">
+              Formulas from Bulbapedia · Gen I uses 4-shake check model · Legends: Arceus uses approximate model
+            </p>
           </div>
         )}
       </div>
-    </div>
-  );
-}
-
-// ─── Layout wrapper ───────────────────────────────────────────────────────────
-
-function Section({ title, children }) {
-  return (
-    <div className="rounded-xl border border-white/10 bg-white/3 p-4 space-y-3">
-      <h2 className="text-xs font-bold uppercase tracking-widest text-gray-500">{title}</h2>
-      {children}
     </div>
   );
 }

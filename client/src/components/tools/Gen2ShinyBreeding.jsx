@@ -1,6 +1,8 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { supabase } from '../../contexts/AuthContext';
 import PokemonImage from '../PokemonImage';
+import PageBackground from '../PageBackground';
 import {
   POKEMON_DATA,
   POKEMON_BY_ID,
@@ -110,98 +112,97 @@ function PokemonSearch({ placeholder, onSelect, excludeIds = [], clearOnSelect =
 
 // ── Ditto trick modal ─────────────────────────────────────────────────────────
 function DittoModal({ onClose, dittoPm }) {
+  const [page, setPage] = React.useState(0);
+
+  const pages = [
+    /* Page 1 — What & Why */
+    <div key="p1" className="space-y-4 text-sm text-gray-300 leading-relaxed">
+      <p>
+        A shiny Ditto bypasses egg groups entirely — it can breed with almost any Pokémon
+        and passes two shiny DVs to every offspring, raising shiny odds to <strong className="text-white">~1/64</strong>.
+      </p>
+      <div className="bg-orange-500/10 border border-orange-500/30 rounded-lg px-3 py-2 text-orange-200 text-xs">
+        <strong>Requires:</strong> a Gen 1 cartridge (Red, Blue, or Yellow) <em>and</em> a
+        Gen 2 cartridge (Gold, Silver, or Crystal) with a Link Cable for trading.
+      </div>
+      <div>
+        <h3 className="text-white font-semibold mb-1">Why 1/64?</h3>
+        <p>
+          Shininess requires Defense = 10, Speed = 10, Special = 10, and Attack ∈ {'{2, 6, 10, 14}'}.
+          Breeding with a shiny Ditto passes <em>both</em> the Special DV and the Defense DV to
+          the offspring, leaving only Speed (1/16) and Attack (4/16) to chance — giving
+          1/16 × 1/4 = <span className="text-pink-300">1/64</span>.
+        </p>
+      </div>
+    </div>,
+    /* Page 2 — Steps */
+    <div key="p2" className="space-y-4 text-sm text-gray-300 leading-relaxed">
+      <div>
+        <h3 className="text-white font-semibold mb-2">Step-by-step</h3>
+        <ol className="list-decimal list-inside space-y-1.5">
+          <li>Use the <span className="text-yellow-300">Red Gyarados</span> from the Lake of Rage as your bait — it already has shiny DVs.</li>
+          <li>Delete any Gen 2-exclusive moves at the <span className="text-yellow-300">Move Deleter in Blackthorn City</span>.</li>
+          <li>Trade Gyarados to Gen 1 via the <span className="text-yellow-300">Time Capsule</span>. <span className="text-gray-400">(Keeps shiny DVs.)</span></li>
+          <li>Get <span className="text-yellow-300">TM31 (Mimic)</span> from Copycat in Saffron City. Teach it to Gyarados.</li>
+          <li>Find a wild Ditto — <span className="text-yellow-300">Route 15 or Cinnabar Island basement</span>.</li>
+          <li><strong className="text-white">Use Mimic</strong> to copy Ditto's Transform. Gyarados permanently learns it.</li>
+          <li>Let Ditto Transform into Gyarados, then Transform <strong className="text-white">a second time</strong>. This glitch locks Gyarados's shiny DVs into Ditto.</li>
+          <li><strong className="text-white">Catch the Ditto</strong> — don't let it faint.</li>
+          <li>Trade back to Gen 2. It appears as a <span className="text-fuchsia-300">bright blue shiny Ditto</span>.</li>
+        </ol>
+      </div>
+      <div>
+        <h3 className="text-white font-semibold mb-1">Then breed freely</h3>
+        <p>Drop this Ditto in the Day-Care with <em>any</em> breedable Pokémon. At ~1/64 per egg, expect 30–100 eggs on average.</p>
+      </div>
+      <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-lg px-3 py-2 text-yellow-200 text-xs">
+        <strong>Tip:</strong> The target must be breedable — legendaries and baby Pokémon can't be obtained this way.
+      </div>
+    </div>,
+  ];
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70" onClick={onClose}>
       <div
-        className="bg-gray-900 border border-gray-700 rounded-2xl max-w-lg w-full p-6 shadow-2xl"
+        className="bg-gray-900 border border-gray-700 rounded-2xl max-w-xs w-full p-4 shadow-2xl flex flex-col"
         onClick={e => e.stopPropagation()}
       >
+        {/* Header */}
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-2">
             {dittoPm
               ? <PokemonImage pokemon={dittoPm} className="w-10 h-10" disableCycling />
               : <div className="w-10 h-10 bg-gray-700 rounded animate-pulse" />}
-            <h2 className="text-lg font-bold text-white">Getting a Shiny Ditto</h2>
+            <h2 className="text-base font-bold text-white">Getting a Shiny Ditto</h2>
           </div>
           <button onClick={onClose} className="text-gray-400 hover:text-white transition text-xl leading-none">✕</button>
         </div>
 
-        <div className="space-y-4 text-sm text-gray-300 leading-relaxed">
-          <p>
-            A shiny Ditto bypasses egg groups entirely — it can breed with almost any Pokémon
-            and passes two shiny DVs to every offspring, raising shiny odds to <strong className="text-white">~1/64</strong>.
-          </p>
+        {/* Page content */}
+        {pages[page]}
 
-          <div className="bg-orange-500/10 border border-orange-500/30 rounded-lg px-3 py-2 text-orange-200 text-xs">
-            <strong>Requires:</strong> a Gen 1 cartridge (Red, Blue, or Yellow) <em>and</em> a
-            Gen 2 cartridge (Gold, Silver, or Crystal) with a Link Cable for trading.
+        {/* Page navigation */}
+        <div className="flex items-center justify-between mt-5 pt-3 border-t border-gray-700/60">
+          <button
+            onClick={() => setPage(0)}
+            disabled={page === 0}
+            className="px-3 py-1.5 text-xs rounded-lg bg-gray-800 text-gray-300 hover:bg-gray-700 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+          >
+            ← Prev
+          </button>
+          {/* Dots */}
+          <div className="flex gap-1.5">
+            {pages.map((_, i) => (
+              <button key={i} onClick={() => setPage(i)} className={`w-2 h-2 rounded-full transition-colors ${i === page ? 'bg-purple-400' : 'bg-gray-600 hover:bg-gray-500'}`} />
+            ))}
           </div>
-
-          <div>
-            <h3 className="text-white font-semibold mb-1">Why 1/64?</h3>
-            <p>
-              Shininess requires Defense = 10, Speed = 10, Special = 10, and Attack ∈ {'{2, 6, 10, 14}'}.
-              Breeding with a shiny Ditto passes <em>both</em> the Special DV and the Defense DV to
-              the offspring, leaving only Speed (1/16) and Attack (4/16) to chance — giving
-              1/16 × 1/4 = <span className="text-pink-300">1/64</span>.
-            </p>
-          </div>
-
-          <div>
-            <h3 className="text-white font-semibold mb-1">Step-by-step</h3>
-            <ol className="list-decimal list-inside space-y-1.5">
-              <li>
-                Use the <span className="text-yellow-300">Red Gyarados</span> from the Lake of Rage as your bait — it already has shiny DVs and every player has one.
-              </li>
-              <li>
-                If it knows any Gen 2-exclusive moves, delete them at the{' '}
-                <span className="text-yellow-300">Move Deleter in Blackthorn City</span> first.
-              </li>
-              <li>
-                Trade Gyarados to your Gen 1 game via the <span className="text-yellow-300">Time Capsule</span>.{' '}
-                <span className="text-gray-400">(It will look normal in Gen 1 but keeps its shiny DVs.)</span>
-              </li>
-              <li>
-                In Gen 1, obtain <span className="text-yellow-300">TM31 (Mimic)</span> from the Copycat NPC in
-                Saffron City (trade her the Poké Doll from the Celadon Dept. Store). Teach it to Gyarados.
-              </li>
-              <li>
-                Find a wild Ditto in Gen 1 —{' '}
-                <span className="text-yellow-300">Route 15 or the Cinnabar Island basement</span> are good spots.
-              </li>
-              <li>
-                In battle, <strong className="text-white">use Mimic</strong> to copy Ditto's Transform.
-                Gyarados permanently learns Transform.
-              </li>
-              <li>
-                Now let Ditto use Transform on Gyarados. Ditto copies Gyarados — including the
-                Transform move. Then Ditto uses Transform <strong className="text-white">a second time</strong>.
-                This second Transform triggers the glitch that permanently locks Gyarados's shiny DVs
-                into the Ditto.
-              </li>
-              <li>
-                <strong className="text-white">Catch the Ditto</strong> — don't let it faint.
-              </li>
-              <li>
-                Trade it back to Gen 2. It will appear as a{' '}
-                <span className="text-fuchsia-300">bright blue shiny Ditto</span>.
-              </li>
-            </ol>
-          </div>
-
-          <div>
-            <h3 className="text-white font-semibold mb-1">Then breed freely</h3>
-            <p>
-              Drop this Ditto in the Day-Care with <em>any</em> breedable Pokémon — egg groups
-              don't matter. At ~1/64 per egg, expect around 30–100 eggs on average, far better
-              than the 1/1024 from a standard shiny female parent.
-            </p>
-          </div>
-
-          <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-lg px-3 py-2 text-yellow-200 text-xs">
-            <strong>Tip:</strong> Even with a shiny Ditto, the target must be breedable —
-            legendaries and baby Pokémon can't be obtained this way.
-          </div>
+          <button
+            onClick={() => setPage(1)}
+            disabled={page === 1}
+            className="px-3 py-1.5 text-xs rounded-lg bg-gray-800 text-gray-300 hover:bg-gray-700 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+          >
+            Next →
+          </button>
         </div>
       </div>
     </div>
@@ -303,6 +304,7 @@ function OwnedTag({ pokemon, pmMap, onRemove }) {
 
 // ── Main component ────────────────────────────────────────────────────────────
 export default function Gen2ShinyBreeding() {
+  const navigate = useNavigate();
   const [ownedIds, setOwnedIds] = useState(() => {
     try { return JSON.parse(localStorage.getItem('gen2_owned_shinies') || '[]'); }
     catch { return []; }
@@ -352,28 +354,49 @@ export default function Gen2ShinyBreeding() {
   const ownedPokemon = ownedIds.map(id => POKEMON_BY_ID[id]).filter(Boolean);
 
   return (
-    <div className="max-w-3xl mx-auto px-4 py-8">
-      {/* Header */}
-      <div className="flex items-start justify-between mb-6 gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-white mb-1">Gen 2 Shiny Gene Breeding</h1>
-          <p className="text-gray-400 text-sm leading-relaxed">
-            Find the shortest breeding chain to pass shiny DVs from any Pokémon you already have
-            shiny to your target. Shiny females pass their Special DV to all offspring, boosting
-            shiny odds to ~1/1024 per egg.
-          </p>
+    <div className="min-h-screen text-white" style={{ isolation: 'isolate', position: 'relative' }}>
+      <PageBackground />
+
+      {/* Sticky header */}
+      <div className="sticky top-0 z-30 border-b"
+        style={{ background: 'rgba(13,15,20,0.85)', backdropFilter: 'blur(10px)', borderColor: 'rgba(255,255,255,0.06)' }}>
+        <div className="max-w-5xl mx-auto px-4 py-2.5 flex items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <button onClick={() => navigate('/tools')}
+              className="flex items-center gap-1.5 text-sm transition-colors"
+              style={{ color: 'rgba(255,255,255,0.4)' }}
+              onMouseEnter={e => e.currentTarget.style.color = '#fff'}
+              onMouseLeave={e => e.currentTarget.style.color = 'rgba(255,255,255,0.4)'}>
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
+              </svg>
+              <span className="hidden sm:inline">Shiny Tools</span>
+            </button>
+            <span style={{ color: 'rgba(255,255,255,0.15)' }}>|</span>
+            <span className="text-sm font-semibold text-white">Gen 2 Shiny Breeding</span>
+          </div>
+          <button
+            onClick={() => setDittoOpen(true)}
+            className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-fuchsia-300 text-xs font-semibold border transition-all hover:bg-fuchsia-500/20"
+            style={{ background: 'rgba(217,70,239,0.1)', borderColor: 'rgba(217,70,239,0.25)' }}
+            title="How to get a shiny Ditto">
+            {pmMap[132]
+              ? <PokemonImage pokemon={pmMap[132]} className="w-5 h-5" disableCycling />
+              : <div className="w-5 h-5 bg-gray-700 rounded animate-pulse" />}
+            Ditto trick
+          </button>
         </div>
-        <button
-          onClick={() => setDittoOpen(true)}
-          className="shrink-0 flex items-center gap-1.5 bg-fuchsia-500/15 border border-fuchsia-500/30
-            hover:bg-fuchsia-500/25 transition rounded-lg px-3 py-2 text-fuchsia-300 text-xs font-semibold"
-          title="How to get a shiny Ditto"
-        >
-          {pmMap[132]
-            ? <PokemonImage pokemon={pmMap[132]} className="w-6 h-6" disableCycling />
-            : <div className="w-6 h-6 bg-gray-700 rounded animate-pulse" />}
-          Ditto trick
-        </button>
+      </div>
+
+    <div className="max-w-5xl mx-auto px-4 py-6">
+      {/* Header */}
+      <div className="mb-6">
+        <h1 className="text-2xl font-bold text-white mb-1">Gen 2 Shiny Gene Breeding</h1>
+        <p className="text-gray-400 text-sm leading-relaxed">
+          Find the shortest breeding chain to pass shiny DVs from any Pokémon you already have
+          shiny to your target. Shiny females pass their Special DV to all offspring, boosting
+          shiny odds to ~1/1024 per egg.
+        </p>
       </div>
 
       {/* Inputs */}
@@ -560,6 +583,7 @@ export default function Gen2ShinyBreeding() {
       )}
 
       {dittoOpen && <DittoModal onClose={() => setDittoOpen(false)} dittoPm={pmMap[132]} />}
+    </div>
     </div>
   );
 }

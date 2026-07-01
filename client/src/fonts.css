@@ -7,18 +7,17 @@
   letter-spacing: 0.1em;
 }
 
-/* Apply Tondu font globally with lighter weight */
+/* Apply font globally — change this one value to test a different font */
 body {
-  font-family: 'Tondu-Beta', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-family: 'Rubik', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   font-weight: 400;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   letter-spacing: 0.01em;
 }
 
-/* For headings, you might want slightly heavier but still light */
 h1, h2, h3, h4, h5, h6 {
-  font-family: 'Tondu-Beta', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-family: 'Rubik', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   font-weight: 400;
 }
 

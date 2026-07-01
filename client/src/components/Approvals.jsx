@@ -340,8 +340,8 @@ const Approvals = () => {
 
   if (!user || isModerator !== true) {
     return (
-      <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: '#212326' }}>
-        <div className="text-lg text-gray-400">Loading...</div>
+      <div className="min-h-screen flex items-center justify-center" style={{ background: '#0d0f14' }}>
+        <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-purple-500" />
       </div>
     );
   }
@@ -404,6 +404,13 @@ const Approvals = () => {
             {/* Game rules reminder for restricted submissions */}
             {approval.restricted_submission && approval.game && (
               <GameRules gameKey={approval.game} />
+            )}
+
+            {/* User note */}
+            {approval.note && (
+              <div className="mt-2 px-2 py-1.5 rounded bg-yellow-900/20 border border-yellow-700/40 text-xs text-yellow-200">
+                <span className="font-semibold text-yellow-400">Note: </span>{approval.note}
+              </div>
             )}
           </div>
 
@@ -633,11 +640,11 @@ const Approvals = () => {
       <div className="p-8">
         <div className="max-w-7xl mx-auto">
           {/* Tabs */}
-          <div className="flex gap-4 mb-6">
+          <div className="flex gap-2 mb-6">
             <button
               onClick={() => setActiveTab('approvals')}
-              className={`px-6 py-2 rounded-lg font-medium transition-colors ${
-                activeTab === 'approvals' ? 'bg-purple-500 text-white' : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+              className={`px-4 py-1.5 rounded-full text-sm font-medium transition-colors ${
+                activeTab === 'approvals' ? 'bg-purple-600/20 text-purple-300 border border-purple-500/30' : 'text-gray-500 hover:text-gray-200'
               }`}
             >
               Pending Approvals
@@ -652,13 +659,13 @@ const Approvals = () => {
                 setActiveTab('historical');
                 if (!historicalLoaded) loadHistoricalApprovals();
               }}
-              className={`px-6 py-2 rounded-lg font-medium transition-colors ${
-                activeTab === 'historical' ? 'bg-purple-500 text-white' : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+              className={`px-4 py-1.5 rounded-full text-sm font-medium transition-colors ${
+                activeTab === 'historical' ? 'bg-purple-600/20 text-purple-300 border border-purple-500/30' : 'text-gray-500 hover:text-gray-200'
               }`}
             >
               Historical
               {historicalApprovals.length > 0 && (
-                <span className="ml-2 bg-purple-700 text-white text-xs rounded-full px-1.5 py-0.5">
+                <span className="ml-2 bg-purple-700/60 text-purple-200 text-xs rounded-full px-1.5 py-0.5">
                   {historicalApprovals.length}
                 </span>
               )}
@@ -668,8 +675,8 @@ const Approvals = () => {
                 setActiveTab('history');
                 if (!historyLoaded) loadHistory(1);
               }}
-              className={`px-6 py-2 rounded-lg font-medium transition-colors ${
-                activeTab === 'history' ? 'bg-purple-500 text-white' : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+              className={`px-4 py-1.5 rounded-full text-sm font-medium transition-colors ${
+                activeTab === 'history' ? 'bg-purple-600/20 text-purple-300 border border-purple-500/30' : 'text-gray-500 hover:text-gray-200'
               }`}
             >
               Approval History
@@ -678,13 +685,13 @@ const Approvals = () => {
 
           {/* Approvals List */}
           {activeTab === 'approvals' && (
-            <div className="rounded-lg border border-gray-600" style={{ backgroundColor: '#35373b' }}>
+            <div className="rounded-xl border" style={{ background: 'linear-gradient(160deg, #13151a 0%, #181a21 100%)', borderColor: 'rgba(255,255,255,0.07)' }}>
               {loading && !approvalsLoaded ? (
                 <div className="text-center text-gray-400 py-8">Loading approvals...</div>
               ) : approvals.length === 0 ? (
                 <div className="text-center text-gray-400 py-8">No pending approvals</div>
               ) : (
-                <div className="divide-y divide-gray-600">
+                <div className="divide-y divide-gray-800">
                   {approvals.map(approval => renderApprovalRow(approval, false))}
                 </div>
               )}
@@ -693,13 +700,13 @@ const Approvals = () => {
 
           {/* Historical Tab */}
           {activeTab === 'historical' && (
-            <div className="rounded-lg border border-gray-600" style={{ backgroundColor: '#35373b' }}>
+            <div className="rounded-xl border" style={{ background: 'linear-gradient(160deg, #13151a 0%, #181a21 100%)', borderColor: 'rgba(255,255,255,0.07)' }}>
               {historicalLoading ? (
                 <div className="text-center text-gray-400 py-8">Loading historical approvals...</div>
               ) : historicalApprovals.length === 0 ? (
                 <div className="text-center text-gray-400 py-8">No pending historical approvals</div>
               ) : (
-                <div className="divide-y divide-gray-600">
+                <div className="divide-y divide-gray-800">
                   {historicalApprovals.map(approval => renderApprovalRow(approval, true))}
                 </div>
               )}
@@ -708,14 +715,14 @@ const Approvals = () => {
 
           {/* Approval History Tab */}
           {activeTab === 'history' && (
-            <div className="rounded-lg border border-gray-600" style={{ backgroundColor: '#35373b' }}>
+            <div className="rounded-xl border" style={{ background: 'linear-gradient(160deg, #13151a 0%, #181a21 100%)', borderColor: 'rgba(255,255,255,0.07)' }}>
               {historyLoading && !historyLoaded ? (
                 <div className="text-center text-gray-400 py-8">Loading history...</div>
               ) : historyData.length === 0 ? (
                 <div className="text-center text-gray-400 py-8">No approval history yet</div>
               ) : (
                 <>
-                  <div className="divide-y divide-gray-600">
+                  <div className="divide-y divide-gray-800">
                     {historyData.map(record => {
                       const statusCfg = STATUS_CONFIG[record.status] || { label: record.status, color: 'text-gray-400', bg: 'bg-gray-700/30 border-gray-600/40' };
                       return (

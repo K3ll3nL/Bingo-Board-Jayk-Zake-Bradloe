@@ -1,8 +1,9 @@
 import React from 'react';
 import PageHeader from './PageHeader';
+import PageBackground from './PageBackground';
 
 const Section = ({ title, children }) => (
-  <section className="rounded-xl shadow-xl overflow-hidden border border-gray-600" style={{ backgroundColor: '#35373b' }}>
+  <section className="rounded-xl shadow-xl overflow-hidden border border-gray-600" style={{ background: 'linear-gradient(160deg, #1a1c23 0%, #1f2128 100%)' }}>
     <div className="px-6 py-4 border-b border-purple-500/30" style={{ backgroundColor: 'rgba(145,71,255,0.08)' }}>
       <h2 className="text-base font-semibold text-white tracking-wide">{title}</h2>
     </div>
@@ -16,6 +17,8 @@ export default function TermsOfService() {
   React.useEffect(() => { window.scrollTo(0, 0); }, []);
 
   return (
+    <div className="min-h-screen" style={{ isolation: 'isolate', position: 'relative' }}>
+    <PageBackground />
     <main className="max-w-3xl mx-auto px-4 py-8 space-y-5">
       <PageHeader title="Terms of Service" />
       <div className="text-center">
@@ -147,5 +150,6 @@ export default function TermsOfService() {
         </p>
       </Section>
     </main>
+    </div>
   );
 }

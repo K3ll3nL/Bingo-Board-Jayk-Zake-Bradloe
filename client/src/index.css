@@ -3,9 +3,9 @@
 @tailwind utilities;
 
 @font-face {
-  font-family: 'Tondu-Beta';
-  src: url('./assets/fonts/Tondu-Beta.woff2') format('woff2');
-  font-weight: normal;
+  font-family: 'Rubik';
+  src: url('./public/fonts/Rubik-VariableFont_wght.woff2') format('woff2');
+  font-weight: 100 900;
   font-style: normal;
   font-display: swap;
 }
@@ -16,6 +16,8 @@ html, body {
   background-color: #212326;
   margin: 0;
   padding: 0;
+  /* Change this one value to test a different font globally */
+  font-family: 'Rubik', sans-serif;
 }
 
 #root {

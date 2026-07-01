@@ -41,16 +41,19 @@ const CopyButton = ({ text, label = 'Copy URL', disabled = false }) => {
 };
 
 // ── URL display row ──────────────────────────────────────────────────────────
-const UrlRow = ({ label, url, disabled }) => (
+const UrlRow = ({ label, url, disabled, blurred }) => (
   <div className="space-y-1.5">
     <div className="text-xs text-gray-400 font-medium">{label}</div>
     <div className="flex items-center gap-2">
       <code
-        className="flex-1 text-xs rounded px-3 py-2 truncate"
+        className="flex-1 text-xs rounded px-3 py-2 truncate transition-all duration-200"
         style={{
           backgroundColor: '#161819',
           color: disabled ? '#4b5563' : '#a78bfa',
           border: `1px solid ${disabled ? '#1f2937' : '#374151'}`,
+          filter: blurred ? 'blur(6px)' : 'none',
+          userSelect: blurred ? 'none' : 'auto',
+          pointerEvents: blurred ? 'none' : 'auto',
         }}
       >
         {url}
@@ -151,8 +154,8 @@ const Pro = () => {
 
   if (keyInfo === undefined) {
     return (
-      <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: '#212326' }}>
-        <div className="text-gray-400">Loading…</div>
+      <div className="min-h-screen flex items-center justify-center" style={{ background: '#0d0f14' }}>
+        <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-purple-500" />
       </div>
     );
   }
@@ -169,6 +172,7 @@ const Pro = () => {
         onBack={() => navigate(-1)}
         maxWidth="3xl"
       />
+
 
       <div className="max-w-3xl mx-auto px-4 py-8 space-y-6">
 
@@ -212,11 +216,10 @@ const Pro = () => {
         )}
 
         {/* ── Board Overlay ── */}
-        <section className="rounded-2xl shadow-xl overflow-hidden" style={{ backgroundColor: '#35373b', border: '1px solid #4b5563' }}>
-          <div className="h-1 bg-gradient-to-r from-purple-600 via-pink-500 to-purple-400" />
+        <section className="rounded-2xl shadow-xl" style={{ background: 'linear-gradient(160deg, #1a1c23 0%, #1f2128 100%)', border: '1px solid rgba(255,255,255,0.07)' }}>
           <div className="px-6 py-5 space-y-4">
             <div>
-              <h2 className="text-base text-white">Board Overlay</h2>
+              <h2 className="text-base font-semibold text-white">Board Overlay</h2>
               <p className="text-xs text-gray-400 mt-0.5">Scales to any browser source size.</p>
             </div>
 
@@ -243,7 +246,7 @@ const Pro = () => {
               </div>
             </div>
 
-            <UrlRow label="Browser source URL" url={boardUrl} disabled={!hasKey} />
+            <UrlRow label="Browser source URL" url={boardUrl} disabled={!hasKey} blurred={true} />
             <Warn>
               If unsure which mode to use, choose <strong>Template</strong> — it shares no personal completion data.
               Do not display this URL on stream or share it publicly.
@@ -252,11 +255,10 @@ const Pro = () => {
         </section>
 
         {/* ── Leaderboard Overlay ── */}
-        <section className="rounded-2xl shadow-xl overflow-hidden" style={{ backgroundColor: '#35373b', border: '1px solid #4b5563' }}>
-          <div className="h-1 bg-gradient-to-r from-purple-600 via-pink-500 to-purple-400" />
+        <section className="rounded-2xl shadow-xl" style={{ background: 'linear-gradient(160deg, #1a1c23 0%, #1f2128 100%)', border: '1px solid rgba(255,255,255,0.07)' }}>
           <div className="px-6 py-5 space-y-4">
             <div>
-              <h2 className="text-base text-white">Leaderboard Overlay</h2>
+              <h2 className="text-base font-semibold text-white">Leaderboard Overlay</h2>
               <p className="text-xs text-gray-400 mt-0.5">Scales to any browser source size — taller layouts fit more rows.</p>
             </div>
 
@@ -313,7 +315,7 @@ const Pro = () => {
               </div>
             </button>
 
-            <UrlRow label="Browser source URL" url={lbUrl} disabled={!hasKey} />
+            <UrlRow label="Browser source URL" url={lbUrl} disabled={!hasKey} blurred={true} />
             <Warn>
               If unsure how many rows to show, <strong>Top 10</strong> is the most readable on stream.
               Do not display this URL on stream or share it publicly.
@@ -323,11 +325,10 @@ const Pro = () => {
 
         {/* ── Pending Approvals Overlay (mod only) ── */}
         {isModerator && (
-          <section className="rounded-2xl shadow-xl overflow-hidden" style={{ backgroundColor: '#35373b', border: '1px solid #4b5563' }}>
-            <div className="h-1 bg-gradient-to-r from-red-600 via-orange-500 to-red-400" />
+          <section className="rounded-2xl shadow-xl" style={{ background: 'linear-gradient(160deg, #1a1c23 0%, #1f2128 100%)', border: '1px solid rgba(255,255,255,0.07)' }}>
             <div className="px-6 py-5 space-y-4">
               <div>
-                <h2 className="text-base text-white">Pending Approvals Overlay <span className="text-xs font-semibold ml-1 px-1.5 py-0.5 rounded" style={{ backgroundColor: 'rgba(239,68,68,0.15)', color: '#f87171', border: '1px solid rgba(239,68,68,0.3)' }}>Mod only</span></h2>
+                <h2 className="text-base font-semibold text-white">Pending Approvals Overlay <span className="text-xs font-semibold ml-1 px-1.5 py-0.5 rounded" style={{ backgroundColor: 'rgba(239,68,68,0.15)', color: '#f87171', border: '1px solid rgba(239,68,68,0.3)' }}>Mod only</span></h2>
                 <p className="text-xs text-gray-400 mt-0.5">Shows a queue of pending submissions. Disappears automatically when the queue is empty.</p>
               </div>
 
@@ -369,7 +370,7 @@ const Pro = () => {
                 </div>
               </div>
 
-              <UrlRow label="Browser source URL (moderator key required)" url={aqUrl} disabled={!hasKey} />
+              <UrlRow label="Browser source URL (moderator key required)" url={aqUrl} disabled={!hasKey} blurred={true} />
               <div className="flex items-center gap-3">
                 <button
                   disabled={!hasKey || testEventState === 'loading'}

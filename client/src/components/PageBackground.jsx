@@ -5,7 +5,7 @@ const IMG     = 'https://pub-583ae6cd5f8b4b58b0ee7053ea1d4b0b.r2.dev/assets/bb-s
 const TILE    = 200;   // px — native image size
 const GAP     = 75;    // px — space between tiles (horizontal and vertical)
 const BLUR    = 8;     // px — gaussian blur
-const OPACITY = 0.2;  // 0–1
+const OPACITY = 0.15;  // 0–1
 // ─────────────────────────────────────────────────────────────────────────────
 
 const CELL = TILE + GAP; // total size of one grid cell including gap

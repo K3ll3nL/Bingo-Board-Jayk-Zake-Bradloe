@@ -3,7 +3,6 @@ import restrictedIcon from '../Icons/restricted-icon.png';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { createClient } from '@supabase/supabase-js';
-import { isRestrictedEnabled } from '../featureFlags';
 import { ALLOWED_GAMES } from '../constants/games';
 import PageBackground from './PageBackground';
 import PageHeader from './PageHeader';
@@ -27,8 +26,7 @@ const getAuthHeader = async () => {
 // ── Historical Upload Section ────────────────────────────────────────────────
 
 const HistoricalUploadSection = () => {
-  const { isModerator } = useAuth();
-  const restrictedEnabled = isRestrictedEnabled(isModerator);
+  const restrictedEnabled = true;
   const [pokemon, setPokemon] = useState(null); // null = loading
   const [selectedPokemon, setSelectedPokemon] = useState('');
   const [dropdownOpen, setDropdownOpen] = useState(false);
@@ -59,6 +57,7 @@ const HistoricalUploadSection = () => {
   const [evolutionFile, setEvolutionFile] = useState(null);
   const [evolutionSummaryFile, setEvolutionSummaryFile] = useState(null);
   const [extraFiles, setExtraFiles] = useState([]);
+  const [note, setNote] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(false);
@@ -79,11 +78,10 @@ const HistoricalUploadSection = () => {
     const handleClickOutside = (e) => {
       if (dropdownOpen && !e.target.closest('.hist-pokemon-dropdown')) setDropdownOpen(false);
       if (gameDropdownOpen && !e.target.closest('.hist-game-dropdown')) setGameDropdownOpen(false);
-      if (caughtInGameOpen && !e.target.closest('.hist-caught-game-dropdown')) setCaughtInGameOpen(false);
     };
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [dropdownOpen, gameDropdownOpen, caughtInGameOpen]);
+  }, [dropdownOpen, gameDropdownOpen]);
 
   const loadPokemon = async () => {
     try {
@@ -190,8 +188,6 @@ const HistoricalUploadSection = () => {
     e.preventDefault();
     if (!selectedPokemon)    { setError('Please select a Pokemon'); return; }
     if (!game.trim())        { setError('Please select the game you hunted in'); return; }
-    if (caughtInDifferentGame && !caughtInGame) { setError('Please select the game you caught it in'); return; }
-    if (caughtInDifferentGame && (!evolutionFile || !evolutionSummaryFile)) { setError('Evolution screenshot and evolved summary are required when caught in a different game'); return; }
     if (isRestricted && activeChecklist.length > 0 && !activeChecklist.every(item => !!checkedItems[item.id])) {
       setError('Please confirm all checklist items before submitting.');
       return;
@@ -216,13 +212,13 @@ const HistoricalUploadSection = () => {
       formData.append('restricted_submission', isRestricted ? 'true' : 'false');
       formData.append('game', game.trim());
       formData.append('month_id', String(selectedPokeData.month_id));
-      if (caughtInDifferentGame && caughtInGame) formData.append('caught_in_game', caughtInGame);
       validLinks.forEach(u => formData.append('link', u));
       if (mediaFile)  formData.append('file', mediaFile);
       if (mediaFile2) formData.append('file2', mediaFile2);
       if (caughtInDifferentGame && evolutionFile)        formData.append('evolutionFile', evolutionFile);
       if (caughtInDifferentGame && evolutionSummaryFile) formData.append('evolutionSummaryFile', evolutionSummaryFile);
       extraFiles.filter(Boolean).forEach(f => formData.append('extraFile', f));
+      if (note.trim()) formData.append('note', note.trim());
 
       const response = await fetch('/api/upload/historical-submission', {
         method: 'POST',
@@ -236,14 +232,10 @@ const HistoricalUploadSection = () => {
       setSuccess(true);
       setSelectedPokemon('');
       setGame('');
-      setCaughtInDifferentGame(false);
-      setCaughtInGame('');
-      setEvolutionFile(null);
-      setEvolutionSummaryFile(null);
-      setExtraFiles([]);
       setMediaUrls(['']);
       setMediaFile(null);
       setMediaFile2(null);
+      setNote('');
       setTimeout(() => { setSuccess(false); loadPokemon(); }, 3000);
     } catch (err) {
       setError(err.message || 'Failed to submit catch');
@@ -434,97 +426,6 @@ const HistoricalUploadSection = () => {
             </div>
           )}
         </div>
-
-        {/* Caught in a different game — secondary option tucked under game selector */}
-        {!caughtInDifferentGame ? (
-          <button
-            type="button"
-            onClick={() => setCaughtInDifferentGame(true)}
-            disabled={submitting}
-            className="mt-2 text-xs text-gray-500 hover:text-gray-400 transition-colors"
-          >
-            Caught in a different game?
-          </button>
-        ) : (
-          <div className="mt-3 pt-3 border-t border-gray-700">
-            <div className="flex items-center justify-between mb-3">
-              <span className="text-xs font-medium text-gray-400">Caught in a different game</span>
-              <button
-                type="button"
-                onClick={() => { setCaughtInDifferentGame(false); setCaughtInGame(''); setEvolutionFile(null); setEvolutionSummaryFile(null); }}
-                disabled={submitting}
-                className="text-xs text-gray-500 hover:text-gray-400 transition-colors"
-              >
-                Remove ×
-              </button>
-            </div>
-            <div className="relative hist-caught-game-dropdown mb-3">
-              <button
-                type="button"
-                onClick={() => setCaughtInGameOpen(!caughtInGameOpen)}
-                disabled={submitting}
-                className="w-full p-3 bg-gray-700 text-white rounded-lg border border-gray-600 focus:border-purple-500 focus:outline-none flex items-center justify-between"
-              >
-                {caughtInGame ? (
-                  <div className="flex items-center gap-3 min-w-0">
-                    {(() => { const g = ALLOWED_GAMES.find(g => g.label === caughtInGame); return g ? (
-                      <div className="flex items-center gap-1 flex-shrink-0" style={{ width: '88px' }}>
-                        {(g.img_urls ?? []).slice(0, 2).map((url, i) => (
-                          <div key={i} className="flex items-center justify-center flex-shrink-0" style={{ width: '42px', height: '24px' }}>
-                            <img src={url} alt="" className="object-contain" style={{ maxHeight: '24px', maxWidth: '42px' }} />
-                          </div>
-                        ))}
-                      </div>
-                    ) : null; })()}
-                    <span className="text-sm truncate">{caughtInGame}</span>
-                  </div>
-                ) : <span className="text-gray-400">Select a game...</span>}
-                <svg className={`w-5 h-5 flex-shrink-0 ml-2 transition-transform ${caughtInGameOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                </svg>
-              </button>
-              {caughtInGameOpen && (
-                <div className="absolute z-20 w-full mt-1 bg-gray-700 border border-gray-600 rounded-lg shadow-lg max-h-60 overflow-y-auto">
-                  {ALLOWED_GAMES.filter(g => g.label !== game).map(g => (
-                    <button key={g.key} type="button" onClick={() => { setCaughtInGame(g.label); setCaughtInGameOpen(false); }}
-                      className={`w-full px-4 py-3 flex items-center gap-4 hover:bg-gray-600 transition-colors text-left ${caughtInGame === g.label ? 'bg-gray-600' : ''}`}>
-                      <div className="flex items-center gap-1 flex-shrink-0" style={{ width: '88px' }}>
-                        {(g.img_urls ?? []).slice(0, 2).map((url, i) => (
-                          <div key={i} className="flex items-center justify-center flex-shrink-0" style={{ width: '42px', height: '28px' }}>
-                            <img src={url} alt="" className="object-contain" style={{ maxHeight: '28px', maxWidth: '42px' }} />
-                          </div>
-                        ))}
-                      </div>
-                      <span className="text-white text-sm">{g.label}</span>
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="block text-xs text-gray-400 mb-1.5">Evolution Screenshot <span className="text-red-400">*</span></label>
-                <input type="file" onChange={(e) => { if (e.target.files[0]) setEvolutionFile(e.target.files[0]); }} accept="image/*,video/*" className="hidden" id="hist-evo-file" disabled={submitting} />
-                <label htmlFor="hist-evo-file" className="block w-full p-4 border-2 border-dashed rounded-lg text-center cursor-pointer transition-colors border-gray-600 bg-gray-700 hover:border-purple-500">
-                  {evolutionFile
-                    ? <div className="text-white"><svg className="w-5 h-5 mx-auto mb-1 text-green-400" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" /></svg><p className="text-xs truncate">{evolutionFile.name}</p></div>
-                    : <div className="text-gray-500"><svg className="w-5 h-5 mx-auto mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" /></svg><p className="text-xs">Upload image</p></div>
-                  }
-                </label>
-              </div>
-              <div>
-                <label className="block text-xs text-gray-400 mb-1.5">Evolved Summary <span className="text-red-400">*</span></label>
-                <input type="file" onChange={(e) => { if (e.target.files[0]) setEvolutionSummaryFile(e.target.files[0]); }} accept="image/*,video/*" className="hidden" id="hist-evo-summary-file" disabled={submitting} />
-                <label htmlFor="hist-evo-summary-file" className="block w-full p-4 border-2 border-dashed rounded-lg text-center cursor-pointer transition-colors border-gray-600 bg-gray-700 hover:border-purple-500">
-                  {evolutionSummaryFile
-                    ? <div className="text-white"><svg className="w-5 h-5 mx-auto mb-1 text-green-400" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" /></svg><p className="text-xs truncate">{evolutionSummaryFile.name}</p></div>
-                    : <div className="text-gray-500"><svg className="w-5 h-5 mx-auto mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" /></svg><p className="text-xs">Upload image</p></div>
-                  }
-                </label>
-              </div>
-            </div>
-          </div>
-        )}
       </div>
 
       {/* Video links + restricted button */}
@@ -659,7 +560,7 @@ const HistoricalUploadSection = () => {
       </div>
 
       {/* Proof uploads */}
-      <div className={`grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4 transition-opacity duration-200 ${noImageProof ? 'opacity-40 pointer-events-none select-none' : ''}`}>
+      <div className={`grid grid-cols-2 gap-3 mb-4 transition-opacity duration-200 ${noImageProof ? 'opacity-40 pointer-events-none select-none' : ''}`}>
         <div>
           <label className="block text-xs font-medium text-gray-300 mb-2">
             {isRestricted || noImageProof
@@ -668,7 +569,7 @@ const HistoricalUploadSection = () => {
             }
           </label>
           <input type="file" onChange={(e) => { if (e.target.files[0]) setMediaFile(e.target.files[0]); }} accept="image/*,video/*" className="hidden" id="hist-file-1" disabled={submitting} />
-          <label htmlFor="hist-file-1" className="block w-full p-4 sm:p-6 border-2 border-dashed rounded-lg text-center cursor-pointer transition-colors border-gray-600 bg-gray-700 hover:border-purple-500">
+          <label htmlFor="hist-file-1" className="block w-full p-4 border-2 border-dashed rounded-lg text-center cursor-pointer transition-colors border-gray-600 bg-gray-700 hover:border-purple-500">
             {mediaFile ? (
               <div className="text-white"><svg className="w-6 h-6 mx-auto mb-2 text-green-400" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" /></svg><p className="text-xs truncate">{mediaFile.name}</p></div>
             ) : (
@@ -684,7 +585,7 @@ const HistoricalUploadSection = () => {
             }
           </label>
           <input type="file" onChange={(e) => { if (e.target.files[0]) setMediaFile2(e.target.files[0]); }} accept="image/*,video/*" className="hidden" id="hist-file-2" disabled={submitting} />
-          <label htmlFor="hist-file-2" className="block w-full p-4 sm:p-6 border-2 border-dashed rounded-lg text-center cursor-pointer transition-colors border-gray-600 bg-gray-700 hover:border-purple-500">
+          <label htmlFor="hist-file-2" className="block w-full p-4 border-2 border-dashed rounded-lg text-center cursor-pointer transition-colors border-gray-600 bg-gray-700 hover:border-purple-500">
             {mediaFile2 ? (
               <div className="text-white"><svg className="w-6 h-6 mx-auto mb-2 text-green-400" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" /></svg><p className="text-xs truncate">{mediaFile2.name}</p></div>
             ) : (
@@ -752,13 +653,25 @@ const HistoricalUploadSection = () => {
         )}
       </div>
 
+      {/* Notes for moderators */}
+      <div>
+        <label className="block text-sm font-medium text-gray-400 mb-1">Notes for moderators <span className="text-gray-600">(optional)</span></label>
+        <textarea
+          value={note}
+          onChange={e => setNote(e.target.value)}
+          placeholder="Any context that might help the mod team..."
+          rows={2}
+          maxLength={500}
+          className="w-full px-3 py-2 bg-gray-800 border border-gray-600 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-purple-500 text-sm resize-none"
+        />
+      </div>
+
       <button
         type="submit"
         disabled={
           submitting ||
           !selectedPokemon ||
           !game.trim() ||
-          (caughtInDifferentGame && (!caughtInGame || !evolutionFile || !evolutionSummaryFile)) ||
           (isRestricted && activeChecklist.length > 0 && !activeChecklist.every(item => !!checkedItems[item.id])) ||
           (isRestricted || noImageProof ? !mediaUrls.some(u => u.trim()) : (!mediaUrls.some(u => u.trim()) && (!mediaFile || !mediaFile2)))
         }
@@ -773,9 +686,9 @@ const HistoricalUploadSection = () => {
 // ── Main Upload Component ────────────────────────────────────────────────────
 
 const Upload = () => {
-  const { user, isModerator } = useAuth();
+  const { user } = useAuth();
   const navigate = useNavigate();
-  const restrictedEnabled = isRestrictedEnabled(isModerator);
+  const restrictedEnabled = true;
   const [availablePokemon, setAvailablePokemon] = useState([]);
   const [restrictedAvailablePokemon, setRestrictedAvailablePokemon] = useState(null);
   const [selectedPokemon, setSelectedPokemon] = useState('');
@@ -809,6 +722,7 @@ const Upload = () => {
   const [evolutionFile, setEvolutionFile] = useState(null);
   const [evolutionSummaryFile, setEvolutionSummaryFile] = useState(null);
   const [extraFiles, setExtraFiles] = useState([]);
+  const [note, setNote] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(false);
@@ -850,11 +764,10 @@ const Upload = () => {
     const handleClickOutside = (e) => {
       if (dropdownOpen && !e.target.closest('.pokemon-dropdown')) setDropdownOpen(false);
       if (gameDropdownOpen && !e.target.closest('.game-dropdown')) setGameDropdownOpen(false);
-      if (caughtInGameOpen && !e.target.closest('.caught-game-dropdown')) setCaughtInGameOpen(false);
     };
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [dropdownOpen, gameDropdownOpen, caughtInGameOpen]);
+  }, [dropdownOpen, gameDropdownOpen]);
 
   const loadAvailablePokemon = async () => {
     try {
@@ -1012,8 +925,6 @@ const Upload = () => {
 
     if (!selectedPokemon) { setError('Please select a Pokemon'); return; }
     if (!game.trim())     { setError('Please select the game you hunted in'); return; }
-    if (caughtInDifferentGame && !caughtInGame) { setError('Please select the game you caught it in'); return; }
-    if (caughtInDifferentGame && (!evolutionFile || !evolutionSummaryFile)) { setError('Evolution screenshot and evolved summary are required when caught in a different game'); return; }
     if (isRestricted && activeChecklist.length > 0 && !activeChecklist.every(item => !!checkedItems[item.id])) {
       setError('Please confirm all checklist items before submitting.');
       return;
@@ -1044,7 +955,6 @@ const Upload = () => {
       formData.append('pokemon_id', selectedPokemon);
       formData.append('restricted_submission', isRestricted ? 'true' : 'false');
       formData.append('game', game.trim());
-      if (caughtInDifferentGame && caughtInGame) formData.append('caught_in_game', caughtInGame);
 
       validLinks.forEach(u => formData.append('link', u));
       if (mediaFile)  formData.append('file', mediaFile);
@@ -1052,6 +962,7 @@ const Upload = () => {
       if (caughtInDifferentGame && evolutionFile)        formData.append('evolutionFile', evolutionFile);
       if (caughtInDifferentGame && evolutionSummaryFile) formData.append('evolutionSummaryFile', evolutionSummaryFile);
       extraFiles.filter(Boolean).forEach(f => formData.append('extraFile', f));
+      if (note.trim()) formData.append('note', note.trim());
 
       const response = await fetch('/api/upload/submission', {
         method: 'POST',
@@ -1067,14 +978,10 @@ const Upload = () => {
       setSuccess(true);
       setSelectedPokemon('');
       setGame('');
-      setCaughtInDifferentGame(false);
-      setCaughtInGame('');
-      setEvolutionFile(null);
-      setEvolutionSummaryFile(null);
-      setExtraFiles([]);
       setMediaUrls(['']);
       setMediaFile(null);
       setMediaFile2(null);
+      setNote('');
       setIsRestricted(false);
       setRestrictedAvailablePokemon(null);
 
@@ -1140,13 +1047,13 @@ const Upload = () => {
 
           {/* ── Historical Form ─────────────────────────────────────────────── */}
           {restrictedEnabled && (
-            <div className={`rounded-lg shadow-lg p-4 sm:p-6 border border-gray-600 ${!isHistoricalMode ? 'hidden' : ''}`} style={{ backgroundColor: '#35373b' }}>
+            <div className={`rounded-lg shadow-lg p-4 sm:p-6 border border-gray-600 ${!isHistoricalMode ? 'hidden' : ''}`} style={{ background: 'linear-gradient(160deg, #1a1c23 0%, #1f2128 100%)' }}>
               <HistoricalUploadSection />
             </div>
           )}
 
           {/* ── Current Month Form ──────────────────────────────────────────── */}
-          <div className={`rounded-lg shadow-lg p-4 sm:p-6 border border-gray-600 ${isHistoricalMode && restrictedEnabled ? 'hidden' : ''}`} style={{ backgroundColor: '#35373b' }}>
+          <div className={`rounded-lg shadow-lg p-4 sm:p-6 border border-gray-600 ${isHistoricalMode && restrictedEnabled ? 'hidden' : ''}`} style={{ background: 'linear-gradient(160deg, #1a1c23 0%, #1f2128 100%)' }}>
 
             {error && (
               <div className="mb-4 p-3 bg-red-900 border border-red-700 rounded-lg text-red-200 text-sm">{error}</div>
@@ -1401,7 +1308,7 @@ const Upload = () => {
                       <div>
                         <label className="block text-xs font-medium text-gray-300 mb-2">Evolution Screenshot <span className="text-red-400">*</span></label>
                         <input type="file" onChange={(e) => { if (e.target.files[0]) setEvolutionFile(e.target.files[0]); }} accept="image/*,video/*" className="hidden" id="main-evo-file" disabled={submitting} />
-                        <label htmlFor="main-evo-file" className="block w-full p-4 sm:p-6 border-2 border-dashed rounded-lg text-center cursor-pointer transition-colors border-gray-600 bg-gray-700 hover:border-purple-500">
+                        <label htmlFor="main-evo-file" className="block w-full p-4 border-2 border-dashed rounded-lg text-center cursor-pointer transition-colors border-gray-600 bg-gray-700 hover:border-purple-500">
                           {evolutionFile ? (
                             <div className="text-white"><svg className="w-6 h-6 mx-auto mb-2 text-green-400" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" /></svg><p className="text-xs truncate">{evolutionFile.name}</p></div>
                           ) : (
@@ -1412,7 +1319,7 @@ const Upload = () => {
                       <div>
                         <label className="block text-xs font-medium text-gray-300 mb-2">Evolved Summary <span className="text-red-400">*</span></label>
                         <input type="file" onChange={(e) => { if (e.target.files[0]) setEvolutionSummaryFile(e.target.files[0]); }} accept="image/*,video/*" className="hidden" id="main-evo-summary-file" disabled={submitting} />
-                        <label htmlFor="main-evo-summary-file" className="block w-full p-4 sm:p-6 border-2 border-dashed rounded-lg text-center cursor-pointer transition-colors border-gray-600 bg-gray-700 hover:border-purple-500">
+                        <label htmlFor="main-evo-summary-file" className="block w-full p-4 border-2 border-dashed rounded-lg text-center cursor-pointer transition-colors border-gray-600 bg-gray-700 hover:border-purple-500">
                           {evolutionSummaryFile ? (
                             <div className="text-white"><svg className="w-6 h-6 mx-auto mb-2 text-green-400" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" /></svg><p className="text-xs truncate">{evolutionSummaryFile.name}</p></div>
                           ) : (
@@ -1559,7 +1466,7 @@ const Upload = () => {
 
               {/* Image Uploads */}
               <div className={`transition-opacity duration-200 ${noImageProof ? 'opacity-40 pointer-events-none select-none' : ''}`}>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
+                <div className="grid grid-cols-2 gap-3 mb-4">
                   <div>
                     <label className="block text-xs font-medium text-gray-300 mb-2">
                       {isRestricted || noImageProof
@@ -1568,7 +1475,7 @@ const Upload = () => {
                       }
                     </label>
                     <input type="file" onChange={handleFileChange} accept="image/*,video/*" className="hidden" id="file-upload-1" disabled={submitting} />
-                    <label htmlFor="file-upload-1" className="block w-full p-4 sm:p-6 border-2 border-dashed rounded-lg text-center cursor-pointer transition-colors border-gray-600 bg-gray-700 hover:border-purple-500">
+                    <label htmlFor="file-upload-1" className="block w-full p-4 border-2 border-dashed rounded-lg text-center cursor-pointer transition-colors border-gray-600 bg-gray-700 hover:border-purple-500">
                       {mediaFile ? (
                         <div className="text-white">
                           <svg className="w-6 h-6 mx-auto mb-2 text-green-400" fill="currentColor" viewBox="0 0 20 20">
@@ -1595,7 +1502,7 @@ const Upload = () => {
                       }
                     </label>
                     <input type="file" onChange={handleFile2Change} accept="image/*,video/*" className="hidden" id="file-upload-2" disabled={submitting} />
-                    <label htmlFor="file-upload-2" className="block w-full p-4 sm:p-6 border-2 border-dashed rounded-lg text-center cursor-pointer transition-colors border-gray-600 bg-gray-700 hover:border-purple-500">
+                    <label htmlFor="file-upload-2" className="block w-full p-4 border-2 border-dashed rounded-lg text-center cursor-pointer transition-colors border-gray-600 bg-gray-700 hover:border-purple-500">
                       {mediaFile2 ? (
                         <div className="text-white">
                           <svg className="w-6 h-6 mx-auto mb-2 text-green-400" fill="currentColor" viewBox="0 0 20 20">
@@ -1674,6 +1581,19 @@ const Upload = () => {
                 )}
               </div>
 
+              {/* Notes for moderators */}
+              <div>
+                <label className="block text-sm font-medium text-gray-400 mb-1">Notes for moderators <span className="text-gray-600">(optional)</span></label>
+                <textarea
+                  value={note}
+                  onChange={e => setNote(e.target.value)}
+                  placeholder="Any context that might help the mod team..."
+                  rows={2}
+                  maxLength={500}
+                  className="w-full px-3 py-2 bg-gray-800 border border-gray-600 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-purple-500 text-sm resize-none"
+                />
+              </div>
+
               {/* Submit */}
               <button
                 type="submit"
@@ -1681,7 +1601,6 @@ const Upload = () => {
                   submitting ||
                   !selectedPokemon ||
                   !game.trim() ||
-                  (caughtInDifferentGame && (!caughtInGame || !evolutionFile || !evolutionSummaryFile)) ||
                   (isRestricted && activeChecklist.length > 0 && !activeChecklist.every(item => !!checkedItems[item.id])) ||
                   (isRestricted || noImageProof ? !mediaUrls.some(u => u.trim()) : (!mediaUrls.some(u => u.trim()) && (!mediaFile || !mediaFile2)))
                 }
