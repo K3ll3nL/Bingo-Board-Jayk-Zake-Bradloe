@@ -37,7 +37,7 @@ function countZones1to4(tiles, width, height, px, py) {
     for (let x = 0; x < width; x++) {
       if (tiles[y * width + x] !== 1) continue;
       const d = Math.max(Math.abs(x - px), Math.abs(y - py));
-      if (d >= 1 && d <= 4) n++;
+      if (d >= 1 && d <= 4 && !isEdgePatch(tiles, width, height, x, y)) n++;
     }
   return n;
 }

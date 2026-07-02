@@ -1317,12 +1317,12 @@ const Upload = () => {
                     disabled={submitting}
                     className="mt-2 text-xs text-gray-500 hover:text-gray-400 transition-colors"
                   >
-                    Caught in a different game?
+                    Evolved in a different game?
                   </button>
                 ) : (
                   <div className="mt-3 pt-3 border-t border-gray-700">
                     <div className="flex items-center justify-between mb-3">
-                      <span className="text-xs font-medium text-gray-400">Caught in a different game</span>
+                      <span className="text-xs font-medium text-gray-400">Evolved in a different game</span>
                       <button
                         type="button"
                         onClick={() => { setCaughtInDifferentGame(false); setCaughtInGame(''); setEvolutionFile(null); setEvolutionSummaryFile(null); }}

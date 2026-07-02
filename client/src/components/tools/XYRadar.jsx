@@ -443,13 +443,18 @@ const ALL_ROUTE_POKEMON = [...new Set(XY_ROUTES.flatMap(r => r.pokemon))];
 function RouteBrowser({ expandedId, mapCache, loadingIds, onToggle, onUseMap }) {
   const [diffFilter, setDiffFilter] = useState(DIFF_FILTERS[0]);
   const [grassFilter, setGrassFilter] = useState('All');
+  const [sortAlpha, setSortAlpha] = useState(false);
   const pokemonLookup = usePokemonLookup(ALL_ROUTE_POKEMON);
 
-  const filtered = useMemo(() => XY_ROUTES.filter(r => {
-    if (r.difficulty < diffFilter.min || r.difficulty > diffFilter.max) return false;
-    if (grassFilter !== 'All' && r.grassType !== GRASS_TYPE_MAP[grassFilter]) return false;
-    return true;
-  }), [diffFilter, grassFilter]);
+  const filtered = useMemo(() => {
+    const list = XY_ROUTES.filter(r => {
+      if (r.difficulty < diffFilter.min || r.difficulty > diffFilter.max) return false;
+      if (grassFilter !== 'All' && r.grassType !== GRASS_TYPE_MAP[grassFilter]) return false;
+      return true;
+    });
+    if (sortAlpha) list.sort((a, b) => a.name.localeCompare(b.name));
+    return list;
+  }, [diffFilter, grassFilter, sortAlpha]);
 
   return (
     <div className="space-y-4 max-w-3xl mx-auto">
@@ -481,7 +486,17 @@ function RouteBrowser({ expandedId, mapCache, loadingIds, onToggle, onUseMap }) 
         </div>
       </div>
 
-      <p className="text-xs text-gray-600">{filtered.length} location{filtered.length !== 1 ? 's' : ''}</p>
+      <div className="flex items-center justify-between">
+        <p className="text-xs text-gray-600">{filtered.length} location{filtered.length !== 1 ? 's' : ''}</p>
+        <button
+          onClick={() => setSortAlpha(p => !p)}
+          className="text-[11px] font-semibold px-3 py-1 rounded-lg border transition-all"
+          style={sortAlpha
+            ? { background: ACCENT_BG, borderColor: ACCENT_BORDER, color: ACCENT }
+            : { background: 'transparent', borderColor: '#374151', color: '#9ca3af' }}>
+          {sortAlpha ? 'A→Z' : 'Route Order'}
+        </button>
+      </div>
 
       <div className="space-y-2">
         {filtered.map(route => (
