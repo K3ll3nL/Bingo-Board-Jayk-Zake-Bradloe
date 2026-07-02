@@ -73,9 +73,34 @@ const STATUS_CONFIG = {
 const VIDEO_EXT = /\.(mp4|webm|mov|m4v|ogg|ogv)(\?|$)/i;
 const isVideoUrl = (url) => typeof url === 'string' && VIDEO_EXT.test(url);
 
-// Build a unified ordered media list (images + videos) for a submission/record.
-// External non-file video links (YouTube, Twitch VODs, etc.) can't be embedded and
-// are returned separately by the caller.
+// Parse a YouTube / Twitch link into an embeddable player URL. Returns null for
+// anything we can't safely iframe (most sites block embedding via X-Frame-Options).
+// Twitch players require a `parent` param matching the current hostname.
+const parseEmbed = (url) => {
+  if (typeof url !== 'string') return null;
+  const parent = typeof window !== 'undefined' ? window.location.hostname : 'localhost';
+
+  // YouTube (watch, youtu.be, shorts, live, embed)
+  let m = url.match(/(?:youtube\.com\/(?:watch\?(?:.*&)?v=|shorts\/|live\/|embed\/)|youtu\.be\/)([\w-]{11})/);
+  if (m) return { provider: 'YouTube', embedUrl: `https://www.youtube.com/embed/${m[1]}`, thumb: `https://i.ytimg.com/vi/${m[1]}/hqdefault.jpg` };
+
+  // Twitch clip (clips.twitch.tv/SLUG or twitch.tv/<channel>/clip/SLUG)
+  m = url.match(/clips\.twitch\.tv\/([\w-]+)/) || url.match(/twitch\.tv\/\w+\/clip\/([\w-]+)/);
+  if (m) return { provider: 'Twitch', embedUrl: `https://clips.twitch.tv/embed?clip=${m[1]}&parent=${parent}`, thumb: null };
+
+  // Twitch VOD (twitch.tv/videos/123456789)
+  m = url.match(/twitch\.tv\/videos\/(\d+)/);
+  if (m) return { provider: 'Twitch', embedUrl: `https://player.twitch.tv/?video=${m[1]}&parent=${parent}&autoplay=false`, thumb: null };
+
+  return null;
+};
+
+// True when a proof link can be shown inline (direct video file OR YouTube/Twitch)
+const isEmbeddableLink = (url) => isVideoUrl(url) || !!parseEmbed(url);
+
+// Build a unified ordered media list (images, videos, YouTube/Twitch embeds) for a
+// submission/record. Links we can't safely iframe are left for the caller to render
+// as external anchor links.
 const buildMedia = (a) => {
   const items = [];
   const push = (url, label) => { if (url) items.push({ url, label, kind: isVideoUrl(url) ? 'video' : 'image' }); };
@@ -84,7 +109,11 @@ const buildMedia = (a) => {
   push(a.proof_url3, 'Evolution');
   push(a.proof_url4, 'Evolved Summary');
   (a.extra_images ?? []).forEach((url, i) => push(url, `Extra ${i + 1}`));
-  (a.proof_link ?? []).forEach((url, i) => { if (isVideoUrl(url)) items.push({ url, label: `Video ${i + 1}`, kind: 'video' }); });
+  (a.proof_link ?? []).forEach((url, i) => {
+    if (isVideoUrl(url)) { items.push({ url, label: `Video ${i + 1}`, kind: 'video' }); return; }
+    const e = parseEmbed(url);
+    if (e) items.push({ url, label: e.provider, kind: 'embed', embedUrl: e.embedUrl, thumb: e.thumb, provider: e.provider });
+  });
   return items;
 };
 
@@ -95,6 +124,7 @@ const MediaThumb = ({ item, size = 'lg', onClick }) => {
   const borderColor = item.label === 'Evolution' || item.label === 'Evolved Summary'
     ? 'border-blue-700 hover:border-blue-500'
     : 'border-gray-600 hover:border-purple-500';
+  const isTwitch = item.provider === 'Twitch';
   return (
     <button onClick={onClick} className="block group">
       <div className={`relative ${box}`}>
@@ -107,11 +137,18 @@ const MediaThumb = ({ item, size = 'lg', onClick }) => {
               playsInline
               preload="metadata"
             />
-            <span className="absolute inset-0 flex items-center justify-center pointer-events-none">
-              <span className="flex items-center justify-center w-8 h-8 rounded-full bg-black/55">
-                <svg className="w-4 h-4 text-white translate-x-[1px]" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z" /></svg>
-              </span>
-            </span>
+            <PlayOverlay />
+          </>
+        ) : item.kind === 'embed' ? (
+          <>
+            {item.thumb ? (
+              <img src={item.thumb} alt={item.label} className={`${box} object-cover rounded border ${borderColor} transition-colors cursor-pointer`} />
+            ) : (
+              <div className={`${box} flex items-center justify-center rounded border ${borderColor} transition-colors cursor-pointer ${isTwitch ? 'bg-[#6441a5]/30' : 'bg-red-900/30'}`}>
+                <span className={`text-xs font-bold ${isTwitch ? 'text-purple-300' : 'text-red-300'}`}>{item.provider}</span>
+              </div>
+            )}
+            <PlayOverlay />
           </>
         ) : (
           <img
@@ -125,6 +162,14 @@ const MediaThumb = ({ item, size = 'lg', onClick }) => {
     </button>
   );
 };
+
+const PlayOverlay = () => (
+  <span className="absolute inset-0 flex items-center justify-center pointer-events-none">
+    <span className="flex items-center justify-center w-8 h-8 rounded-full bg-black/55">
+      <svg className="w-4 h-4 text-white translate-x-[1px]" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z" /></svg>
+    </span>
+  </span>
+);
 
 const Approvals = () => {
   const { user, isModerator } = useAuth();
@@ -430,7 +475,7 @@ const Approvals = () => {
     const panelOpen = expandedPanel?.id === approval.id;
     const panelAction = expandedPanel?.action;
     const media = buildMedia(approval);
-    const externalLinks = (approval.proof_link ?? []).filter(l => !isVideoUrl(l));
+    const externalLinks = (approval.proof_link ?? []).filter(l => !isEmbeddableLink(l));
 
     return (
       <div key={approval.id}>
@@ -772,7 +817,7 @@ const Approvals = () => {
                     {historyData.map(record => {
                       const statusCfg = STATUS_CONFIG[record.status] || { label: record.status, color: 'text-gray-400', bg: 'bg-gray-700/30 border-gray-600/40' };
                       const rMedia = buildMedia(record);
-                      const rLinks = (record.proof_link ?? []).filter(l => !isVideoUrl(l));
+                      const rLinks = (record.proof_link ?? []).filter(l => !isEmbeddableLink(l));
                       return (
                         <div key={record.id} className="p-4 flex items-start gap-4">
                           {/* Pokemon image */}
@@ -913,6 +958,17 @@ const Approvals = () => {
                   controls
                   autoPlay
                 />
+              ) : current.kind === 'embed' ? (
+                <div className="w-[85vw] max-w-5xl aspect-video">
+                  <iframe
+                    key={current.embedUrl}
+                    src={current.embedUrl}
+                    title={current.label}
+                    className="w-full h-full rounded-lg border-0"
+                    allow="autoplay; fullscreen; encrypted-media; picture-in-picture"
+                    allowFullScreen
+                  />
+                </div>
               ) : (
                 <img
                   src={current.url}
