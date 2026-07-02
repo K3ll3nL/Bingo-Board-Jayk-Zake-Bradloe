@@ -2378,6 +2378,50 @@ const uploadRateLimit = rateLimit({
   message: { error: 'Too many submissions. Please wait a few minutes before trying again.' },
 });
 
+// Upload a single multer file buffer to R2 and return its public URL.
+async function uploadBufferToR2(file, key) {
+  const { S3Client, PutObjectCommand } = require('@aws-sdk/client-s3');
+  const s3Client = new S3Client({
+    region: 'auto',
+    endpoint: `https://${process.env.R2_ACCOUNT_ID}.r2.cloudflarestorage.com`,
+    credentials: { accessKeyId: process.env.R2_ACCESS_KEY_ID, secretAccessKey: process.env.R2_SECRET_ACCESS_KEY },
+  });
+  await s3Client.send(new PutObjectCommand({
+    Bucket: process.env.R2_BUCKET_NAME || 'shiny-sprites',
+    Key: key,
+    Body: file.buffer,
+    ContentType: file.mimetype,
+  }));
+  return `${process.env.R2_BUCKET_URL}/${key}`;
+}
+
+// Uploads the optional evolution + extra proof files shared by both submission
+// endpoints. Returns { proofUrl3, proofUrl4, extraImageUrls }. Throws on R2 error.
+async function uploadSupplementalProof(req, userId, pokemon_id, tag) {
+  const MAX_FILE_SIZE = 4 * 1024 * 1024;
+  const evoFile        = req.files?.evolutionFile?.[0];
+  const evoSummaryFile = req.files?.evolutionSummaryFile?.[0];
+  const extraFiles     = req.files?.extraFile || [];
+
+  for (const f of [evoFile, evoSummaryFile, ...extraFiles]) {
+    if (f && f.size > MAX_FILE_SIZE) {
+      const err = new Error(`"${f.originalname}" is too large (${(f.size / 1048576).toFixed(1)}MB). Compress to under 4MB.`);
+      err.fileTooBig = true;
+      throw err;
+    }
+  }
+
+  const ts = Date.now();
+  let proofUrl3 = null, proofUrl4 = null;
+  const extraImageUrls = [];
+  if (evoFile)        proofUrl3 = await uploadBufferToR2(evoFile, `approval/${userId}-${pokemon_id}-${ts}-${tag}evo-${evoFile.originalname}`);
+  if (evoSummaryFile) proofUrl4 = await uploadBufferToR2(evoSummaryFile, `approval/${userId}-${pokemon_id}-${ts}-${tag}evosum-${evoSummaryFile.originalname}`);
+  for (let i = 0; i < extraFiles.length; i++) {
+    extraImageUrls.push(await uploadBufferToR2(extraFiles[i], `approval/${userId}-${pokemon_id}-${ts}-${tag}extra${i}-${extraFiles[i].originalname}`));
+  }
+  return { proofUrl3, proofUrl4, extraImageUrls: extraImageUrls.length > 0 ? extraImageUrls : null };
+}
+
 app.post('/api/upload/submission', uploadRateLimit, upload.fields([{ name: 'file', maxCount: 1 }, { name: 'file2', maxCount: 1 }, { name: 'evolutionFile', maxCount: 1 }, { name: 'evolutionSummaryFile', maxCount: 1 }, { name: 'extraFile', maxCount: 6 }]), async (req, res) => {
   try {
     console.log('Request body:', req.body);
@@ -2539,6 +2583,15 @@ app.post('/api/upload/submission', uploadRateLimit, upload.fields([{ name: 'file
       }
     }
     
+    // Upload evolution + extra proof images (caught-in-different-game & supplemental shots)
+    let proofUrl3 = null, proofUrl4 = null, extraImageUrls = null;
+    try {
+      ({ proofUrl3, proofUrl4, extraImageUrls } = await uploadSupplementalProof(req, userId, pokemon_id, ''));
+    } catch (r2Error) {
+      console.error('R2 upload error (evolution/extra):', r2Error);
+      return res.status(r2Error.fileTooBig ? 413 : 500).json({ error: r2Error.fileTooBig ? r2Error.message : 'File upload failed', details: r2Error.message, fileTooBig: !!r2Error.fileTooBig });
+    }
+
     // Create approval entry
     const { data: approval, error: approvalError } = await supabase
       .from('approvals')
@@ -2548,9 +2601,13 @@ app.post('/api/upload/submission', uploadRateLimit, upload.fields([{ name: 'file
         month_id: activeMonth.id,
         proof_url: proofUrl,
         proof_url2: proofUrl2,
+        proof_url3: proofUrl3,
+        proof_url4: proofUrl4,
+        extra_images: extraImageUrls,
         proof_link: proofLink,
         game,
         restricted_submission,
+        caught_in_game,
         note,
       })
       .select()
@@ -2662,6 +2719,15 @@ app.post('/api/upload/historical-submission', uploadRateLimit, upload.fields([{ 
       }
     }
 
+    // Upload evolution + extra proof images (caught-in-different-game & supplemental shots)
+    let proofUrl3 = null, proofUrl4 = null, extraImageUrls = null;
+    try {
+      ({ proofUrl3, proofUrl4, extraImageUrls } = await uploadSupplementalProof(req, userId, pokemon_id, 'hist-'));
+    } catch (r2Error) {
+      console.error('R2 upload error (historical evolution/extra):', r2Error);
+      return res.status(r2Error.fileTooBig ? 413 : 500).json({ error: r2Error.fileTooBig ? r2Error.message : 'File upload failed', details: r2Error.message, fileTooBig: !!r2Error.fileTooBig });
+    }
+
     const { data: approval, error: approvalError } = await supabase
       .from('approvals')
       .insert({
@@ -2670,10 +2736,14 @@ app.post('/api/upload/historical-submission', uploadRateLimit, upload.fields([{ 
         month_id,
         proof_url: proofUrl,
         proof_url2: proofUrl2,
+        proof_url3: proofUrl3,
+        proof_url4: proofUrl4,
+        extra_images: extraImageUrls,
         proof_link: proofLinks.length > 0 ? proofLinks : null,
         game,
         restricted_submission: isRestricted,
         historical: true,
+        caught_in_game,
         note,
       })
       .select()

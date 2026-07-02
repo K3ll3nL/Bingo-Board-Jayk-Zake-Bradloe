@@ -229,6 +229,7 @@ const HistoricalUploadSection = () => {
       validLinks.forEach(u => formData.append('link', u));
       if (mediaFile)  formData.append('file', mediaFile);
       if (mediaFile2) formData.append('file2', mediaFile2);
+      if (caughtInDifferentGame && caughtInGame)         formData.append('caught_in_game', caughtInGame);
       if (caughtInDifferentGame && evolutionFile)        formData.append('evolutionFile', evolutionFile);
       if (caughtInDifferentGame && evolutionSummaryFile) formData.append('evolutionSummaryFile', evolutionSummaryFile);
       extraFiles.filter(Boolean).forEach(f => formData.append('extraFile', f));
@@ -1010,6 +1011,7 @@ const Upload = () => {
       validLinks.forEach(u => formData.append('link', u));
       if (mediaFile)  formData.append('file', mediaFile);
       if (mediaFile2) formData.append('file2', mediaFile2);
+      if (caughtInDifferentGame && caughtInGame)         formData.append('caught_in_game', caughtInGame);
       if (caughtInDifferentGame && evolutionFile)        formData.append('evolutionFile', evolutionFile);
       if (caughtInDifferentGame && evolutionSummaryFile) formData.append('evolutionSummaryFile', evolutionSummaryFile);
       extraFiles.filter(Boolean).forEach(f => formData.append('extraFile', f));
