@@ -3603,7 +3603,7 @@ async function pickRandomPokemonForPosition(monthId, position) {
   // All eligible pokemon (including family_id and category flags for exclusion logic)
   const { data: allPokemon } = await supabase
     .from('pokemon_master')
-    .select('id, name, national_dex_id, family_id, legendary, baby, ultra_beast, paradox, starter, fossil, regional_alt, pseudo_legendary, display_name, form_id, forms_count, custom_gender_code, genderless, has_gender_difference, has_major_gender_difference')
+    .select('id, name, national_dex_id, family_id, legendary, baby, ultra_beast, paradox, starter, fossil, regional_alt, pseudo_legendary, pla, display_name, form_id, forms_count, custom_gender_code, genderless, has_gender_difference, has_major_gender_difference')
     .eq('shiny_available', true);
 
   const pkFamilyMap = Object.fromEntries((allPokemon || []).map(p => [p.id, p.family_id]));
@@ -3650,7 +3650,7 @@ async function pickRandomPokemonForPosition(monthId, position) {
   (history || []).forEach(r => { usageCount[r.pokemon_id] = (usageCount[r.pokemon_id] || 0) + 1; });
 
   // Calculate current board category distribution
-  const categories = ['legendary', 'baby', 'ultra_beast', 'paradox', 'starter', 'fossil', 'regional_alt', 'pseudo_legendary'];
+  const categories = ['legendary', 'baby', 'ultra_beast', 'paradox', 'starter', 'fossil', 'regional_alt', 'pseudo_legendary', 'pla'];
   const boardCategoryCounts = {};
   categories.forEach(cat => { boardCategoryCounts[cat] = 0; });
 
@@ -3729,7 +3729,7 @@ async function calculateCategoryThresholds() {
 
   const { data: allPokemon } = await supabase
     .from('pokemon_master')
-    .select('id, legendary, baby, ultra_beast, paradox, starter, fossil, regional_alt, pseudo_legendary')
+    .select('id, legendary, baby, ultra_beast, paradox, starter, fossil, regional_alt, pseudo_legendary', 'pla')
     .eq('shiny_available', true);
 
   if (!allPokemon || allPokemon.length === 0) {
@@ -3739,7 +3739,7 @@ async function calculateCategoryThresholds() {
   const totalPokemon = allPokemon.length;
   const boardCapacity = Math.floor(totalPokemon / 24);
 
-  const categories = ['legendary', 'baby', 'ultra_beast', 'paradox', 'starter', 'fossil', 'regional_alt', 'pseudo_legendary'];
+  const categories = ['legendary', 'baby', 'ultra_beast', 'paradox', 'starter', 'fossil', 'regional_alt', 'pseudo_legendary', 'pla'];
   const thresholds = {};
 
   categories.forEach(cat => {
@@ -3771,7 +3771,7 @@ async function generateNewPoolForMonth(monthId, lockedPokemonIds = [], countToGe
   // Pull every shiny-available pokemon with category flags
   const { data: allPokemon } = await supabase
     .from('pokemon_master')
-    .select('id, name, national_dex_id, display_name, family_id, genderless, custom_gender_code, has_gender_difference, has_major_gender_difference, form_id, forms_count, legendary, baby, ultra_beast, paradox, starter, fossil, regional_alt, pseudo_legendary')
+    .select('id, name, national_dex_id, display_name, family_id, genderless, custom_gender_code, has_gender_difference, has_major_gender_difference, form_id, forms_count, legendary, baby, ultra_beast, paradox, starter, fossil, regional_alt, pseudo_legendary', 'pla')
     .eq('shiny_available', true);
 
   if (!allPokemon || allPokemon.length === 0) throw new Error('No pokemon available');
@@ -3814,7 +3814,7 @@ async function generateNewPoolForMonth(monthId, lockedPokemonIds = [], countToGe
     }
   }
 
-  const categories = ['legendary', 'baby', 'ultra_beast', 'paradox', 'starter', 'fossil', 'regional_alt', 'pseudo_legendary'];
+  const categories = ['legendary', 'baby', 'ultra_beast', 'paradox', 'starter', 'fossil', 'regional_alt', 'pseudo_legendary', 'pla'];
   const { thresholds } = await calculateCategoryThresholds();
 
   // Pre-build maps for O(1) lookups
@@ -4310,7 +4310,7 @@ app.get('/api/mod/board-builder', async (req, res) => {
 
     // Count categories on current board
     const boardCategoryCounts = {};
-    const categories = ['legendary', 'baby', 'ultra_beast', 'paradox', 'starter', 'fossil', 'regional_alt', 'pseudo_legendary'];
+    const categories = ['legendary', 'baby', 'ultra_beast', 'paradox', 'starter', 'fossil', 'regional_alt', 'pseudo_legendary', 'pla'];
     categories.forEach(cat => { boardCategoryCounts[cat] = 0; });
 
     // Fetch pokemon data for all pokemon on the board to count categories
@@ -4320,7 +4320,7 @@ app.get('/api/mod/board-builder', async (req, res) => {
     if (boardPokemonIds.length > 0) {
       const { data: boardPokemon } = await supabase
         .from('pokemon_master')
-        .select('id, game_slugs, restricted_game_slugs, legendary, baby, ultra_beast, paradox, starter, fossil, regional_alt, pseudo_legendary')
+        .select('id, game_slugs, restricted_game_slugs, legendary, baby, ultra_beast, paradox, starter, fossil, regional_alt, pseudo_legendary', 'pla')
         .in('id', boardPokemonIds);
 
       (boardPokemon || []).forEach(p => {
@@ -4554,10 +4554,10 @@ app.post('/api/mod/board-builder/refresh-all', async (req, res) => {
     // Pre-calculate category counts for locked Pokemon to pass to generation
     const { data: allPokemonForLocked } = await supabase
       .from('pokemon_master')
-      .select('id, legendary, baby, ultra_beast, paradox, starter, fossil, regional_alt, pseudo_legendary')
+      .select('id, legendary, baby, ultra_beast, paradox, starter, fossil, regional_alt, pseudo_legendary', 'pla')
       .eq('shiny_available', true);
 
-    const categories = ['legendary', 'baby', 'ultra_beast', 'paradox', 'starter', 'fossil', 'regional_alt', 'pseudo_legendary'];
+    const categories = ['legendary', 'baby', 'ultra_beast', 'paradox', 'starter', 'fossil', 'regional_alt', 'pseudo_legendary', 'pla'];
     const lockedCategoryCounts = {};
     categories.forEach(cat => { lockedCategoryCounts[cat] = 0; });
 
@@ -6475,7 +6475,7 @@ app.get('/api/admin/pokemon-game-slugs', async (req, res) => {
 
     const { data, error } = await supabase
       .from('pokemon_master')
-      .select('id, national_dex_id, name, game_slugs, restricted_game_slugs, shiny_available, forms_count, form_id, custom_gender_code, genderless, has_gender_difference, has_major_gender_difference, legendary, baby, ultra_beast, paradox, starter, fossil, regional_alt, pseudo_legendary')
+      .select('id, national_dex_id, name, game_slugs, restricted_game_slugs, shiny_available, forms_count, form_id, custom_gender_code, genderless, has_gender_difference, has_major_gender_difference, legendary, baby, ultra_beast, paradox, starter, fossil, regional_alt, pseudo_legendary', 'pla')
       .order('national_dex_id', { ascending: true })
       .order('form_id', { ascending: true });
 
@@ -6490,7 +6490,7 @@ app.get('/api/admin/pokemon-game-slugs', async (req, res) => {
 app.patch('/api/admin/pokemon/:id/game-slugs', async (req, res) => {
   try {
     const { id } = req.params;
-    const { game_slugs, restricted_game_slugs, shiny_available, forms_count, legendary, baby, ultra_beast, paradox, starter, fossil, regional_alt, pseudo_legendary } = req.body;
+    const { game_slugs, restricted_game_slugs, shiny_available, forms_count, legendary, baby, ultra_beast, paradox, starter, fossil, regional_alt, pseudo_legendary, pla } = req.body;
 
     const userId = await getAuthenticatedUserId(req);
     if (!userId) return res.status(401).json({ error: 'Authentication required' });
@@ -6512,6 +6512,7 @@ app.patch('/api/admin/pokemon/:id/game-slugs', async (req, res) => {
     if (typeof fossil === 'boolean') updates.fossil = fossil;
     if (typeof regional_alt === 'boolean') updates.regional_alt = regional_alt;
     if (typeof pseudo_legendary === 'boolean') updates.pseudo_legendary = pseudo_legendary;
+    if (typeof pla === 'boolean') updates.pla = pla;
 
     const { error } = await supabase
       .from('pokemon_master')

@@ -264,6 +264,7 @@ const CATEGORIES = [
   { key: 'fossil',          label: 'Fossil' },
   { key: 'regional_alt',    label: 'Regional Variant' },
   { key: 'pseudo_legendary',label: 'Pseudo-Legendary' },
+  { key: 'pla',             label: 'PLA' },
 ];
 
 const CategoryDropdown = ({ pokemonId, data, onChange }) => {
@@ -476,6 +477,7 @@ const PokemonGameManager = () => {
             fossil:               p.fossil ?? false,
             regional_alt:         p.regional_alt ?? false,
             pseudo_legendary:     p.pseudo_legendary ?? false,
+            pla:                  p.pla ?? false,
           };
         }
         setLocalData(init);
@@ -718,7 +720,7 @@ const PokemonGameManager = () => {
               const data = localData[p.id] ?? {
                 game_slugs: [], restricted_game_slugs: [], shiny_available: false, forms_count: 1,
                 legendary: false, baby: false, ultra_beast: false, paradox: false,
-                starter: false, fossil: false, regional_alt: false, pseudo_legendary: false,
+                starter: false, fossil: false, regional_alt: false, pseudo_legendary: false, pla: false
               };
               return (
                 <PokemonRow

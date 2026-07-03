@@ -512,10 +512,11 @@ const About = () => {
               </thead>
               <tbody className="divide-y divide-gray-700">
                 {[
-                  { name: 'Horizontal Line', std: 3, res: 3 },
-                  { name: 'Vertical Line',   std: 3, res: 3 },
-                  { name: 'X',               std: 6, res: 6 },
-                  { name: 'Blackout',        std: 12, res: 12 },
+                  { name: 'First Horizontal Line', std: 2, res: 2 },
+                  { name: 'First Vertical Line',   std: 2, res: 2 },
+                  { name: 'First X',               std: 5, res: 5 },
+                  { name: 'First Blackout',        std: 15, res: 15 },
+                  { name: 'Personal Blackout',     std: 10, res: 10 },
                 ].map(({ name, std, res }) => (
                   <tr key={name} className="hover:bg-gray-700/30 transition-colors">
                     <td className="px-4 py-2.5 text-white font-medium">{name}</td>

@@ -195,17 +195,10 @@ export default function BoardBuilder() {
   const [nextMonth, setNextMonth]   = useState(null);
   const [loading, setLoading]       = useState(true);
   const [error, setError]           = useState(null);
-
-  // Positions mid-reroll fade-out
   const [fadingOut, setFadingOut]       = useState(new Set());
-  // Positions with an in-flight reroll request
   const [rerolling, setRerolling]       = useState(new Set());
-
-  // Bulk operations
   const [refreshingAll, setRefreshingAll] = useState(false);
   const [shuffling, setShuffling]         = useState(false);
-
-  // Drag state
   const [dragSource, setDragSource] = useState(null);
   const [dragTarget, setDragTarget] = useState(null);
 
