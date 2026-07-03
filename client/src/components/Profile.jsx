@@ -156,12 +156,12 @@ const StatisticsTab = ({ profile, accentColor, onPokemonClick }) => {
         {restricted && <img src={restrictedIcon} alt="" className="w-3.5 h-3.5 object-contain" />}
         <p className="text-xs sm:text-sm font-semibold uppercase tracking-wide" style={{ color: restricted ? '#e07060' : 'rgba(255,255,255,0.35)' }}>{label}</p>
       </div>
-      <div className="grid grid-cols-5 gap-1 sm:gap-2 flex-1">
+      <div className="grid grid-cols-5 gap-2 flex-1">
         {items.map(({ type, count }) => (
-          <div key={type} className="flex flex-col items-center gap-1 sm:gap-2">
+          <div key={type} className="flex flex-col items-center gap-1.5 sm:gap-2">
             <AchievementIcon type={type} color={restricted ? undefined : accentColor} restricted={restricted}
-              containerClassName="w-8 h-8 sm:w-14 sm:h-14 rounded-md sm:rounded-xl"
-              svgClassName={type.includes('blackout') ? 'w-4 h-4 sm:w-8 sm:h-8' : 'w-4 h-4 sm:w-7 sm:h-7'} />
+              containerClassName="w-11 h-11 sm:w-14 sm:h-14 rounded-lg sm:rounded-xl"
+              svgClassName={type.includes('blackout') ? 'w-6 h-6 sm:w-8 sm:h-8' : 'w-5 h-5 sm:w-7 sm:h-7'} />
             <span className="text-lg sm:text-2xl font-black text-white leading-none">{count || 0}</span>
           </div>
         ))}
@@ -172,7 +172,7 @@ const StatisticsTab = ({ profile, accentColor, onPokemonClick }) => {
   return (
     <div className="space-y-3">
       {/* Achievement summary */}
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <AchievementBlock label="Bonus Bounties" restricted={false} items={[
           { type: 'row', count: stats.totalRows },
           { type: 'column', count: stats.totalColumns },
