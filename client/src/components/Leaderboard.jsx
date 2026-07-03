@@ -11,36 +11,65 @@ const CAN_HOVER = typeof window !== 'undefined'
 
 // Right-aligned stat that auto-cycles points ↔ Pokémon count while its row is hovered.
 // State is kept local per-row so the parent list (and FLIP animation) never re-renders.
+const StatContent = ({ step, points, pokemonCount }) => (
+  step % 2 === 0 ? (
+    <>
+      <span className="text-xl font-bold text-purple-400">{points}</span>
+      <span className="text-xs text-gray-400">pts</span>
+    </>
+  ) : (
+    <>
+      <span className="text-xl font-bold text-emerald-400">{pokemonCount}</span>
+      <span className="text-xs text-gray-400">Pkmn</span>
+    </>
+  )
+);
+
 const StatValue = ({ points, pokemonCount, hovered }) => {
-  const [showPkmn, setShowPkmn] = useState(false);
+  // A 2-cell vertical track. Each tick rolls the track up one cell (always the same
+  // direction); when the roll finishes we promote the next value to the top cell and
+  // snap back to 0 with no transition, so the cycle can repeat seamlessly.
+  const [base, setBase] = useState(0);      // step shown in the top (visible) cell
+  const [rolling, setRolling] = useState(false);
   const intervalRef = useRef(null);
+  const timeoutRef = useRef(null);
   const canCycle = CAN_HOVER && typeof pokemonCount === 'number';
 
   useEffect(() => {
     if (hovered && canCycle) {
-      intervalRef.current = setInterval(() => setShowPkmn(v => !v), 2000);
+      // Two-phase per tick: roll up (transform transition), then rebase on a timer.
+      // Rebasing on a timer (not transitionend) means the cycle can never deadlock if
+      // the transition event doesn't fire (e.g. backgrounded tab / paused compositor).
+      intervalRef.current = setInterval(() => {
+        setRolling(true);
+        timeoutRef.current = setTimeout(() => {
+          setBase(b => b + 1);
+          setRolling(false);
+        }, 420);
+      }, 5000);
     } else {
-      clearInterval(intervalRef.current);
-      setShowPkmn(false);
+      setRolling(false);
+      setBase(0);
     }
-    return () => clearInterval(intervalRef.current);
+    return () => { clearInterval(intervalRef.current); clearTimeout(timeoutRef.current); };
   }, [hovered, canCycle]);
 
+  const cellClass = 'h-7 flex items-baseline justify-end gap-1';
   return (
-    <div className="relative min-w-[3.5rem] h-7 text-right overflow-hidden">
+    <div className="min-w-[3.5rem] h-7 overflow-hidden text-right">
       <div
-        className="absolute inset-0 flex items-baseline justify-end gap-1 transition-all duration-300"
-        style={{ opacity: showPkmn ? 0 : 1, transform: showPkmn ? 'translateY(-0.4rem)' : 'translateY(0)' }}
+        className="flex flex-col"
+        style={{
+          transform: rolling ? 'translateY(-1.75rem)' : 'translateY(0)',
+          transition: rolling ? 'transform 0.4s ease' : 'none',
+        }}
       >
-        <span className="text-xl font-bold text-purple-400">{points}</span>
-        <span className="text-xs text-gray-400">pts</span>
-      </div>
-      <div
-        className="absolute inset-0 flex items-baseline justify-end gap-1 transition-all duration-300"
-        style={{ opacity: showPkmn ? 1 : 0, transform: showPkmn ? 'translateY(0)' : 'translateY(0.4rem)' }}
-      >
-        <span className="text-xl font-bold text-emerald-400">{pokemonCount}</span>
-        <span className="text-xs text-gray-400">Pkmn</span>
+        <div className={cellClass}>
+          <StatContent step={base} points={points} pokemonCount={pokemonCount} />
+        </div>
+        <div className={cellClass}>
+          <StatContent step={base + 1} points={points} pokemonCount={pokemonCount} />
+        </div>
       </div>
     </div>
   );
