@@ -72,7 +72,10 @@ const usePortalDropdown = (onClose) => {
         panelRef.current && !panelRef.current.contains(e.target)
       ) setOpen(false);
     };
-    const onScroll = () => setOpen(false);
+    const onScroll = (e) => {
+      if (panelRef.current && panelRef.current.contains(e.target)) return;
+      setOpen(false);
+    };
     document.addEventListener('mousedown', close);
     document.addEventListener('scroll', onScroll, true);
     return () => {
