@@ -1,5 +1,5 @@
 import React from 'react';
-import { BrowserRouter as Router, Routes, Route, Outlet, Navigate, useNavigate, useLocation } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Outlet, Navigate, Link, useNavigate, useLocation } from 'react-router-dom';
 import { AuthProvider, useAuth, supabase } from './contexts/AuthContext';
 import { PageTitleContext } from './contexts/PageTitleContext';
 import BingoBoard from './components/BingoBoard';
@@ -46,6 +46,11 @@ import { getAuthHeaders } from './services/api';
 // Scroll to top on every route change
 const ScrollToTop = () => {
   const { pathname } = useLocation();
+  // Opt out of the browser's automatic scroll restoration so async page content
+  // (e.g. the Profile fetch) can't get restored to a stale offset after load.
+  React.useEffect(() => {
+    if ('scrollRestoration' in window.history) window.history.scrollRestoration = 'manual';
+  }, []);
   React.useEffect(() => { window.scrollTo(0, 0); }, [pathname]);
   return null;
 };
@@ -165,7 +170,7 @@ const AppLayout = () => {
           </div>
           <div className="min-w-0">
             <p className="text-sm font-semibold text-white truncate">{displayName}</p>
-            <button onClick={() => { navigate('/profile'); setMenuOpen(false); }} className="text-xs text-purple-400 hover:text-purple-300 transition-colors">View Profile</button>
+            <Link to="/profile" onClick={() => setMenuOpen(false)} className="text-xs text-purple-400 hover:text-purple-300 transition-colors">View Profile</Link>
           </div>
         </div>
 
@@ -177,11 +182,11 @@ const AppLayout = () => {
             { label: 'Notifications', path: '/history', icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" /> },
             { label: 'Pokédex', path: '/pokedex', icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" /> },
           ].map(({ label, path, icon }) => (
-            <button key={path} onClick={() => { navigate(path); setMenuOpen(false); }}
+            <Link key={path} to={path} onClick={() => setMenuOpen(false)}
               className="w-full px-3 py-2 text-left text-sm text-gray-200 hover:bg-gray-700/60 flex items-center gap-2.5 transition-colors">
               <svg className="w-4 h-4 shrink-0 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">{icon}</svg>
               {label}
-            </button>
+            </Link>
           ))}
 
           {(isPro || isModerator) && (
@@ -189,21 +194,21 @@ const AppLayout = () => {
               <div className="border-t border-gray-700 my-1.5" />
               <div className="px-3 py-0.5 text-[10px] font-bold uppercase tracking-wider text-gray-500">Pro</div>
               {isPro && (
-                <button onClick={() => { navigate('/overlays'); setMenuOpen(false); }}
+                <Link to="/overlays" onClick={() => setMenuOpen(false)}
                   className="w-full px-3 py-2 text-left text-sm text-purple-300 hover:bg-gray-700/60 flex items-center gap-2.5 transition-colors">
                   <svg className="w-4 h-4 shrink-0 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.069A1 1 0 0121 8.882v6.236a1 1 0 01-1.447.894L15 14M3 8a2 2 0 012-2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V8z" /></svg>
                   Stream Overlays
-                </button>
+                </Link>
               )}
               {isModerator && (
-                <button onClick={() => { navigate('/game-board'); setMenuOpen(false); }}
+                <Link to="/game-board" onClick={() => setMenuOpen(false)}
                   className="w-full px-3 py-2 text-left text-sm text-green-400 hover:bg-gray-700/60 flex items-center gap-2.5 transition-colors">
                   <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                   </svg>
                   Game Board
-                </button>
+                </Link>
               )}
             </>
           )}
@@ -219,11 +224,11 @@ const AppLayout = () => {
                 { label: 'Game Manager', path: '/pokemon-game-manager' },
                 { label: 'Feedback', path: '/feedback' },
               ].map(({ label, path }) => (
-                <button key={path} onClick={() => { navigate(path); setMenuOpen(false); }}
+                <Link key={path} to={path} onClick={() => setMenuOpen(false)}
                   className="w-full px-3 py-2 text-left text-sm text-purple-400 hover:bg-gray-700/60 flex items-center gap-2.5 transition-colors">
                   <span className="w-4 h-4 shrink-0" />
                   {label}
-                </button>
+                </Link>
               ))}
               <button onClick={() => { setBannerManagerOpen(true); setMenuOpen(false); }}
                 className="w-full px-3 py-2 text-left text-sm text-purple-400 hover:bg-gray-700/60 flex items-center gap-2.5 transition-colors">
@@ -234,11 +239,11 @@ const AppLayout = () => {
           )}
 
           <div className="border-t border-gray-700 my-1.5" />
-          <button onClick={() => { navigate('/about'); setMenuOpen(false); }}
+          <Link to="/about" onClick={() => setMenuOpen(false)}
             className="w-full px-3 py-2 text-left text-sm text-gray-200 hover:bg-gray-700/60 flex items-center gap-2.5 transition-colors">
             <svg className="w-4 h-4 shrink-0 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
             How to Play
-          </button>
+          </Link>
           <button onClick={() => { setFeedbackOpen(true); setMenuOpen(false); }}
             className="w-full px-3 py-2 text-left text-sm text-gray-200 hover:bg-gray-700/60 flex items-center gap-2.5 transition-colors">
             <svg className="w-4 h-4 shrink-0 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z" /></svg>
@@ -254,30 +259,30 @@ const AppLayout = () => {
       </div>
     </div>
   ) : (!import.meta.env.DEV || sessionStorage.getItem('realauth') === '1') ? (
-    <button onClick={() => navigate('/login')} className="flex items-center gap-2 bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-full transition-colors text-sm font-medium">
+    <Link to="/login" className="flex items-center gap-2 bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-full transition-colors text-sm font-medium">
       Sign In / Sign Up
-    </button>
+    </Link>
   ) : null;
 
   /* ── Shared action buttons (upload + bell) ── */
   const actionButtons = user && (
     <>
       {isModerator && (
-        <button onClick={() => navigate('/approvals')} className="relative p-2 text-gray-400 hover:text-white hover:bg-gray-700 rounded-lg transition-colors" title="Approvals">
+        <Link to="/approvals" className="relative p-2 text-gray-400 hover:text-white hover:bg-gray-700 rounded-lg transition-colors" title="Approvals">
           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
           {pendingApprovals > 0 && (
             <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] px-1 flex items-center justify-center rounded-full bg-red-500 text-white text-[10px] font-bold leading-none">
               {pendingApprovals > 99 ? '99+' : pendingApprovals}
             </span>
           )}
-        </button>
+        </Link>
       )}
-      <button onClick={() => navigate('/upload')} className="p-2 text-gray-400 hover:text-white hover:bg-gray-700 rounded-lg transition-colors" title="Upload">
+      <Link to="/upload" className="p-2 text-gray-400 hover:text-white hover:bg-gray-700 rounded-lg transition-colors" title="Upload">
         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" /></svg>
-      </button>
-      <button onClick={() => navigate('/history')} className="p-2 text-gray-400 hover:text-white hover:bg-gray-700 rounded-lg transition-colors" title="Notifications">
+      </Link>
+      <Link to="/history" className="p-2 text-gray-400 hover:text-white hover:bg-gray-700 rounded-lg transition-colors" title="Notifications">
         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" /></svg>
-      </button>
+      </Link>
     </>
   );
 
@@ -314,16 +319,17 @@ const AppLayout = () => {
                     <p className="text-sm font-semibold text-white">
                       {user.user_metadata?.custom_claims?.global_name || user.user_metadata?.full_name || user.user_metadata?.username || 'User'}
                     </p>
-                    <button onClick={() => { navigate('/profile'); setDrawerOpen(false); }} className="text-xs text-purple-400 hover:text-purple-300">View Profile</button>
+                    <Link to="/profile" onClick={() => setDrawerOpen(false)} className="text-xs text-purple-400 hover:text-purple-300">View Profile</Link>
                   </div>
                 </div>
               ) : (
-                <button
-                  onClick={() => { navigate('/login'); setDrawerOpen(false); }}
+                <Link
+                  to="/login"
+                  onClick={() => setDrawerOpen(false)}
                   className="flex items-center gap-2 bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-full transition-colors text-sm font-medium"
                 >
                   Sign In / Sign Up
-                </button>
+                </Link>
               )}
               <button onClick={() => setDrawerOpen(false)} className="p-1.5 text-gray-400 hover:text-white rounded-lg hover:bg-gray-700 transition-colors">
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
@@ -338,17 +344,17 @@ const AppLayout = () => {
                 { label: 'Pokédex', path: '/pokedex', icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" /> },
                 { label: 'How to Play', path: '/about', icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /> },
               ].map(({ label, path, icon }) => (
-                <button key={path} onClick={() => { navigate(path); setDrawerOpen(false); }}
+                <Link key={path} to={path} onClick={() => setDrawerOpen(false)}
                   className={`w-full flex items-center gap-3 px-4 py-2.5 text-sm transition-colors hover:bg-gray-700/60 ${location.pathname === path ? 'text-white font-medium' : 'text-gray-300'}`}>
                   <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">{icon}</svg>
                   {label}
-                </button>
+                </Link>
               ))}
-              <button onClick={() => { navigate('/tools'); setDrawerOpen(false); }}
+              <Link to="/tools" onClick={() => setDrawerOpen(false)}
                 className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-yellow-300 hover:bg-gray-700/60 transition-colors">
                 <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 3l14 9-14 9V3z" /></svg>
                 Shiny Tools
-              </button>
+              </Link>
 
               {user && (
                 <>
@@ -358,11 +364,11 @@ const AppLayout = () => {
                     { label: 'Upload', path: '/upload', icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" /> },
                     { label: 'Notifications', path: '/history', icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" /> },
                   ].map(({ label, path, icon }) => (
-                    <button key={path} onClick={() => { navigate(path); setDrawerOpen(false); }}
+                    <Link key={path} to={path} onClick={() => setDrawerOpen(false)}
                       className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-gray-300 hover:bg-gray-700/60 transition-colors">
                       <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">{icon}</svg>
                       {label}
-                    </button>
+                    </Link>
                   ))}
                 </>
               )}
@@ -378,11 +384,11 @@ const AppLayout = () => {
                     { label: 'Game Manager', path: '/pokemon-game-manager' },
                     { label: 'Feedback', path: '/feedback' },
                   ].map(({ label, path }) => (
-                    <button key={path} onClick={() => { navigate(path); setDrawerOpen(false); }}
+                    <Link key={path} to={path} onClick={() => setDrawerOpen(false)}
                       className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-purple-400 hover:bg-gray-700/60 transition-colors">
                       <span className="w-4 h-4 shrink-0" />
                       {label}
-                    </button>
+                    </Link>
                   ))}
                   <button onClick={() => { setBannerManagerOpen(true); setDrawerOpen(false); }}
                     className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-purple-400 hover:bg-gray-700/60 transition-colors">
@@ -392,20 +398,20 @@ const AppLayout = () => {
                   <div className="border-t border-gray-700 my-2" />
                   <div className="px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-gray-500">Pro</div>
                   {isPro && (
-                    <button onClick={() => { navigate('/overlays'); setDrawerOpen(false); }}
+                    <Link to="/overlays" onClick={() => setDrawerOpen(false)}
                       className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-purple-300 hover:bg-gray-700/60 transition-colors">
                       <svg className="w-4 h-4 shrink-0 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.069A1 1 0 0121 8.882v6.236a1 1 0 01-1.447.894L15 14M3 8a2 2 0 012-2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V8z" /></svg>
                       Stream Overlays
-                    </button>
+                    </Link>
                   )}
-                  <button onClick={() => { navigate('/game-board'); setDrawerOpen(false); }}
+                  <Link to="/game-board" onClick={() => setDrawerOpen(false)}
                     className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-green-400 hover:bg-gray-700/60 transition-colors">
                     <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                     </svg>
                     Game Board
-                  </button>
+                  </Link>
                 </>
               )}
 
@@ -434,11 +440,11 @@ const AppLayout = () => {
             /* Home: logo left | nav flows naturally after logo | actions right */
             <div className="flex items-center">
               {/* Both images always in DOM so logoImage is pre-decoded before returning home */}
-              <img src={logoImage} alt="Pokemon Bounty Board" className="h-10 sm:h-14 object-contain cursor-pointer shrink-0" onClick={() => navigate('/')} />
+              <Link to="/" className="shrink-0"><img src={logoImage} alt="Pokemon Bounty Board" className="h-10 sm:h-14 object-contain cursor-pointer" /></Link>
               <nav className="hidden sm:flex items-center gap-0.5 ml-6">
-                <button onClick={() => navigate('/about')} className="px-3 py-1.5 text-sm text-gray-300 hover:text-white hover:bg-gray-700 rounded-lg transition-colors">How to Play</button>
-                {user && <button onClick={() => navigate('/pokedex')} className="px-3 py-1.5 text-sm text-gray-300 hover:text-white hover:bg-gray-700 rounded-lg transition-colors">Pokédex</button>}
-                <button onClick={() => navigate('/tools')} className="px-3 py-1.5 text-sm text-yellow-300 hover:text-yellow-100 hover:bg-gray-700 rounded-lg transition-colors">Shiny Tools</button>
+                <Link to="/about" className="px-3 py-1.5 text-sm text-gray-300 hover:text-white hover:bg-gray-700 rounded-lg transition-colors">How to Play</Link>
+                {user && <Link to="/pokedex" className="px-3 py-1.5 text-sm text-gray-300 hover:text-white hover:bg-gray-700 rounded-lg transition-colors">Pokédex</Link>}
+                <Link to="/tools" className="px-3 py-1.5 text-sm text-yellow-300 hover:text-yellow-100 hover:bg-gray-700 rounded-lg transition-colors">Shiny Tools</Link>
               </nav>
               <div className="flex items-center gap-1 ml-auto">
                 <div className="hidden sm:flex items-center gap-1">
@@ -452,13 +458,13 @@ const AppLayout = () => {
             /* Sub-page: icon (home) | title | actions */
             <div className="flex items-center">
               {/* Hidden preload so logoImage is decoded before the user returns home */}
-              <img
-                src={logoImage}
-                alt="Home"
-                className="h-10 sm:h-14 object-contain cursor-pointer shrink-0"
-                onClick={() => navigate('/')}
-                title="Home"
-              />
+              <Link to="/" className="shrink-0" title="Home">
+                <img
+                  src={logoImage}
+                  alt="Home"
+                  className="h-10 sm:h-14 object-contain cursor-pointer"
+                />
+              </Link>
               <div className="w-pw h-5 pad-0.5 ml-6 bg-gray-600" />
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2">
@@ -501,16 +507,16 @@ const AppLayout = () => {
       <footer className="mt-12 border-t border-gray-700 py-6 text-center text-xs text-gray-500">
         <div className="max-w-7xl mx-auto px-4">
           <div className="flex flex-wrap justify-center gap-x-6 gap-y-2 mb-4 text-sm">
-            <button onClick={() => navigate('/')} className="hover:text-gray-300 transition-colors">Home</button>
-            <button onClick={() => navigate('/pokedex')} className="hover:text-gray-300 transition-colors">Pokédex</button>
-            <button onClick={() => navigate('/about')} className="hover:text-gray-300 transition-colors">How to Play</button>
-            <button onClick={() => navigate('/tools')} className="text-yellow-600 hover:text-yellow-400 transition-colors">Shiny Tools</button>
+            <Link to="/" className="hover:text-gray-300 transition-colors">Home</Link>
+            <Link to="/pokedex" className="hover:text-gray-300 transition-colors">Pokédex</Link>
+            <Link to="/about" className="hover:text-gray-300 transition-colors">How to Play</Link>
+            <Link to="/tools" className="text-yellow-600 hover:text-yellow-400 transition-colors">Shiny Tools</Link>
           </div>
           <div className="flex flex-wrap justify-center gap-x-5 gap-y-1">
             <span>Pokeboard.net is not affiliated with Nintendo, Game Freak, or The Pokémon Company.</span>
             <span className="hidden sm:inline text-gray-700">|</span>
-            <button onClick={() => navigate('/privacy')} className="hover:text-gray-300 transition-colors">Privacy Policy</button>
-            <button onClick={() => navigate('/terms')} className="hover:text-gray-300 transition-colors">Terms of Service</button>
+            <Link to="/privacy" className="hover:text-gray-300 transition-colors">Privacy Policy</Link>
+            <Link to="/terms" className="hover:text-gray-300 transition-colors">Terms of Service</Link>
           </div>
         </div>
       </footer>
@@ -527,11 +533,11 @@ const HomePage = () => {
   return (
     <main className="max-w-7xl mx-auto px-4 py-5">
       {!user && (!import.meta.env.DEV || sessionStorage.getItem('realauth') === '1') && (
-        <div className="mb-4 rounded-lg p-4 text-center cursor-pointer" onClick={() => navigate('/login')} style={{ background: 'linear-gradient(160deg, #1a1c23 0%, #1f2128 100%)', borderColor: 'rgba(147,51,234,0.4)', borderWidth: '1px' }}>
+        <Link to="/login" className="block mb-4 rounded-lg p-4 text-center cursor-pointer" style={{ background: 'linear-gradient(160deg, #1a1c23 0%, #1f2128 100%)', borderColor: 'rgba(147,51,234,0.4)', borderWidth: '1px' }}>
           <p className="text-purple-300 text-sm">
             👋 Sign in or create an account to track your own Pokémon progress!
           </p>
-        </div>
+        </Link>
       )}
       <BannerBar />
 

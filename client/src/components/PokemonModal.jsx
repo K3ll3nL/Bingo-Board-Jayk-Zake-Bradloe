@@ -1,10 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import restrictedIconSrc from '../Icons/restricted-icon.png';
 import { buildPokemonImageUrl } from '../utils/pokemonImageUtils';
 
 const PokemonModal = ({ pokemon, onClose, monthId = null }) => {
-  const navigate = useNavigate();
   const [recentCatches, setRecentCatches] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -39,14 +38,6 @@ const PokemonModal = ({ pokemon, onClose, monthId = null }) => {
       hour: '2-digit',
       minute: '2-digit'
     });
-  };
-
-  const handleSubmitClick = () => {
-    const url = monthId
-      ? `/upload?pokemon=${pokemon.pokemon_id}&historical=true`
-      : `/upload?pokemon=${pokemon.pokemon_id}`;
-    navigate(url);
-    onClose();
   };
 
   if (!pokemon) return null;
@@ -133,12 +124,10 @@ const PokemonModal = ({ pokemon, onClose, monthId = null }) => {
           ) : (
             <div className="divide-y divide-gray-800">
               {recentCatches.map((entry, index) => (
-                <div
+                <Link
                   key={entry.id}
-                  onClick={() => {
-                    navigate(`/profile/${entry.user_id}`);
-                    onClose();
-                  }}
+                  to={`/profile/${entry.user_id}`}
+                  onClick={onClose}
                   className="p-2 flex items-center justify-between transition-colors cursor-pointer hover:bg-white/[0.04]"
                 >
                   <div className="flex items-center gap-3">
@@ -173,7 +162,7 @@ const PokemonModal = ({ pokemon, onClose, monthId = null }) => {
                     </span>
                     <span className="text-xs text-gray-400">pts</span>
                   </div>
-                </div>
+                </Link>
               ))}
             </div>
           )}
@@ -192,20 +181,36 @@ const PokemonModal = ({ pokemon, onClose, monthId = null }) => {
             </svg>
             Bulbapedia
           </a>
-          <button
-            onClick={isDisabled ? undefined : handleSubmitClick}
-            className={`p-4 text-center font-medium transition-colors flex items-center justify-center gap-2 ${submitBtnClass}`}
-            disabled={isDisabled}
-          >
-            {isStandardDone && !isRestrictedDone ? (
-              <img src={restrictedIconSrc} alt="" className="w-5 h-5 object-contain" />
-            ) : (
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                {submitIconContent}
-              </svg>
-            )}
-            {submitLabel}
-          </button>
+          {isDisabled ? (
+            <button
+              className={`p-4 text-center font-medium transition-colors flex items-center justify-center gap-2 ${submitBtnClass}`}
+              disabled
+            >
+              {isStandardDone && !isRestrictedDone ? (
+                <img src={restrictedIconSrc} alt="" className="w-5 h-5 object-contain" />
+              ) : (
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  {submitIconContent}
+                </svg>
+              )}
+              {submitLabel}
+            </button>
+          ) : (
+            <Link
+              to={monthId ? `/upload?pokemon=${pokemon.pokemon_id}&historical=true` : `/upload?pokemon=${pokemon.pokemon_id}`}
+              onClick={onClose}
+              className={`p-4 text-center font-medium transition-colors flex items-center justify-center gap-2 ${submitBtnClass}`}
+            >
+              {isStandardDone && !isRestrictedDone ? (
+                <img src={restrictedIconSrc} alt="" className="w-5 h-5 object-contain" />
+              ) : (
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  {submitIconContent}
+                </svg>
+              )}
+              {submitLabel}
+            </Link>
+          )}
         </div>
       </div>
     </div>

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { createClient } from '@supabase/supabase-js';
 import { useAuth } from '../contexts/AuthContext';
 import backgroundImage from '../Icons/2026Jan.png';
@@ -185,7 +185,6 @@ function swapTileData(tiles, pos1, pos2) {
 // ─── Component ────────────────────────────────────────────────────────────────
 export default function BoardBuilder() {
   const { user } = useAuth();
-  const navigate = useNavigate();
 
   const [tiles, setTiles]           = useState([]);
   const [categoryStats, setCategoryStats] = useState(null);
@@ -600,9 +599,9 @@ export default function BoardBuilder() {
           <button onClick={loadBoard} className="text-purple-400 hover:text-purple-300 text-sm mr-6">
             Retry
           </button>
-          <button onClick={() => navigate('/')} className="text-gray-400 hover:text-gray-300 text-sm">
+          <Link to="/" className="text-gray-400 hover:text-gray-300 text-sm">
             ← Back to home
-          </button>
+          </Link>
         </div>
       </div>
     );

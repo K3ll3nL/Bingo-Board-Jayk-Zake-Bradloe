@@ -1598,10 +1598,14 @@ app.get('/api/profile/:userId', async (req, res) => {
 
     // Count bingo achievements from the single query
     const bingos = allBingos || [];
-    const totalBingos = bingos.filter(b => b.bingo_type === 'row' || b.bingo_type === 'column').length;
+    const totalRows = bingos.filter(b => b.bingo_type === 'row').length;
+    const totalColumns = bingos.filter(b => b.bingo_type === 'column').length;
+    const totalBingos = totalRows + totalColumns;
     const totalXs = bingos.filter(b => b.bingo_type === 'x').length;
     const totalBlackouts = bingos.filter(b => b.bingo_type === 'blackout').length;
-    const restrictedBingos = bingos.filter(b => b.bingo_type === 'row_restricted' || b.bingo_type === 'column_restricted').length;
+    const restrictedRows = bingos.filter(b => b.bingo_type === 'row_restricted').length;
+    const restrictedColumns = bingos.filter(b => b.bingo_type === 'column_restricted').length;
+    const restrictedBingos = restrictedRows + restrictedColumns;
     const restrictedXs = bingos.filter(b => b.bingo_type === 'x_restricted').length;
     const restrictedBlackouts = bingos.filter(b => b.bingo_type === 'blackout_restricted').length;
 
@@ -1692,9 +1696,13 @@ app.get('/api/profile/:userId', async (req, res) => {
           rank: bestRank
         } : null,
         totalBingos,
+        totalRows,
+        totalColumns,
         totalXs,
         totalBlackouts,
         restrictedBingos,
+        restrictedRows,
+        restrictedColumns,
         restrictedXs,
         restrictedBlackouts,
         monthsParticipated,

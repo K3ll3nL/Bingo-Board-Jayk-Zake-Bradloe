@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import PageBackground from './PageBackground';
 import PageHeader from './PageHeader';
 
@@ -128,7 +128,6 @@ const TOOLS = [
 const ALL_CATEGORIES = ['All', ...Object.keys(CATEGORY_COLORS)];
 
 export default function ShinyTools() {
-  const navigate = useNavigate();
   const [activeCat, setActiveCat] = useState('All');
 
   const liveCount = TOOLS.filter(t => t.live).length;
@@ -190,20 +189,17 @@ export default function ShinyTools() {
                 <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 gap-2 sm:gap-3">
                   {tools.map(tool => {
                     const c = CATEGORY_COLORS[tool.category];
-                    return (
-                      <button
-                        key={tool.id}
-                        onClick={() => tool.live && navigate(`/tools/${tool.id}`)}
-                        className={`relative flex items-start gap-2 sm:gap-3 rounded-xl px-2.5 py-2.5 sm:px-4 sm:py-3.5 border text-left transition-all duration-150 group ${
-                          tool.live
-                            ? 'hover:brightness-110 hover:scale-[1.02] active:scale-[0.99] cursor-pointer'
-                            : 'cursor-default'
-                        }`}
-                        style={{
-                          backgroundColor: tool.live ? c.glow : 'rgba(30,32,36,0.6)',
-                          borderColor: tool.live ? c.border : '#374151',
-                        }}
-                      >
+                    const cardClass = `relative flex items-start gap-2 sm:gap-3 rounded-xl px-2.5 py-2.5 sm:px-4 sm:py-3.5 border text-left transition-all duration-150 group ${
+                      tool.live
+                        ? 'hover:brightness-110 hover:scale-[1.02] active:scale-[0.99] cursor-pointer'
+                        : 'cursor-default'
+                    }`;
+                    const cardStyle = {
+                      backgroundColor: tool.live ? c.glow : 'rgba(30,32,36,0.6)',
+                      borderColor: tool.live ? c.border : '#374151',
+                    };
+                    const cardInner = (
+                      <>
                         {/* Live indicator dot */}
                         {tool.live && (
                           <span
@@ -232,7 +228,16 @@ export default function ShinyTools() {
                             {tool.category}
                           </span>
                         </div>
-                      </button>
+                      </>
+                    );
+                    return tool.live ? (
+                      <Link key={tool.id} to={`/tools/${tool.id}`} className={cardClass} style={cardStyle}>
+                        {cardInner}
+                      </Link>
+                    ) : (
+                      <div key={tool.id} className={cardClass} style={cardStyle}>
+                        {cardInner}
+                      </div>
                     );
                   })}
                 </div>

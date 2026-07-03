@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -982,7 +982,6 @@ function TargetPowerTab({ fillings, condiments, playerCount = 1 }) {
 // ─── Main component ───────────────────────────────────────────────────────────
 
 export default function SVSandwichCalculator() {
-  const navigate = useNavigate();
 
   const [pageMode, setPageMode] = useState('builder'); // 'builder' | 'target'
   const [playerCount, setPlayerCount] = useState(1); // 1–4
@@ -1073,7 +1072,7 @@ export default function SVSandwichCalculator() {
       <div className="sticky top-0 z-30 border-b"
         style={{ background: 'rgba(13,15,20,0.85)', backdropFilter: 'blur(10px)', borderColor: 'rgba(255,255,255,0.06)' }}>
         <div className="max-w-5xl mx-auto px-4 py-2.5 flex items-center gap-3">
-          <button onClick={() => navigate('/tools')}
+          <Link to="/tools"
             className="flex items-center gap-1.5 text-sm transition-colors"
             style={{ color: 'rgba(255,255,255,0.4)' }}
             onMouseEnter={e => e.currentTarget.style.color = '#fff'}
@@ -1082,7 +1081,7 @@ export default function SVSandwichCalculator() {
               <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
             </svg>
             <span className="hidden sm:inline">Shiny Tools</span>
-          </button>
+          </Link>
           <span style={{ color: 'rgba(255,255,255,0.15)' }}>|</span>
           <span className="text-sm font-semibold text-white">S/V Sandwich Calculator</span>
         </div>

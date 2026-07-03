@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { supabase } from '../../contexts/AuthContext';
 import PokemonImage from '../PokemonImage';
 import PageBackground from '../PageBackground';
@@ -304,7 +304,6 @@ function OwnedTag({ pokemon, pmMap, onRemove }) {
 
 // ── Main component ────────────────────────────────────────────────────────────
 export default function Gen2ShinyBreeding() {
-  const navigate = useNavigate();
   const [ownedIds, setOwnedIds] = useState(() => {
     try { return JSON.parse(localStorage.getItem('gen2_owned_shinies') || '[]'); }
     catch { return []; }
@@ -362,7 +361,7 @@ export default function Gen2ShinyBreeding() {
         style={{ background: 'rgba(13,15,20,0.85)', backdropFilter: 'blur(10px)', borderColor: 'rgba(255,255,255,0.06)' }}>
         <div className="max-w-5xl mx-auto px-4 py-2.5 flex items-center justify-between gap-3">
           <div className="flex items-center gap-3">
-            <button onClick={() => navigate('/tools')}
+            <Link to="/tools"
               className="flex items-center gap-1.5 text-sm transition-colors"
               style={{ color: 'rgba(255,255,255,0.4)' }}
               onMouseEnter={e => e.currentTarget.style.color = '#fff'}
@@ -371,7 +370,7 @@ export default function Gen2ShinyBreeding() {
                 <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
               </svg>
               <span className="hidden sm:inline">Shiny Tools</span>
-            </button>
+            </Link>
             <span style={{ color: 'rgba(255,255,255,0.15)' }}>|</span>
             <span className="text-sm font-semibold text-white">Gen 2 Shiny Breeding</span>
           </div>

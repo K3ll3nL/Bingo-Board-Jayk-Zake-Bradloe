@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import PageBackground from '../PageBackground';
 
 // Shiny odds by chain length — source: Serebii
@@ -118,7 +118,6 @@ function CounterBox({ value, onChange, min = 0, max = 40 }) {
 
 // ── Main ──────────────────────────────────────────────────────────────────────
 export default function BDSPRadar() {
-  const navigate = useNavigate();
   const [chain, setChain] = useState(0);
   const [encRateStr, setEncRateStr] = useState('');
   const [secsStr, setSecsStr] = useState('20');
@@ -157,8 +156,8 @@ export default function BDSPRadar() {
         style={{ background: 'rgba(13,15,20,0.85)', backdropFilter: 'blur(10px)', borderColor: 'rgba(255,255,255,0.06)' }}>
         <div className="max-w-5xl mx-auto px-4 py-2.5 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <button
-              onClick={() => navigate('/tools')}
+            <Link
+              to="/tools"
               className="flex items-center gap-1.5 text-sm transition-colors"
               style={{ color: 'rgba(255,255,255,0.4)' }}
               onMouseEnter={e => e.currentTarget.style.color = '#fff'}
@@ -168,7 +167,7 @@ export default function BDSPRadar() {
                 <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
               </svg>
               <span className="hidden sm:inline">Shiny Tools</span>
-            </button>
+            </Link>
             <span style={{ color: 'rgba(255,255,255,0.15)' }}>|</span>
             <span className="text-sm font-semibold text-white">BDSP Radar</span>
           </div>

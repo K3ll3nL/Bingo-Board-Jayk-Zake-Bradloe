@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { createClient } from '@supabase/supabase-js';
 import PageBackground from './PageBackground';
@@ -24,7 +24,6 @@ const GEN_NAMES = { 1: 'Generation I', 2: 'Generation II', 3: 'Generation III', 
 
 const Pokedex = () => {
   const { user } = useAuth();
-  const navigate = useNavigate();
   const [pokemon, setPokemon] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -65,12 +64,12 @@ const Pokedex = () => {
         <div className="flex items-center justify-center p-8">
           <div className="text-center">
             <p className="text-gray-400 mb-4">Please log in to view your Pokédex</p>
-            <button
-              onClick={() => navigate('/')}
-              className="px-4 py-2 bg-purple-500 text-white rounded-lg hover:bg-purple-600"
+            <Link
+              to="/"
+              className="inline-block px-4 py-2 bg-purple-500 text-white rounded-lg hover:bg-purple-600"
             >
               Back to Home
-            </button>
+            </Link>
           </div>
         </div>
       </div>
@@ -172,11 +171,16 @@ const Pokedex = () => {
                     const submitTitle = isCurrentPool
                       ? `Submit catch for ${poke.display_name || poke.name}`
                       : `Submit historical catch for ${poke.display_name || poke.name}`;
+                    // Render a real link when the cell navigates to the upload page,
+                    // so it supports open-in-new-tab / right-click. Non-submittable
+                    // cells stay plain divs.
+                    const CellTag = canSubmit ? Link : 'div';
+                    const cellProps = canSubmit ? { to: submitUrl } : {};
                     return (
-                    <div
+                    <CellTag
                       key={poke.id}
-                      onClick={() => canSubmit && navigate(submitUrl)}
-                      className={`group relative rounded-lg border-2 transition-all duration-200 overflow-hidden leading-none aspect-square ${canSubmit ? 'hover:scale-105 cursor-pointer hover:border-purple-400' : poke.caught ? 'hover:scale-105 cursor-pointer' : 'cursor-default'} ${poke.caught ? 'border-purple-500 bg-gray-800' : 'border-gray-700 bg-gray-900'}`}
+                      {...cellProps}
+                      className={`group relative block rounded-lg border-2 transition-all duration-200 overflow-hidden leading-none aspect-square ${canSubmit ? 'hover:scale-105 cursor-pointer hover:border-purple-400' : poke.caught ? 'hover:scale-105 cursor-pointer' : 'cursor-default'} ${poke.caught ? 'border-purple-500 bg-gray-800' : 'border-gray-700 bg-gray-900'}`}
                       title={canSubmit ? submitTitle : `${poke.display_name || poke.name}${poke.caught ? ' ✓' : ''}`}
                     >
                       <div className={`w-full h-full ${poke.caught ? '' : poke.in_pool ? 'grayscale opacity-30' : 'brightness-0 opacity-20'}`}>
@@ -197,7 +201,7 @@ const Pokedex = () => {
                           </svg>
                         </div>
                       )}
-                    </div>
+                    </CellTag>
                     );
                   })}
                 </div>

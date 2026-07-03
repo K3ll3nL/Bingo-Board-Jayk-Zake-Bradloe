@@ -43,6 +43,24 @@ const AWARD_LABELS = {
   blackout: 'Blackout',
 };
 
+// Bingo achievements come in base and `_restricted` variants, and the DB writes
+// several blackout aliases ('first blackout', 'personal_blackout'). Normalize to
+// a canonical base type + restricted flag so labels and icons resolve correctly.
+const normalizeBingoType = (raw) => {
+  if (!raw) return { base: raw, restricted: false };
+  const restricted = raw.endsWith('_restricted');
+  let base = restricted ? raw.slice(0, -'_restricted'.length) : raw;
+  // Collapse blackout aliases ('first blackout', 'personal_blackout') → 'blackout'
+  if (base === 'first blackout' || base === 'personal_blackout') base = 'blackout';
+  return { base, restricted };
+};
+
+const awardLabel = (raw) => {
+  const { base, restricted } = normalizeBingoType(raw);
+  const label = AWARD_LABELS[base] || base;
+  return restricted ? `Restricted ${label}` : label;
+};
+
 const FILTERS = ['All', 'Pokémon', 'Badges', 'Achievements'];
 
 const formatDate = (iso) => {
@@ -227,10 +245,10 @@ const SubmissionHistory = () => {
                     ) : isAward ? (
                       <div className="w-12 h-12 rounded-full flex items-center justify-center" style={{ background: 'rgba(168,85,247,0.15)' }}>
                         <AchievementIcon
-                          type={n.message}
-                          restricted={n.restricted ?? false}
+                          type={normalizeBingoType(n.message).base}
+                          restricted={normalizeBingoType(n.message).restricted}
                           containerClassName="w-7 h-7"
-                          svgClassName={n.message === 'blackout' ? 'w-5 h-5' : 'w-4 h-4'}
+                          svgClassName={normalizeBingoType(n.message).base === 'blackout' ? 'w-5 h-5' : 'w-4 h-4'}
                         />
                       </div>
                     ) : n.pokemon?.national_dex_id ? (
@@ -250,7 +268,7 @@ const SubmissionHistory = () => {
                     {isBadge && n.badge ? (
                       <p className="text-sm font-semibold text-white leading-tight">{n.badge.name}</p>
                     ) : isAward && n.message ? (
-                      <p className="text-sm font-semibold text-white leading-tight">{AWARD_LABELS[n.message] || n.message}</p>
+                      <p className="text-sm font-semibold text-white leading-tight">{awardLabel(n.message)}</p>
                     ) : n.pokemon ? (
                       <p className="text-sm font-semibold text-white leading-tight">
                         #{n.pokemon.national_dex_id} {n.pokemon.name}

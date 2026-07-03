@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useLayoutEffect, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { api } from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
 import AchievementIcon from './AchievementIcon';
@@ -76,7 +76,6 @@ const StatValue = ({ points, pokemonCount, hovered }) => {
 };
 
 const Leaderboard = () => {
-  const navigate = useNavigate();
   const { leaderboardVersion } = useAuth();
   const [leaderboard, setLeaderboard] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -319,11 +318,16 @@ const Leaderboard = () => {
                 <div
                   key={user.user_id}
                   ref={el => { rowRefs.current[user.user_id] = el; }}
-                  onClick={() => navigate(`/profile/${user.user_id}`)}
                   onMouseEnter={CAN_HOVER ? () => setHoveredId(user.user_id) : undefined}
                   onMouseLeave={CAN_HOVER ? () => setHoveredId(null) : undefined}
-                  className="p-2 flex items-center justify-between transition-colors cursor-pointer hover:bg-white/5"
+                  className="relative p-2 flex items-center justify-between transition-colors cursor-pointer hover:bg-white/5"
                 >
+                  {/* Stretched link overlay: makes the whole row a real anchor (open-in-new-tab, right-click) while keeping nested links like Twitch clickable via higher z-index */}
+                  <Link
+                    to={`/profile/${user.user_id}`}
+                    className="absolute inset-0 z-0"
+                    aria-label={`View ${user.display_name}'s profile`}
+                  />
                   <div className="flex items-center gap-3">
                     <div className="flex items-center justify-center w-8 h-8">
                       {medal ? (
@@ -342,7 +346,7 @@ const Leaderboard = () => {
                             target="_blank"
                             rel="noopener noreferrer"
                             onClick={(e) => e.stopPropagation()}
-                            className="inline-flex"
+                            className="relative z-10 inline-flex"
                           >
                             <svg className="w-4 h-4 text-purple-500 hover:text-purple-400 transition-colors" viewBox="0 0 24 24" fill="currentColor">
                               <path d="M11.571 4.714h1.715v5.143H11.57zm4.715 0H18v5.143h-1.714zM6 0L1.714 4.286v15.428h5.143V24l4.286-4.286h3.428L22.286 12V0zm14.571 11.143l-3.428 3.428h-3.429l-3 3v-3H6.857V1.714h13.714Z"/>

@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import PageBackground from '../PageBackground';
 
 // ── Serebii lookup table ──────────────────────────────────────────────────────
@@ -162,7 +162,6 @@ function SmallStatCard({ label, value, sub, note, accent = '#9ca3af' }) {
 
 // ── Main component ────────────────────────────────────────────────────────────
 export default function DexNavCalculator() {
-  const navigate = useNavigate();
   const [chain, setChain]             = useState(0);
   const [searchLevel, setSearchLevel] = useState(0);
   const [shinyCharm, setShinyCharm]   = useState(false);
@@ -256,7 +255,7 @@ export default function DexNavCalculator() {
         style={{ background: 'rgba(13,15,20,0.85)', backdropFilter: 'blur(10px)', borderColor: 'rgba(255,255,255,0.06)' }}>
         <div className="max-w-5xl mx-auto px-4 py-2.5 flex items-center justify-between gap-3 flex-wrap">
           <div className="flex items-center gap-3">
-            <button onClick={() => navigate('/tools')}
+            <Link to="/tools"
               className="flex items-center gap-1.5 text-sm transition-colors"
               style={{ color: 'rgba(255,255,255,0.4)' }}
               onMouseEnter={e => e.currentTarget.style.color = '#fff'}
@@ -265,7 +264,7 @@ export default function DexNavCalculator() {
                 <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
               </svg>
               <span className="hidden sm:inline">Shiny Tools</span>
-            </button>
+            </Link>
             <span style={{ color: 'rgba(255,255,255,0.15)' }}>|</span>
             <span className="text-sm font-semibold text-white">DexNav Calculator</span>
           </div>

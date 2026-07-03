@@ -13,10 +13,29 @@ const BINGO_TYPE_LABELS = {
   blackout: 'Blackout Bingo',
 };
 
+// Bingo achievements come in base and `_restricted` variants, and the DB writes
+// several blackout aliases ('first blackout', 'personal_blackout'). Normalize to
+// a canonical base type + restricted flag so labels and icons resolve correctly.
+const normalizeBingoType = (raw) => {
+  if (!raw) return { base: raw, restricted: false };
+  const restricted = raw.endsWith('_restricted');
+  let base = restricted ? raw.slice(0, -'_restricted'.length) : raw;
+  // Collapse blackout aliases ('first blackout', 'personal_blackout') → 'blackout'
+  if (base === 'first blackout' || base === 'personal_blackout') base = 'blackout';
+  return { base, restricted };
+};
+
+const bingoTypeLabel = (raw) => {
+  const { base, restricted } = normalizeBingoType(raw);
+  const label = BINGO_TYPE_LABELS[base] || base;
+  return restricted ? `Restricted ${label}` : label;
+};
+
 const getBingoIcon = (bingoType, style = {}, restricted = false) => {
   const base = { fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24', ...style };
-  const dash = restricted ? { strokeDasharray: '4 2' } : {};
-  switch (bingoType) {
+  const norm = normalizeBingoType(bingoType);
+  const dash = (restricted || norm.restricted) ? { strokeDasharray: '4 2' } : {};
+  switch (norm.base) {
     case 'row':
       return (
         <svg {...base}><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 12h16" {...dash} /></svg>
@@ -317,9 +336,9 @@ const Toast = ({ notification, onDismiss }) => {
           ) : isAchievement ? (
             <p style={{ color: '#f1f5f9', fontWeight: 600, fontSize: '14px', margin: 0, lineHeight: 1.3 }}>
               {notification.is_broadcast
-                ? `${notification.winner?.display_name || 'Someone'} was awarded the first ${notification.achievement?.month_name ? `${notification.achievement.month_name} ` : ''}${BINGO_TYPE_LABELS[bingoType] || bingoType}!`
+                ? `${notification.winner?.display_name || 'Someone'} was awarded the first ${notification.achievement?.month_name ? `${notification.achievement.month_name} ` : ''}${bingoTypeLabel(bingoType)}!`
                 : notification.achievement?.bingo_type
-                  ? `You were awarded the first ${BINGO_TYPE_LABELS[notification.achievement.bingo_type] || notification.achievement.bingo_type}! Congrats!`
+                  ? `You were awarded the first ${bingoTypeLabel(notification.achievement.bingo_type)}! Congrats!`
                   : 'You earned an achievement! Congrats!'}
             </p>
           ) : (

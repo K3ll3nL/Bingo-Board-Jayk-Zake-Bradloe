@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { supabase } from '../contexts/AuthContext';
 
 const AuthCallback = () => {
@@ -58,12 +58,12 @@ const AuthCallback = () => {
             style={{ background: 'linear-gradient(160deg, #13151a 0%, #181a21 100%)', borderColor: 'rgba(255,255,255,0.07)' }}
           >
             <p className="text-red-400 mb-5">{error}</p>
-            <button
-              onClick={() => navigate('/')}
-              className="px-5 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition-colors font-medium"
+            <Link
+              to="/"
+              className="inline-block px-5 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition-colors font-medium"
             >
               Go back
-            </button>
+            </Link>
           </div>
         ) : (
           <>

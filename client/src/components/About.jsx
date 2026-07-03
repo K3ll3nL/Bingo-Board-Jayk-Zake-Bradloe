@@ -291,7 +291,7 @@ const RESTRICTED_EXCEPTIONS = [
     game: 'Ultra Warp Ride',
     content: () => (
       <p className="text-gray-300 text-sm">
-        Allowed when hunting <span className="text-white font-medium">Legendaries</span>.
+        Allowed when hunting <span className="text-white font-medium">Legendaries</span> or <span className="text-white font-medium">Ultra Beasts</span>.
       </p>
     ),
   },
@@ -570,13 +570,13 @@ const About = () => {
         {/* ── Restricted Challenge ──────────────────────────────────────── */}
         <Section
             id="restricted"
-            title="Restricted Challenge (Optional)"
+            title="Restricted Bonus (Optional)"
             icon={<LockIcon />}
             accentColor="#c0392b"
             headerBg="rgba(120,21,10,0.20)"
           >
             <p className="text-gray-300 leading-relaxed mb-5">
-              The Restricted Challenge is an optional, higher-difficulty challenge that runs alongside
+              The Restricted Bonus is an optional, higher-difficulty challenge that runs alongside
               the standard board each month. Restricted submissions are held to a higher evidence
               standard and award extra points for bingo achievements and submissions.
             </p>

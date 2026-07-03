@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useLayoutEffect, useMemo, useCallback, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import PageBackground from '../PageBackground';
 import PokemonImage from '../PokemonImage';
 import { useAuth } from '../../contexts/AuthContext';
@@ -675,7 +675,6 @@ function MobileStatsBar({ hoverStats }) {
 // ── Main ──────────────────────────────────────────────────────────────────────
 
 export default function XYRadar() {
-  const navigate = useNavigate();
   const { isModerator } = useAuth();
 
   // Browse state
@@ -808,19 +807,19 @@ export default function XYRadar() {
       {/* Sticky header */}
       <div className="sticky top-0 z-30 border-b" style={{ background: 'rgba(13,15,20,0.88)', backdropFilter: 'blur(10px)', borderColor: 'rgba(255,255,255,0.06)' }}>
         <div className="max-w-5xl mx-auto px-4 h-14 flex items-center gap-3">
-          <button onClick={() => navigate('/tools')} className="flex items-center gap-1.5 text-gray-400 hover:text-white transition-colors shrink-0">
+          <Link to="/tools" className="flex items-center gap-1.5 text-gray-400 hover:text-white transition-colors shrink-0">
             <span className="text-lg">←</span>
             <span className="hidden sm:inline text-sm">Tools</span>
-          </button>
+          </Link>
           <div className="w-px h-5 bg-gray-700" />
           <span className="text-sm">📡</span>
           <h1 className="text-sm font-bold flex-1">XY Poké Radar</h1>
           {isModerator && (
-            <button onClick={() => navigate('/tools/xy-radar/builder')}
-              className="shrink-0 text-[11px] px-2.5 py-1.5 rounded-lg font-semibold border transition-all hover:opacity-80"
+            <Link to="/tools/xy-radar/builder"
+              className="shrink-0 inline-block text-[11px] px-2.5 py-1.5 rounded-lg font-semibold border transition-all hover:opacity-80"
               style={{ background: ACCENT_BG, borderColor: ACCENT_BORDER, color: ACCENT }}>
               ✏️ Edit Maps
-            </button>
+            </Link>
           )}
         </div>
       </div>

@@ -25,7 +25,7 @@ const CARD = {
 };
 
 // ── Icons ─────────────────────────────────────────────────────
-const IconOverview = () => (
+const IconStatistics = () => (
   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
       d="M4 5a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1H5a1 1 0 01-1-1V5zm10 0a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1V5zM4 15a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1H5a1 1 0 01-1-1v-4zm10 0a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1v-4z" />
@@ -42,17 +42,17 @@ const IconPokedex = () => (
       d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
   </svg>
 );
-const IconHistory = () => (
+const IconBoards = () => (
   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
   </svg>
 );
 
 const TABS = [
-  { id: 'overview', label: 'Overview', Icon: IconOverview },
+  { id: 'boards',  label: 'Boards',  Icon: IconBoards },
+  { id: 'statistics', label: 'Statistics', Icon: IconStatistics },
   { id: 'badges',   label: 'Badges',   Icon: IconBadges },
   { id: 'pokedex',  label: 'Pokédex',  Icon: IconPokedex },
-  { id: 'history',  label: 'History',  Icon: IconHistory },
 ];
 
 // ── Points bar chart ──────────────────────────────────────────
@@ -142,8 +142,8 @@ const MobileTabStrip = ({ tab, setTab, accentColor }) => (
   </div>
 );
 
-// ── Overview tab ──────────────────────────────────────────────
-const OverviewTab = ({ profile, accentColor, onPokemonClick }) => {
+// ── Statistics tab ──────────────────────────────────────────────
+const StatisticsTab = ({ profile, accentColor, onPokemonClick }) => {
   const { stats, monthlyData, recentCatches = [] } = profile;
 
   const AchievementBlock = ({ items, label, restricted }) => (
@@ -174,14 +174,14 @@ const OverviewTab = ({ profile, accentColor, onPokemonClick }) => {
       {/* Achievement summary */}
       <div className="grid grid-cols-2 gap-3">
         <AchievementBlock label="Bonus Bounties" restricted={false} items={[
-          { type: 'row', count: stats.totalBingos },
-          { type: 'column', count: stats.totalBingos },
+          { type: 'row', count: stats.totalRows },
+          { type: 'column', count: stats.totalColumns },
           { type: 'x', count: stats.totalXs },
           { type: 'blackout', count: stats.totalBlackouts },
         ]} />
         <AchievementBlock label="Restricted" restricted={true} items={[
-          { type: 'row', count: stats.restrictedBingos },
-          { type: 'column', count: stats.restrictedBingos },
+          { type: 'row', count: stats.restrictedRows },
+          { type: 'column', count: stats.restrictedColumns },
           { type: 'x', count: stats.restrictedXs },
           { type: 'blackout', count: stats.restrictedBlackouts },
         ]} />
@@ -203,7 +203,7 @@ const OverviewTab = ({ profile, accentColor, onPokemonClick }) => {
                   <img src={restrictedIcon} alt="" className="absolute top-1 right-1 w-5 h-5 object-contain" />
                 )}
                 <div className="absolute inset-x-0 bottom-0 bg-black/70 text-white text-[9px] text-center py-0.5 opacity-0 group-hover:opacity-100 transition-opacity truncate px-0.5 leading-tight">
-                  {pokemon.display_name || pokemon.name}
+                  {(pokemon.display_name || pokemon.name || '').toUpperCase()}
                 </div>
               </div>
             ))}
@@ -362,9 +362,9 @@ const PokedexTab = ({ stats, accentColor }) => {
   );
 };
 
-// ── History tab ───────────────────────────────────────────────
+// ── Boards tab ───────────────────────────────────────────────
 
-const HistoryTab = ({ userId, monthlyData, stats, onPokemonClick, accentColor }) => {
+const BoardsTab = ({ userId, monthlyData, stats, onPokemonClick, accentColor }) => {
   const [pastMonths, setPastMonths] = useState([]);
   const [selectedMonthId, setSelectedMonthId] = useState(null);
   const [boardCache, setBoardCache] = useState({});
@@ -636,7 +636,7 @@ const Profile = () => {
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [tab, setTab] = useState('overview');
+  const [tab, setTab] = useState('boards');
   const [selectedPokemon, setSelectedPokemon] = useState(null);
   const [editingSocials, setEditingSocials] = useState(false);
   const [socialForm, setSocialForm] = useState({ twitch_url: '', youtube_url: '', shinydex_url: '' });
@@ -972,8 +972,8 @@ const Profile = () => {
 
           {/* Content */}
           <div className="flex-1 min-w-0">
-            {tab === 'overview' && (
-              <OverviewTab profile={profile} accentColor={accentColor} onPokemonClick={setSelectedPokemon} />
+            {tab === 'statistics' && (
+              <StatisticsTab profile={profile} accentColor={accentColor} onPokemonClick={setSelectedPokemon} />
             )}
             {tab === 'badges' && (
               <BadgesTab
@@ -987,8 +987,8 @@ const Profile = () => {
             {tab === 'pokedex' && (
               <PokedexTab stats={stats} accentColor={accentColor} />
             )}
-            {tab === 'history' && (
-              <HistoryTab userId={profileUserId} monthlyData={monthlyData} stats={stats} onPokemonClick={setSelectedPokemon} accentColor={accentColor} />
+            {tab === 'boards' && (
+              <BoardsTab userId={profileUserId} monthlyData={monthlyData} stats={stats} onPokemonClick={setSelectedPokemon} accentColor={accentColor} />
             )}
           </div>
         </div>
