@@ -13,7 +13,7 @@ const MEDAL      = ['🥇', '🥈', '🥉'];
 const TOP3_COLOR = ['#fbbf24', '#d1d5db', '#cd7c2f'];
 const TOP3_BG    = ['rgba(251,191,36,0.08)', 'rgba(209,213,219,0.06)', 'rgba(205,124,47,0.07)'];
 
-const ACHIEVEMENT_TYPES = ['row', 'column', 'x', 'blackout'];
+const ACHIEVEMENT_TYPES = ['row', 'column', 'x', 'blackout', 'personal_blackout'];
 
 const AchievementSvg = ({ type }) => {
   if (type === 'row') return <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M4 12h16" />;
@@ -24,6 +24,14 @@ const AchievementSvg = ({ type }) => {
       <rect x="3" y="3" width="18" height="18" rx="1" />
       <path d="M3 7.2h18M3 10.2h18M3 13.8h18M3 16.8h18" />
       <path d="M7.2 3v18M10.2 3v18M13.8 3v18M16.8 3v18" />
+    </>
+  );
+  if (type === 'personal_blackout') return (
+    <>
+      <rect x="3" y="3" width="18" height="18" rx="1" />
+      <text x="12" y="13" textAnchor="middle" dominantBaseline="central"
+        fontSize="11" fontWeight="700" fill="white" stroke="none"
+        fontFamily="ui-sans-serif, system-ui, sans-serif">PB</text>
     </>
   );
   return null;

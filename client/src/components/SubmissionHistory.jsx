@@ -41,17 +41,19 @@ const AWARD_LABELS = {
   column: 'Column Bingo',
   x: 'X Bingo',
   blackout: 'Blackout',
+  personal_blackout: 'Personal Blackout',
 };
 
-// Bingo achievements come in base and `_restricted` variants, and the DB writes
-// several blackout aliases ('first blackout', 'personal_blackout'). Normalize to
-// a canonical base type + restricted flag so labels and icons resolve correctly.
+// Bingo achievements come in base and `_restricted` variants. Normalize to a
+// canonical base type + restricted flag so labels and icons resolve correctly.
+// 'personal_blackout' is its own base type (a non-first blackout) — kept distinct
+// from the community-first 'blackout'.
 const normalizeBingoType = (raw) => {
   if (!raw) return { base: raw, restricted: false };
   const restricted = raw.endsWith('_restricted');
   let base = restricted ? raw.slice(0, -'_restricted'.length) : raw;
-  // Collapse blackout aliases ('first blackout', 'personal_blackout') → 'blackout'
-  if (base === 'first blackout' || base === 'personal_blackout') base = 'blackout';
+  // Legacy alias 'first blackout' → 'blackout'
+  if (base === 'first blackout') base = 'blackout';
   return { base, restricted };
 };
 
@@ -248,7 +250,7 @@ const SubmissionHistory = () => {
                           type={normalizeBingoType(n.message).base}
                           restricted={normalizeBingoType(n.message).restricted}
                           containerClassName="w-7 h-7"
-                          svgClassName={normalizeBingoType(n.message).base === 'blackout' ? 'w-5 h-5' : 'w-4 h-4'}
+                          svgClassName={['blackout', 'personal_blackout'].includes(normalizeBingoType(n.message).base) ? 'w-5 h-5' : 'w-4 h-4'}
                         />
                       </div>
                     ) : n.pokemon?.national_dex_id ? (

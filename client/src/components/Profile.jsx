@@ -156,12 +156,12 @@ const StatisticsTab = ({ profile, accentColor, onPokemonClick }) => {
         {restricted && <img src={restrictedIcon} alt="" className="w-3.5 h-3.5 object-contain" />}
         <p className="text-xs sm:text-sm font-semibold uppercase tracking-wide" style={{ color: restricted ? '#e07060' : 'rgba(255,255,255,0.35)' }}>{label}</p>
       </div>
-      <div className="grid grid-cols-4 gap-1 sm:gap-2 flex-1">
+      <div className="grid grid-cols-5 gap-1 sm:gap-2 flex-1">
         {items.map(({ type, count }) => (
           <div key={type} className="flex flex-col items-center gap-1 sm:gap-2">
             <AchievementIcon type={type} color={restricted ? undefined : accentColor} restricted={restricted}
               containerClassName="w-8 h-8 sm:w-14 sm:h-14 rounded-md sm:rounded-xl"
-              svgClassName={type === 'blackout' ? 'w-4 h-4 sm:w-8 sm:h-8' : 'w-4 h-4 sm:w-7 sm:h-7'} />
+              svgClassName={type.includes('blackout') ? 'w-4 h-4 sm:w-8 sm:h-8' : 'w-4 h-4 sm:w-7 sm:h-7'} />
             <span className="text-lg sm:text-2xl font-black text-white leading-none">{count || 0}</span>
           </div>
         ))}
@@ -178,12 +178,14 @@ const StatisticsTab = ({ profile, accentColor, onPokemonClick }) => {
           { type: 'column', count: stats.totalColumns },
           { type: 'x', count: stats.totalXs },
           { type: 'blackout', count: stats.totalBlackouts },
+          { type: 'personal_blackout', count: stats.totalPersonalBlackouts },
         ]} />
         <AchievementBlock label="Restricted" restricted={true} items={[
           { type: 'row', count: stats.restrictedRows },
           { type: 'column', count: stats.restrictedColumns },
           { type: 'x', count: stats.restrictedXs },
           { type: 'blackout', count: stats.restrictedBlackouts },
+          { type: 'personal_blackout', count: stats.restrictedPersonalBlackouts },
         ]} />
       </div>
 

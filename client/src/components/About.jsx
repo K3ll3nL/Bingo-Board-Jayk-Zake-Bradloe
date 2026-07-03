@@ -1,9 +1,40 @@
-import React from 'react';
+import React, { useState, useRef } from 'react';
 import restrictedIcon from '../Icons/restricted-icon.png';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import PageBackground from './PageBackground';
 import PageHeader from './PageHeader';
+
+/* ── Hover tooltip that escapes overflow-hidden ancestors (position: fixed) ─ */
+const InfoTooltip = ({ label, text }) => {
+  const [pos, setPos] = useState(null);
+  const ref = useRef(null);
+  const show = () => {
+    const r = ref.current?.getBoundingClientRect();
+    if (r) setPos({ left: r.left, top: r.bottom + 8 });
+  };
+  return (
+    <span
+      ref={ref}
+      className="relative inline-flex items-center gap-1.5 cursor-help"
+      onMouseEnter={show}
+      onMouseLeave={() => setPos(null)}
+    >
+      <span className="border-b border-dotted border-gray-500">{label}</span>
+      <svg className="w-3.5 h-3.5 text-gray-500 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+        <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+      </svg>
+      {pos && (
+        <span
+          className="pointer-events-none fixed z-50 w-72 rounded-lg border p-3 text-xs leading-relaxed text-gray-200 shadow-xl"
+          style={{ left: pos.left, top: pos.top, borderColor: '#92400e', backgroundColor: 'rgba(20,22,27,0.98)' }}
+        >
+          {text}
+        </span>
+      )}
+    </span>
+  );
+};
 
 /* ── Reusable section card ────────────────────────────────────────────── */
 const Section = ({ id, title, icon, accentColor = '#9147ff', headerBg = 'rgba(145,71,255,0.08)', children }) => (
@@ -516,10 +547,12 @@ const About = () => {
                   { name: 'First Vertical Line',   std: 2, res: 2 },
                   { name: 'First X',               std: 5, res: 5 },
                   { name: 'First Blackout',        std: 15, res: 15 },
-                  { name: 'Personal Blackout',     std: 10, res: 10 },
-                ].map(({ name, std, res }) => (
+                  { name: 'Personal Blackout',     std: 10, res: 10, desc: 'Unlike the other Bonus Bounties, a Personal Blackout can be earned by more than one player. After the First Blackout of the month has been claimed, every additional player who completes their entire board earns a Personal Blackout worth 10 points. It rewards finishing your board even after someone else got there first.' },
+                ].map(({ name, std, res, desc }) => (
                   <tr key={name} className="hover:bg-gray-700/30 transition-colors">
-                    <td className="px-4 py-2.5 text-white font-medium">{name}</td>
+                    <td className="px-4 py-2.5 text-white font-medium">
+                      {desc ? <InfoTooltip label={name} text={desc} /> : name}
+                    </td>
                     <td className="px-4 py-2.5 text-center">
                       <span className="text-yellow-400 font-bold">{std}</span>
                       <span className="text-gray-500 text-xs ml-1">pts</span>

@@ -373,28 +373,28 @@ const Leaderboard = () => {
                   <div className="flex items-center gap-2">
                     {/* Achievement icons — with counts for multi-month views, icon-only for monthly */}
                     <div className="flex items-center gap-1">
-                      {['row', 'column', 'x', 'blackout'].map(type => (
+                      {['row', 'column', 'x', 'blackout', 'personal_blackout'].map(type => (
                         user.achievement_counts?.[type] > 0 && (
                           viewMode === 'monthly' ? (
                             <AchievementIcon
                               key={type}
                               type={type}
                               color={user.hex_code || '#9147ff'}
-                              svgClassName={type === 'blackout' ? 'w-4 h-4' : 'w-3 h-3'}
+                              svgClassName={type.includes('blackout') ? 'w-4 h-4' : 'w-3 h-3'}
                             />
                           ) : (
                             <div key={type} className="flex items-center gap-0.5">
                               <AchievementIcon
                                 type={type}
                                 color={user.hex_code || '#9147ff'}
-                                svgClassName={type === 'blackout' ? 'w-4 h-4' : 'w-3 h-3'}
+                                svgClassName={type.includes('blackout') ? 'w-4 h-4' : 'w-3 h-3'}
                               />
                               <span className="text-xs text-gray-400">x{user.achievement_counts[type]}</span>
                             </div>
                           )
                         )
                       ))}
-                      {['row', 'column', 'x', 'blackout'].map(type => (
+                      {['row', 'column', 'x', 'blackout', 'personal_blackout'].map(type => (
                         user.achievement_counts?.[`${type}_restricted`] > 0 && (
                           viewMode === 'monthly' ? (
                             <AchievementIcon
@@ -402,7 +402,7 @@ const Leaderboard = () => {
                               type={type}
                               restricted={true}
                               color={user.hex_code || '#9147ff'}
-                              svgClassName={type === 'blackout' ? 'w-4 h-4' : 'w-3 h-3'}
+                              svgClassName={type.includes('blackout') ? 'w-4 h-4' : 'w-3 h-3'}
                             />
                           ) : (
                             <div key={`${type}_r`} className="flex items-center gap-0.5">
@@ -410,7 +410,7 @@ const Leaderboard = () => {
                                 type={type}
                                 restricted={true}
                                 color={user.hex_code || '#9147ff'}
-                                svgClassName={type === 'blackout' ? 'w-4 h-4' : 'w-3 h-3'}
+                                svgClassName={type.includes('blackout') ? 'w-4 h-4' : 'w-3 h-3'}
                               />
                               <span className="text-xs text-gray-400">x{user.achievement_counts[`${type}_restricted`]}</span>
                             </div>

@@ -1603,11 +1603,13 @@ app.get('/api/profile/:userId', async (req, res) => {
     const totalBingos = totalRows + totalColumns;
     const totalXs = bingos.filter(b => b.bingo_type === 'x').length;
     const totalBlackouts = bingos.filter(b => b.bingo_type === 'blackout').length;
+    const totalPersonalBlackouts = bingos.filter(b => b.bingo_type === 'personal_blackout').length;
     const restrictedRows = bingos.filter(b => b.bingo_type === 'row_restricted').length;
     const restrictedColumns = bingos.filter(b => b.bingo_type === 'column_restricted').length;
     const restrictedBingos = restrictedRows + restrictedColumns;
     const restrictedXs = bingos.filter(b => b.bingo_type === 'x_restricted').length;
     const restrictedBlackouts = bingos.filter(b => b.bingo_type === 'blackout_restricted').length;
+    const restrictedPersonalBlackouts = bingos.filter(b => b.bingo_type === 'personal_blackout_restricted').length;
 
     const totalPokemon = allPokemonData ? allPokemonData.length : 0;
     const totalCaught = allEntries ? new Set(allEntries.map(e => e.pokemon_id)).size : 0;
@@ -1700,11 +1702,13 @@ app.get('/api/profile/:userId', async (req, res) => {
         totalColumns,
         totalXs,
         totalBlackouts,
+        totalPersonalBlackouts,
         restrictedBingos,
         restrictedRows,
         restrictedColumns,
         restrictedXs,
         restrictedBlackouts,
+        restrictedPersonalBlackouts,
         monthsParticipated,
         avgPointsPerMonth,
         dexByType,

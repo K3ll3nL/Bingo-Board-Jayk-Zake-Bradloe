@@ -49,6 +49,14 @@ const AchievementSvg = ({ type, className }) => {
       <path d="M7.2 3v18M10.2 3v18M13.8 3v18M16.8 3v18" />
     </svg>
   );
+  if (type === 'personal_blackout') return (
+    <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+      <rect x="3" y="3" width="18" height="18" rx="1" />
+      <text x="12" y="13" textAnchor="middle" dominantBaseline="central"
+        fontSize="11" fontWeight="700" fill="currentColor" stroke="none"
+        fontFamily="ui-sans-serif, system-ui, sans-serif">PB</text>
+    </svg>
+  );
   // Fallback: star
   return (
     <svg className={className} fill="currentColor" viewBox="0 0 24 24">

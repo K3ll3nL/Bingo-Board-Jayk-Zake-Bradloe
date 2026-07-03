@@ -11,17 +11,19 @@ const BINGO_TYPE_LABELS = {
   column: 'Column Bingo',
   x: 'Diagonal Bingo',
   blackout: 'Blackout Bingo',
+  personal_blackout: 'Personal Blackout',
 };
 
-// Bingo achievements come in base and `_restricted` variants, and the DB writes
-// several blackout aliases ('first blackout', 'personal_blackout'). Normalize to
-// a canonical base type + restricted flag so labels and icons resolve correctly.
+// Bingo achievements come in base and `_restricted` variants. Normalize to a
+// canonical base type + restricted flag so labels and icons resolve correctly.
+// 'personal_blackout' is its own base type (a non-first blackout) — kept distinct
+// from the community-first 'blackout'.
 const normalizeBingoType = (raw) => {
   if (!raw) return { base: raw, restricted: false };
   const restricted = raw.endsWith('_restricted');
   let base = restricted ? raw.slice(0, -'_restricted'.length) : raw;
-  // Collapse blackout aliases ('first blackout', 'personal_blackout') → 'blackout'
-  if (base === 'first blackout' || base === 'personal_blackout') base = 'blackout';
+  // Legacy alias 'first blackout' → 'blackout'
+  if (base === 'first blackout') base = 'blackout';
   return { base, restricted };
 };
 
@@ -54,6 +56,15 @@ const getBingoIcon = (bingoType, style = {}, restricted = false) => {
           <rect x="3" y="3" width="18" height="18" rx="1" />
           <path d="M3 7.2h18M3 10.2h18M3 13.8h18M3 16.8h18" />
           <path d="M7.2 3v18M10.2 3v18M13.8 3v18M16.8 3v18" />
+        </svg>
+      );
+    case 'personal_blackout':
+      return (
+        <svg {...base} strokeWidth={2} {...dash}>
+          <rect x="3" y="3" width="18" height="18" rx="1" />
+          <text x="12" y="13" textAnchor="middle" dominantBaseline="central"
+            fontSize="11" fontWeight="700" fill="currentColor" stroke="none"
+            fontFamily="ui-sans-serif, system-ui, sans-serif">PB</text>
         </svg>
       );
     default:
