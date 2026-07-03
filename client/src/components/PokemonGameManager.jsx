@@ -588,7 +588,11 @@ const PokemonGameManager = () => {
   // ── Filter ─────────────────────────────────────────────────────────────────
   const filtered = useMemo(() => {
     const q = search.toLowerCase();
-    return pokemon.filter(p => !q || p.name.toLowerCase().includes(q) || String(p.national_dex_id).includes(q));
+    return pokemon.filter(p => !q
+      || p.name.toLowerCase().includes(q)
+      || String(p.national_dex_id).includes(q)
+      || (p.game_slugs || []).some(s => s.toLowerCase().includes(q))
+      || (p.restricted_game_slugs || []).some(s => s.toLowerCase().includes(q)));
   }, [pokemon, search]);
 
   // ── Render ─────────────────────────────────────────────────────────────────
@@ -610,7 +614,7 @@ const PokemonGameManager = () => {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-4.35-4.35M17 11A6 6 0 105 11a6 6 0 0012 0z" />
               </svg>
               <input type="text" value={search} onChange={e => setSearch(e.target.value)}
-                placeholder="Search by name or dex #"
+                placeholder="Search by name, dex #, or slug"
                 className="pl-9 pr-4 py-2 rounded-lg text-sm text-white placeholder-gray-600 focus:outline-none transition-colors"
                 style={{ background: C.input, border: `1px solid ${C.border}`, width: 240 }}
                 onFocus={e => e.target.style.borderColor = 'rgba(147,51,234,0.5)'}

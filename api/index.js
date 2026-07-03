@@ -1111,6 +1111,18 @@ app.get('/api/leaderboard', async (req, res) => {
     const mode = VALID_MODES.includes(req.query.mode) ? req.query.mode : 'monthly';
     const periodMonthId = req.query.period_month_id ? parseInt(req.query.period_month_id) : null;
 
+    // Count entries (Pokémon caught) per user, optionally scoped to a set of months.
+    // Supabase JS has no group-by, so tally in JS — same pattern as points aggregation.
+    const countEntriesByUser = async (userIds, monthIds /* null = all months */) => {
+      if (!userIds || userIds.length === 0) return {};
+      let q = supabase.from('entries').select('user_id').in('user_id', userIds);
+      if (monthIds) q = q.in('month_id', monthIds);
+      const { data } = await q;
+      const counts = {};
+      (data || []).forEach(r => { counts[r.user_id] = (counts[r.user_id] || 0) + 1; });
+      return counts;
+    };
+
     // Pre-fetch the reference month — either a specific historical month or the active one.
     let preloadedMonth = null;
     if (mode !== 'alltime') {
@@ -1173,10 +1185,12 @@ app.get('/api/leaderboard', async (req, res) => {
         { data: usersData, error: usersError },
         { data: allAchievements },
         { data: ambassadors },
+        pokemonCounts,
       ] = await Promise.all([
         supabase.from('users').select('id, username, display_name, created_at, twitch_url').in('id', userIds),
         supabase.from('bingo_achievements').select('user_id, bingo_type').in('user_id', userIds),
         supabase.from('twitch_ambassadors').select('id, hex_code').in('id', userIds),
+        countEntriesByUser(userIds, null),
       ]);
 
       if (usersError) throw usersError;
@@ -1232,6 +1246,7 @@ app.get('/api/leaderboard', async (req, res) => {
           username: u.username,
           display_name: u.display_name,
           points: entry.points,
+          pokemon_count: pokemonCounts[entry.user_id] || 0,
           rank: index + 1,
           created_at: u.created_at,
           twitch_url: index < 10 ? u.twitch_url : null,
@@ -1320,10 +1335,12 @@ app.get('/api/leaderboard', async (req, res) => {
         { data: usersData, error: usersError },
         { data: groupAchievements },
         { data: ambassadors },
+        pokemonCounts,
       ] = await Promise.all([
         supabase.from('users').select('id, username, display_name, created_at, twitch_url').in('id', userIds),
         supabase.from('bingo_achievements').select('user_id, bingo_type').in('user_id', userIds).in('month_id', monthIds),
         supabase.from('twitch_ambassadors').select('id, hex_code').in('id', userIds),
+        countEntriesByUser(userIds, monthIds),
       ]);
 
       if (usersError) throw usersError;
@@ -1377,6 +1394,7 @@ app.get('/api/leaderboard', async (req, res) => {
           username: u.username,
           display_name: u.display_name,
           points: entry.points,
+          pokemon_count: pokemonCounts[entry.user_id] || 0,
           rank: index + 1,
           created_at: u.created_at,
           twitch_url: index < 10 ? u.twitch_url : null,
@@ -1424,6 +1442,7 @@ app.get('/api/leaderboard', async (req, res) => {
     const [
       { data: achievements },
       { data: ambassadors },
+      pokemonCounts,
     ] = await Promise.all([
       userIds.length > 0
         ? supabase.from('bingo_achievements').select('user_id, bingo_type').in('user_id', userIds).eq('month_id', ACTIVE_MONTH_ID)
@@ -1431,6 +1450,7 @@ app.get('/api/leaderboard', async (req, res) => {
       userIds.length > 0
         ? supabase.from('twitch_ambassadors').select('id, hex_code').in('id', userIds)
         : Promise.resolve({ data: [] }),
+      countEntriesByUser(userIds, [ACTIVE_MONTH_ID]),
     ]);
 
     const achievementCounts = {};
@@ -1487,6 +1507,7 @@ app.get('/api/leaderboard', async (req, res) => {
         username: entry.users.username,
         display_name: entry.users.display_name,
         points: entry.points,
+        pokemon_count: pokemonCounts[entry.user_id] || 0,
         rank: index + 1,
         created_at: entry.users.created_at,
         twitch_url: index < 10 ? entry.users.twitch_url : null,

@@ -4,6 +4,48 @@ import { api } from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
 import AchievementIcon from './AchievementIcon';
 
+// Whether the device supports true hover (desktop). Evaluated once.
+const CAN_HOVER = typeof window !== 'undefined'
+  && window.matchMedia
+  && window.matchMedia('(hover: hover)').matches;
+
+// Right-aligned stat that auto-cycles points ↔ Pokémon count while its row is hovered.
+// State is kept local per-row so the parent list (and FLIP animation) never re-renders.
+const StatValue = ({ points, pokemonCount, hovered }) => {
+  const [showPkmn, setShowPkmn] = useState(false);
+  const intervalRef = useRef(null);
+  const canCycle = CAN_HOVER && typeof pokemonCount === 'number';
+
+  useEffect(() => {
+    if (hovered && canCycle) {
+      intervalRef.current = setInterval(() => setShowPkmn(v => !v), 2000);
+    } else {
+      clearInterval(intervalRef.current);
+      setShowPkmn(false);
+    }
+    return () => clearInterval(intervalRef.current);
+  }, [hovered, canCycle]);
+
+  return (
+    <div className="relative min-w-[3.5rem] h-7 text-right overflow-hidden">
+      <div
+        className="absolute inset-0 flex items-baseline justify-end gap-1 transition-all duration-300"
+        style={{ opacity: showPkmn ? 0 : 1, transform: showPkmn ? 'translateY(-0.4rem)' : 'translateY(0)' }}
+      >
+        <span className="text-xl font-bold text-purple-400">{points}</span>
+        <span className="text-xs text-gray-400">pts</span>
+      </div>
+      <div
+        className="absolute inset-0 flex items-baseline justify-end gap-1 transition-all duration-300"
+        style={{ opacity: showPkmn ? 1 : 0, transform: showPkmn ? 'translateY(0)' : 'translateY(0.4rem)' }}
+      >
+        <span className="text-xl font-bold text-emerald-400">{pokemonCount}</span>
+        <span className="text-xs text-gray-400">Pkmn</span>
+      </div>
+    </div>
+  );
+};
+
 const Leaderboard = () => {
   const navigate = useNavigate();
   const { leaderboardVersion } = useAuth();
@@ -19,6 +61,7 @@ const Leaderboard = () => {
   const MODES = ['monthly', 'season', 'year', 'alltime'];
   const MODE_LABELS = { monthly: 'Monthly', season: 'Season', year: 'Year', alltime: 'All Time' };
   const [modeIndex, setModeIndex] = useState(0);
+  const [hoveredId, setHoveredId] = useState(null);
   const viewMode = MODES[modeIndex];
 
   // Historical period navigation
@@ -248,6 +291,8 @@ const Leaderboard = () => {
                   key={user.user_id}
                   ref={el => { rowRefs.current[user.user_id] = el; }}
                   onClick={() => navigate(`/profile/${user.user_id}`)}
+                  onMouseEnter={CAN_HOVER ? () => setHoveredId(user.user_id) : undefined}
+                  onMouseLeave={CAN_HOVER ? () => setHoveredId(null) : undefined}
                   className="p-2 flex items-center justify-between transition-colors cursor-pointer hover:bg-white/5"
                 >
                   <div className="flex items-center gap-3">
@@ -341,10 +386,11 @@ const Leaderboard = () => {
                       ))}
                     </div>
                     
-                    <span className="text-xl font-bold text-purple-400">
-                      {user.points}
-                    </span>
-                    <span className="text-xs text-gray-400">pts</span>
+                    <StatValue
+                      points={user.points}
+                      pokemonCount={user.pokemon_count}
+                      hovered={hoveredId === user.user_id}
+                    />
                   </div>
                 </div>
               );
