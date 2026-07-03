@@ -9,7 +9,7 @@ const RESTRICTED_BADGE_BG = '#1a0302';
 const RestrictedBadge = ({ large, xl, responsive }) => (
   <div
     className={`absolute rounded-full flex items-center justify-center ${
-      responsive ? 'w-3 h-3 -top-1 -right-1 sm:w-6 sm:h-6 sm:-top-2 sm:-right-2' :
+      responsive ? 'w-4 h-4 -top-1.5 -right-1.5 sm:w-6 sm:h-6 sm:-top-2 sm:-right-2' :
       xl         ? 'w-6 h-6 -top-2 -right-2' :
       large      ? 'w-4 h-4 -top-1.5 -right-1.5' :
                    'w-3 h-3 -top-1 -right-1'
@@ -18,7 +18,7 @@ const RestrictedBadge = ({ large, xl, responsive }) => (
   >
     <img src={restrictedIcon} alt=""
       className={`object-contain ${
-        responsive ? 'w-2 h-2 sm:w-5 sm:h-5' :
+        responsive ? 'w-2.5 h-2.5 sm:w-5 sm:h-5' :
         xl         ? 'w-5 h-5' :
         large      ? 'w-2.5 h-2.5' : 'w-2 h-2'
       }`} />

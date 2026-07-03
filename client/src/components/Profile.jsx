@@ -195,14 +195,14 @@ const StatisticsTab = ({ profile, accentColor, onPokemonClick }) => {
         {recentCatches.length === 0 ? (
           <div className="flex items-center justify-center h-20 text-gray-600 text-sm">No catches yet</div>
         ) : (
-          <div className="grid grid-cols-8 gap-2">
+          <div className="grid grid-cols-4 sm:grid-cols-8 gap-2">
             {recentCatches.map((pokemon, i) => (
               <div key={i} onClick={() => onPokemonClick(pokemon)}
                 className="relative rounded-lg overflow-hidden cursor-pointer group border-2 transition-colors"
                 style={{ aspectRatio: '1', background: CARD.inner, borderColor: pokemon.restricted ? '#3b82f6' : 'transparent' }}>
                 <PokemonImage pokemon={pokemon} className="w-full h-full" disableCycling />
                 {pokemon.restricted && (
-                  <img src={restrictedIcon} alt="" className="absolute top-1 right-1 w-5 h-5 object-contain" />
+                  <img src={restrictedIcon} alt="" className="absolute top-0.5 right-0.5 w-3.5 h-3.5 sm:w-5 sm:h-5 object-contain" />
                 )}
                 <div className="absolute inset-x-0 bottom-0 bg-black/70 text-white text-[9px] text-center py-0.5 opacity-0 group-hover:opacity-100 transition-opacity truncate px-0.5 leading-tight">
                   {(pokemon.display_name || pokemon.name || '').toUpperCase()}
@@ -473,8 +473,8 @@ const BoardsTab = ({ userId, monthlyData, stats, onPokemonClick, accentColor }) 
         </button>
       </div>
 
-      {/* Board + stats side-by-side */}
-      <div className="p-3 flex gap-3">
+      {/* Board + stats — stacked on mobile, side-by-side on sm+ */}
+      <div className="p-3 flex flex-col sm:flex-row gap-3">
         {/* Board */}
         <div className="flex-1 min-w-0">
           {boardLoading ? (
@@ -488,8 +488,8 @@ const BoardsTab = ({ userId, monthlyData, stats, onPokemonClick, accentColor }) 
           )}
         </div>
 
-        {/* Month stats sidebar */}
-        <div className="w-40 shrink-0 flex flex-col gap-2">
+        {/* Month stats sidebar — 2-col grid under the board on mobile, column on sm+ */}
+        <div className="w-full sm:w-40 shrink-0 grid grid-cols-2 sm:flex sm:flex-col gap-2">
 
           {/* 1 — Points */}
           <div className="rounded-lg p-3 border flex flex-col"
