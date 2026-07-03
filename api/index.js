@@ -3729,7 +3729,7 @@ async function calculateCategoryThresholds() {
 
   const { data: allPokemon } = await supabase
     .from('pokemon_master')
-    .select('id, legendary, baby, ultra_beast, paradox, starter, fossil, regional_alt, pseudo_legendary', 'pla')
+    .select('id, legendary, baby, ultra_beast, paradox, starter, fossil, regional_alt, pseudo_legendary, pla')
     .eq('shiny_available', true);
 
   if (!allPokemon || allPokemon.length === 0) {
@@ -3771,7 +3771,7 @@ async function generateNewPoolForMonth(monthId, lockedPokemonIds = [], countToGe
   // Pull every shiny-available pokemon with category flags
   const { data: allPokemon } = await supabase
     .from('pokemon_master')
-    .select('id, name, national_dex_id, display_name, family_id, genderless, custom_gender_code, has_gender_difference, has_major_gender_difference, form_id, forms_count, legendary, baby, ultra_beast, paradox, starter, fossil, regional_alt, pseudo_legendary', 'pla')
+    .select('id, name, national_dex_id, display_name, family_id, genderless, custom_gender_code, has_gender_difference, has_major_gender_difference, form_id, forms_count, legendary, baby, ultra_beast, paradox, starter, fossil, regional_alt, pseudo_legendary, pla')
     .eq('shiny_available', true);
 
   if (!allPokemon || allPokemon.length === 0) throw new Error('No pokemon available');
@@ -4320,7 +4320,7 @@ app.get('/api/mod/board-builder', async (req, res) => {
     if (boardPokemonIds.length > 0) {
       const { data: boardPokemon } = await supabase
         .from('pokemon_master')
-        .select('id, game_slugs, restricted_game_slugs, legendary, baby, ultra_beast, paradox, starter, fossil, regional_alt, pseudo_legendary', 'pla')
+        .select('id, game_slugs, restricted_game_slugs, legendary, baby, ultra_beast, paradox, starter, fossil, regional_alt, pseudo_legendary, pla')
         .in('id', boardPokemonIds);
 
       (boardPokemon || []).forEach(p => {
@@ -4554,7 +4554,7 @@ app.post('/api/mod/board-builder/refresh-all', async (req, res) => {
     // Pre-calculate category counts for locked Pokemon to pass to generation
     const { data: allPokemonForLocked } = await supabase
       .from('pokemon_master')
-      .select('id, legendary, baby, ultra_beast, paradox, starter, fossil, regional_alt, pseudo_legendary', 'pla')
+      .select('id, legendary, baby, ultra_beast, paradox, starter, fossil, regional_alt, pseudo_legendary, pla')
       .eq('shiny_available', true);
 
     const categories = ['legendary', 'baby', 'ultra_beast', 'paradox', 'starter', 'fossil', 'regional_alt', 'pseudo_legendary', 'pla'];
@@ -6475,7 +6475,7 @@ app.get('/api/admin/pokemon-game-slugs', async (req, res) => {
 
     const { data, error } = await supabase
       .from('pokemon_master')
-      .select('id, national_dex_id, name, game_slugs, restricted_game_slugs, shiny_available, forms_count, form_id, custom_gender_code, genderless, has_gender_difference, has_major_gender_difference, legendary, baby, ultra_beast, paradox, starter, fossil, regional_alt, pseudo_legendary', 'pla')
+      .select('id, national_dex_id, name, game_slugs, restricted_game_slugs, shiny_available, forms_count, form_id, custom_gender_code, genderless, has_gender_difference, has_major_gender_difference, legendary, baby, ultra_beast, paradox, starter, fossil, regional_alt, pseudo_legendary, pla')
       .order('national_dex_id', { ascending: true })
       .order('form_id', { ascending: true });
 
