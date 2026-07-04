@@ -46,7 +46,7 @@ const StatValue = ({ points, pokemonCount, hovered }) => {
           setBase(b => b + 1);
           setRolling(false);
         }, 420);
-      }, 5000);
+      }, 2000);
     } else {
       setRolling(false);
       setBase(0);
