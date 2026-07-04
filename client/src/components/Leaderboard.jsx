@@ -325,6 +325,7 @@ const Leaderboard = () => {
                   {/* Stretched link overlay: makes the whole row a real anchor (open-in-new-tab, right-click) while keeping nested links like Twitch clickable via higher z-index */}
                   <Link
                     to={`/profile/${user.user_id}`}
+                    draggable={false}
                     className="absolute inset-0 z-0"
                     aria-label={`View ${user.display_name}'s profile`}
                   />
@@ -362,6 +363,7 @@ const Leaderboard = () => {
                               key={i}
                               src={badge.image_url}
                               alt={badge.name}
+                              draggable={false}
                               style={isSubmissionFamily ? { width: '25px', height: '28px' } : { width: '28px', height: '28px' }}
                             />
                           );

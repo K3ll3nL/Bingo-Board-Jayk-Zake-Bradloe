@@ -6009,9 +6009,32 @@ app.get('/api/users/:userId/badges', async (req, res) => {
     if (error) throw error;
 
     const { percentByBadge } = await computeBadgeRarity();
+
+    // Flag which of these badges the *viewer* has personally earned, so the
+    // client shows the description (earned) or the hint (not earned) — never both.
+    const viewerId = await getAuthenticatedUserId(req);
+    let viewerEarned = new Set();
+    if (viewerId) {
+      const badgeIds = (data || []).map(ub => ub.badge_id);
+      if (badgeIds.length) {
+        const { data: earnedRows } = await supabase
+          .from('user_badges')
+          .select('badge_id')
+          .eq('user_id', viewerId)
+          .in('badge_id', badgeIds);
+        viewerEarned = new Set((earnedRows || []).map(r => r.badge_id));
+      }
+    }
+
     const enriched = (data || []).map(ub => ({
       ...ub,
-      badges: ub.badges ? { ...ub.badges, earned_percent: percentByBadge[ub.badge_id] ?? null } : ub.badges,
+      badges: ub.badges
+        ? {
+            ...ub.badges,
+            earned_percent: percentByBadge[ub.badge_id] ?? null,
+            viewer_earned: viewerEarned.has(ub.badge_id),
+          }
+        : ub.badges,
     }));
 
     res.set('Cache-Control', 'no-store');
@@ -6050,9 +6073,33 @@ app.get('/api/users/:userId/badge-slots', async (req, res) => {
     if (error) throw error;
 
     const { percentByBadge } = await computeBadgeRarity();
+
+    // Determine which of these badges the *viewer* has personally earned, so
+    // the client can show the full description only for badges the viewer owns
+    // and fall back to the hint otherwise. Anonymous viewers earn nothing.
+    const viewerId = await getAuthenticatedUserId(req);
+    let viewerEarned = new Set();
+    if (viewerId) {
+      const badgeIds = (data || []).map(row => row.badge_id);
+      if (badgeIds.length) {
+        const { data: earnedRows } = await supabase
+          .from('user_badges')
+          .select('badge_id')
+          .eq('user_id', viewerId)
+          .in('badge_id', badgeIds);
+        viewerEarned = new Set((earnedRows || []).map(r => r.badge_id));
+      }
+    }
+
     const enriched = (data || []).map(row => ({
       ...row,
-      badges: row.badges ? { ...row.badges, earned_percent: percentByBadge[row.badge_id] ?? null } : row.badges,
+      badges: row.badges
+        ? {
+            ...row.badges,
+            earned_percent: percentByBadge[row.badge_id] ?? null,
+            viewer_earned: viewerEarned.has(row.badge_id),
+          }
+        : row.badges,
     }));
 
     res.set('Cache-Control', 'no-store');

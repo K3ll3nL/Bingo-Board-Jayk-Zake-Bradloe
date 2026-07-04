@@ -144,7 +144,7 @@ const AppLayout = () => {
         aria-label="Account menu"
       >
         {avatarUrl ? (
-          <img src={avatarUrl} alt={displayName} className="w-full h-full object-cover" />
+          <img src={avatarUrl} alt={displayName} draggable={false} className="w-full h-full object-cover" />
         ) : (
           <svg className="w-5 h-5 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
@@ -161,7 +161,7 @@ const AppLayout = () => {
         <div className="px-4 py-3 border-b border-gray-700 flex items-center gap-3">
           <div className="w-9 h-9 rounded-full overflow-hidden shrink-0 flex items-center justify-center" style={{ backgroundColor: '#4b5563' }}>
             {avatarUrl ? (
-              <img src={avatarUrl} alt={displayName} className="w-full h-full object-cover" />
+              <img src={avatarUrl} alt={displayName} draggable={false} className="w-full h-full object-cover" />
             ) : (
               <svg className="w-5 h-5 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
@@ -313,7 +313,7 @@ const AppLayout = () => {
               {user ? (
                 <div className="flex items-center gap-3">
                   {user.user_metadata?.avatar_url && (
-                    <img src={user.user_metadata.avatar_url} alt="Profile" className="w-9 h-9 rounded-full" />
+                    <img src={user.user_metadata.avatar_url} alt="Profile" draggable={false} className="w-9 h-9 rounded-full" />
                   )}
                   <div>
                     <p className="text-sm font-semibold text-white">
@@ -440,7 +440,7 @@ const AppLayout = () => {
             /* Home: logo left | nav flows naturally after logo | actions right */
             <div className="flex items-center">
               {/* Both images always in DOM so logoImage is pre-decoded before returning home */}
-              <Link to="/" className="shrink-0"><img src={logoImage} alt="Pokemon Bounty Board" className="h-10 sm:h-14 object-contain cursor-pointer" /></Link>
+              <Link to="/" className="shrink-0"><img src={logoImage} alt="Pokemon Bounty Board" draggable={false} className="h-10 sm:h-14 object-contain cursor-pointer" /></Link>
               <nav className="hidden sm:flex items-center gap-0.5 ml-6">
                 <Link to="/about" className="px-3 py-1.5 text-sm text-gray-300 hover:text-white hover:bg-gray-700 rounded-lg transition-colors">How to Play</Link>
                 {user && <Link to="/pokedex" className="px-3 py-1.5 text-sm text-gray-300 hover:text-white hover:bg-gray-700 rounded-lg transition-colors">Pokédex</Link>}
@@ -462,6 +462,7 @@ const AppLayout = () => {
                 <img
                   src={logoImage}
                   alt="Home"
+                  draggable={false}
                   className="h-10 sm:h-14 object-contain cursor-pointer"
                 />
               </Link>

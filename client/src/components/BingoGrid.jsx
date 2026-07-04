@@ -11,7 +11,7 @@ export default function BingoGrid({ board, onCellClick, large = false }) {
 
   return (
     <div
-      className="grid grid-cols-5 grid-rows-5 gap-2 aspect-square rounded-lg p-2"
+      className="grid grid-cols-5 grid-rows-5 gap-2 aspect-square rounded-lg p-2 select-none"
       style={{
         backgroundImage: `url(${backgroundImage})`,
         backgroundSize: 'cover',
@@ -76,7 +76,7 @@ export default function BingoGrid({ board, onCellClick, large = false }) {
             {/* Restricted approved overlay */}
             {cell.is_restricted && !isFreeSpace && (
               <div className="absolute inset-0 flex items-center justify-center bg-blue-900 bg-opacity-50">
-                <img src={restrictedIcon} alt="Restricted" className={`${iconSize} object-contain`} />
+                <img src={restrictedIcon} alt="Restricted" draggable={false} className={`${iconSize} object-contain`} />
               </div>
             )}
 

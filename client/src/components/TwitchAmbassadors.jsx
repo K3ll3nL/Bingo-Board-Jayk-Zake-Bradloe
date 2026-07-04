@@ -74,6 +74,7 @@ const TwitchAmbassadors = () => {
                   <img
                     src={ambassador.profile_image_url}
                     alt={ambassador.display_name}
+                    draggable={false}
                     className="w-full h-full rounded-full object-cover"
                   />
                 </div>

@@ -371,7 +371,7 @@ const About = () => {
       />
 
       {/* ── Body ─────────────────────────────────────────────────────────── */}
-      <div className="max-w-3xl mx-auto px-4 pt-8 pb-40 space-y-6" style={{ minHeight: 'calc(100vh - 56px)' }}>
+      <div className="max-w-3xl mx-auto px-4 pt-8 pb-40 space-y-6 select-text" style={{ minHeight: 'calc(100vh - 56px)' }}>
 
         {/* ── How to Submit ─────────────────────────────────────────────── */}
         <Section

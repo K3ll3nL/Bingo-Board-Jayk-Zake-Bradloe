@@ -225,23 +225,67 @@ const StatisticsTab = ({ profile, accentColor, onPokemonClick }) => {
   );
 };
 
-// ── Badge tooltip ─────────────────────────────────────────────
-const BadgeTip = ({ ub }) => (
-  <div className="absolute bottom-full mb-1 left-1/2 -translate-x-1/2 z-20 hidden group-hover:block w-36 rounded-lg shadow-xl px-2.5 py-2 text-xs pointer-events-none"
-    style={{ backgroundColor: '#0d0e10', border: '1px solid rgba(255,255,255,0.08)' }}>
-    <div className="font-semibold text-white leading-tight">{ub.badges?.name}</div>
-    {ub.badges?.description && <div className="text-gray-400 mt-0.5 leading-tight">{ub.badges.description}</div>}
-    {ub.badges?.hint && <div className="text-yellow-400/80 mt-1 italic leading-tight">{ub.badges.hint}</div>}
-    {ub.badges?.earned_percent != null && (
-      <div className="text-gray-500 mt-1 leading-tight">Earned by {ub.badges.earned_percent}% of players</div>
-    )}
-    {ub.earned_at && (
-      <div className="text-gray-600 mt-1 text-[10px]">
-        {new Date(ub.earned_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
-      </div>
-    )}
-  </div>
-);
+// ── Badge cell with fixed-position hover tooltip ──────────────
+// Uses a fixed-position tooltip (not absolute) so it isn't clipped by the
+// cell's overflow-hidden or the surrounding card wrapper.
+const AllBadgeCell = ({ ub }) => {
+  const ref = useRef(null);
+  const [tipPos, setTipPos] = useState(null);
+
+  const handleEnter = () => {
+    if (!ref.current) return;
+    const rect = ref.current.getBoundingClientRect();
+    setTipPos({
+      x: Math.max(108, Math.min(rect.left + rect.width / 2, window.innerWidth - 108)),
+      y: rect.top,
+    });
+  };
+
+  return (
+    <div
+      ref={ref}
+      className="relative aspect-square rounded-lg overflow-hidden p-1"
+      style={{ background: CARD.inner, border: `1px solid ${CARD.borderSubtle}` }}
+      onMouseEnter={handleEnter}
+      onMouseLeave={() => setTipPos(null)}
+    >
+      {ub.badges?.image_url
+        ? <img src={ub.badges.image_url} alt={ub.badges.name} className="w-full h-full object-contain" draggable="false" />
+        : <div className="w-full h-full rounded bg-gray-700/50" />}
+
+      {tipPos && (
+        <div
+          style={{
+            position: 'fixed',
+            left: tipPos.x,
+            top: tipPos.y - 6,
+            transform: 'translateX(-50%) translateY(-100%)',
+            zIndex: 9999,
+            maxWidth: 216,
+            pointerEvents: 'none',
+            backgroundColor: '#0d0e10',
+            border: '1px solid rgba(255,255,255,0.08)',
+          }}
+          className="px-2.5 py-2 rounded-lg text-xs shadow-xl"
+        >
+          <div className="font-semibold text-white leading-tight">{ub.badges?.name}</div>
+          {/* Earned badges show the description; unearned show only the hint. Never both. */}
+          {ub.badges?.viewer_earned
+            ? ub.badges?.description && <div className="text-gray-400 mt-0.5 leading-tight">{ub.badges.description}</div>
+            : ub.badges?.hint && <div className="text-yellow-400/80 mt-1 italic leading-tight">{ub.badges.hint}</div>}
+          {ub.badges?.earned_percent != null && (
+            <div className="text-gray-500 mt-1 leading-tight">Earned by {ub.badges.earned_percent}% of players</div>
+          )}
+          {ub.earned_at && (
+            <div className="text-gray-600 mt-1 text-[10px]">
+              {new Date(ub.earned_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+};
 
 // ── Badges tab ────────────────────────────────────────────────
 const BadgesTab = ({ userId, isOwnProfile, accentColor, playAnimation, onAnimationPlayed }) => {
@@ -249,7 +293,11 @@ const BadgesTab = ({ userId, isOwnProfile, accentColor, playAnimation, onAnimati
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch(`/api/users/${userId}/badges`).then(r => r.json())
+    // Send auth headers so the API can flag which badges the viewer earned
+    // (controls description-vs-hint in the tooltip).
+    getAuthHeaders()
+      .then(headers => fetch(`/api/users/${userId}/badges`, { headers }))
+      .then(r => r.json())
       .then(badges => { setEarnedBadges(Array.isArray(badges) ? badges : []); setLoading(false); })
       .catch(() => setLoading(false));
   }, [userId]);
@@ -280,13 +328,7 @@ const BadgesTab = ({ userId, isOwnProfile, accentColor, playAnimation, onAnimati
           <div className="p-3">
             <div className="grid grid-cols-8 sm:grid-cols-10 lg:grid-cols-8 xl:grid-cols-10 gap-1.5">
               {sorted.map(ub => (
-                <div key={ub.badge_id} className="relative group aspect-square rounded-lg overflow-hidden p-1"
-                  style={{ background: CARD.inner, border: `1px solid ${CARD.borderSubtle}` }}>
-                  {ub.badges?.image_url
-                    ? <img src={ub.badges.image_url} alt={ub.badges.name} className="w-full h-full object-contain" draggable="false" />
-                    : <div className="w-full h-full rounded bg-gray-700/50" />}
-                  <BadgeTip ub={ub} />
-                </div>
+                <AllBadgeCell key={ub.badge_id} ub={ub} />
               ))}
             </div>
           </div>

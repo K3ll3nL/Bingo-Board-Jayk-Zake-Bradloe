@@ -36,7 +36,7 @@ const Banner = ({ banner, onDismiss }) => {
 
       {/* Optional image */}
       {banner.image_url && (
-        <img src={banner.image_url} alt=""
+        <img src={banner.image_url} alt="" draggable={false}
           className="w-9 h-9 rounded-lg object-contain flex-shrink-0 relative z-10"
           style={{ background: 'rgba(255,255,255,0.04)' }} />
       )}

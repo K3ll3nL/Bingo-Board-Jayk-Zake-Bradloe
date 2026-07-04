@@ -68,6 +68,7 @@ const PokemonImage = ({ pokemon, className = '', disableCycling = false }) => {
           <img
             src={prev.url}
             alt=""
+            draggable={false}
             className="absolute w-full h-full object-contain block"
             style={{ animation: 'pokeSlideOut 0.4s ease-in-out forwards' }}
             onAnimationEnd={() => setPrevIdx(null)}
@@ -77,6 +78,7 @@ const PokemonImage = ({ pokemon, className = '', disableCycling = false }) => {
           ref={imgRef}
           src={current.url}
           alt={pokemon.display_name || pokemon.name}
+          draggable={false}
           className="w-full h-full object-contain block"
           style={{
             animation: prev ? 'pokeSlideIn 0.4s ease-in-out forwards' : undefined,

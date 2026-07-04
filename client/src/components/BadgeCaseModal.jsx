@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { getAuthHeaders } from '../services/api';
 import BadgePickerModal from './BadgePickerModal';
 
@@ -30,7 +30,10 @@ export default function BadgeCaseModal({ isOpen, onClose, userId, isOwnProfile }
 
   const loadSlots = async () => {
     try {
-      const res = await fetch(`/api/users/${userId}/badge-slots`);
+      // Send auth headers so the API can flag which badges the viewer has
+      // personally earned (controls description-vs-hint in the detail view).
+      const headers = await getAuthHeaders();
+      const res = await fetch(`/api/users/${userId}/badge-slots`, { headers });
       if (!res.ok) return;
       const data = await res.json();
       if (!Array.isArray(data)) return;
@@ -220,11 +223,16 @@ export default function BadgeCaseModal({ isOpen, onClose, userId, isOwnProfile }
             />
             <div className="text-center">
               <div className="text-white font-bold text-lg">{viewingBadge.name}</div>
-              {viewingBadge.description && (
-                <div className="text-gray-400 text-sm mt-1">{viewingBadge.description}</div>
-              )}
-              {viewingBadge.hint && (
-                <div className="text-yellow-400/80 text-xs mt-2 italic">{viewingBadge.hint}</div>
+              {/* Earned badges show the description; unearned show only the hint.
+                  Never both. */}
+              {viewingBadge.viewer_earned ? (
+                viewingBadge.description && (
+                  <div className="text-gray-400 text-sm mt-1">{viewingBadge.description}</div>
+                )
+              ) : (
+                viewingBadge.hint && (
+                  <div className="text-yellow-400/80 text-xs mt-2 italic">{viewingBadge.hint}</div>
+                )
               )}
               {viewingBadge.earned_percent != null && (
                 <div className="text-gray-500 text-xs mt-2">Earned by {viewingBadge.earned_percent}% of players</div>
@@ -239,7 +247,7 @@ export default function BadgeCaseModal({ isOpen, onClose, userId, isOwnProfile }
                 }}
                 className="px-4 py-1.5 bg-gray-700 hover:bg-gray-600 text-gray-300 text-sm rounded-lg transition-colors"
               >
-                Change slot
+                Change Badge
               </button>
             )}
           </div>
@@ -261,8 +269,25 @@ export default function BadgeCaseModal({ isOpen, onClose, userId, isOwnProfile }
 }
 
 function SlotButton({ badge, slotNumber, isLeaderboard, isOwnProfile, onClick, onClear }) {
+  const wrapRef = useRef(null);
+  const [tooltipPos, setTooltipPos] = useState(null);
+
+  const handleMouseEnter = () => {
+    if (!wrapRef.current) return;
+    const rect = wrapRef.current.getBoundingClientRect();
+    setTooltipPos({
+      x: Math.max(108, Math.min(rect.left + rect.width / 2, window.innerWidth - 108)),
+      y: rect.top,
+    });
+  };
+
   return (
-    <div className="relative group">
+    <div
+      className="relative group"
+      ref={wrapRef}
+      onMouseEnter={handleMouseEnter}
+      onMouseLeave={() => setTooltipPos(null)}
+    >
       <button
         onClick={onClick}
         disabled={!badge && !isOwnProfile}
@@ -300,6 +325,32 @@ function SlotButton({ badge, slotNumber, isLeaderboard, isOwnProfile, onClick, o
       {badge && (
         <div className="mt-1 sm:mt-2 text-center">
           <div className="text-white text-xs font-medium truncate">{badge.name}</div>
+        </div>
+      )}
+
+      {badge && tooltipPos && (
+        <div
+          style={{
+            position: 'fixed',
+            left: tooltipPos.x,
+            top: tooltipPos.y - 6,
+            transform: 'translateX(-50%) translateY(-100%)',
+            zIndex: 9999,
+            maxWidth: 216,
+            pointerEvents: 'none',
+            backgroundColor: '#0d0e10',
+            border: '1px solid rgba(255,255,255,0.08)',
+          }}
+          className="px-2.5 py-1.5 rounded-lg text-xs shadow-xl"
+        >
+          <div className="font-semibold text-white">{badge.name}</div>
+          {badge.hint
+            ? <div className="text-gray-400 mt-0.5">{badge.hint}</div>
+            : <div className="text-gray-600 mt-0.5 italic">No hint available</div>
+          }
+          {badge.earned_percent != null && (
+            <div className="text-gray-500 mt-1">Earned by {badge.earned_percent}% of players</div>
+          )}
         </div>
       )}
     </div>

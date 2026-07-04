@@ -25,6 +25,41 @@ html, body {
   background-color: #212326;
 }
 
+/* App-like UI: text isn't selectable by default so drag-highlighting the
+   interface doesn't leave tacky blue streaks across labels, the leaderboard,
+   legends, headings, etc. Real content and form fields opt back in below. */
+#root {
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/* Opt selection back in for genuine content: form fields (so users can edit
+   and select their input) and anything explicitly marked `.select-text`. */
+input,
+textarea,
+select,
+[contenteditable="true"],
+.select-text,
+.select-text * {
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+/* Images/icons are assets, and links shouldn't start a native link-drag
+   (which pops up a URL ghost chip). `-webkit-user-drag` covers Chrome/Safari;
+   Firefox needs the `draggable={false}` attribute, applied on the shared
+   image components and the leaderboard row overlay. */
+img,
+svg,
+a {
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-user-drag: none;
+  -khtml-user-drag: none;
+  -moz-user-drag: none;
+  user-drag: none;
+}
+
 /* Custom scrollbar for leaderboard */
 ::-webkit-scrollbar {
   width: 8px;

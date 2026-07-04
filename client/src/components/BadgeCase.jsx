@@ -35,7 +35,10 @@ export default function BadgeCase({ userId, isOwnProfile, playAnimation = false,
 
   const loadSlots = async () => {
     try {
-      const res = await fetch(`/api/users/${userId}/badge-slots`);
+      // Send auth headers so the API can flag which badges the viewer has
+      // personally earned (controls description-vs-hint in the detail view).
+      const headers = await getAuthHeaders();
+      const res = await fetch(`/api/users/${userId}/badge-slots`, { headers });
       if (!res.ok) return;
       const data = await res.json();
       if (!Array.isArray(data)) return;
@@ -220,11 +223,16 @@ export default function BadgeCase({ userId, isOwnProfile, playAnimation = false,
             />
             <div className="text-center">
               <div className="text-white font-bold text-lg">{viewingBadge.name}</div>
-              {viewingBadge.description && (
-                <div className="text-gray-400 text-sm mt-1">{viewingBadge.description}</div>
-              )}
-              {viewingBadge.hint && (
-                <div className="text-yellow-400/80 text-xs mt-2 italic">{viewingBadge.hint}</div>
+              {/* Earned badges show the description; unearned show only the hint.
+                  Never both. */}
+              {viewingBadge.viewer_earned ? (
+                viewingBadge.description && (
+                  <div className="text-gray-400 text-sm mt-1">{viewingBadge.description}</div>
+                )
+              ) : (
+                viewingBadge.hint && (
+                  <div className="text-yellow-400/80 text-xs mt-2 italic">{viewingBadge.hint}</div>
+                )
               )}
               {viewingBadge.earned_percent != null && (
                 <div className="text-gray-500 text-xs mt-2">Earned by {viewingBadge.earned_percent}% of players</div>
@@ -240,7 +248,7 @@ export default function BadgeCase({ userId, isOwnProfile, playAnimation = false,
                 className="px-4 py-1.5 rounded-lg text-sm transition-colors text-gray-300 hover:text-white"
                 style={{ background: 'rgba(255,255,255,0.08)', border: `1px solid ${CARD_BORDER}` }}
               >
-                Change slot
+                Change badge
               </button>
             )}
           </div>
@@ -348,6 +356,9 @@ function SlotButton({ badge, slotNumber, isLeaderboard, isOwnProfile, onClick, o
                 ? <div className="text-gray-400 mt-0.5">{badge.hint}</div>
                 : <div className="text-gray-600 mt-0.5 italic">No hint available</div>
               }
+              {badge.earned_percent != null && (
+                <div className="text-gray-500 mt-1">Earned by {badge.earned_percent}% of players</div>
+              )}
             </>
           ) : (
             <div className="text-gray-500">

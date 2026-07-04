@@ -19,7 +19,7 @@ export default function PrivacyPolicy() {
   return (
     <div className="min-h-screen" style={{ isolation: 'isolate', position: 'relative' }}>
     <PageBackground />
-    <main className="max-w-3xl mx-auto px-4 py-8 space-y-5">
+    <main className="max-w-3xl mx-auto px-4 py-8 space-y-5 select-text">
       <PageHeader title="Privacy Policy" />
       <div className="text-center">
         <h1 className="text-2xl font-bold text-white mb-1">Privacy Policy</h1>
