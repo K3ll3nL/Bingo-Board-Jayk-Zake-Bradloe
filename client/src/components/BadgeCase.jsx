@@ -352,9 +352,12 @@ function SlotButton({ badge, slotNumber, isLeaderboard, isOwnProfile, onClick, o
           {badge ? (
             <>
               <div className="font-semibold text-white">{badge.name}</div>
-              {badge.hint
-                ? <div className="text-gray-400 mt-0.5">{badge.hint}</div>
-                : <div className="text-gray-600 mt-0.5 italic">No hint available</div>
+              {/* Earned badges show the description; unearned show only the hint. Never both. */}
+              {badge.viewer_earned
+                ? badge.description && <div className="text-gray-400 mt-0.5">{badge.description}</div>
+                : badge.hint
+                  ? <div className="text-yellow-400/80 mt-0.5">{badge.hint}</div>
+                  : <div className="text-gray-600 mt-0.5 italic">No hint available</div>
               }
               {badge.earned_percent != null && (
                 <div className="text-gray-500 mt-1">Earned by {badge.earned_percent}% of players</div>
