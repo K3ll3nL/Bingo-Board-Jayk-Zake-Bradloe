@@ -6431,9 +6431,51 @@ app.patch('/api/admin/badges/:id/image', upload.single('image'), async (req, res
       CacheControl: 'no-cache',
     }));
 
-    const image_url = `${R2_BUCKET_URL}/${r2Key}`;
+    // Store a version query param so the stored URL itself changes on every
+    // replace. Cloudflare's edge and the browser cache per full URL, so a new
+    // ?v= guarantees the fresh image is fetched even though the object key is stable.
+    const image_url = `${R2_BUCKET_URL}/${r2Key}?v=${Date.now()}`;
     await supabase.from('badges').update({ image_url }).eq('id', req.params.id);
 
+    res.json({ success: true, image_url });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/admin/badges/:id/refresh-cache — bump the image_url version query
+// param without re-uploading. Use this after replacing a badge image directly
+// in the R2 bucket (outside the app) so clients stop serving the cached copy.
+// If :id is 'all', bumps every badge in one call.
+app.post('/api/admin/badges/:id/refresh-cache', async (req, res) => {
+  try {
+    const userId = await getAuthenticatedUserId(req);
+    if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+    const { data: mod } = await supabase.from('moderators').select('id').eq('id', userId).single();
+    if (!mod) return res.status(403).json({ error: 'Moderators only' });
+
+    const bump = (url) => {
+      if (!url) return url;
+      const base = url.split('?')[0];
+      return `${base}?v=${Date.now()}`;
+    };
+
+    if (req.params.id === 'all') {
+      const { data: badges, error } = await supabase.from('badges').select('id, image_url');
+      if (error) throw error;
+      await Promise.all(
+        (badges || [])
+          .filter(b => b.image_url)
+          .map(b => supabase.from('badges').update({ image_url: bump(b.image_url) }).eq('id', b.id))
+      );
+      return res.json({ success: true, count: (badges || []).filter(b => b.image_url).length });
+    }
+
+    const { data: badge, error: fetchErr } = await supabase
+      .from('badges').select('image_url').eq('id', req.params.id).single();
+    if (fetchErr || !badge) return res.status(404).json({ error: 'Badge not found' });
+    const image_url = bump(badge.image_url);
+    await supabase.from('badges').update({ image_url }).eq('id', req.params.id);
     res.json({ success: true, image_url });
   } catch (err) {
     res.status(500).json({ error: err.message });
