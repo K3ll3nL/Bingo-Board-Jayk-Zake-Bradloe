@@ -190,6 +190,9 @@ function BadgePickerItem({ badge, isCurrentSlot, isOtherSlot, onSelect }) {
           ) : (
             <div className="text-gray-600 mt-0.5 italic">Hint locked until previous earned</div>
           )}
+          {isEarned && badge.earned_percent != null && (
+            <div className="text-gray-500 mt-1">Earned by {badge.earned_percent}% of players</div>
+          )}
           {!isEarned && (
             <div className="text-gray-500 mt-1">Not yet earned</div>
           )}

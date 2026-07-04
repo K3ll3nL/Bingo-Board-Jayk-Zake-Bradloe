@@ -226,6 +226,9 @@ export default function BadgeCaseModal({ isOpen, onClose, userId, isOwnProfile }
               {viewingBadge.hint && (
                 <div className="text-yellow-400/80 text-xs mt-2 italic">{viewingBadge.hint}</div>
               )}
+              {viewingBadge.earned_percent != null && (
+                <div className="text-gray-500 text-xs mt-2">Earned by {viewingBadge.earned_percent}% of players</div>
+              )}
             </div>
             {isOwnProfile && (
               <button

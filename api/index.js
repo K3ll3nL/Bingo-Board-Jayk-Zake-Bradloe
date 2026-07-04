@@ -5863,6 +5863,30 @@ app.post('/api/tools/sandwiches', async (req, res) => {
 
 // ─── Badge endpoints ──────────────────────────────────────────────────────────
 
+// Compute what percent of users have earned each badge.
+// Returns { percentByBadge: { [badge_id]: number|null }, totalUsers }.
+// percent is rounded (0 decimals >= 1%, otherwise 1 decimal); null if no users.
+async function computeBadgeRarity() {
+  const [{ count: totalUsers }, { data: rows }] = await Promise.all([
+    supabase.from('users').select('id', { count: 'exact', head: true }),
+    supabase.from('user_badges').select('user_id, badge_id'),
+  ]);
+
+  // distinct users per badge (monthly winner badges can repeat per user)
+  const usersByBadge = {};
+  for (const r of (rows || [])) {
+    (usersByBadge[r.badge_id] || (usersByBadge[r.badge_id] = new Set())).add(r.user_id);
+  }
+
+  const percentByBadge = {};
+  for (const badgeId in usersByBadge) {
+    if (!totalUsers) { percentByBadge[badgeId] = null; continue; }
+    const pct = (usersByBadge[badgeId].size / totalUsers) * 100;
+    percentByBadge[badgeId] = pct >= 1 ? Math.round(pct) : Math.round(pct * 10) / 10;
+  }
+  return { percentByBadge, totalUsers: totalUsers || 0 };
+}
+
 // Get all badges with hint/description visibility resolved for the current user.
 // Unauthenticated users see the same view as a user with no earned badges.
 app.get('/api/badges', async (req, res) => {
@@ -5880,6 +5904,8 @@ app.get('/api/badges', async (req, res) => {
       .order('id', { ascending: true });
 
     if (error) throw error;
+
+    const { percentByBadge } = await computeBadgeRarity();
 
     // Fetch this user's earned badges
     let earnedBadgeIds = new Set();
@@ -5913,8 +5939,10 @@ app.get('/api/badges', async (req, res) => {
     const result = (badges || []).map(badge => {
       const isEarned = earnedBadgeIds.has(badge.id);
 
+      const earned_percent = percentByBadge[badge.id] ?? null;
+
       if (isEarned) {
-        return { ...badge, is_earned: true, hint_visible: true };
+        return { ...badge, is_earned: true, hint_visible: true, earned_percent };
       }
 
       // Secret + not earned: reveal nothing
@@ -5932,6 +5960,7 @@ app.get('/api/badges', async (req, res) => {
           trigger: badge.trigger,
           trigger_count: badge.trigger_count,
           is_earned: false,
+          earned_percent,
         };
       }
 
@@ -5954,6 +5983,7 @@ app.get('/api/badges', async (req, res) => {
         is_earned: false,
         hint_visible: hintVisible,
         hint: hintVisible ? badge.hint : null,
+        earned_percent,
       };
     });
 
@@ -5972,14 +6002,20 @@ app.get('/api/users/:userId/badges', async (req, res) => {
 
     const { data, error } = await supabase
       .from('user_badges')
-      .select('badge_id, earned_at, badges(*)')
+      .select('badge_id, earned_at, badges(*, badge_families(display_order))')
       .eq('user_id', userId)
       .order('earned_at', { ascending: false });
 
     if (error) throw error;
 
+    const { percentByBadge } = await computeBadgeRarity();
+    const enriched = (data || []).map(ub => ({
+      ...ub,
+      badges: ub.badges ? { ...ub.badges, earned_percent: percentByBadge[ub.badge_id] ?? null } : ub.badges,
+    }));
+
     res.set('Cache-Control', 'no-store');
-    res.json(data || []);
+    res.json(enriched);
   } catch (error) {
     console.error('Error fetching user badges:', error);
     res.status(500).json({ error: 'Failed to fetch user badges', details: error.message });
@@ -6012,8 +6048,15 @@ app.get('/api/users/:userId/badge-slots', async (req, res) => {
       .not('slot', 'is', null)
       .order('slot', { ascending: true });
     if (error) throw error;
+
+    const { percentByBadge } = await computeBadgeRarity();
+    const enriched = (data || []).map(row => ({
+      ...row,
+      badges: row.badges ? { ...row.badges, earned_percent: percentByBadge[row.badge_id] ?? null } : row.badges,
+    }));
+
     res.set('Cache-Control', 'no-store');
-    res.json(data || []);
+    res.json(enriched);
   } catch (error) {
     console.error('Error fetching badge slots:', error);
     res.status(500).json({ error: 'Failed to fetch badge slots', details: error.message });
@@ -6130,6 +6173,7 @@ app.post('/api/badges', upload.single('image'), async (req, res) => {
       Key:    r2Key,
       Body:   file.buffer,
       ContentType: 'image/png',
+      CacheControl: 'no-cache', // revalidate via ETag so replacements are picked up immediately
     }));
 
     const image_url = `${R2_BUCKET_URL}/${r2Key}`;
@@ -6246,7 +6290,7 @@ app.get('/api/admin/badges', async (req, res) => {
 
     const { data, error } = await supabase
       .from('badges')
-      .select('*')
+      .select('*, badge_families(display_name, display_order)')
       .order('family_order');
     if (error) throw error;
     res.json(data || []);
@@ -6335,6 +6379,9 @@ app.patch('/api/admin/badges/:id/image', upload.single('image'), async (req, res
       Key: r2Key,
       Body: file.buffer,
       ContentType: 'image/png',
+      // Revalidate on every use: browsers cache but check R2's ETag before serving,
+      // so a replaced image (same URL) is picked up immediately without cache-busting.
+      CacheControl: 'no-cache',
     }));
 
     const image_url = `${R2_BUCKET_URL}/${r2Key}`;

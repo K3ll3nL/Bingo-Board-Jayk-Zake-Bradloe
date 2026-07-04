@@ -575,7 +575,15 @@ function ReplaceImageTab() {
       b.name.toLowerCase().includes(search.toLowerCase()) ||
       b.key.toLowerCase().includes(search.toLowerCase())
     )
-    .sort((a, b) => a.name.localeCompare(b.name));
+    .sort((a, b) => {
+      const oa = a.badge_families?.display_order ?? Infinity;
+      const ob = b.badge_families?.display_order ?? Infinity;
+      if (oa !== ob) return oa - ob;
+      const fa = a.badge_families?.display_name ?? '';
+      const fb = b.badge_families?.display_name ?? '';
+      if (fa !== fb) return fa.localeCompare(fb);
+      return (a.family_order ?? 0) - (b.family_order ?? 0);
+    });
 
   const handleSelect = (badge) => {
     setSelected(badge);
@@ -712,7 +720,7 @@ function ReplaceImageTab() {
                   <p className="text-[10px] uppercase tracking-widest text-gray-600">Current</p>
                   <div className="w-20 h-20 rounded-xl border overflow-hidden" style={{ borderColor: C.border }}>
                     {selected.image_url
-                      ? <img src={`${selected.image_url}?t=${Date.now()}`} alt={selected.name} className="w-full h-full object-cover" />
+                      ? <img src={selected.image_url} alt={selected.name} className="w-full h-full object-cover" />
                       : <div className="w-full h-full bg-gray-900 flex items-center justify-center text-gray-700 text-xs">none</div>
                     }
                   </div>

@@ -231,6 +231,10 @@ const BadgeTip = ({ ub }) => (
     style={{ backgroundColor: '#0d0e10', border: '1px solid rgba(255,255,255,0.08)' }}>
     <div className="font-semibold text-white leading-tight">{ub.badges?.name}</div>
     {ub.badges?.description && <div className="text-gray-400 mt-0.5 leading-tight">{ub.badges.description}</div>}
+    {ub.badges?.hint && <div className="text-yellow-400/80 mt-1 italic leading-tight">{ub.badges.hint}</div>}
+    {ub.badges?.earned_percent != null && (
+      <div className="text-gray-500 mt-1 leading-tight">Earned by {ub.badges.earned_percent}% of players</div>
+    )}
     {ub.earned_at && (
       <div className="text-gray-600 mt-1 text-[10px]">
         {new Date(ub.earned_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
@@ -251,9 +255,9 @@ const BadgesTab = ({ userId, isOwnProfile, accentColor, playAnimation, onAnimati
   }, [userId]);
 
   const sorted = [...earnedBadges].sort((a, b) => {
-    const famA = a.badges?.family || 'zzz';
-    const famB = b.badges?.family || 'zzz';
-    if (famA !== famB) return famA.localeCompare(famB);
+    const ordA = a.badges?.badge_families?.display_order ?? 999;
+    const ordB = b.badges?.badge_families?.display_order ?? 999;
+    if (ordA !== ordB) return ordA - ordB;
     return (a.badges?.family_order ?? 99) - (b.badges?.family_order ?? 99);
   });
 
