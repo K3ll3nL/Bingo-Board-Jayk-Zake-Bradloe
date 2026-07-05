@@ -2,6 +2,15 @@ import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import restrictedIconSrc from '../Icons/restricted-icon.png';
 import { buildPokemonImageUrl } from '../utils/pokemonImageUtils';
+import { ALLOWED_GAMES } from '../constants/games';
+
+// entries.game stores the display label (e.g. "Pokémon Sword / Shield"), but
+// fall back to key too in case older rows stored the slug.
+const GAME_LOOKUP = {};
+ALLOWED_GAMES.forEach((g) => {
+  GAME_LOOKUP[g.label] = g;
+  GAME_LOOKUP[g.key] = g;
+});
 
 const PokemonModal = ({ pokemon, onClose, monthId = null }) => {
   const [recentCatches, setRecentCatches] = useState([]);
@@ -42,6 +51,81 @@ const PokemonModal = ({ pokemon, onClose, monthId = null }) => {
 
   if (!pokemon) return null;
 
+  const monthCatches = recentCatches.filter((e) => !e.historical);
+  const historicalCatches = recentCatches.filter((e) => e.historical);
+
+  // spacer=true reserves a fixed-width slot even when there's no game (keeps
+  // desktop point columns aligned); inline mobile variant renders nothing.
+  const GameLogos = ({ gameKey, className = '', imgClass, spacer = false }) => {
+    const game = GAME_LOOKUP[gameKey];
+    if (!game) return spacer ? <span className={className} /> : null;
+    return (
+      <span className={`flex items-center justify-center gap-1 ${className}`} title={game.label}>
+        {game.img_urls.map((src, i) => (
+          <img key={i} src={src} alt="" className={`${imgClass} object-contain`} />
+        ))}
+      </span>
+    );
+  };
+
+  const CatchRow = ({ entry, index }) => (
+    <Link
+      to={`/profile/${entry.user_id}`}
+      onClick={onClose}
+      className="p-2 flex items-center gap-2 transition-colors cursor-pointer hover:bg-white/[0.04]"
+    >
+      <div className="flex items-center gap-2 sm:gap-3 flex-1 min-w-0">
+        <div className="flex items-center justify-center w-6 h-6 sm:w-8 sm:h-8 flex-shrink-0">
+          <span className="font-semibold text-sm sm:text-xl text-gray-400">#{index + 1}</span>
+        </div>
+
+        {entry.avatar_url && (
+          <img
+            src={entry.avatar_url}
+            alt={entry.display_name}
+            className="w-7 h-7 sm:w-10 sm:h-10 rounded-full flex-shrink-0"
+          />
+        )}
+
+        <div className="min-w-0">
+          <div className="font-semibold text-xs sm:text-base text-white truncate">
+            {entry.display_name}
+          </div>
+          <div className="flex items-center gap-2 text-[9px] sm:text-xs text-gray-400">
+            <span className="truncate">{formatDate(entry.caught_at)}</span>
+            {/* Mobile: game logo inline on the date row, no dedicated column */}
+            <GameLogos
+              gameKey={entry.game}
+              className="sm:hidden flex-shrink-0"
+              imgClass="h-4 max-w-[20px]"
+            />
+          </div>
+        </div>
+      </div>
+
+      {/* Desktop: dedicated game column, larger icons, separated from the points cluster */}
+      <GameLogos
+        gameKey={entry.game}
+        className="hidden sm:flex w-20 flex-shrink-0 mr-3"
+        imgClass="h-7 max-w-[36px]"
+        spacer
+      />
+
+      <div className="flex items-center gap-2 flex-shrink-0">
+        {/* Fixed-width slot so the logo column aligns whether or not there's a restricted icon */}
+        <span className="w-4 sm:w-5 flex-shrink-0 flex justify-center">
+          {entry.restricted_submission && (
+            <img src={restrictedIconSrc} alt="Restricted" className="w-4 h-4 sm:w-5 sm:h-5 object-contain" />
+          )}
+        </span>
+        <span className="text-sm sm:text-xl font-bold text-purple-400 tabular-nums text-right min-w-[1.75rem] sm:min-w-[2.25rem]">
+          {entry.points || 0}
+        </span>
+        <span className="text-[9px] sm:text-xs text-gray-400">pts</span>
+      </div>
+    </Link>
+  );
+
   // Derive button state from the 5 possible cell flags
   // Priority: restricted done > restricted pending > standard pending > standard done > nothing
   const isRestrictedDone     = !!pokemon.is_restricted;
@@ -81,7 +165,7 @@ const PokemonModal = ({ pokemon, onClose, monthId = null }) => {
 
   return (
     <div
-      className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4"
+      className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-2 sm:p-4"
       onClick={onClose}
     >
       <div
@@ -90,7 +174,7 @@ const PokemonModal = ({ pokemon, onClose, monthId = null }) => {
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header — fixed */}
-        <div className="flex-shrink-0 p-6 border-b border-white/[0.07]">
+        <div className="flex-shrink-0 p-3 sm:p-6 border-b border-white/[0.07]">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
               <img
@@ -115,56 +199,38 @@ const PokemonModal = ({ pokemon, onClose, monthId = null }) => {
         </div>
 
         {/* Scrollable content */}
-        <div className="flex-1 overflow-y-auto p-6">
-          <h3 className="text-lg font-bold text-white mb-3">Recent Catches</h3>
+        <div className="flex-1 overflow-y-auto p-3 sm:p-6">
           {loading ? (
             <div className="text-gray-400 text-center py-4">Loading...</div>
           ) : recentCatches.length === 0 ? (
-            <div className="text-gray-400 text-center py-4">No catches yet</div>
+            <>
+              <h3 className="text-lg font-bold text-white mb-3">Recent Catches</h3>
+              <div className="text-gray-400 text-center py-4">No catches yet</div>
+            </>
           ) : (
-            <div className="divide-y divide-gray-800">
-              {recentCatches.map((entry, index) => (
-                <Link
-                  key={entry.id}
-                  to={`/profile/${entry.user_id}`}
-                  onClick={onClose}
-                  className="p-2 flex items-center justify-between transition-colors cursor-pointer hover:bg-white/[0.04]"
-                >
-                  <div className="flex items-center gap-3">
-                    <div className="flex items-center justify-center w-8 h-8">
-                      <span className="font-semibold text-xl text-gray-400">#{index + 1}</span>
-                    </div>
+            <>
+              <h3 className="text-lg font-bold text-white mb-3">Recent Catches</h3>
+              {monthCatches.length === 0 ? (
+                <div className="text-gray-400 text-center py-4">No catches yet</div>
+              ) : (
+                <div className="divide-y divide-gray-800">
+                  {monthCatches.map((entry, index) => (
+                    <CatchRow key={entry.id} entry={entry} index={index} />
+                  ))}
+                </div>
+              )}
 
-                    {entry.avatar_url && (
-                      <img
-                        src={entry.avatar_url}
-                        alt={entry.display_name}
-                        className="w-10 h-10 rounded-full"
-                      />
-                    )}
-
-                    <div>
-                      <div className="font-semibold text-l text-white">
-                        {entry.display_name}
-                      </div>
-                      <div className="text-xs text-gray-400">
-                        {formatDate(entry.caught_at)}
-                      </div>
-                    </div>
+              {historicalCatches.length > 0 && (
+                <>
+                  <h3 className="text-lg font-bold text-white mt-6 mb-3">Historical</h3>
+                  <div className="divide-y divide-gray-800">
+                    {historicalCatches.map((entry, index) => (
+                      <CatchRow key={entry.id} entry={entry} index={index} />
+                    ))}
                   </div>
-
-                  <div className="flex items-center gap-2">
-                    {entry.restricted_submission && (
-                      <img src={restrictedIconSrc} alt="Restricted" className="w-5 h-5 object-contain" />
-                    )}
-                    <span className="text-xl font-bold text-purple-400">
-                      {entry.points || 0}
-                    </span>
-                    <span className="text-xs text-gray-400">pts</span>
-                  </div>
-                </Link>
-              ))}
-            </div>
+                </>
+              )}
+            </>
           )}
         </div>
 

@@ -2817,6 +2817,8 @@ app.get('/api/pokemon/:pokemonId/recent-catches', async (req, res) => {
         created_at,
         user_id,
         restricted_submission,
+        game,
+        historical,
         users!entries_user_id_fkey (
           display_name,
           avatar_url
@@ -2890,6 +2892,8 @@ app.get('/api/pokemon/:pokemonId/recent-catches', async (req, res) => {
       avatar_url: entry.users?.avatar_url,
       points: pointsMap[entry.user_id] || 0,
       restricted_submission: !!entry.restricted_submission,
+      game: entry.game || null,
+      historical: !!entry.historical,
     }));
     
     console.log('Returning', formattedEntries.length, 'entries');
