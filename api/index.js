@@ -6236,6 +6236,32 @@ app.put('/api/users/:userId/socials', async (req, res) => {
   }
 });
 
+app.put('/api/users/:userId/display-name', async (req, res) => {
+  try {
+    const requestingUserId = await getAuthenticatedUserId(req);
+    if (!requestingUserId) return res.status(401).json({ error: 'Unauthorized' });
+    const { userId } = req.params;
+    if (requestingUserId !== userId) return res.status(403).json({ error: 'Forbidden' });
+
+    const { display_name } = req.body;
+    if (!display_name || typeof display_name !== 'string' || !display_name.trim()) {
+      return res.status(400).json({ error: 'Display name is required and cannot be empty' });
+    }
+
+    const trimmedName = display_name.trim();
+    if (trimmedName.length > 24) {
+      return res.status(400).json({ error: 'Display name must be 24 characters or less' });
+    }
+
+    const { error } = await supabase.from('users').update({ display_name: trimmedName }).eq('id', userId);
+    if (error) throw error;
+    res.json({ ok: true, display_name: trimmedName });
+  } catch (error) {
+    console.error('Error updating display name:', error);
+    res.status(500).json({ error: 'Failed to update display name', details: error.message });
+  }
+});
+
 // Create a new badge (moderator only) — uploads image to R2 and inserts DB record
 app.post('/api/badges', upload.single('image'), async (req, res) => {
   try {

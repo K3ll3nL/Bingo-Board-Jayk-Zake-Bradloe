@@ -47,6 +47,12 @@ const IconBoards = () => (
     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
   </svg>
 );
+const IconPencil = ({ className = 'w-4 h-4' }) => (
+  <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+      d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+  </svg>
+);
 
 const TABS = [
   { id: 'boards',  label: 'Boards',  Icon: IconBoards },
@@ -712,6 +718,9 @@ const Profile = () => {
   const [socialSaving, setSocialSaving] = useState(false);
   const [accountLinking, setAccountLinking] = useState(null);
   const [editingProviders, setEditingProviders] = useState(false);
+  const [editingName, setEditingName] = useState(false);
+  const [nameForm, setNameForm] = useState('');
+  const [nameSaving, setNameSaving] = useState(false);
   const badgesAnimationPlayed = useRef(false);
   const [unseenBadgeCount, setUnseenBadgeCount] = useState(0);
   // Badges marked seen this session — shared so hovering in the picker also
@@ -806,6 +815,29 @@ const Profile = () => {
     setSocialSaving(false);
   };
 
+  const openEditName = () => {
+    setNameForm(profile.user.display_name || '');
+    setEditingName(true);
+  };
+
+  const handleSaveName = async () => {
+    if (!nameForm.trim()) return;
+    setNameSaving(true);
+    try {
+      const headers = await getAuthHeaders();
+      const res = await fetch(`/api/users/${profileUserId}/display-name`, {
+        method: 'PUT',
+        headers,
+        body: JSON.stringify({ display_name: nameForm.trim() }),
+      });
+      if (res.ok) {
+        setProfile(p => ({ ...p, user: { ...p.user, display_name: nameForm.trim() } }));
+        setEditingName(false);
+      }
+    } catch {}
+    setNameSaving(false);
+  };
+
   if (loading) return (
     <div className="min-h-screen" style={{ background: '#0d0f14' }}>
       <div className="max-w-7xl mx-auto px-6 py-6 space-y-4 animate-pulse">
@@ -867,10 +899,21 @@ const Profile = () => {
 
               {/* Identity */}
               <div className="flex-1 min-w-0">
-                <h1 className="text-xl sm:text-2xl font-extrabold text-white leading-tight truncate">
-                  {profile.user.display_name}
-                </h1>
-                <p className="text-sm" style={{ color: accentColor }}>@{profile.user.username}</p>
+                <div className="flex items-center gap-2 mb-0.5">
+                  <h1 className="text-xl sm:text-2xl font-extrabold text-white leading-tight truncate">
+                    {profile.user.display_name}
+                  </h1>
+                  {isOwnProfile && (
+                    <button
+                      onClick={openEditName}
+                      className="shrink-0 p-1.5 rounded-lg transition-colors hover:bg-white/10"
+                      title="Edit display name"
+                      style={{ color: accentColor }}
+                    >
+                      <IconPencil className="w-4 h-4" />
+                    </button>
+                  )}
+                </div>
                 <p className="hidden sm:block text-sm text-gray-500 mt-0.5">
                   Joined {new Date(profile.user.created_at).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
                 </p>
@@ -1103,6 +1146,54 @@ const Profile = () => {
 
       {selectedPokemon && (
         <PokemonModal pokemon={selectedPokemon} onClose={() => setSelectedPokemon(null)} />
+      )}
+
+      {/* Edit Display Name Modal */}
+      {editingName && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="rounded-2xl border w-full max-w-sm" style={{ background: CARD.bg, borderColor: CARD.border }}>
+            <div className="px-6 py-4 border-b" style={{ borderColor: CARD.borderSubtle }}>
+              <h2 className="text-lg font-bold text-white">Edit Display Name</h2>
+            </div>
+            <div className="px-6 py-4">
+              <input
+                type="text"
+                value={nameForm}
+                onChange={(e) => setNameForm(e.target.value.slice(0, 50))}
+                placeholder="Enter display name"
+                maxLength={50}
+                className="w-full px-3 py-2 rounded-lg text-white placeholder-gray-500 transition-colors"
+                style={{ background: CARD.inner, border: `1px solid ${CARD.border}` }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') handleSaveName();
+                  if (e.key === 'Escape') setEditingName(false);
+                }}
+                autoFocus
+              />
+              <p className="text-xs text-gray-500 mt-2">{nameForm.length}/50</p>
+            </div>
+            <div className="px-6 py-4 border-t flex gap-2 justify-end" style={{ borderColor: CARD.borderSubtle }}>
+              <button
+                onClick={() => setEditingName(false)}
+                disabled={nameSaving}
+                className="px-4 py-2 rounded-lg text-sm font-medium transition-colors text-gray-300 hover:bg-white/10"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleSaveName}
+                disabled={nameSaving || !nameForm.trim()}
+                className="px-4 py-2 rounded-lg text-sm font-medium transition-colors text-white"
+                style={{
+                  background: nameForm.trim() && !nameSaving ? accentColor : 'rgba(255,255,255,0.1)',
+                  opacity: nameSaving ? 0.6 : 1,
+                }}
+              >
+                {nameSaving ? 'Saving...' : 'Save'}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
