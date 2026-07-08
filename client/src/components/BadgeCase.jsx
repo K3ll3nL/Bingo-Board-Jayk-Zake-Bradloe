@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { getAuthHeaders } from '../services/api';
 import BadgePickerModal from './BadgePickerModal';
+import useBodyScrollLock from '../hooks/useBodyScrollLock';
 
 const TOTAL_SLOTS = 8;
 const LEADERBOARD_SLOTS = 3;
@@ -10,7 +11,7 @@ const CARD_INNER = 'linear-gradient(160deg, #13151a 0%, #181a21 100%)';
 const CARD_BORDER = 'rgba(255,255,255,0.07)';
 
 // playAnimation — true only on the user's first visit to the Badges tab this session
-export default function BadgeCase({ userId, isOwnProfile, playAnimation = false, onPlayed }) {
+export default function BadgeCase({ userId, isOwnProfile, playAnimation = false, onPlayed, markBadgeSeen }) {
   const [slots, setSlots] = useState(Array(TOTAL_SLOTS).fill(null));
   const [pickerSlot, setPickerSlot] = useState(null);
   const [viewingBadge, setViewingBadge] = useState(null);
@@ -20,6 +21,8 @@ export default function BadgeCase({ userId, isOwnProfile, playAnimation = false,
   const [lidGone, setLidGone]           = useState(!playAnimation);
   const [dragSlot, setDragSlot]         = useState(null);
   const [dragOverSlot, setDragOverSlot] = useState(null);
+
+  useBodyScrollLock(!!viewingBadge);
 
   useEffect(() => {
     if (userId) loadSlots();
@@ -218,6 +221,7 @@ export default function BadgeCase({ userId, isOwnProfile, playAnimation = false,
               src={viewingBadge.image_url}
               alt={viewingBadge.name}
               draggable="false"
+              onContextMenu={(e) => e.preventDefault()}
               className="object-contain"
               style={{ width: '160px', height: '160px' }}
             />
@@ -263,6 +267,7 @@ export default function BadgeCase({ userId, isOwnProfile, playAnimation = false,
           userId={userId}
           onSelect={handlePickBadge}
           onClose={() => setPickerSlot(null)}
+          markBadgeSeen={markBadgeSeen}
         />
       )}
     </>
@@ -318,7 +323,7 @@ function SlotButton({ badge, slotNumber, isLeaderboard, isOwnProfile, onClick, o
         }}
       >
         {badge ? (
-          <img src={badge.image_url} alt={badge.name} className="w-full h-full object-contain p-1.5" draggable="false" />
+          <img src={badge.image_url} alt={badge.name} className="w-full h-full object-contain p-1.5" draggable="false" onContextMenu={(e) => e.preventDefault()} />
         ) : (
           <span className="text-white/10 text-xl select-none">+</span>
         )}

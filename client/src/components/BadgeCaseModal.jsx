@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { getAuthHeaders } from '../services/api';
 import BadgePickerModal from './BadgePickerModal';
+import useBodyScrollLock from '../hooks/useBodyScrollLock';
 
 const TOTAL_SLOTS = 8;
 const LEADERBOARD_SLOTS = 3;
@@ -12,6 +13,8 @@ export default function BadgeCaseModal({ isOpen, onClose, userId, isOwnProfile }
   const [lidOpen, setLidOpen] = useState(false);
   const [slotsVisible, setSlotsVisible] = useState(false);
   const [saving, setSaving] = useState(false);
+
+  useBodyScrollLock(isOpen);
 
   useEffect(() => {
     if (!isOpen) {
@@ -218,6 +221,7 @@ export default function BadgeCaseModal({ isOpen, onClose, userId, isOwnProfile }
               src={viewingBadge.image_url}
               alt={viewingBadge.name}
               draggable="false"
+              onContextMenu={(e) => e.preventDefault()}
               className="object-contain"
               style={{ width: '160px', height: '160px' }}
             />
@@ -307,6 +311,7 @@ function SlotButton({ badge, slotNumber, isLeaderboard, isOwnProfile, onClick, o
             src={badge.image_url}
             alt={badge.name}
             draggable="false"
+            onContextMenu={(e) => e.preventDefault()}
             className="w-full h-full object-contain p-1.5"
           />
         ) : (

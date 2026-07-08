@@ -355,7 +355,7 @@ const Leaderboard = () => {
                           </a>
                         )}
                       </div>
-                      <div className="flex items-center gap-1 mt-0 min-h-[16px]">
+                      <div className="flex items-center gap-1 mt-0 min-h-[28px]">
                         {(user.badge_slots || []).map((badge, i) => {
                           const isSubmissionFamily = badge?.family === 'submission_standard' || badge?.family === 'submission_restricted';
                           return badge?.image_url && (
@@ -364,6 +364,7 @@ const Leaderboard = () => {
                               src={badge.image_url}
                               alt={badge.name}
                               draggable={false}
+                              onContextMenu={(e) => e.preventDefault()}
                               style={isSubmissionFamily ? { width: '25px', height: '28px' } : { width: '28px', height: '28px' }}
                             />
                           );

@@ -91,7 +91,7 @@ const PointsChart = ({ data, accentColor }) => {
 };
 
 // ── Game-style nav ────────────────────────────────────────────
-const GameNav = ({ tab, setTab, accentColor }) => (
+const GameNav = ({ tab, setTab, accentColor, badgeDot }) => (
   <div className="rounded-xl overflow-hidden" style={{
     background: 'rgba(0,0,0,0.55)',
     backdropFilter: 'blur(14px)',
@@ -115,14 +115,24 @@ const GameNav = ({ tab, setTab, accentColor }) => (
             <Icon />
           </span>
           {label}
+          {id === 'badges' && badgeDot && <NewBadgeDot className="ml-auto mr-0.5" />}
         </button>
       );
     })}
   </div>
 );
 
+// Golden pulsing dot shown on the Badges tab when the viewer has unseen badges.
+const NewBadgeDot = ({ className = 'ml-1' }) => (
+  <span className={`relative flex h-2 w-2 ${className}`}>
+    <span className="absolute inline-flex h-full w-full rounded-full bg-yellow-400 opacity-60 animate-ping" />
+    <span className="relative inline-flex rounded-full h-2 w-2 bg-yellow-400"
+      style={{ boxShadow: '0 0 6px 1px rgba(250,204,21,0.8)' }} />
+  </span>
+);
+
 // ── Mobile top tab strip ──────────────────────────────────────
-const MobileTabStrip = ({ tab, setTab, accentColor }) => (
+const MobileTabStrip = ({ tab, setTab, accentColor, badgeDot }) => (
   <div className="lg:hidden flex gap-1 overflow-x-auto scrollbar-hide pb-0.5 mt-3">
     {TABS.map(({ id, label, Icon }) => {
       const active = tab === id;
@@ -136,6 +146,7 @@ const MobileTabStrip = ({ tab, setTab, accentColor }) => (
           }}>
           <span style={{ color: active ? accentColor : 'rgba(255,255,255,0.3)' }}><Icon /></span>
           {label}
+          {id === 'badges' && badgeDot && <NewBadgeDot />}
         </button>
       );
     })}
@@ -228,7 +239,7 @@ const StatisticsTab = ({ profile, accentColor, onPokemonClick }) => {
 // ── Badge cell with fixed-position hover tooltip ──────────────
 // Uses a fixed-position tooltip (not absolute) so it isn't clipped by the
 // cell's overflow-hidden or the surrounding card wrapper.
-const AllBadgeCell = ({ ub }) => {
+const AllBadgeCell = ({ ub, isNew, onSeen }) => {
   const ref = useRef(null);
   const [tipPos, setTipPos] = useState(null);
 
@@ -239,18 +250,23 @@ const AllBadgeCell = ({ ub }) => {
       x: Math.max(108, Math.min(rect.left + rect.width / 2, window.innerWidth - 108)),
       y: rect.top,
     });
+    if (isNew) onSeen?.(ub.badge_id);
   };
 
   return (
     <div
       ref={ref}
       className="relative aspect-square rounded-lg overflow-hidden p-1"
-      style={{ background: CARD.inner, border: `1px solid ${CARD.borderSubtle}` }}
+      style={{
+        background: CARD.inner,
+        border: isNew ? '1px solid rgba(250,204,21,0.7)' : `1px solid ${CARD.borderSubtle}`,
+        boxShadow: isNew ? '0 0 10px 1px rgba(250,204,21,0.55), inset 0 0 8px rgba(250,204,21,0.25)' : undefined,
+      }}
       onMouseEnter={handleEnter}
       onMouseLeave={() => setTipPos(null)}
     >
       {ub.badges?.image_url
-        ? <img src={ub.badges.image_url} alt={ub.badges.name} className="w-full h-full object-contain" draggable="false" />
+        ? <img src={ub.badges.image_url} alt={ub.badges.name} className="w-full h-full object-contain" draggable="false" onContextMenu={(e) => e.preventDefault()} />
         : <div className="w-full h-full rounded bg-gray-700/50" />}
 
       {tipPos && (
@@ -288,7 +304,7 @@ const AllBadgeCell = ({ ub }) => {
 };
 
 // ── Badges tab ────────────────────────────────────────────────
-const BadgesTab = ({ userId, isOwnProfile, accentColor, playAnimation, onAnimationPlayed }) => {
+const BadgesTab = ({ userId, isOwnProfile, accentColor, playAnimation, onAnimationPlayed, markBadgeSeen, seenBadgeIds }) => {
   const [earnedBadges, setEarnedBadges] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -311,7 +327,7 @@ const BadgesTab = ({ userId, isOwnProfile, accentColor, playAnimation, onAnimati
 
   return (
     <div className="space-y-3">
-      <BadgeCase userId={userId} isOwnProfile={isOwnProfile} playAnimation={playAnimation} onPlayed={onAnimationPlayed} />
+      <BadgeCase userId={userId} isOwnProfile={isOwnProfile} playAnimation={playAnimation} onPlayed={onAnimationPlayed} markBadgeSeen={markBadgeSeen} />
 
       <div className="rounded-xl border overflow-hidden" style={{ background: CARD.bg, borderColor: CARD.border }}>
         <div className="px-4 py-3 border-b flex items-center justify-between" style={{ borderColor: CARD.borderSubtle }}>
@@ -328,7 +344,12 @@ const BadgesTab = ({ userId, isOwnProfile, accentColor, playAnimation, onAnimati
           <div className="p-3">
             <div className="grid grid-cols-8 sm:grid-cols-10 lg:grid-cols-8 xl:grid-cols-10 gap-1.5">
               {sorted.map(ub => (
-                <AllBadgeCell key={ub.badge_id} ub={ub} />
+                <AllBadgeCell
+                  key={ub.badge_id}
+                  ub={ub}
+                  isNew={isOwnProfile && ub.seen === false && !seenBadgeIds.has(ub.badge_id)}
+                  onSeen={markBadgeSeen}
+                />
               ))}
             </div>
           </div>
@@ -692,6 +713,42 @@ const Profile = () => {
   const [accountLinking, setAccountLinking] = useState(null);
   const [editingProviders, setEditingProviders] = useState(false);
   const badgesAnimationPlayed = useRef(false);
+  const [unseenBadgeCount, setUnseenBadgeCount] = useState(0);
+  // Badges marked seen this session — shared so hovering in the picker also
+  // clears the glow in the All Badges grid (both read this set).
+  const [seenBadgeIds, setSeenBadgeIds] = useState(() => new Set());
+  const markedSeenRef = useRef(new Set());
+
+  const isOwn = !paramUserId || user?.id === paramUserId;
+
+  // Fetch the unseen-badge count for the tab dot (own profile only).
+  useEffect(() => {
+    markedSeenRef.current = new Set();
+    setSeenBadgeIds(new Set());
+    setUnseenBadgeCount(0);
+    if (!profileUserId || !isOwn) return;
+    getAuthHeaders()
+      .then(headers => fetch(`/api/users/${profileUserId}/badges/unseen-count`, { headers }))
+      .then(r => r.ok ? r.json() : { count: 0 })
+      .then(d => setUnseenBadgeCount(d.count || 0))
+      .catch(() => {});
+  }, [profileUserId, isOwn]);
+
+  // Mark a single badge seen — persist and decrement the tab dot (deduped).
+  const markBadgeSeen = async (badgeId) => {
+    if (markedSeenRef.current.has(badgeId)) return;
+    markedSeenRef.current.add(badgeId);
+    setSeenBadgeIds(prev => new Set(prev).add(badgeId));
+    setUnseenBadgeCount(c => Math.max(0, c - 1));
+    try {
+      const headers = await getAuthHeaders();
+      await fetch(`/api/users/${profileUserId}/badges/mark-seen`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ badge_ids: [badgeId] }),
+      });
+    } catch {}
+  };
 
   const handleLinkIdentity = async (provider) => {
     try {
@@ -986,13 +1043,13 @@ const Profile = () => {
         </div>
 
         {/* ── Nav + Content ─────────────────────────────────── */}
-        <MobileTabStrip tab={tab} setTab={setTab} accentColor={accentColor} />
+        <MobileTabStrip tab={tab} setTab={setTab} accentColor={accentColor} badgeDot={unseenBadgeCount > 0} />
 
         <div className="mt-3 flex gap-4 items-start">
 
           {/* Left game nav — desktop only */}
           <div className="hidden lg:block w-44 shrink-0 sticky top-4 space-y-2">
-            <GameNav tab={tab} setTab={setTab} accentColor={accentColor} />
+            <GameNav tab={tab} setTab={setTab} accentColor={accentColor} badgeDot={unseenBadgeCount > 0} />
 
             {/* Mini stat card */}
             <div className="rounded-xl p-3 border" style={{ background: CARD.bg, borderColor: CARD.border }}>
@@ -1030,6 +1087,8 @@ const Profile = () => {
                 accentColor={accentColor}
                 playAnimation={!badgesAnimationPlayed.current}
                 onAnimationPlayed={() => { badgesAnimationPlayed.current = true; }}
+                markBadgeSeen={markBadgeSeen}
+                seenBadgeIds={seenBadgeIds}
               />
             )}
             {tab === 'pokedex' && (

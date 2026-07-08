@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { getAuthHeaders } from '../services/api';
+import useBodyScrollLock from '../hooks/useBodyScrollLock';
 
 export default function BadgePickerModal({
   slotNumber,
@@ -8,9 +9,18 @@ export default function BadgePickerModal({
   userId,
   onSelect,
   onClose,
+  markBadgeSeen,
 }) {
   const [sortedBadges, setSortedBadges] = useState([]);
   const [loading, setLoading] = useState(true);
+
+  useBodyScrollLock(true);
+
+  // Mouse-over a new (unseen) earned badge: clear its glow locally and persist.
+  const handleSeen = (badgeId) => {
+    setSortedBadges(prev => prev.map(b => b.id === badgeId ? { ...b, seen: true } : b));
+    markBadgeSeen?.(badgeId);
+  };
 
   useEffect(() => {
     const load = async () => {
@@ -95,6 +105,7 @@ export default function BadgePickerModal({
                   isCurrentSlot={badge.id === currentSlotBadgeId}
                   isOtherSlot={slottedBadgeIds.has(badge.id) && badge.id !== currentSlotBadgeId}
                   onSelect={onSelect}
+                  onSeen={handleSeen}
                 />
               ))}
             </div>
@@ -105,10 +116,11 @@ export default function BadgePickerModal({
   );
 }
 
-function BadgePickerItem({ badge, isCurrentSlot, isOtherSlot, onSelect }) {
+function BadgePickerItem({ badge, isCurrentSlot, isOtherSlot, onSelect, onSeen }) {
   const btnRef = useRef(null);
   const [tooltipPos, setTooltipPos] = useState(null);
   const isEarned = badge.is_earned;
+  const isNew = isEarned && badge.seen === false;
 
   const handleMouseEnter = () => {
     if (!btnRef.current) return;
@@ -117,6 +129,7 @@ function BadgePickerItem({ badge, isCurrentSlot, isOtherSlot, onSelect }) {
       x: Math.max(108, Math.min(rect.left + rect.width / 2, window.innerWidth - 108)),
       y: rect.top,
     });
+    if (isNew) onSeen?.(badge.id);
   };
 
   return (
@@ -139,13 +152,17 @@ function BadgePickerItem({ badge, isCurrentSlot, isOtherSlot, onSelect }) {
               : 'border-gray-600 cursor-pointer hover:border-purple-400 hover:bg-gray-700/40'
             : 'border-gray-700/40 cursor-not-allowed',
         ].join(' ')}
-        style={{ backgroundColor: isCurrentSlot ? 'rgba(250,204,21,0.08)' : '#35373b' }}
+        style={{
+          backgroundColor: isCurrentSlot ? 'rgba(250,204,21,0.08)' : '#35373b',
+          ...(isNew ? { borderColor: 'rgba(250,204,21,0.8)', boxShadow: '0 0 10px 1px rgba(250,204,21,0.55)' } : {}),
+        }}
       >
         {badge.image_url ? (
           <img
             src={badge.image_url}
             alt={badge.name}
             draggable="false"
+            onContextMenu={(e) => e.preventDefault()}
             className="w-full h-full object-contain"
             style={!isEarned ? { filter: 'brightness(0)' } : undefined}
           />

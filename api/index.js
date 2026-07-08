@@ -5919,14 +5919,16 @@ app.get('/api/badges', async (req, res) => {
 
     const { percentByBadge } = await computeBadgeRarity();
 
-    // Fetch this user's earned badges
+    // Fetch this user's earned badges (with seen flag for the "new badge" glow)
     let earnedBadgeIds = new Set();
+    let seenByBadge = {};
     if (userId) {
       const { data: earned } = await supabase
         .from('user_badges')
-        .select('badge_id')
+        .select('badge_id, seen')
         .eq('user_id', userId);
       earnedBadgeIds = new Set((earned || []).map(e => e.badge_id));
+      (earned || []).forEach(e => { seenByBadge[e.badge_id] = e.seen; });
     }
 
     // Group badges by family, sorted by family_order (nulls sort last).
@@ -5954,7 +5956,7 @@ app.get('/api/badges', async (req, res) => {
       const earned_percent = percentByBadge[badge.id] ?? null;
 
       if (isEarned) {
-        return { ...badge, is_earned: true, hint_visible: true, earned_percent };
+        return { ...badge, is_earned: true, hint_visible: true, earned_percent, seen: seenByBadge[badge.id] !== false };
       }
 
       // Secret + not earned: reveal nothing
@@ -6014,7 +6016,7 @@ app.get('/api/users/:userId/badges', async (req, res) => {
 
     const { data, error } = await supabase
       .from('user_badges')
-      .select('badge_id, earned_at, badges(*, badge_families(display_order))')
+      .select('badge_id, earned_at, seen, badges(*, badge_families(display_order))')
       .eq('user_id', userId)
       .order('earned_at', { ascending: false });
 
@@ -6158,6 +6160,57 @@ app.put('/api/users/:userId/badge-slots', async (req, res) => {
   } catch (error) {
     console.error('Error updating badge slots:', error);
     res.status(500).json({ error: 'Failed to update badge slots', details: error.message });
+  }
+});
+
+// Count of the user's earned-but-unseen badges (own user only — drives the "new badge" dot)
+app.get('/api/users/:userId/badges/unseen-count', async (req, res) => {
+  try {
+    const requestingUserId = await getAuthenticatedUserId(req);
+    if (!requestingUserId) return res.status(401).json({ error: 'Unauthorized' });
+    const { userId } = req.params;
+    if (requestingUserId !== userId) return res.status(403).json({ error: 'Forbidden' });
+
+    const { count, error } = await supabase
+      .from('user_badges')
+      .select('badge_id', { count: 'exact', head: true })
+      .eq('user_id', userId)
+      .eq('seen', false);
+    if (error) throw error;
+
+    res.set('Cache-Control', 'no-store');
+    res.json({ count: count || 0 });
+  } catch (error) {
+    console.error('Error fetching unseen badge count:', error);
+    res.status(500).json({ error: 'Failed to fetch unseen badge count', details: error.message });
+  }
+});
+
+// Mark badges as seen (own user only) — clears the "new badge" glow/dot.
+// Body: { badge_ids: [...] } to mark specific badges, or omit to mark all.
+app.post('/api/users/:userId/badges/mark-seen', async (req, res) => {
+  try {
+    const requestingUserId = await getAuthenticatedUserId(req);
+    if (!requestingUserId) return res.status(401).json({ error: 'Unauthorized' });
+    const { userId } = req.params;
+    if (requestingUserId !== userId) return res.status(403).json({ error: 'Forbidden' });
+
+    const { badge_ids } = req.body || {};
+    let query = supabase
+      .from('user_badges')
+      .update({ seen: true })
+      .eq('user_id', userId)
+      .eq('seen', false);
+    if (Array.isArray(badge_ids) && badge_ids.length) {
+      query = query.in('badge_id', badge_ids);
+    }
+    const { error } = await query;
+    if (error) throw error;
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error marking badges seen:', error);
+    res.status(500).json({ error: 'Failed to mark badges seen', details: error.message });
   }
 });
 
