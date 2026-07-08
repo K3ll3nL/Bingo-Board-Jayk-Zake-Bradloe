@@ -1881,10 +1881,12 @@ app.get('/api/profile/:userId/board/:monthId', async (req, res) => {
     const [
       { data: monthData, error: monthError },
       { data: entries, error: entriesError },
+      { data: approvals, error: approvalsError },
       { data: poolData, error: poolError },
     ] = await Promise.all([
       supabase.from('bingo_months').select('id, month_year_display').eq('id', monthId).single(),
       supabase.from('entries').select('pokemon_id, restricted_submission, historical').eq('user_id', userId).eq('month_id', monthId),
+      supabase.from('approvals').select('pokemon_id, restricted_submission').eq('user_id', userId).eq('month_id', monthId),
       supabase.from('monthly_pokemon_pool').select('position, pokemon_id').eq('month_id', monthId).order('position', { ascending: true }),
     ]);
 
@@ -1895,6 +1897,12 @@ app.get('/api/profile/:userId/board/:monthId', async (req, res) => {
     const completedPokemonIds = new Set((entries || []).map(e => e.pokemon_id));
     const restrictedPokemonIds = new Set((entries || []).filter(e => e.restricted_submission).map(e => e.pokemon_id));
     const historicalPokemonIds = new Set((entries || []).filter(e => e.historical).map(e => e.pokemon_id));
+    const pendingPokemonIds = new Set(
+      (!approvalsError && approvals) ? approvals.map(a => a.pokemon_id) : []
+    );
+    const pendingRestrictedIds = new Set(
+      (!approvalsError && approvals) ? approvals.filter(a => a.restricted_submission).map(a => a.pokemon_id) : []
+    );
     const pokemonIds = (poolData || []).map(p => p.pokemon_id).filter(Boolean);
 
     const { data: pokemonData, error: pokemonError } = await supabase
@@ -1935,8 +1943,8 @@ app.get('/api/profile/:userId/board/:monthId', async (req, res) => {
             is_checked: completedPokemonIds.has(pool.pokemon_id),
             is_restricted: restrictedPokemonIds.has(pool.pokemon_id),
             is_historical: historicalPokemonIds.has(pool.pokemon_id),
-            is_pending: false,
-            is_pending_restricted: false,
+            is_pending: !completedPokemonIds.has(pool.pokemon_id) && pendingPokemonIds.has(pool.pokemon_id),
+            is_pending_restricted: completedPokemonIds.has(pool.pokemon_id) && !restrictedPokemonIds.has(pool.pokemon_id) && pendingRestrictedIds.has(pool.pokemon_id),
             pokemon_name: poke.name || 'Unknown',
             pokemon: poke,
           });
