@@ -313,7 +313,48 @@ const Leaderboard = () => {
               const position = user.rank ?? (index + 1);
               const medal = getMedalEmoji(position);
               const showBadge = index < 10;
-              
+
+              // Flatten the achievements this user actually has into one ordered list
+              // (standard types first, then restricted). Each entry renders one icon.
+              const ACH_TYPES = ['row', 'column', 'x', 'blackout', 'personal_blackout'];
+              const awards = [];
+              ACH_TYPES.forEach(type => {
+                if (user.achievement_counts?.[type] > 0)
+                  awards.push({ key: type, type, restricted: false, count: user.achievement_counts[type] });
+              });
+              ACH_TYPES.forEach(type => {
+                const c = user.achievement_counts?.[`${type}_restricted`];
+                if (c > 0) awards.push({ key: `${type}_r`, type, restricted: true, count: c });
+              });
+              // More than 4 award types → split evenly across 2 rows (icons stay full size).
+              const manyAwards = awards.length > 4;
+              const rowSplit = Math.ceil(awards.length / 2);
+
+              // Render one award as a self-contained unit: full-size icon with the count in a
+              // small corner badge (only when > 1). No loose "xN" text. Monthly has no counts.
+              const renderAward = ({ key, type, restricted, count }) => {
+                const isBlackout = type.includes('blackout');
+                const showCount = viewMode !== 'monthly' && count > 1;
+                return (
+                  <div key={key} className="relative inline-flex">
+                    <AchievementIcon
+                      type={type}
+                      restricted={restricted}
+                      color={user.hex_code || '#9147ff'}
+                      svgClassName={isBlackout ? 'w-4 h-4' : 'w-3 h-3'}
+                    />
+                    {showCount && (
+                      <span
+                        className="absolute -bottom-1 -right-1 min-w-[13px] h-[13px] px-[3px] rounded-full flex items-center justify-center text-[9px] font-bold text-white leading-none"
+                        style={{ background: '#0d0f14', border: '1px solid rgba(255,255,255,0.25)' }}
+                      >
+                        {count}
+                      </span>
+                    )}
+                  </div>
+                );
+              };
+
               return (
                 <div
                   key={user.user_id}
@@ -374,54 +415,23 @@ const Leaderboard = () => {
                   </div>
                   
                   <div className="flex items-center gap-2">
-                    {/* Achievement icons — with counts for multi-month views, icon-only for monthly */}
-                    <div className="flex items-center gap-1">
-                      {['row', 'column', 'x', 'blackout', 'personal_blackout'].map(type => (
-                        user.achievement_counts?.[type] > 0 && (
-                          viewMode === 'monthly' ? (
-                            <AchievementIcon
-                              key={type}
-                              type={type}
-                              color={user.hex_code || '#9147ff'}
-                              svgClassName={type.includes('blackout') ? 'w-4 h-4' : 'w-3 h-3'}
-                            />
-                          ) : (
-                            <div key={type} className="flex items-center gap-0.5">
-                              <AchievementIcon
-                                type={type}
-                                color={user.hex_code || '#9147ff'}
-                                svgClassName={type.includes('blackout') ? 'w-4 h-4' : 'w-3 h-3'}
-                              />
-                              <span className="text-xs text-gray-400">x{user.achievement_counts[type]}</span>
-                            </div>
-                          )
-                        )
-                      ))}
-                      {['row', 'column', 'x', 'blackout', 'personal_blackout'].map(type => (
-                        user.achievement_counts?.[`${type}_restricted`] > 0 && (
-                          viewMode === 'monthly' ? (
-                            <AchievementIcon
-                              key={`${type}_r`}
-                              type={type}
-                              restricted={true}
-                              color={user.hex_code || '#9147ff'}
-                              svgClassName={type.includes('blackout') ? 'w-4 h-4' : 'w-3 h-3'}
-                            />
-                          ) : (
-                            <div key={`${type}_r`} className="flex items-center gap-0.5">
-                              <AchievementIcon
-                                type={type}
-                                restricted={true}
-                                color={user.hex_code || '#9147ff'}
-                                svgClassName={type.includes('blackout') ? 'w-4 h-4' : 'w-3 h-3'}
-                              />
-                              <span className="text-xs text-gray-400">x{user.achievement_counts[`${type}_restricted`]}</span>
-                            </div>
-                          )
-                        )
-                      ))}
-                    </div>
-                    
+                    {/* Achievement icons — with counts for multi-month views, icon-only for monthly.
+                        >4 award types → half size, split evenly across 2 rows. */}
+                    {manyAwards ? (
+                      <div className="flex flex-col items-end gap-1.5">
+                        <div className="flex items-center gap-1.5">
+                          {awards.slice(0, rowSplit).map(a => renderAward(a))}
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          {awards.slice(rowSplit).map(a => renderAward(a))}
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-1.5">
+                        {awards.map(a => renderAward(a))}
+                      </div>
+                    )}
+
                     <StatValue
                       points={user.points}
                       pokemonCount={user.pokemon_count}
