@@ -245,7 +245,7 @@ const StatisticsTab = ({ profile, accentColor, onPokemonClick }) => {
 // ── Badge cell with fixed-position hover tooltip ──────────────
 // Uses a fixed-position tooltip (not absolute) so it isn't clipped by the
 // cell's overflow-hidden or the surrounding card wrapper.
-const AllBadgeCell = ({ ub, isNew, onSeen }) => {
+const AllBadgeCell = ({ ub, isNew, onSeen, earned = true }) => {
   const ref = useRef(null);
   const [tipPos, setTipPos] = useState(null);
 
@@ -272,7 +272,8 @@ const AllBadgeCell = ({ ub, isNew, onSeen }) => {
       onMouseLeave={() => setTipPos(null)}
     >
       {ub.badges?.image_url
-        ? <img src={ub.badges.image_url} alt={ub.badges.name} className="w-full h-full object-contain" draggable="false" onContextMenu={(e) => e.preventDefault()} />
+        ? <img src={ub.badges.image_url} alt={ub.badges.name} className="w-full h-full object-contain" draggable="false" onContextMenu={(e) => e.preventDefault()}
+            style={earned ? undefined : { filter: 'brightness(0)', opacity: 0.55 }} />
         : <div className="w-full h-full rounded bg-gray-700/50" />}
 
       {tipPos && (
@@ -313,6 +314,9 @@ const AllBadgeCell = ({ ub, isNew, onSeen }) => {
 const BadgesTab = ({ userId, isOwnProfile, accentColor, playAnimation, onAnimationPlayed, markBadgeSeen, seenBadgeIds }) => {
   const [earnedBadges, setEarnedBadges] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [showAll, setShowAll] = useState(false);
+  const [allBadges, setAllBadges] = useState(null); // null = not yet fetched
+  const [allLoading, setAllLoading] = useState(false);
 
   useEffect(() => {
     // Send auth headers so the API can flag which badges the viewer earned
@@ -324,6 +328,43 @@ const BadgesTab = ({ userId, isOwnProfile, accentColor, playAnimation, onAnimati
       .catch(() => setLoading(false));
   }, [userId]);
 
+  // Reset the "show all" view when switching profiles.
+  useEffect(() => { setShowAll(false); setAllBadges(null); }, [userId]);
+
+  // Lazy-fetch the full badge catalogue (with silhouettes for unearned) the
+  // first time the user flips to "Show all".
+  useEffect(() => {
+    if (!showAll || allBadges !== null) return;
+    setAllLoading(true);
+    getAuthHeaders()
+      .then(headers => Promise.all([
+        fetch(`/api/badges?userId=${userId}`, { headers }).then(r => r.json()),
+        fetch('/api/badge-families').then(r => r.json()),
+      ]))
+      .then(([badges, families]) => {
+        const order = {};
+        (families || []).forEach(f => { order[f.id] = f.display_order; });
+        // Match the picker: hide secret-unearned (API returns image_url: null).
+        const visible = (Array.isArray(badges) ? badges : []).filter(b => b.is_earned || (!b.is_secret && b.image_url));
+        visible.sort((a, b) => {
+          const fa = a.family ? (order[a.family] ?? 999) : 1000;
+          const fb = b.family ? (order[b.family] ?? 999) : 1000;
+          if (fa !== fb) return fa - fb;
+          return (a.family_order ?? 99) - (b.family_order ?? 99);
+        });
+        // Normalise to the AllBadgeCell `ub` shape.
+        setAllBadges(visible.map(b => ({
+          badge_id: b.id,
+          earned_at: null,
+          seen: true,
+          is_earned: b.is_earned,
+          badges: { ...b, viewer_earned: b.is_earned },
+        })));
+      })
+      .catch(() => setAllBadges([]))
+      .finally(() => setAllLoading(false));
+  }, [showAll, allBadges, userId]);
+
   const sorted = [...earnedBadges].sort((a, b) => {
     const ordA = a.badges?.badge_families?.display_order ?? 999;
     const ordB = b.badges?.badge_families?.display_order ?? 999;
@@ -331,29 +372,48 @@ const BadgesTab = ({ userId, isOwnProfile, accentColor, playAnimation, onAnimati
     return (a.badges?.family_order ?? 99) - (b.badges?.family_order ?? 99);
   });
 
+  const busy = showAll ? (allLoading && allBadges === null) : loading;
+  const items = showAll ? (allBadges || []) : sorted;
+
   return (
     <div className="space-y-3">
       <BadgeCase userId={userId} isOwnProfile={isOwnProfile} playAnimation={playAnimation} onPlayed={onAnimationPlayed} markBadgeSeen={markBadgeSeen} />
 
       <div className="rounded-xl border overflow-hidden" style={{ background: CARD.bg, borderColor: CARD.border }}>
-        <div className="px-4 py-3 border-b flex items-center justify-between" style={{ borderColor: CARD.borderSubtle }}>
+        <div className="px-4 py-3 border-b flex items-center justify-between gap-3" style={{ borderColor: CARD.borderSubtle }}>
           <p className="text-xs uppercase tracking-wider" style={{ color: 'rgba(255,255,255,0.3)' }}>All Badges</p>
-          <span className="text-sm text-gray-400">{earnedBadges.length} earned</span>
+          <div className="flex items-center gap-3">
+            <span className="text-sm text-gray-400">{earnedBadges.length} earned</span>
+            <button
+              onClick={() => setShowAll(v => !v)}
+              className="text-xs px-2.5 py-1 rounded-lg transition-colors"
+              style={{
+                color: showAll ? accentColor : 'rgba(255,255,255,0.5)',
+                border: `1px solid ${showAll ? accentColor + '60' : CARD.border}`,
+                backgroundColor: showAll ? accentColor + '14' : 'transparent',
+              }}
+            >
+              {showAll ? 'Earned only' : 'Show all'}
+            </button>
+          </div>
         </div>
-        {loading ? (
+        {busy ? (
           <div className="p-6 flex items-center justify-center">
             <div className="w-6 h-6 rounded-full border-2 border-gray-700 border-t-purple-500 animate-spin" />
           </div>
-        ) : earnedBadges.length === 0 ? (
-          <div className="p-6 text-center text-gray-500 text-sm">No badges earned yet</div>
+        ) : items.length === 0 ? (
+          <div className="p-6 text-center text-gray-500 text-sm">
+            {showAll ? 'No badges available' : 'No badges earned yet'}
+          </div>
         ) : (
           <div className="p-3">
             <div className="grid grid-cols-8 sm:grid-cols-10 lg:grid-cols-8 xl:grid-cols-10 gap-1.5">
-              {sorted.map(ub => (
+              {items.map(ub => (
                 <AllBadgeCell
                   key={ub.badge_id}
                   ub={ub}
-                  isNew={isOwnProfile && ub.seen === false && !seenBadgeIds.has(ub.badge_id)}
+                  earned={showAll ? ub.is_earned : true}
+                  isNew={!showAll && isOwnProfile && ub.seen === false && !seenBadgeIds.has(ub.badge_id)}
                   onSeen={markBadgeSeen}
                 />
               ))}
