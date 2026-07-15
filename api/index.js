@@ -2954,7 +2954,8 @@ app.post('/api/approvals/:id/approve', async (req, res) => {
       throw approvalFetchError;
     }
 
-    const { status: approvalStatus } = req.body;
+    const { status: approvalStatus, message: approvalMessage } = req.body;
+    const modNote = approvalMessage?.trim() || null;
 
     if (approval.historical) {
       // Historical approvals: bypass RPC — handle entirely in Express (no points, no board)
@@ -2988,6 +2989,7 @@ app.post('/api/approvals/:id/approve', async (req, res) => {
         user_id: approval.user_id,
         pokemon_id: approval.pokemon_id,
         status: historicalStatus,
+        message: modNote,
         notified: false,
       });
 
@@ -3038,6 +3040,25 @@ app.post('/api/approvals/:id/approve', async (req, res) => {
 
     // Invalidate leaderboard cache immediately so the next request gets fresh data
     leaderboardCache.clear();
+
+    // The approve_submission RPC creates the notification without a moderator note.
+    // Persist the upgrade/downgrade comment onto the freshly-created notification.
+    if (modNote) {
+      (async () => {
+        try {
+          const { data: notif } = await supabase.from('notifications')
+            .select('id')
+            .eq('user_id', approval.user_id)
+            .eq('pokemon_id', approval.pokemon_id)
+            .order('created_at', { ascending: false })
+            .limit(1)
+            .single();
+          if (notif) await supabase.from('notifications').update({ message: modNote }).eq('id', notif.id);
+        } catch (err) {
+          console.error('Failed to attach moderator note to notification (non-fatal):', err.message);
+        }
+      })();
+    }
 
     // Append proof_link(s) to entry moderator_note (fire-and-forget)
     if (approval.proof_link?.length) {
