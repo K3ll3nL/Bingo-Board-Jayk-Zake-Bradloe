@@ -220,7 +220,7 @@ const AppLayout = () => {
               {[
                 { label: 'Approvals', path: '/approvals' },
                 { label: 'Board Builder', path: '/board-builder' },
-                { label: 'Upload Badge', path: '/badge-upload' },
+                { label: 'Badges', path: '/badge-upload' },
                 { label: 'Game Manager', path: '/pokemon-game-manager' },
                 { label: 'Feedback', path: '/feedback' },
               ].map(({ label, path }) => (

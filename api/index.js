@@ -6458,6 +6458,215 @@ app.get('/api/admin/badges', async (req, res) => {
   }
 });
 
+// ── Manual badge grant/revoke (Grant tab) ────────────────────────────────────
+
+// GET /api/admin/users/search?q= — search users by display name / username
+app.get('/api/admin/users/search', async (req, res) => {
+  try {
+    const userId = await getAuthenticatedUserId(req);
+    if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+    const { data: mod } = await supabase.from('moderators').select('id').eq('id', userId).single();
+    if (!mod) return res.status(403).json({ error: 'Moderators only' });
+
+    const q = (req.query.q || '').trim();
+    if (!q) return res.json([]);
+
+    const { data, error } = await supabase
+      .from('users')
+      .select('id, display_name, username, avatar_url')
+      .or(`display_name.ilike.%${q}%,username.ilike.%${q}%`)
+      .limit(20);
+    if (error) throw error;
+    res.json(data || []);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/admin/users/:userId/badges — every badge + whether this user has earned it
+app.get('/api/admin/users/:userId/badges', async (req, res) => {
+  try {
+    const modId = await getAuthenticatedUserId(req);
+    if (!modId) return res.status(401).json({ error: 'Unauthorized' });
+    const { data: mod } = await supabase.from('moderators').select('id').eq('id', modId).single();
+    if (!mod) return res.status(403).json({ error: 'Moderators only' });
+
+    const { userId } = req.params;
+
+    const [{ data: badges, error: bErr }, { data: earned, error: eErr }] = await Promise.all([
+      supabase.from('badges')
+        .select('id, key, name, image_url, is_secret, family, family_order, check_type, badge_families(display_order)'),
+      // No month_id filter — a badge earned in any month still counts as earned for display.
+      supabase.from('user_badges').select('badge_id, earned_at, month_id').eq('user_id', userId),
+    ]);
+    if (bErr) throw bErr;
+    if (eErr) throw eErr;
+
+    // Order by family display_order, then family_order within the family; uncategorized last.
+    const famOrder = b => (b.badge_families?.display_order ?? Number.MAX_SAFE_INTEGER);
+    const sorted = (badges || []).slice().sort((a, b) =>
+      (famOrder(a) - famOrder(b)) ||
+      ((a.family_order ?? 0) - (b.family_order ?? 0)) ||
+      (a.name || '').localeCompare(b.name || '')
+    );
+
+    // A badge may have multiple rows (monthly winners span months) — keep the earliest earned_at,
+    // and collect every month_id this user holds for the badge.
+    const earnedMap = new Map();
+    const monthsMap = new Map();
+    for (const e of (earned || [])) {
+      const prev = earnedMap.get(e.badge_id);
+      if (!prev || e.earned_at < prev.earned_at) earnedMap.set(e.badge_id, e);
+      if (e.month_id != null) {
+        if (!monthsMap.has(e.badge_id)) monthsMap.set(e.badge_id, []);
+        monthsMap.get(e.badge_id).push(e.month_id);
+      }
+    }
+    res.json(sorted.map(({ badge_families, ...b }) => ({
+      ...b,
+      is_monthly: b.check_type === 'first_approval_month',
+      is_earned: earnedMap.has(b.id),
+      earned_at: earnedMap.get(b.id)?.earned_at || null,
+      earned_month_ids: (monthsMap.get(b.id) || []).sort((a, c) => a - c),
+    })));
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/admin/badges/:badgeId/monthly-holders — month list + current winner per month
+// (used by the Grant tab's month picker for first_approval_month badges)
+app.get('/api/admin/badges/:badgeId/monthly-holders', async (req, res) => {
+  try {
+    const modId = await getAuthenticatedUserId(req);
+    if (!modId) return res.status(401).json({ error: 'Unauthorized' });
+    const { data: mod } = await supabase.from('moderators').select('id').eq('id', modId).single();
+    if (!mod) return res.status(403).json({ error: 'Moderators only' });
+
+    const { badgeId } = req.params;
+
+    const [{ data: months }, { data: rows }] = await Promise.all([
+      supabase.from('bingo_months').select('id, month_year_display').order('id'),
+      supabase.from('user_badges').select('month_id, user_id').eq('badge_id', badgeId).not('month_id', 'is', null),
+    ]);
+
+    const holderIds = [...new Set((rows || []).map(r => r.user_id))];
+    let nameMap = {};
+    if (holderIds.length) {
+      const { data: users } = await supabase.from('users').select('id, display_name, username').in('id', holderIds);
+      nameMap = Object.fromEntries((users || []).map(u => [u.id, u.display_name || u.username]));
+    }
+
+    const holders = {};
+    for (const r of (rows || [])) holders[r.month_id] = { user_id: r.user_id, name: nameMap[r.user_id] || 'Unknown' };
+
+    res.json({
+      months: (months || []).map(m => ({ id: m.id, label: m.month_year_display })),
+      holders,
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/admin/users/:userId/badges/:badgeId — manually grant a badge
+// Body (monthly badges only): { month_id, reassign } — reassign takes the month from its current holder.
+app.post('/api/admin/users/:userId/badges/:badgeId', async (req, res) => {
+  try {
+    const modId = await getAuthenticatedUserId(req);
+    if (!modId) return res.status(401).json({ error: 'Unauthorized' });
+    const { data: mod } = await supabase.from('moderators').select('id').eq('id', modId).single();
+    if (!mod) return res.status(403).json({ error: 'Moderators only' });
+
+    const { userId, badgeId } = req.params;
+    const { month_id = null, reassign = false } = req.body || {};
+
+    const { data: badge, error: badgeErr } = await supabase
+      .from('badges').select('id, name, description, image_url, is_secret, check_type').eq('id', badgeId).single();
+    if (badgeErr || !badge) return res.status(404).json({ error: 'Badge not found' });
+
+    const isMonthly = badge.check_type === 'first_approval_month';
+    if (isMonthly && month_id == null) return res.status(400).json({ error: 'month_id is required for monthly winner badges' });
+
+    if (isMonthly) {
+      // Is this month already held? (unique winner per badge per month)
+      const { data: current } = await supabase
+        .from('user_badges').select('user_id')
+        .eq('badge_id', badgeId).eq('month_id', month_id).maybeSingle();
+      if (current) {
+        if (current.user_id === userId) return res.status(409).json({ error: 'User already holds this month' });
+        if (!reassign) {
+          const { data: holder } = await supabase.from('users').select('display_name, username').eq('id', current.user_id).single();
+          return res.status(409).json({ error: 'month_taken', holder_user_id: current.user_id, holder_name: holder?.display_name || holder?.username || 'Unknown' });
+        }
+        // Reassign: strip the month from its current holder first.
+        await supabase.from('user_badges').delete().eq('badge_id', badgeId).eq('month_id', month_id);
+      }
+    } else {
+      // Regular badge — one row, no month.
+      const { data: existing } = await supabase
+        .from('user_badges').select('badge_id')
+        .eq('user_id', userId).eq('badge_id', badgeId).is('month_id', null).maybeSingle();
+      if (existing) return res.status(409).json({ error: 'User already has this badge' });
+    }
+
+    const { error: insErr } = await supabase
+      .from('user_badges').insert({ user_id: userId, badge_id: badgeId, ...(isMonthly ? { month_id } : {}) });
+    if (insErr) throw insErr;
+
+    // Notification (notified:true — toast fires via badge-awards channel) + realtime broadcast
+    await supabase.from('notifications').insert({
+      user_id: userId, status: 'badge_earned', message: badge.id, notified: true,
+    });
+    await broadcastUpdate(`badge-awards-${userId}`, 'badge-earned', {
+      id: badge.id, name: badge.name, description: badge.description,
+      image_url: badge.image_url, is_secret: badge.is_secret,
+    });
+
+    console.log(`Mod ${modId} manually granted badge ${badge.name} to user ${userId}${isMonthly ? ` (month ${month_id})` : ''}`);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// DELETE /api/admin/users/:userId/badges/:badgeId — manually revoke a badge
+// Monthly badges: pass ?month_id= to revoke that specific month's win.
+app.delete('/api/admin/users/:userId/badges/:badgeId', async (req, res) => {
+  try {
+    const modId = await getAuthenticatedUserId(req);
+    if (!modId) return res.status(401).json({ error: 'Unauthorized' });
+    const { data: mod } = await supabase.from('moderators').select('id').eq('id', modId).single();
+    if (!mod) return res.status(403).json({ error: 'Moderators only' });
+
+    const { userId, badgeId } = req.params;
+    const monthId = req.query.month_id != null && req.query.month_id !== '' ? Number(req.query.month_id) : null;
+
+    const { data: badge } = await supabase
+      .from('badges').select('check_type').eq('id', badgeId).single();
+    const isMonthly = badge?.check_type === 'first_approval_month';
+    if (isMonthly && monthId == null) return res.status(400).json({ error: 'month_id is required for monthly winner badges' });
+
+    let del = supabase.from('user_badges').delete().eq('user_id', userId).eq('badge_id', badgeId);
+    del = isMonthly ? del.eq('month_id', monthId) : del.is('month_id', null);
+    const { error: delErr } = await del;
+    if (delErr) throw delErr;
+
+    // Clear any lingering "badge_earned" notification (only when the user no longer holds the badge at all)
+    const { data: remaining } = await supabase
+      .from('user_badges').select('badge_id').eq('user_id', userId).eq('badge_id', badgeId).limit(1);
+    if (!remaining?.length) {
+      await supabase.from('notifications')
+        .delete().eq('user_id', userId).eq('status', 'badge_earned').eq('message', badgeId);
+    }
+
+    console.log(`Mod ${modId} manually revoked badge ${badgeId} from user ${userId}${isMonthly ? ` (month ${monthId})` : ''}`);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // PATCH /api/admin/badge-families/reorder — must be before /:id to avoid param conflict
 app.patch('/api/admin/badge-families/reorder', async (req, res) => {
   try {

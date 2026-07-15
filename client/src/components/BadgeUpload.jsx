@@ -157,6 +157,7 @@ export default function BadgeUpload() {
 
   const TABS = [
     { id: 'create',      label: 'Create Badge',     icon: '✦' },
+    { id: 'grant',       label: 'Grant / Revoke',    icon: '✚' },
     { id: 'replace',     label: 'Replace Image',     icon: '⟳' },
     { id: 'collections', label: 'Collections',       icon: '◈' },
     { id: 'visualizer',  label: 'Visualize',         icon: '◉' },
@@ -188,6 +189,7 @@ export default function BadgeUpload() {
         </div>
 
         {tab === 'create'      && <CreateBadgeTab onCreated={() => { setRefreshKey(k => k + 1); setTab('visualizer'); }} />}
+        {tab === 'grant'       && <GrantBadgeTab />}
         {tab === 'replace'     && <ReplaceImageTab />}
         {tab === 'collections' && <ManageCollectionsTab />}
         {tab === 'visualizer'  && <BadgeVisualizerTab refreshKey={refreshKey} />}
@@ -1090,6 +1092,343 @@ function BadgeCard({ badge, silhouette, publicView, isSequential, large }) {
         </div>
       )}
     </div>
+  );
+}
+
+// ── Grant / Revoke tab ────────────────────────────────────────────────────────
+
+function GrantBadgeTab() {
+  const [query,     setQuery]     = useState('');
+  const [results,   setResults]   = useState([]);
+  const [searching, setSearching] = useState(false);
+  const [selected,  setSelected]  = useState(null);   // { id, display_name, username, avatar_url }
+  const [badges,    setBadges]    = useState([]);
+  const [loading,   setLoading]   = useState(false);
+  const [busyId,    setBusyId]    = useState(null);    // badge id currently granting/revoking
+  const [message,   setMessage]   = useState(null);    // { type, text }
+  const [filter,    setFilter]    = useState('');
+  const [monthlyBadge, setMonthlyBadge] = useState(null); // badge object when managing months
+  const searchSeq = useRef(0);
+
+  // Debounced user search
+  useEffect(() => {
+    const q = query.trim();
+    if (!q) { setResults([]); return; }
+    const seq = ++searchSeq.current;
+    setSearching(true);
+    const t = setTimeout(async () => {
+      try {
+        const res  = await fetch(`/api/admin/users/search?q=${encodeURIComponent(q)}`, { headers: await getAuthHeaders() });
+        const data = await res.json();
+        if (seq === searchSeq.current) setResults(Array.isArray(data) ? data : []);
+      } catch { if (seq === searchSeq.current) setResults([]); }
+      finally { if (seq === searchSeq.current) setSearching(false); }
+    }, 300);
+    return () => clearTimeout(t);
+  }, [query]);
+
+  const loadBadges = async (userId) => {
+    setLoading(true);
+    try {
+      const res  = await fetch(`/api/admin/users/${userId}/badges`, { headers: await getAuthHeaders() });
+      const data = await res.json();
+      setBadges(Array.isArray(data) ? data : []);
+    } catch { setBadges([]); }
+    finally { setLoading(false); }
+  };
+
+  const selectUser = (u) => {
+    setSelected(u);
+    setResults([]);
+    setQuery('');
+    setMessage(null);
+    setFilter('');
+    loadBadges(u.id);
+  };
+
+  const toggleBadge = async (badge) => {
+    if (busyId) return;
+    if (badge.is_monthly) { setMonthlyBadge(badge); return; }
+    const granting = !badge.is_earned;
+    if (!granting && !confirm(`Revoke "${badge.name}" from ${selected.display_name}?`)) return;
+    setBusyId(badge.id);
+    setMessage(null);
+    try {
+      const headers = await getAuthHeaders();
+      const res = await fetch(`/api/admin/users/${selected.id}/badges/${badge.id}`, {
+        method: granting ? 'POST' : 'DELETE',
+        headers,
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'Request failed');
+      setBadges(bs => bs.map(b => b.id === badge.id
+        ? { ...b, is_earned: granting, earned_at: granting ? new Date().toISOString() : null }
+        : b));
+      setMessage({ type: 'success', text: `${granting ? 'Granted' : 'Revoked'} "${badge.name}" ${granting ? 'to' : 'from'} ${selected.display_name}.` });
+    } catch (err) {
+      setMessage({ type: 'error', text: err.message });
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const earnedCount = badges.filter(b => b.is_earned).length;
+  const filtered = badges.filter(b => {
+    const q = filter.trim().toLowerCase();
+    if (!q) return true;
+    return (b.name || '').toLowerCase().includes(q) || (b.key || '').toLowerCase().includes(q);
+  });
+
+  return (
+    <div className="space-y-4 max-w-2xl mx-auto">
+      {/* User search */}
+      <div className="rounded-xl border" style={{ borderColor: C.border, background: C.card }}>
+        <div className="px-4 py-2.5 border-b" style={{ background: 'rgba(255,255,255,0.03)', borderColor: C.border }}>
+          <p className="text-[10px] font-bold uppercase tracking-widest text-gray-500">Find Player</p>
+        </div>
+        <div className="p-4">
+          <div className="relative">
+            <input
+              value={query}
+              onChange={e => setQuery(e.target.value)}
+              placeholder="Search by display name or username…"
+              className="w-full rounded-lg px-3 py-2 text-sm text-white placeholder-gray-600 border focus:border-purple-500 focus:outline-none transition-colors"
+              style={{ background: C.input, borderColor: C.border }}
+            />
+            {(results.length > 0 || (query.trim() && !searching)) && (
+            <div className="absolute z-40 mt-1 w-full rounded-lg border overflow-hidden shadow-2xl"
+              style={{ background: '#0d0f14', borderColor: C.border }}>
+              {results.length === 0
+                ? <div className="px-3 py-2.5 text-sm text-gray-600">No players found</div>
+                : results.map(u => (
+                    <button key={u.id} onClick={() => selectUser(u)}
+                      className="w-full flex items-center gap-2.5 px-3 py-2 text-left hover:bg-white/[0.04] transition-colors">
+                      {u.avatar_url
+                        ? <img src={u.avatar_url} alt="" className="w-7 h-7 rounded-full object-cover flex-shrink-0" />
+                        : <div className="w-7 h-7 rounded-full bg-gray-800 flex-shrink-0" />}
+                      <span className="text-sm text-white truncate">{u.display_name || u.username}</span>
+                      {u.username && u.display_name !== u.username && (
+                        <span className="text-xs text-gray-600 truncate">@{u.username}</span>
+                      )}
+                    </button>
+                  ))}
+            </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {message && <Alert type={message.type}>{message.text}</Alert>}
+
+      {/* Selected player badge grid */}
+      {selected && (
+        <div className="rounded-xl border p-4" style={{ background: C.card, borderColor: C.border }}>
+          <div className="flex items-center gap-3 mb-4">
+            {selected.avatar_url
+              ? <img src={selected.avatar_url} alt="" className="w-10 h-10 rounded-full object-cover" />
+              : <div className="w-10 h-10 rounded-full bg-gray-800" />}
+            <div className="min-w-0">
+              <p className="text-white font-semibold truncate">{selected.display_name || selected.username}</p>
+              <p className="text-xs text-gray-500">{earnedCount} of {badges.length} badges earned</p>
+            </div>
+            <button onClick={() => { setSelected(null); setBadges([]); }}
+              className="ml-auto text-xs text-gray-500 hover:text-gray-300 transition-colors">Change player</button>
+          </div>
+
+          {loading ? (
+            <div className="flex justify-center py-12">
+              <div className="w-7 h-7 border-2 border-gray-700 border-t-purple-500 rounded-full animate-spin" />
+            </div>
+          ) : (
+            <>
+              <input
+                value={filter}
+                onChange={e => setFilter(e.target.value)}
+                placeholder="Filter badges…"
+                className="w-full rounded-lg px-3 py-2 text-sm text-white placeholder-gray-600 border focus:border-purple-500 focus:outline-none transition-colors mb-4"
+                style={{ background: C.input, borderColor: C.border }}
+              />
+              {filtered.length === 0
+                ? <p className="text-center text-gray-600 py-8 text-sm">No badges match.</p>
+                : (
+                  <div className="grid grid-cols-[repeat(auto-fill,minmax(200px,1fr))] gap-2">
+                    {filtered.map(badge => (
+                      <GrantBadgeRow key={badge.id} badge={badge}
+                        busy={busyId === badge.id} disabled={busyId && busyId !== badge.id}
+                        onToggle={() => toggleBadge(badge)} />
+                    ))}
+                  </div>
+                )}
+            </>
+          )}
+        </div>
+      )}
+
+      {!selected && (
+        <p className="text-center text-gray-600 py-12 text-sm">Search for a player to grant or revoke badges.</p>
+      )}
+
+      {monthlyBadge && selected && (
+        <MonthlyBadgeModal
+          badge={monthlyBadge}
+          user={selected}
+          onClose={() => setMonthlyBadge(null)}
+          onChanged={() => loadBadges(selected.id)}
+        />
+      )}
+    </div>
+  );
+}
+
+// Modal for managing a monthly-winner badge across months for one player.
+function MonthlyBadgeModal({ badge, user, onClose, onChanged }) {
+  const [months,  setMonths]  = useState([]);
+  const [holders, setHolders] = useState({});   // { monthId: { user_id, name } }
+  const [loading, setLoading] = useState(true);
+  const [busyMonth, setBusyMonth] = useState(null);
+  const [error,   setError]   = useState(null);
+
+  const load = async () => {
+    setLoading(true);
+    try {
+      const res  = await fetch(`/api/admin/badges/${badge.id}/monthly-holders`, { headers: await getAuthHeaders() });
+      const data = await res.json();
+      setMonths(data.months || []);
+      setHolders(data.holders || {});
+    } catch { setError('Failed to load months.'); }
+    finally { setLoading(false); }
+  };
+  useEffect(() => { load(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const grant = async (monthId, reassign) => {
+    setBusyMonth(monthId); setError(null);
+    try {
+      const res = await fetch(`/api/admin/users/${user.id}/badges/${badge.id}`, {
+        method: 'POST',
+        headers: { ...(await getAuthHeaders()), 'Content-Type': 'application/json' },
+        body: JSON.stringify({ month_id: monthId, reassign }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        if (data.error === 'month_taken' && !reassign) {
+          if (confirm(`${data.holder_name} currently holds this month. Reassign it to ${user.display_name || user.username}?`)) {
+            return grant(monthId, true);
+          }
+          return;
+        }
+        throw new Error(data.error || 'Request failed');
+      }
+      await load();
+      onChanged?.();
+    } catch (err) { setError(err.message); }
+    finally { setBusyMonth(null); }
+  };
+
+  const revoke = async (monthId) => {
+    if (!confirm(`Revoke this month's win from ${user.display_name || user.username}?`)) return;
+    setBusyMonth(monthId); setError(null);
+    try {
+      const res = await fetch(`/api/admin/users/${user.id}/badges/${badge.id}?month_id=${monthId}`, {
+        method: 'DELETE', headers: await getAuthHeaders(),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'Request failed');
+      await load();
+      onChanged?.();
+    } catch (err) { setError(err.message); }
+    finally { setBusyMonth(null); }
+  };
+
+  const uid  = user.id;
+  const uname = user.display_name || user.username;
+
+  return (
+    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/70" onClick={onClose}>
+      <div className="w-full max-w-md rounded-2xl border max-h-[85vh] flex flex-col"
+        style={{ background: C.card, borderColor: C.border }} onClick={e => e.stopPropagation()}>
+        <div className="flex items-center gap-3 p-4 border-b" style={{ borderColor: C.border }}>
+          <img src={badge.image_url} alt="" className="w-10 h-10 rounded-lg object-cover border" style={{ borderColor: C.border }}
+            onError={e => { e.target.style.display = 'none'; }} />
+          <div className="min-w-0">
+            <p className="text-white font-semibold truncate">{badge.name}</p>
+            <p className="text-xs text-gray-500">Monthly winner — assign per month to {uname}</p>
+          </div>
+          <button onClick={onClose} className="ml-auto text-gray-500 hover:text-white text-lg leading-none">✕</button>
+        </div>
+
+        {error && <div className="px-4 pt-3"><Alert type="error">{error}</Alert></div>}
+
+        {loading ? (
+          <div className="flex justify-center py-16">
+            <div className="w-7 h-7 border-2 border-gray-700 border-t-purple-500 rounded-full animate-spin" />
+          </div>
+        ) : (
+          <div className="overflow-y-auto p-3 space-y-1.5">
+            {months.length === 0 && <p className="text-center text-gray-600 py-8 text-sm">No months found.</p>}
+            {months.map(m => {
+              const holder    = holders[m.id];
+              const heldBySelf = holder?.user_id === uid;
+              const busy      = busyMonth === m.id;
+              return (
+                <div key={m.id} className="flex items-center gap-3 rounded-lg border px-3 py-2"
+                  style={{ borderColor: C.border, background: C.inner }}>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm text-white leading-tight">{m.label}</p>
+                    <p className={`text-[11px] leading-tight ${heldBySelf ? 'text-green-400' : holder ? 'text-gray-500' : 'text-gray-600'}`}>
+                      {holder ? (heldBySelf ? '✓ Held by this player' : `Held by ${holder.name}`) : 'No winner'}
+                    </p>
+                  </div>
+                  {busy
+                    ? <span className="text-xs text-gray-500">…</span>
+                    : heldBySelf
+                      ? <button onClick={() => revoke(m.id)}
+                          className="text-xs font-medium px-2.5 py-1 rounded-lg border border-red-500/40 text-red-300 hover:bg-red-500/10 transition-colors">Revoke</button>
+                      : <button onClick={() => grant(m.id, false)}
+                          className="text-xs font-medium px-2.5 py-1 rounded-lg border border-purple-500/40 text-purple-300 hover:bg-purple-500/10 transition-colors">
+                          {holder ? 'Reassign' : 'Grant'}
+                        </button>}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function GrantBadgeRow({ badge, busy, disabled, onToggle }) {
+  const earned  = badge.is_earned;
+  const monthly = badge.is_monthly;
+  const monthCount = (badge.earned_month_ids || []).length;
+  const status = monthly
+    ? (monthCount > 0 ? `Winner of ${monthCount} month${monthCount !== 1 ? 's' : ''} — manage` : 'Monthly winner — assign months')
+    : (earned ? '✓ Earned — click to revoke' : 'Click to grant');
+  return (
+    <button
+      onClick={onToggle}
+      disabled={busy || disabled}
+      className={`flex items-center gap-2.5 rounded-lg border p-2 text-left transition-all disabled:opacity-40 ${
+        monthly
+          ? 'border-amber-500/30 bg-amber-500/[0.04] hover:border-amber-500/50 hover:bg-amber-500/[0.08]'
+          : earned
+            ? 'border-green-500/40 bg-green-500/[0.06] hover:border-red-500/50 hover:bg-red-500/[0.06]'
+            : 'border-white/[0.07] hover:border-purple-500/50 hover:bg-purple-500/[0.06]'
+      } group`}
+    >
+      <div className="w-10 h-10 rounded-lg overflow-hidden border border-white/[0.07] flex-shrink-0 bg-gray-900">
+        <img src={badge.image_url} alt={badge.name} className="w-full h-full object-cover"
+          style={{ filter: (earned || monthly) ? 'none' : 'brightness(0.55)' }}
+          onError={e => { e.target.style.display = 'none'; }} />
+      </div>
+      <div className="min-w-0 flex-1">
+        <p className="text-sm text-white truncate leading-tight">{badge.name}</p>
+        <p className={`text-[11px] leading-tight ${monthly ? 'text-amber-400/90' : earned ? 'text-green-400' : 'text-gray-600'}`}>
+          {busy ? '…' : status}
+          {badge.is_secret && <span className="text-yellow-500 ml-1">★</span>}
+        </p>
+      </div>
+    </button>
   );
 }
 
