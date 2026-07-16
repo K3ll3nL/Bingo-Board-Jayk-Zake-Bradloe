@@ -3588,11 +3588,11 @@ app.get('/api/approvals/pending', async (req, res) => {
         restricted_submission,
         historical,
         note,
-        users!apptovals_user_id_fkey (
+        users!approvals_user_id_fkey (
           display_name,
           restricted_strikes
         ),
-        pokemon_master!apptovals_pokemon_id_fkey (
+        pokemon_master!approvals_pokemon_id_fkey (
           id,
           name,
           national_dex_id,
