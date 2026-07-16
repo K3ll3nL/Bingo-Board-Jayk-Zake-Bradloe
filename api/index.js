@@ -337,10 +337,15 @@ app.post('/api/internal/period-end', async (req, res) => {
     }
 
     // ── Period-end badges — tied to bingo_months.end_date ────────────────────
+    // end_date is TIMESTAMPTZ; a month "ended yesterday" if its end moment
+    // falls anywhere in yesterday UTC.
+    const yesterdayStartISO = `${yesterdayStr}T00:00:00.000Z`;
+    const todayStartISO     = `${todayStr}T00:00:00.000Z`;
     const { data: endedMonths, error } = await supabase
       .from('bingo_months')
       .select('id, season_id, year_id')
-      .eq('end_date', yesterdayStr);
+      .gte('end_date', yesterdayStartISO)
+      .lt('end_date',  todayStartISO);
     if (error) throw error;
 
     // ── Purge expired approval_history images ─────────────────────────────────
@@ -375,9 +380,11 @@ app.post('/api/internal/period-end', async (req, res) => {
       results.months.push({ id: month.id, awarded: await processMonthEnd(month.id) });
 
       if (month.season_id && !doneSeasons.has(month.season_id)) {
+        // Any OTHER month in this season that hasn't ended yet?
+        // (end_date >= today_start means the month either ends later today or in the future.)
         const { count } = await supabase
           .from('bingo_months').select('*', { count: 'exact', head: true })
-          .eq('season_id', month.season_id).gt('end_date', yesterdayStr);
+          .eq('season_id', month.season_id).gte('end_date', todayStartISO);
         if (count === 0) {
           doneSeasons.add(month.season_id);
           results.seasons.push({ id: month.season_id, awarded: await processSeasonEnd(month.season_id) });
@@ -387,7 +394,7 @@ app.post('/api/internal/period-end', async (req, res) => {
       if (month.year_id && !doneYears.has(month.year_id)) {
         const { count } = await supabase
           .from('bingo_months').select('*', { count: 'exact', head: true })
-          .eq('year_id', month.year_id).gt('end_date', yesterdayStr);
+          .eq('year_id', month.year_id).gte('end_date', todayStartISO);
         if (count === 0) {
           doneYears.add(month.year_id);
           results.years.push({ id: month.year_id, awarded: await processYearEnd(month.year_id) });
@@ -703,12 +710,10 @@ async function getActiveMonth(userId = null) {
     }
   }
 
-  // Offset now by -2 hours so bare end_dates (stored as midnight UTC) effectively expire 2 hours later
-  const offsetNow = new Date(now.getTime() - 4 * 60 * 60 * 1000);
-  const nowISO = offsetNow.toISOString();
+  const nowISO = now.toISOString();
 
-  // Cache hit: valid as long as we haven't passed the month's end_date (+2h offset)
-  if (activeMonthCache && offsetNow < new Date(activeMonthCache.end_date)) {
+  // end_date is TIMESTAMPTZ (the exact moment the month expires) — direct compare.
+  if (activeMonthCache && now < new Date(activeMonthCache.end_date)) {
     return activeMonthCache;
   }
 

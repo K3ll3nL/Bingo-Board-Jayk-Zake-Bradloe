@@ -3,10 +3,6 @@ node_modules/
 package-lock.json
 yarn.lock
 
-# Database
-server/db/*.db
-server/db/*.db-journal
-
 # Environment variables
 .env
 .env.local
@@ -34,3 +30,9 @@ Thumbs.db
 # Claude files
 .claude/
 CLAUDE.md
+
+# Supabase CLI local state (config.toml IS committed; these are not)
+supabase/.branches/
+supabase/.temp/
+supabase/.env
+supabase/dev-fixtures/
