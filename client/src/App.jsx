@@ -559,14 +559,22 @@ const HomePage = () => {
 };
 
 // Consent gate: shown to any logged-in user who hasn't accepted the ToS yet.
-// Bypassed in localhost dev (no real auth).
+// Bypassed in localhost dev (no real auth) unless ?force_tos=fresh|update
+// is passed for manual QA of the modal copy.
 const ConsentGate = ({ children }) => {
   const { user, loading } = useAuth();
-  const { pathname } = useLocation();
+  const { pathname, search } = useLocation();
   const [tosAccepted, setTosAccepted] = React.useState(null); // null = unknown
   const [isUpdate, setIsUpdate] = React.useState(false);
 
+  const forceTos = React.useMemo(() => {
+    if (!import.meta.env.DEV) return null;
+    const v = new URLSearchParams(search).get('force_tos');
+    return v === 'fresh' || v === 'update' ? v : null;
+  }, [search]);
+
   React.useEffect(() => {
+    if (forceTos) { setTosAccepted(false); setIsUpdate(forceTos === 'update'); return; }
     if (!user || import.meta.env.DEV) { setTosAccepted(true); return; }
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (!session) { setTosAccepted(true); return; }
@@ -580,9 +588,10 @@ const ConsentGate = ({ children }) => {
         })
         .catch(() => setTosAccepted(true)); // fail open so a network error doesn't lock users out
     });
-  }, [user]);
+  }, [user, forceTos]);
 
   const handleAccept = async () => {
+    if (forceTos) { setTosAccepted(true); return; }
     const { data: { session } } = await supabase.auth.getSession();
     await fetch('/api/user/accept-tos', {
       method: 'POST',
@@ -591,10 +600,12 @@ const ConsentGate = ({ children }) => {
     setTosAccepted(true);
   };
 
+  const showModal = !loading && tosAccepted === false && pathname !== '/privacy' && pathname !== '/terms' && (forceTos || user);
+
   return (
     <>
       {children}
-      {!loading && user && tosAccepted === false && pathname !== '/privacy' && pathname !== '/terms' && (
+      {showModal && (
         <ConsentModal onAccept={handleAccept} isUpdate={isUpdate} />
       )}
     </>
