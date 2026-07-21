@@ -3345,6 +3345,53 @@ app.post('/api/user/sync-avatar', async (req, res) => {
   }
 });
 
+// Current Terms of Service / Privacy Policy version. Bump when either changes
+// materially — every user whose stored tos_version_accepted is lower will be
+// re-prompted by ConsentGate on their next visit.
+const TOS_VERSION = 2;
+
+app.get('/api/user/tos-status', async (req, res) => {
+  try {
+    const userId = await getAuthenticatedUserId(req);
+    if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+
+    const { data, error } = await supabase
+      .from('users')
+      .select('tos_version_accepted')
+      .eq('id', userId)
+      .single();
+    if (error) throw error;
+
+    const accepted = (data?.tos_version_accepted ?? 0) >= TOS_VERSION;
+    const isUpdate = data?.tos_version_accepted != null && data.tos_version_accepted < TOS_VERSION;
+    res.json({ accepted, is_update: isUpdate, current_version: TOS_VERSION });
+  } catch (err) {
+    console.error('tos-status error:', err.message);
+    res.status(500).json({ error: 'Failed to load ToS status' });
+  }
+});
+
+app.post('/api/user/accept-tos', async (req, res) => {
+  try {
+    const userId = await getAuthenticatedUserId(req);
+    if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+
+    const { error } = await supabase
+      .from('users')
+      .update({
+        tos_accepted_at: new Date().toISOString(),
+        tos_version_accepted: TOS_VERSION,
+      })
+      .eq('id', userId);
+    if (error) throw error;
+
+    res.json({ success: true, version: TOS_VERSION });
+  } catch (err) {
+    console.error('accept-tos error:', err.message);
+    res.status(500).json({ error: 'Failed to record ToS acceptance' });
+  }
+});
+
 app.get('/api/user/is-moderator', async (req, res) => {
   try {
     const userId = await getAuthenticatedUserId(req);

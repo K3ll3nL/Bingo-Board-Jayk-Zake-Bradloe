@@ -23,7 +23,7 @@ export default function TermsOfService() {
       <PageHeader title="Terms of Service" />
       <div className="text-center">
         <h1 className="text-2xl font-bold text-white mb-1">Terms of Service</h1>
-        <p className="text-xs text-gray-500">Last updated: June 20, 2026</p>
+        <p className="text-xs text-gray-500">Last updated: July 20, 2026</p>
       </div>
 
       <Section title="Acceptance of Terms">
@@ -114,6 +114,20 @@ export default function TermsOfService() {
           <li>Interfere with the normal operation of the Site</li>
           <li>Use the Site for any unlawful purpose</li>
         </ul>
+      </Section>
+
+      <Section title="Generative AI Disclosure">
+        <p>
+          The code powering this Site is written with substantial assistance from AI coding tools
+          (Anthropic's Claude). A human maintainer reviews and approves all changes before they go live.
+        </p>
+        <p>
+          All Pokémon artwork, badge art, and visual assets on the Site are created by human artists -
+          no generative AI is used for imagery.
+        </p>
+        <p>
+          Moderation of catch submissions is performed by human moderators, not by AI.
+        </p>
       </Section>
 
       <Section title="Disclaimer of Warranties">

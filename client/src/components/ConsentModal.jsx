@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 
-export default function ConsentModal({ onAccept }) {
+export default function ConsentModal({ onAccept, isUpdate = false }) {
   const [checked, setChecked] = useState(false);
   const [loading, setLoading] = useState(false);
 
@@ -18,14 +18,28 @@ export default function ConsentModal({ onAccept }) {
     <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4" style={{ backgroundColor: 'rgba(0,0,0,0.85)' }}>
       <div className="w-full max-w-md rounded-xl shadow-2xl border border-gray-600 overflow-hidden" style={{ backgroundColor: '#35373b' }}>
         <div className="px-6 py-4 border-b border-purple-500/30" style={{ backgroundColor: 'rgba(145,71,255,0.08)' }}>
-          <h2 className="text-lg font-bold text-white">Before you continue</h2>
+          <h2 className="text-lg font-bold text-white">
+            {isUpdate ? 'Our Terms have been updated' : 'Before you continue'}
+          </h2>
         </div>
 
         <div className="px-6 py-5 space-y-4 text-sm text-gray-300">
-          <p>
-            We've added a Privacy Policy and Terms of Service to Pokeboard.net.
-            Please review them before continuing.
-          </p>
+          {isUpdate ? (
+            <>
+              <p>
+                We've updated our Terms of Service and Privacy Policy. Please review the changes before continuing.
+              </p>
+              <p className="text-xs text-gray-400">
+                <span className="text-white font-medium">What changed:</span> we added a
+                {' '}Generative AI disclosure covering how code and imagery are produced on the Site.
+              </p>
+            </>
+          ) : (
+            <p>
+              We've added a Privacy Policy and Terms of Service to Pokeboard.net.
+              Please review them before continuing.
+            </p>
+          )}
 
           <div className="rounded-lg p-4 space-y-2 border border-gray-600" style={{ backgroundColor: '#2a2c2f' }}>
             <div className="flex items-start gap-3">
@@ -60,7 +74,9 @@ export default function ConsentModal({ onAccept }) {
               className="mt-0.5 w-4 h-4 rounded accent-purple-500 cursor-pointer shrink-0"
             />
             <span className="text-gray-300 group-hover:text-white transition-colors select-none">
-              I have read and agree to the Terms of Service and Privacy Policy.
+              {isUpdate
+                ? 'I have read and agree to the updated Terms of Service and Privacy Policy.'
+                : 'I have read and agree to the Terms of Service and Privacy Policy.'}
             </span>
           </label>
         </div>
@@ -76,7 +92,7 @@ export default function ConsentModal({ onAccept }) {
               cursor: checked && !loading ? 'pointer' : 'not-allowed',
             }}
           >
-            {loading ? 'Saving...' : 'I Agree — Continue'}
+            {loading ? 'Saving...' : 'I Agree - Continue'}
           </button>
         </div>
       </div>

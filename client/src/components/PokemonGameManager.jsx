@@ -34,7 +34,7 @@ const C = {
 
 // ── Column definitions ─────────────────────────────────────────────────────────
 // Always-visible: checkbox, sprite, name, spacer, save.
-// 'slugs' is a paired entry — toggling it shows/hides both slug columns together.
+// 'slugs' is a paired entry - toggling it shows/hides both slug columns together.
 const COLUMN_DEFS = [
   { id: 'slugs',       label: 'Slug Columns',  dot: '#a855f7', widths: ['200px', '200px'] },
   { id: 'shiny',       label: 'Shiny',          dot: '#facc15', width: '90px'  },
@@ -297,7 +297,7 @@ const CategoryDropdown = ({ pokemonId, data, onChange }) => {
         className="flex items-center justify-between gap-2 w-full px-3 py-1.5 rounded-lg border text-sm transition-colors"
         style={{ background: C.input, borderColor: activeCount > 0 ? 'rgba(52,211,153,0.3)' : C.border }}>
         <span style={{ color: activeCount > 0 ? '#34d399' : 'rgba(255,255,255,0.25)' }}>
-          {activeCount > 0 ? activeCount : '—'}
+          {activeCount > 0 ? activeCount : '-'}
         </span>
         <svg className={`w-3.5 h-3.5 flex-shrink-0 transition-transform text-gray-600 ${open ? 'rotate-180' : ''}`}
           fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -358,13 +358,21 @@ const PokemonRow = React.memo(({
 
     {/* Name */}
     <div>
-      <div className="text-white text-sm font-medium leading-tight">{p.name}</div>
+      <a
+        href={`https://bulbapedia.bulbagarden.net/wiki/${encodeURIComponent(p.name.replace(/^(Alolan|Galarian|Hisuian|Paldean) /, ''))}_(Pok%C3%A9mon)#Game_locations`}
+        target="_blank"
+        rel="noopener noreferrer"
+        title="Open on Bulbapedia"
+        className="text-white text-sm font-medium leading-tight hover:text-purple-300 hover:underline transition-colors"
+      >
+        {p.name}
+      </a>
       <div className="text-[11px] mt-0.5" style={{ color: 'rgba(255,255,255,0.25)' }}>
         #{String(p.national_dex_id).padStart(4, '0')}
       </div>
     </div>
 
-    {/* Slug columns — always paired */}
+    {/* Slug columns - always paired */}
     {visible.has('slugs') && (
       <SlugDropdown pokemonId={p.id} field="game_slugs" value={data.game_slugs}
         onChange={handleSlugChange} reversed={reversed} />
@@ -418,7 +426,7 @@ const PokemonRow = React.memo(({
     {/* Spacer */}
     <div />
 
-    {/* Save indicator — always shown */}
+    {/* Save indicator - always shown */}
     <div className="flex items-center justify-center">
       <SaveIndicator status={status} />
     </div>

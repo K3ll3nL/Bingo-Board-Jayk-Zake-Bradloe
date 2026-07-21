@@ -23,7 +23,7 @@ export default function PrivacyPolicy() {
       <PageHeader title="Privacy Policy" />
       <div className="text-center">
         <h1 className="text-2xl font-bold text-white mb-1">Privacy Policy</h1>
-        <p className="text-xs text-gray-500">Last updated: June 20, 2026</p>
+        <p className="text-xs text-gray-500">Last updated: July 20, 2026</p>
       </div>
 
       <Section title="Who We Are">
@@ -40,22 +40,22 @@ export default function PrivacyPolicy() {
 
       <Section title="What Data We Collect">
         <p>
-          <span className="text-white font-medium">Discord account data</span> — when you log in with Discord,
+          <span className="text-white font-medium">Discord account data</span> - when you log in with Discord,
           we receive and store your Discord user ID, username, display name, profile picture URL, and the email
           address associated with your Discord account. This data is provided by Discord as part of the OAuth
           login process and is required to create and identify your account.
         </p>
         <p>
-          <span className="text-white font-medium">Twitch URL</span> — if you add a Twitch channel link to
+          <span className="text-white font-medium">Twitch URL</span> - if you add a Twitch channel link to
           your profile, we store it to display a live indicator on the leaderboard. This is entirely optional.
         </p>
         <p>
-          <span className="text-white font-medium">Submission content</span> — when you submit a Pokémon catch
+          <span className="text-white font-medium">Submission content</span> - when you submit a Pokémon catch
           for approval, we store the proof image or link you provide, the Pokémon details, and the associated
           game metadata.
         </p>
         <p>
-          <span className="text-white font-medium">Activity data</span> — we record your catch approvals,
+          <span className="text-white font-medium">Activity data</span> - we record your catch approvals,
           bingo achievements, badge awards, and points for the purpose of running the competition.
         </p>
         <p>
@@ -85,26 +85,26 @@ export default function PrivacyPolicy() {
         </p>
         <ul className="list-disc list-inside space-y-1.5">
           <li>
-            <span className="text-white font-medium">Supabase</span> — our database and authentication provider.
+            <span className="text-white font-medium">Supabase</span> - our database and authentication provider.
             Your account data and competition records are stored on Supabase-hosted PostgreSQL servers.
             See <a href="https://supabase.com/privacy" target="_blank" rel="noopener noreferrer" className="text-purple-400 hover:underline">supabase.com/privacy</a>.
           </li>
           <li>
-            <span className="text-white font-medium">Cloudflare R2</span> — proof images you upload are stored
+            <span className="text-white font-medium">Cloudflare R2</span> - proof images you upload are stored
             on Cloudflare R2 object storage.
             See <a href="https://www.cloudflare.com/privacypolicy/" target="_blank" rel="noopener noreferrer" className="text-purple-400 hover:underline">cloudflare.com/privacypolicy</a>.
           </li>
           <li>
-            <span className="text-white font-medium">Discord</span> — we use Discord OAuth for login.
+            <span className="text-white font-medium">Discord</span> - we use Discord OAuth for login.
             See <a href="https://discord.com/privacy" target="_blank" rel="noopener noreferrer" className="text-purple-400 hover:underline">discord.com/privacy</a>.
           </li>
           <li>
-            <span className="text-white font-medium">Twitch</span> — we query the Twitch API to check
+            <span className="text-white font-medium">Twitch</span> - we query the Twitch API to check
             live stream status for users who have provided a Twitch URL.
             See <a href="https://www.twitch.tv/p/legal/privacy-notice/" target="_blank" rel="noopener noreferrer" className="text-purple-400 hover:underline">twitch.tv/p/legal/privacy-notice</a>.
           </li>
           <li>
-            <span className="text-white font-medium">Vercel</span> — our site and API are hosted on Vercel.
+            <span className="text-white font-medium">Vercel</span> - our site and API are hosted on Vercel.
             See <a href="https://vercel.com/legal/privacy-policy" target="_blank" rel="noopener noreferrer" className="text-purple-400 hover:underline">vercel.com/legal/privacy-policy</a>.
           </li>
         </ul>
@@ -145,7 +145,7 @@ export default function PrivacyPolicy() {
         </p>
         <p>
           <span className="text-white font-medium">Lawful basis for processing.</span> We process your
-          personal data on the basis of <span className="text-white font-medium">contractual necessity</span> —
+          personal data on the basis of <span className="text-white font-medium">contractual necessity</span> -
           the data is required to provide the service you signed up for (your account, competition
           participation, and leaderboard standings).
         </p>
@@ -158,17 +158,30 @@ export default function PrivacyPolicy() {
           <span className="text-white font-medium">Your rights.</span> You have the right to:
         </p>
         <ul className="list-disc list-inside space-y-1.5">
-          <li><span className="text-white font-medium">Access</span> — request a copy of the personal data we hold about you.</li>
-          <li><span className="text-white font-medium">Rectification</span> — ask us to correct inaccurate data.</li>
-          <li><span className="text-white font-medium">Erasure</span> — request deletion of your personal data.</li>
-          <li><span className="text-white font-medium">Restriction</span> — ask us to limit how we process your data.</li>
-          <li><span className="text-white font-medium">Portability</span> — receive your data in a structured, machine-readable format.</li>
-          <li><span className="text-white font-medium">Objection</span> — object to processing based on legitimate interests.</li>
+          <li><span className="text-white font-medium">Access</span> - request a copy of the personal data we hold about you.</li>
+          <li><span className="text-white font-medium">Rectification</span> - ask us to correct inaccurate data.</li>
+          <li><span className="text-white font-medium">Erasure</span> - request deletion of your personal data.</li>
+          <li><span className="text-white font-medium">Restriction</span> - ask us to limit how we process your data.</li>
+          <li><span className="text-white font-medium">Portability</span> - receive your data in a structured, machine-readable format.</li>
+          <li><span className="text-white font-medium">Objection</span> - object to processing based on legitimate interests.</li>
         </ul>
         <p>
           To exercise any of these rights, contact us through the Suggestions & Bugs form in the site menu.
           You also have the right to lodge a complaint with your local data protection authority (e.g., the
           ICO in the UK or your national supervisory authority in the EU).
+        </p>
+      </Section>
+
+      <Section title="Generative AI and Your Data">
+        <p>
+          The code powering this Site is written with the assistance of AI coding tools
+          (Anthropic's Claude), reviewed and approved by a human maintainer before deployment.
+          We do <span className="text-white font-medium">not</span> feed your account data,
+          submission content, or any other personal information into AI models.
+        </p>
+        <p>
+          Site artwork is created by human artists - no generative AI is used for imagery -
+          and submission moderation is performed by human moderators.
         </p>
       </Section>
 

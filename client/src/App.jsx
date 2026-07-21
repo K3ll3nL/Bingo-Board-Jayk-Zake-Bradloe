@@ -564,6 +564,7 @@ const ConsentGate = ({ children }) => {
   const { user, loading } = useAuth();
   const { pathname } = useLocation();
   const [tosAccepted, setTosAccepted] = React.useState(null); // null = unknown
+  const [isUpdate, setIsUpdate] = React.useState(false);
 
   React.useEffect(() => {
     if (!user || import.meta.env.DEV) { setTosAccepted(true); return; }
@@ -573,7 +574,10 @@ const ConsentGate = ({ children }) => {
         headers: { Authorization: `Bearer ${session.access_token}` },
       })
         .then(r => r.json())
-        .then(d => setTosAccepted(!!d.accepted))
+        .then(d => {
+          setTosAccepted(!!d.accepted);
+          setIsUpdate(!!d.is_update);
+        })
         .catch(() => setTosAccepted(true)); // fail open so a network error doesn't lock users out
     });
   }, [user]);
@@ -591,7 +595,7 @@ const ConsentGate = ({ children }) => {
     <>
       {children}
       {!loading && user && tosAccepted === false && pathname !== '/privacy' && pathname !== '/terms' && (
-        <ConsentModal onAccept={handleAccept} />
+        <ConsentModal onAccept={handleAccept} isUpdate={isUpdate} />
       )}
     </>
   );
