@@ -621,6 +621,7 @@ function App() {
       <AuthProvider>
         <PageTitleContext.Provider value={{ pageMeta, setPageMeta }}>
         <NotificationToast />
+        <ConsentGate>
         <Routes>
           {/* Routes without the shared header */}
           <Route path="/auth/callback" element={<AuthCallback />} />
@@ -661,6 +662,7 @@ function App() {
             <Route path="*" element={<HomePage />} />
           </Route>
         </Routes>
+        </ConsentGate>
         </PageTitleContext.Provider>
       </AuthProvider>
     </Router>
