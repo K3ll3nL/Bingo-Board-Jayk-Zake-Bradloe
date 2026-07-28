@@ -2,6 +2,10 @@ import React, { useState, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import PageBackground from '../PageBackground';
 
+// Search Level is capped at 999. The Serebii table plateaus at 901+, so any
+// higher value has identical odds — showing SL 1000+ is just misleading.
+const SL_CAP = 999;
+
 // ── Serebii lookup table ──────────────────────────────────────────────────────
 const TABLE_NO_CHARM = [
   [0,          0,   4096,    4096,    4096,   4096   ],
@@ -173,14 +177,17 @@ export default function DexNavCalculator() {
   const resetAt    = resetAtStr ? Math.max(1, parseInt(resetAtStr) || 0) : 0;
   const secsPerEnc = secsStr    ? Math.max(1, parseFloat(secsStr)  || 10) : null;
 
+  const slCapped = searchLevel >= SL_CAP;
+
   const advance = (alsoSL) => {
     setChain(c => {
       const next = c + 1;
       return (resetAt > 0 && next > resetAt) ? 0 : next;
     });
-    if (alsoSL) setSearchLevel(s => s + 1);
+    if (alsoSL) setSearchLevel(s => Math.min(SL_CAP, s + 1));
   };
   const handleSetChain = v => setChain(Math.max(0, resetAt > 0 ? Math.min(v, resetAt) : v));
+  const handleSetSearchLevel = v => setSearchLevel(Math.min(SL_CAP, Math.max(0, v)));
 
   const comp = useMemo(() => {
     const nextChain = chain + 1;
@@ -189,8 +196,8 @@ export default function DexNavCalculator() {
     const effectiveP = 0.768 / std + 0.232 / boost;
     const distTo50  = Math.max(0, 50  - nextChain);
     const distTo100 = Math.max(0, 100 - nextChain);
-    const slAt50  = searchLevel + distTo50;
-    const slAt100 = searchLevel + distTo100;
+    const slAt50  = Math.min(SL_CAP, searchLevel + distTo50);
+    const slAt100 = Math.min(SL_CAP, searchLevel + distTo100);
     const pAt50   = prob(slAt50,  50,  shinyCharm);
     const pAt100  = prob(slAt100, 100, shinyCharm);
     const graphMax = Math.min(1200, Math.max(200, distTo100 + 100, Math.ceil(1 / effectiveP * 1.5)));
@@ -200,7 +207,7 @@ export default function DexNavCalculator() {
     let cumNotShiny = 1;
     for (let i = 0; i <= fullMax; i++) {
       const c  = chainAt(nextChain, i, resetAt);
-      const sl = searchLevel + i;
+      const sl = Math.min(SL_CAP, searchLevel + i);
       const p  = prob(sl, c, shinyCharm);
       points.push({ enc: i, cdf: 1 - cumNotShiny, p, chain: c, sl });
       cumNotShiny *= (1 - p);
@@ -215,7 +222,7 @@ export default function DexNavCalculator() {
       for (let i = 0; i <= cap; i++) {
         expectedEnc += survival;
         const c = chainAt(nextChain, i, resetAt);
-        const p = prob(searchLevel + i, c, shinyCharm);
+        const p = prob(Math.min(SL_CAP, searchLevel + i), c, shinyCharm);
         survival *= (1 - p);
         if (survival < 1e-6) break;
       }
@@ -305,16 +312,16 @@ export default function DexNavCalculator() {
           />
           <CounterBox
             label="Search Level" accent="#34d399"
-            sublabel="total encounters with this species · never resets"
-            value={searchLevel} onChange={v => setSearchLevel(Math.max(0, v))}
+            sublabel={slCapped ? `maxed at ${SL_CAP} · odds no longer improve` : 'total encounters with this species · never resets'}
+            value={searchLevel} onChange={handleSetSearchLevel}
           />
         </div>
 
         {/* Action buttons */}
         <div className="grid grid-cols-3 gap-3 mb-6">
           {[
-            { label: 'On-Target', sub: 'chain+1 · SL+1', icon: '🎯', color: '#34d399', bg: 'rgba(52,211,153,0.1)', border: 'rgba(52,211,153,0.25)', onClick: () => advance(true) },
-            { label: 'Off-Target', sub: 'chain+1 · SL stays', icon: '↪', color: '#fbbf24', bg: 'rgba(251,191,36,0.1)', border: 'rgba(251,191,36,0.25)', onClick: () => advance(false) },
+            { label: 'On-Target', sub: slCapped ? 'chain+1 · SL maxed' : 'chain+1 · SL+1', icon: '🎯', color: '#34d399', bg: 'rgba(52,211,153,0.1)', border: 'rgba(52,211,153,0.25)', onClick: () => advance(true) },
+            { label: 'Off-Target', sub: slCapped ? 'chain+1 · SL maxed' : 'chain+1 · SL stays', icon: '↪', color: '#fbbf24', bg: 'rgba(251,191,36,0.1)', border: 'rgba(251,191,36,0.25)', onClick: () => advance(false) },
             { label: 'Reset Chain', sub: 'SL unchanged', icon: '↩', color: '#9ca3af', bg: 'rgba(255,255,255,0.04)', border: 'rgba(255,255,255,0.08)', onClick: () => setChain(0) },
           ].map(btn => (
             <button key={btn.label} onClick={btn.onClick}
@@ -451,7 +458,7 @@ export default function DexNavCalculator() {
                   <SmallStatCard key="exp" label="Expected encounters"
                     value={expectedEnc.toLocaleString()} accent="#fb923c"
                     sub={secsPerEnc ? `≈ ${fmtTime(expectedEnc * secsPerEnc)}` : undefined}
-                    note="from now · SL growth + milestones + boosts included" />
+                    note={slCapped ? 'from now · milestones + boosts included' : 'from now · SL growth + milestones + boosts included'} />
                 ];
               })()}
             </div>
@@ -493,7 +500,7 @@ export default function DexNavCalculator() {
             }}>
               <div className="px-4 py-3 border-b" style={{ borderColor: 'rgba(255,255,255,0.06)' }}>
                 <h2 className="text-sm font-bold text-white">Probability Milestones</h2>
-                <p className="text-xs text-gray-500 mt-0.5">Encounters from now · SL increases per on-target encounter</p>
+                <p className="text-xs text-gray-500 mt-0.5">{slCapped ? `Encounters from now · SL maxed at ${SL_CAP}` : 'Encounters from now · SL increases per on-target encounter'}</p>
               </div>
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">

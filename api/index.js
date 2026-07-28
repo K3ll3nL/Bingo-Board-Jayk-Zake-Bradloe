@@ -4458,9 +4458,12 @@ app.get('/api/mod/board-builder', async (req, res) => {
     let boardMonTotal = 0;
     tiles.forEach(t => { if (t.pokemon?.id || t.pokemon_id) boardMonTotal++; });
 
+    // Only count shiny-available pokemon in the dex denominator — non-shiny mons
+    // can never appear on a board, so including them inflates the "expected" dex share.
     const { count: dexTotal } = await supabase
       .from('pokemon_master')
-      .select('*', { count: 'exact', head: true });
+      .select('*', { count: 'exact', head: true })
+      .eq('shiny_available', true);
 
     // Build { gameKey: { boardCount, dexCount } } for a given slug map + column.
     const buildGameStats = async (slugMap, slugColumn) => {
@@ -4473,7 +4476,11 @@ app.get('/api/mod/board-builder', async (req, res) => {
       const keys = Object.keys(boardCounts);
       const dexCounts = await Promise.all(
         keys.map(g =>
-          supabase.from('pokemon_master').select('*', { count: 'exact', head: true }).contains(slugColumn, [g])
+          supabase
+            .from('pokemon_master')
+            .select('*', { count: 'exact', head: true })
+            .eq('shiny_available', true)
+            .contains(slugColumn, [g])
         )
       );
       const stats = {};

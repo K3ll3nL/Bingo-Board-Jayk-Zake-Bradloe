@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { createClient } from '@supabase/supabase-js';
-import { ALLOWED_GAMES } from '../constants/games';
+import { ALLOWED_GAMES, GAMES_BY_MANAGER_ORDER } from '../constants/games';
 import PokemonImage from './PokemonImage';
 import PageBackground from './PageBackground';
 import PageHeader from './PageHeader';
@@ -210,7 +210,7 @@ const SlugDropdown = ({ pokemonId, field, value, onChange, matchValue, reversed 
         )}
       </div>
       <div className="grid grid-cols-3 gap-1.5 p-2">
-        {(reversed ? [...ALLOWED_GAMES].reverse() : ALLOWED_GAMES).map((g) => {
+        {(reversed ? [...GAMES_BY_MANAGER_ORDER].reverse() : GAMES_BY_MANAGER_ORDER).map((g) => {
           const checked = value.includes(g.key);
           return (
             <label key={g.key}
