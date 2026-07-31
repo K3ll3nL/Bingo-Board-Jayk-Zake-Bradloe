@@ -543,10 +543,10 @@ const HomePage = () => {
       <BannerBar />
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="rounded-xl shadow-xl p-6 border border-gray-600" style={{ background: 'linear-gradient(160deg, #1a1c23 0%, #1f2128 100%)', borderColor: 'rgba(255,255,255,0.07)' }}>
+        <div className="rounded-xl shadow-xl p-6 border border-gray-600 lg:min-h-[720px]" style={{ background: 'linear-gradient(160deg, #1a1c23 0%, #1f2128 100%)', borderColor: 'rgba(255,255,255,0.07)' }}>
           <BingoBoard />
         </div>
-        <div className="relative rounded-xl shadow-xl overflow-hidden min-h-[480px] lg:min-h-0" style={{ background: 'linear-gradient(160deg, #1a1c23 0%, #1f2128 100%)', border: '1px solid rgba(255,255,255,0.07)' }}>
+        <div className="relative rounded-xl shadow-xl overflow-hidden min-h-[480px] lg:min-h-[720px]" style={{ background: 'linear-gradient(160deg, #1a1c23 0%, #1f2128 100%)', border: '1px solid rgba(255,255,255,0.07)' }}>
           <div className="absolute inset-0 p-6 flex flex-col">
             <Leaderboard />
           </div>

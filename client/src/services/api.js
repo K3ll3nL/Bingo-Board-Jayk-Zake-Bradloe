@@ -28,12 +28,21 @@ export const getAuthHeaders = async () => {
   return headers;
 };
 
+// Attach the HTTP status to the thrown error so callers can distinguish
+// "no active month" (404 — real empty state, don't spin retrying) from
+// 5xx / network failures (transient — safe to auto-retry).
+const httpError = (msg, status) => {
+  const e = new Error(msg);
+  e.status = status;
+  return e;
+};
+
 export const api = {
   // Bingo Board endpoints
   getBingoBoard: async (version = 0) => {
     const headers = await getAuthHeaders();
     const response = await fetch(`${API_BASE_URL}/bingo/board?v=${version}`, { headers, cache: 'no-store' });
-    if (!response.ok) throw new Error('Failed to fetch bingo board');
+    if (!response.ok) throw httpError('Failed to fetch bingo board', response.status);
     return response.json();
   },
 
@@ -43,13 +52,13 @@ export const api = {
     const mode = VALID_MODES.includes(viewMode) ? viewMode : 'monthly';
     const periodParam = periodMonthId ? `&period_month_id=${periodMonthId}` : '';
     const response = await fetch(`${API_BASE_URL}/leaderboard?mode=${mode}&v=${version}${periodParam}`, { cache: 'no-store' });
-    if (!response.ok) throw new Error('Failed to fetch leaderboard');
+    if (!response.ok) throw httpError('Failed to fetch leaderboard', response.status);
     return response.json();
   },
 
   getLeaderboardPeriods: async () => {
     const response = await fetch(`${API_BASE_URL}/leaderboard/periods`, { cache: 'no-store' });
-    if (!response.ok) throw new Error('Failed to fetch periods');
+    if (!response.ok) throw httpError('Failed to fetch periods', response.status);
     return response.json();
   },
 };

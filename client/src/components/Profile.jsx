@@ -10,6 +10,7 @@ import restrictedIcon from '../Icons/restricted-icon.png';
 import shinyDexUrl from '../Icons/ShinyDex Logo.png';
 import PageBackground from './PageBackground';
 import PageHeader from './PageHeader';
+import ReconnectingPill from './ReconnectingPill';
 import { getAuthHeaders } from '../services/api';
 
 // Card gradient styles — avoids repeating the strings everywhere
@@ -837,20 +838,49 @@ const Profile = () => {
     setAccountLinking(null);
   };
 
+  const retryTimer = useRef(null);
+  const retryAttempt = useRef(0);
+  useEffect(() => () => { if (retryTimer.current) clearTimeout(retryTimer.current); }, []);
+
   useEffect(() => {
     if (!profileUserId) { setLoading(false); return; }
-    fetch(`/api/profile/${profileUserId}`)
-      .then(r => { if (!r.ok) throw new Error(); return r.json(); })
-      .then(data => {
-        setProfile(data);
-        setSocialForm({
-          twitch_url: handleFromUrl('twitch_url', data.user.twitch_url),
-          youtube_url: handleFromUrl('youtube_url', data.user.youtube_url),
-          shinydex_url: handleFromUrl('shinydex_url', data.user.shinydex_url),
+    let cancelled = false;
+    const load = () => {
+      fetch(`/api/profile/${profileUserId}`)
+        .then(r => {
+          // 404 is a real "not found" — everything else (5xx, network) is treated
+          // as a transient outage so a Supabase blip doesn't nuke the whole page.
+          if (r.status === 404) { const e = new Error('not_found'); e.notFound = true; throw e; }
+          if (!r.ok) throw new Error('transient');
+          return r.json();
+        })
+        .then(data => {
+          if (cancelled) return;
+          setProfile(data);
+          setError(null);
+          retryAttempt.current = 0;
+          setLoading(false);
+          setSocialForm({
+            twitch_url: handleFromUrl('twitch_url', data.user.twitch_url),
+            youtube_url: handleFromUrl('youtube_url', data.user.youtube_url),
+            shinydex_url: handleFromUrl('shinydex_url', data.user.shinydex_url),
+          });
+        })
+        .catch(err => {
+          if (cancelled) return;
+          if (err && err.notFound) {
+            setError('not_found');
+            setLoading(false);
+            return;
+          }
+          setError('transient');
+          const delay = Math.min(30000, 5000 * Math.pow(1.5, retryAttempt.current));
+          retryAttempt.current += 1;
+          retryTimer.current = setTimeout(load, delay);
         });
-      })
-      .catch(() => setError('Failed to load profile'))
-      .finally(() => setLoading(false));
+    };
+    load();
+    return () => { cancelled = true; if (retryTimer.current) clearTimeout(retryTimer.current); };
   }, [profileUserId]);
 
   const handleSaveSocials = async () => {
@@ -898,8 +928,9 @@ const Profile = () => {
     setNameSaving(false);
   };
 
-  if (loading) return (
-    <div className="min-h-screen" style={{ background: '#0d0f14' }}>
+  if (loading || (error === 'transient' && !profile)) return (
+    <div className="min-h-screen relative" style={{ background: '#0d0f14' }}>
+      {error === 'transient' && <ReconnectingPill label="Reconnecting to server…" />}
       <div className="max-w-7xl mx-auto px-6 py-6 space-y-4 animate-pulse">
         <div className="h-32 rounded-2xl" style={{ background: CARD.bg, border: `1px solid ${CARD.border}` }} />
         <div className="flex gap-4">
@@ -919,9 +950,9 @@ const Profile = () => {
     </div>
   );
 
-  if (error || !profile) return (
+  if (error === 'not_found' || !profile) return (
     <div className="min-h-screen flex items-center justify-center" style={{ background: '#0d0f14' }}>
-      <div className="text-red-400">{error || 'Profile not found'}</div>
+      <div className="text-gray-400">Profile not found</div>
     </div>
   );
 

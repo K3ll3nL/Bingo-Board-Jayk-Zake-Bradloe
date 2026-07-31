@@ -1,22 +1,26 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { api } from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
 import PokemonModal from './PokemonModal';
 import AchievementIcon from './AchievementIcon';
 import BingoGrid from './BingoGrid';
+import ReconnectingPill from './ReconnectingPill';
 
 const BingoBoard = () => {
   const { user, boardVersion, loading: authLoading } = useAuth();
   const [board, setBoard] = useState([]);
   const [month, setMonth] = useState('');
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+  const [error, setError] = useState(null); // null | 'transient' | 'no_month'
   const [achievements, setAchievements] = useState({ row: null, column: null, x: null, blackout: null });
   const [selectedPokemon, setSelectedPokemon] = useState(null);
+  const retryTimer = useRef(null);
+  const retryAttempt = useRef(0);
 
   useEffect(() => {
     if (authLoading) return;
     loadBoard();
+    return () => { if (retryTimer.current) clearTimeout(retryTimer.current); };
   }, [user, boardVersion, authLoading]);
 
   const loadBoard = async () => {
@@ -26,17 +30,39 @@ const BingoBoard = () => {
       setMonth(data.month);
       setAchievements(data.achievements || { row: null, column: null, x: null, blackout: null });
       setError(null);
-    } catch (err) {
-      setError('Failed to load bingo board');
-      console.error(err);
-    } finally {
+      retryAttempt.current = 0;
       setLoading(false);
+    } catch (err) {
+      console.error(err);
+      // 404 = no active bingo month — real state, don't spin retrying.
+      if (err?.status === 404) {
+        setError('no_month');
+        setLoading(false);
+        return;
+      }
+      setError('transient');
+      // Auto-retry with capped backoff so a Supabase blip recovers on its own.
+      const delay = Math.min(30000, 5000 * Math.pow(1.5, retryAttempt.current));
+      retryAttempt.current += 1;
+      retryTimer.current = setTimeout(loadBoard, delay);
     }
   };
 
-  if (loading) {
+  if (error === 'no_month') {
     return (
-      <div className="w-full animate-pulse">
+      <div className="w-full">
+        <div style={{ maxWidth: '645px', margin: '0 auto' }} className="text-center py-16">
+          <h2 className="text-xl font-bold text-white mb-2">No active bingo month</h2>
+          <p className="text-sm text-gray-400">The next month hasn't started yet. Check back soon.</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (loading || error === 'transient') {
+    return (
+      <div className="w-full animate-pulse relative">
+        {error === 'transient' && <ReconnectingPill label="Reconnecting to server…" />}
         <div style={{ maxWidth: '645px', margin: '0 auto' }}>
           <div className="mb-4">
             <div className="h-8 bg-gray-700/60 rounded mx-auto" style={{ width: 160 }} />
@@ -66,14 +92,6 @@ const BingoBoard = () => {
             </div>
           </div>
         </div>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="text-lg text-red-600">{error}</div>
       </div>
     );
   }

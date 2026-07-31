@@ -699,13 +699,24 @@ async function getActiveMonth(userId = null) {
       const effectiveDate = new Date(now.getTime() + timeOffsetDays * 86400000);
       const effectiveDateISO = effectiveDate.toISOString();
       console.log('Getting active month (mod offset) - User:', userId, 'Offset days:', timeOffsetDays, 'Effective date:', effectiveDateISO);
+      // Order by start_date desc + limit(1) so overlapping windows (end_date of
+      // month N intentionally extends past start_date of month N+1) pick the
+      // NEWEST month rather than PGRST erroring on >1 row.
       const { data, error } = await supabase
         .from('bingo_months')
         .select('id, month_year_display, start_date, end_date')
         .lte('start_date', effectiveDateISO)
         .gte('end_date', effectiveDateISO)
-        .single();
-      if (error || !data) { console.error('No active month found (mod):', error); return null; }
+        .order('start_date', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (error) {
+        // Transient DB / edge-function failure — bubble up so the caller can 503.
+        const e = new Error('Failed to look up active month');
+        e.transient = true; e.cause = error;
+        throw e;
+      }
+      if (!data) { console.error('No active month found (mod)'); return null; }
       return data;
     }
   }
@@ -723,15 +734,26 @@ async function getActiveMonth(userId = null) {
 
   console.log('Fetching active month from DB - date:', nowISO);
   activeMonthPromise = (async () => {
+    // Order by start_date desc + limit(1) so overlapping windows (end_date of
+    // month N intentionally extends past start_date of month N+1) pick the
+    // NEWEST month rather than PGRST erroring on >1 row.
     const { data: activeMonthData, error: monthError } = await supabase
       .from('bingo_months')
       .select('id, month_year_display, start_date, end_date')
       .lte('start_date', nowISO)
       .gte('end_date', nowISO)
-      .single();
+      .order('start_date', { ascending: false })
+      .limit(1)
+      .maybeSingle();
 
-    if (monthError || !activeMonthData) {
-      console.error('No active month found for date:', nowISO, monthError);
+    if (monthError) {
+      // Transient DB / edge-function failure — bubble up so the caller can 503.
+      const e = new Error('Failed to look up active month');
+      e.transient = true; e.cause = monthError;
+      throw e;
+    }
+    if (!activeMonthData) {
+      console.error('No active month found for date:', nowISO);
       return null;
     }
 
@@ -1029,6 +1051,9 @@ app.get('/api/bingo/board', async (req, res) => {
     res.json(responseData);
   } catch (error) {
     console.error('Error fetching bingo board:', error);
+    if (error?.transient) {
+      return res.status(503).json({ error: 'Database temporarily unavailable', transient: true });
+    }
     res.status(500).json({ error: 'Failed to fetch bingo board', details: error.message });
   }
 });
@@ -1528,6 +1553,9 @@ app.get('/api/leaderboard', async (req, res) => {
     res.json(enrichedData);
   } catch (error) {
     console.error('Error fetching leaderboard:', error);
+    if (error?.transient) {
+      return res.status(503).json({ error: 'Database temporarily unavailable', transient: true });
+    }
     res.status(500).json({ error: 'Failed to fetch leaderboard', details: error.message });
   }
 });
@@ -1840,6 +1868,9 @@ app.get('/api/profile/:userId/board', async (req, res) => {
     });
   } catch (error) {
     console.error('Error fetching profile board:', error);
+    if (error?.transient) {
+      return res.status(503).json({ error: 'Database temporarily unavailable', transient: true });
+    }
     res.status(500).json({ error: 'Failed to fetch profile board', details: error.message });
   }
 });

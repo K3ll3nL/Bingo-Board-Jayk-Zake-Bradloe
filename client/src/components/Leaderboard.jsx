@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { api } from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
 import AchievementIcon from './AchievementIcon';
+import ReconnectingPill from './ReconnectingPill';
 
 // Whether the device supports true hover (desktop). Evaluated once.
 const CAN_HOVER = typeof window !== 'undefined'
@@ -130,18 +131,41 @@ const Leaderboard = () => {
     prevTops.current = positions;
   };
 
+  const retryTimer = useRef(null);
+  const retryAttempt = useRef(0);
+  const lastLoadArgs = useRef(null);
+
+  useEffect(() => () => { if (retryTimer.current) clearTimeout(retryTimer.current); }, []);
+
   const loadLeaderboard = async (key, mode, version, periodMonthId) => {
+    lastLoadArgs.current = { key, mode, version, periodMonthId };
     try {
       const data = await api.getLeaderboard(mode, version, periodMonthId);
       loadedKeys.current.add(key);
       setLeaderboard(data);
       setError(null);
-    } catch (err) {
-      setError('Failed to load leaderboard');
-      console.error(err);
-    } finally {
+      retryAttempt.current = 0;
       setLoading(false);
       setRefreshing(false);
+    } catch (err) {
+      console.error(err);
+      setRefreshing(false);
+      // 404 = no active month for this view — real state, empty list, don't retry.
+      if (err?.status === 404) {
+        loadedKeys.current.add(key);
+        setLeaderboard([]);
+        setError(null);
+        setLoading(false);
+        return;
+      }
+      setError('reconnecting');
+      // Auto-retry with capped backoff.
+      const delay = Math.min(30000, 5000 * Math.pow(1.5, retryAttempt.current));
+      retryAttempt.current += 1;
+      retryTimer.current = setTimeout(() => {
+        const a = lastLoadArgs.current;
+        if (a) loadLeaderboard(a.key, a.mode, a.version, a.periodMonthId);
+      }, delay);
     }
   };
 
@@ -215,9 +239,10 @@ const Leaderboard = () => {
     }
   };
 
-  if (loading) {
+  if (loading || (error && leaderboard.length === 0)) {
     return (
-      <div className="w-full h-full flex flex-col animate-pulse">
+      <div className="w-full h-full flex flex-col animate-pulse relative">
+        {error && <ReconnectingPill label="Reconnecting to leaderboard…" />}
         <div className="flex items-center justify-center gap-1 mb-2">
           {MODES.map((mode, i) => (
             <div key={mode} className={`px-3 py-1.5 rounded-lg text-sm font-medium ${i === 0 ? 'bg-purple-600/40' : 'bg-gray-700/40'}`} style={{ minWidth: 60 }}>&nbsp;</div>
@@ -242,14 +267,6 @@ const Leaderboard = () => {
     );
   }
 
-  if (error) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="text-lg text-red-600">{error}</div>
-      </div>
-    );
-  }
-
   const getMedalEmoji = (position) => {
     if (position === 1) return '🥇';
     if (position === 2) return '🥈';
@@ -258,7 +275,8 @@ const Leaderboard = () => {
   };
 
   return (
-    <div className="w-full h-full flex flex-col">
+    <div className="w-full h-full flex flex-col relative">
+      {error && <ReconnectingPill label="Reconnecting…" />}
       {/* Mode tabs */}
       <div className="flex items-center justify-center gap-1 mb-2">
         {MODES.map((mode, i) => (
@@ -297,7 +315,7 @@ const Leaderboard = () => {
       )}
       {viewMode === 'alltime' && <div className="mb-3 text-center text-sm text-gray-400 font-medium">All Time</div>}
       
-      <div className={`rounded-lg shadow-lg overflow-hidden relative flex flex-col ${leaderboard.length >= 10 ? 'flex-1' : ''}`} style={{ background: '#0d0f14' }}>
+      <div className="rounded-lg shadow-lg overflow-hidden relative flex flex-col flex-1" style={{ background: '#0d0f14' }}>
         {refreshing && (
           <div className="absolute top-0 left-0 right-0 h-0.5 bg-gray-700 overflow-hidden z-10">
             <div className="h-full bg-purple-500 animate-pulse" style={{ width: '100%' }} />
