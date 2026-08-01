@@ -732,7 +732,12 @@ async function getActiveMonth(userId = null) {
   const nowISO = now.toISOString();
 
   // end_date is TIMESTAMPTZ (the exact moment the month expires) — direct compare.
-  if (activeMonthCache && now < new Date(activeMonthCache.end_date)) {
+  // During the overlap window near end_date, a newer month may already have
+  // become active; force a refetch so we don't serve the stale outgoing month.
+  const CACHE_OVERLAP_REFETCH_MS = MONTH_ROLLOVER_OFFSET_MS + 60 * 60 * 1000; // 5h
+  if (activeMonthCache
+      && now < new Date(activeMonthCache.end_date)
+      && (new Date(activeMonthCache.end_date) - now) > CACHE_OVERLAP_REFETCH_MS) {
     return activeMonthCache;
   }
 
