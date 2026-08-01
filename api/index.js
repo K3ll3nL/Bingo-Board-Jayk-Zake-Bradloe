@@ -44,6 +44,14 @@ const pokeR2Url = (national_dex_id) => {
 // genderless pokemon get broken image URLs.
 const POKEMON_IMAGE_FIELDS = 'id, name, display_name, national_dex_id, genderless, has_gender_difference, has_major_gender_difference, custom_gender_code, forms_count, form_id';
 
+// ── Month rollover offset ─────────────────────────────────────────────────────
+// Month rollover is shifted 4 hours past midnight UTC (i.e. new month becomes
+// active at 04:00 UTC on day 1). start_date is a bare DATE (implicit midnight
+// UTC), so we shift "now" by -4h wherever we compare current time against a
+// month's window. Cron in vercel.json is scheduled 4 hours later to match.
+const MONTH_ROLLOVER_OFFSET_MS = 4 * 60 * 60 * 1000;
+const nowForMonth = () => new Date(Date.now() - MONTH_ROLLOVER_OFFSET_MS);
+
 // ── Module-level caches ───────────────────────────────────────────────────────
 // Active month: only changes once a month. Cache the result and use end_date to
 // know exactly when it's stale — no arbitrary TTL needed. Mod users with a
@@ -302,8 +310,8 @@ app.post('/api/internal/bingo-achievement', async (req, res) => {
   res.status(200).end();
 });
 
-// ── Vercel Cron — fires daily at 1am UTC ─────────────────────────────────────
-// vercel.json: { "crons": [{ "path": "/api/internal/period-end", "schedule": "0 1 * * *" }] }
+// ── Vercel Cron — fires daily at 04:00 UTC (matches MONTH_ROLLOVER_OFFSET_MS) ─
+// vercel.json: { "crons": [{ "path": "/api/internal/period-end", "schedule": "0 4 * * *" }] }
 // Vercel sets x-vercel-cron-signature; we verify WEBHOOK_SECRET as a fallback
 // for manual triggers and local testing.
 app.post('/api/internal/period-end', async (req, res) => {
@@ -684,7 +692,7 @@ async function getAuthenticatedUserId(req) {
 // Helper function to get active month ID based on current date (with optional time offset for moderators)
 // Returns the full active month record { id, month_year_display, start_date, end_date }, or null
 async function getActiveMonth(userId = null) {
-  const now = new Date();
+  const now = nowForMonth();
 
   // Mod users with a time offset always bypass the cache (their effective date differs)
   if (userId) {
@@ -1086,7 +1094,7 @@ async function enrichWithBadgeSlots(users) {
 // List available historical leaderboard periods
 app.get('/api/leaderboard/periods', async (req, res) => {
   try {
-    const today = new Date().toISOString().split('T')[0];
+    const today = nowForMonth().toISOString().split('T')[0];
     const { data: months, error } = await supabase
       .from('bingo_months')
       .select('id, month_year_display, start_date')
@@ -2037,7 +2045,7 @@ app.get('/api/pokedex', async (req, res) => {
     if (entriesError) throw entriesError;
     
     // Get months that have already started (exclude future months to avoid spoilers)
-    const today = new Date().toISOString().split('T')[0]; // 'YYYY-MM-DD'
+    const today = nowForMonth().toISOString().split('T')[0]; // 'YYYY-MM-DD'
     const { data: pastMonths, error: monthsError } = await supabase
       .from('bingo_months')
       .select('id')
@@ -2574,10 +2582,10 @@ app.post('/api/upload/submission', uploadRateLimit, upload.fields([{ name: 'file
     const { data: activeMonth, error: monthError } = await supabase
       .from('bingo_months')
       .select('id')
-      .lte('start_date', new Date().toISOString())
-      .gte('end_date', new Date().toISOString())
+      .lte('start_date', nowForMonth().toISOString())
+      .gte('end_date', nowForMonth().toISOString())
       .single();
-    
+
     if (monthError || !activeMonth) {
       return res.status(400).json({ error: 'No active bingo month' });
     }
@@ -2738,8 +2746,8 @@ app.post('/api/upload/historical-submission', uploadRateLimit, upload.fields([{ 
     const { data: activeMonth } = await supabase
       .from('bingo_months')
       .select('id')
-      .lte('start_date', new Date().toISOString())
-      .gte('end_date', new Date().toISOString())
+      .lte('start_date', nowForMonth().toISOString())
+      .gte('end_date', nowForMonth().toISOString())
       .single();
 
     if (activeMonth && month_id >= activeMonth.id) {
@@ -4181,9 +4189,10 @@ app.get('/api/mod/board-builder', async (req, res) => {
     if (modErr) return res.status(500).json({ error: 'Mod check failed', details: modErr.message });
     if (!modRow) return res.status(403).json({ error: 'Moderator access required' });
 
-    // ── Compute next calendar month from today (UTC) ─────────────────────────
-    // No dependency on finding the "active" month — just use the real calendar.
-    const now = new Date();
+    // ── Compute next calendar month from today (UTC, rollover-shifted) ───────
+    // Uses nowForMonth() so the 00:00–04:00 UTC window before rollover still
+    // treats "current" as the outgoing month.
+    const now = nowForMonth();
     const curYear  = now.getUTCFullYear();
     const curMonth = now.getUTCMonth() + 1; // 1-12
     const nYear    = curMonth === 12 ? curYear + 1 : curYear;
