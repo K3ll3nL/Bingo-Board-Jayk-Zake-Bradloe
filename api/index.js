@@ -7079,7 +7079,7 @@ app.get('/api/admin/pokemon-game-slugs', async (req, res) => {
 app.patch('/api/admin/pokemon/:id/game-slugs', async (req, res) => {
   try {
     const { id } = req.params;
-    const { game_slugs, restricted_game_slugs, shiny_available, forms_count, legendary, baby, ultra_beast, paradox, starter, fossil, regional_alt, pseudo_legendary, pla } = req.body;
+    const { game_slugs, restricted_game_slugs, shiny_available, forms_count, legendary, baby, ultra_beast, paradox, starter, fossil, regional_alt, pseudo_legendary, pla, editor_id } = req.body;
 
     const userId = await getAuthenticatedUserId(req);
     if (!userId) return res.status(401).json({ error: 'Authentication required' });
@@ -7111,6 +7111,15 @@ app.patch('/api/admin/pokemon/:id/game-slugs', async (req, res) => {
     if (error) {
       throw error;
     }
+
+    // Real-time fan-out to other mods on the Game Manager. editor_id lets the
+    // sender's own client ignore its own echo so it can't stomp on in-flight typing.
+    broadcastUpdate('pokemon-game-manager', 'pokemon-updated', {
+      id: Number(id),
+      updates,
+      editor_id: editor_id || null,
+    }).catch(() => {});
+
     res.json({ success: true });
   } catch (err) {
     console.error('Error updating pokemon game slugs:', err);

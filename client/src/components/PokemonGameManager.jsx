@@ -460,6 +460,12 @@ const PokemonGameManager = () => {
   const saveTimers   = useRef({});
   const localDataRef = useRef(localData);
   useEffect(() => { localDataRef.current = localData; }, [localData]);
+  // Per-session id echoed in save PATCH body and broadcast payload so this
+  // client can ignore its own broadcast echo (avoids stomping on active typing).
+  const editorIdRef  = useRef((crypto.randomUUID && crypto.randomUUID()) || String(Math.random()).slice(2));
+  // Snapshot of saveState for the realtime callback (which runs outside React render).
+  const saveStateRef = useRef(saveState);
+  useEffect(() => { saveStateRef.current = saveState; }, [saveState]);
 
   const grid = useMemo(() => buildGrid(visible), [visible]);
 
@@ -507,7 +513,7 @@ const PokemonGameManager = () => {
       const res = await fetch(`/api/admin/pokemon/${pokemonId}/game-slugs`, {
         method: 'PATCH',
         headers: { Authorization: await getAuthHeader(), 'Content-Type': 'application/json' },
-        body: JSON.stringify(localDataRef.current[pokemonId]),
+        body: JSON.stringify({ ...localDataRef.current[pokemonId], editor_id: editorIdRef.current }),
       });
       if (!res.ok) throw new Error(await res.text());
       setSaveState(prev => ({ ...prev, [pokemonId]: 'saved' }));
@@ -595,6 +601,24 @@ const PokemonGameManager = () => {
     });
     for (const id of ids) scheduleSave(id);
   };
+
+  // ── Realtime: apply updates from other moderators ─────────────────────────
+  useEffect(() => {
+    const channel = supabase
+      .channel('pokemon-game-manager')
+      .on('broadcast', { event: 'pokemon-updated' }, ({ payload }) => {
+        if (!payload || payload.editor_id === editorIdRef.current) return;
+        const { id, updates } = payload;
+        if (!id || !updates) return;
+        // Don't clobber a row this user is actively editing (pending debounced
+        // save or in-flight save) — their next save wins.
+        if (saveTimers.current[id] || saveStateRef.current[id] === 'saving') return;
+        setPokemon(prev => prev.map(p => p.id === id ? { ...p, ...updates } : p));
+        setLocalData(prev => prev[id] ? { ...prev, [id]: { ...prev[id], ...updates } } : prev);
+      })
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, []);
 
   // ── Filter ─────────────────────────────────────────────────────────────────
   // Space-separated tokens. A token prefixed with "-" is an exclusion: any
