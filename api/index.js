@@ -2578,13 +2578,16 @@ app.post('/api/upload/submission', uploadRateLimit, upload.fields([{ name: 'file
       });
     }
     
-    // Get active month
+    // Get active month — order+limit(1) so the 3h overlap window (both months
+    // match nowForMonth) picks the newer month instead of PGRST-erroring.
     const { data: activeMonth, error: monthError } = await supabase
       .from('bingo_months')
       .select('id')
       .lte('start_date', nowForMonth().toISOString())
       .gte('end_date', nowForMonth().toISOString())
-      .single();
+      .order('start_date', { ascending: false })
+      .limit(1)
+      .maybeSingle();
 
     if (monthError || !activeMonth) {
       return res.status(400).json({ error: 'No active bingo month' });
@@ -2742,13 +2745,16 @@ app.post('/api/upload/historical-submission', uploadRateLimit, upload.fields([{ 
     if (!month_id)          return res.status(400).json({ error: 'Month ID required' });
     if ((!file || !file2) && proofLinks.length === 0) return res.status(400).json({ error: 'Either both proof images or a video link is required' });
 
-    // Validate month is in the past (not the current active month)
+    // Validate month is in the past (not the current active month) — same
+    // order+limit(1) treatment so the 3h month overlap doesn't PGRST-error.
     const { data: activeMonth } = await supabase
       .from('bingo_months')
       .select('id')
       .lte('start_date', nowForMonth().toISOString())
       .gte('end_date', nowForMonth().toISOString())
-      .single();
+      .order('start_date', { ascending: false })
+      .limit(1)
+      .maybeSingle();
 
     if (activeMonth && month_id >= activeMonth.id) {
       return res.status(400).json({ error: 'Historical submissions must be for a past month' });
