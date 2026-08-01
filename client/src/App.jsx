@@ -43,6 +43,16 @@ import logoIcon from './Icons/logo-mobile.png';
 import { getAuthHeaders } from './services/api';
 
 
+// Small golden pulsing dot — mirrors the one on the Profile Badges tab so the
+// "you have unseen badges" indicator is visually consistent across surfaces.
+const NewBadgeDot = ({ className = '' }) => (
+  <span className={`relative flex h-2 w-2 ${className}`}>
+    <span className="absolute inline-flex h-full w-full rounded-full bg-yellow-400 opacity-60 animate-ping" />
+    <span className="relative inline-flex rounded-full h-2 w-2 bg-yellow-400"
+      style={{ boxShadow: '0 0 6px 1px rgba(250,204,21,0.8)' }} />
+  </span>
+);
+
 // Scroll to top on every route change
 const ScrollToTop = () => {
   const { pathname } = useLocation();
@@ -66,6 +76,7 @@ const AppLayout = () => {
   const [feedbackOpen, setFeedbackOpen] = React.useState(false);
   const [bannerManagerOpen, setBannerManagerOpen] = React.useState(false);
   const [pendingApprovals, setPendingApprovals] = React.useState(0);
+  const [unseenBadges, setUnseenBadges] = React.useState(0);
   const menuRef = React.useRef(null);
 
   const isHome = location.pathname === '/';
@@ -95,6 +106,33 @@ const AppLayout = () => {
 
   // Close drawer on route change
   React.useEffect(() => { setDrawerOpen(false); }, [location.pathname]);
+
+  // Unseen badge count for the avatar / menu / hamburger dots.
+  // Refetched on every route change so viewing the Profile Badges tab (which
+  // calls mark-seen per badge) clears the dot on navigation away.
+  React.useEffect(() => {
+    if (!user?.id) { setUnseenBadges(0); return; }
+    let cancelled = false;
+    (async () => {
+      try {
+        const headers = await getAuthHeaders();
+        const res = await fetch(`/api/users/${user.id}/badges/unseen-count`, { headers });
+        const data = res.ok ? await res.json() : { count: 0 };
+        if (!cancelled) setUnseenBadges(data.count || 0);
+      } catch { /* ignore */ }
+    })();
+    return () => { cancelled = true; };
+  }, [user?.id, location.pathname]);
+
+  // Realtime: bump the dot the instant a new badge is awarded.
+  React.useEffect(() => {
+    if (!user?.id) return;
+    const channel = supabase
+      .channel(`badge-awards-${user.id}`)
+      .on('broadcast', { event: 'badge-earned' }, () => setUnseenBadges(c => c + 1))
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [user?.id]);
 
   React.useEffect(() => {
     const handleClickOutside = (e) => {
@@ -151,6 +189,12 @@ const AppLayout = () => {
           </svg>
         )}
       </button>
+      {/* Dot is a sibling — the button's overflow-hidden (needed to clip the round avatar img) would otherwise clip the dot into the pic. NewBadgeDot's root is position:relative, so it needs an absolutely-positioned wrapper to escape the button's corner. */}
+      {unseenBadges > 0 && (
+        <span className="absolute -top-0.5 -right-0.5 pointer-events-none">
+          <NewBadgeDot />
+        </span>
+      )}
 
       {/* Desktop dropdown */}
       <div
@@ -170,7 +214,10 @@ const AppLayout = () => {
           </div>
           <div className="min-w-0">
             <p className="text-sm font-semibold text-white truncate">{displayName}</p>
-            <Link to="/profile" onClick={() => setMenuOpen(false)} className="text-xs text-purple-400 hover:text-purple-300 transition-colors">View Profile</Link>
+            <Link to="/profile" onClick={() => setMenuOpen(false)} className="relative inline-block text-xs text-purple-400 hover:text-purple-300 transition-colors">
+              View Profile
+              {unseenBadges > 0 && <NewBadgeDot className="absolute -top-1 -right-2.5" />}
+            </Link>
           </div>
         </div>
 
@@ -290,12 +337,13 @@ const AppLayout = () => {
   const hamburger = (
     <button
       onClick={() => setDrawerOpen(true)}
-      className="sm:hidden p-2 text-gray-400 hover:text-white hover:bg-gray-700 rounded-lg transition-colors"
+      className="relative sm:hidden p-2 text-gray-400 hover:text-white hover:bg-gray-700 rounded-lg transition-colors"
       aria-label="Open menu"
     >
       <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
       </svg>
+      {unseenBadges > 0 && <NewBadgeDot className="absolute top-1 right-1" />}
     </button>
   );
 
@@ -319,7 +367,10 @@ const AppLayout = () => {
                     <p className="text-sm font-semibold text-white">
                       {user.user_metadata?.custom_claims?.global_name || user.user_metadata?.full_name || user.user_metadata?.username || 'User'}
                     </p>
-                    <Link to="/profile" onClick={() => setDrawerOpen(false)} className="text-xs text-purple-400 hover:text-purple-300">View Profile</Link>
+                    <Link to="/profile" onClick={() => setDrawerOpen(false)} className="relative inline-block text-xs text-purple-400 hover:text-purple-300">
+                      View Profile
+                      {unseenBadges > 0 && <NewBadgeDot className="absolute -top-1 -right-2.5" />}
+                    </Link>
                   </div>
                 </div>
               ) : (
