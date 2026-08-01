@@ -214,9 +214,9 @@ const AppLayout = () => {
           </div>
           <div className="min-w-0">
             <p className="text-sm font-semibold text-white truncate">{displayName}</p>
-            <Link to="/profile" onClick={() => setMenuOpen(false)} className="relative inline-block text-xs text-purple-400 hover:text-purple-300 transition-colors">
+            <Link to="/profile" onClick={() => setMenuOpen(false)} className="inline-flex items-center gap-1.5 text-xs text-purple-400 hover:text-purple-300 transition-colors">
               View Profile
-              {unseenBadges > 0 && <NewBadgeDot className="absolute -top-1 -right-2.5" />}
+              {unseenBadges > 0 && <NewBadgeDot />}
             </Link>
           </div>
         </div>
@@ -343,7 +343,9 @@ const AppLayout = () => {
       <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
       </svg>
-      {unseenBadges > 0 && <NewBadgeDot className="absolute top-1 right-1" />}
+      {unseenBadges > 0 && (
+        <span className="absolute top-1 right-1 pointer-events-none"><NewBadgeDot /></span>
+      )}
     </button>
   );
 
@@ -367,9 +369,9 @@ const AppLayout = () => {
                     <p className="text-sm font-semibold text-white">
                       {user.user_metadata?.custom_claims?.global_name || user.user_metadata?.full_name || user.user_metadata?.username || 'User'}
                     </p>
-                    <Link to="/profile" onClick={() => setDrawerOpen(false)} className="relative inline-block text-xs text-purple-400 hover:text-purple-300">
+                    <Link to="/profile" onClick={() => setDrawerOpen(false)} className="inline-flex items-center gap-1.5 text-xs text-purple-400 hover:text-purple-300">
                       View Profile
-                      {unseenBadges > 0 && <NewBadgeDot className="absolute -top-1 -right-2.5" />}
+                      {unseenBadges > 0 && <NewBadgeDot />}
                     </Link>
                   </div>
                 </div>
