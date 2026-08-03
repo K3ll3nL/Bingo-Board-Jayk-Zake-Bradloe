@@ -14,7 +14,7 @@ const path = require('path');
 const API_DIR = path.join(__dirname, '..');
 const OUT_FILE = path.join(API_DIR, 'API_INDEX.md');
 
-const SCAN_DIRS = ['', 'routes', 'lib'];
+const SCAN_DIRS = ['', '_routes', '_lib'];
 // index.legacy.js is the pre-split monolith, kept for diffing — indexing it
 // would double-count every route.
 const SKIP_FILES = new Set(['API_INDEX.md', 'index.legacy.js']);

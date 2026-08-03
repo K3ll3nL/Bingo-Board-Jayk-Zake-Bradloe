@@ -7,7 +7,7 @@ const {
   sseAnonymousClients,
   sseClients,
   supabase,
-} = require('../lib/core');
+} = require('../_lib/core');
 
 module.exports = function register(app) {
 

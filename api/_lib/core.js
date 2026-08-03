@@ -13,7 +13,7 @@ const cors = require('cors');
 
 const rateLimit = require('express-rate-limit');
 
-const { contextBuilders, buildCheckFromDB } = require('../badgeRegistry');
+const { contextBuilders, buildCheckFromDB } = require('../_badgeRegistry');
 
 const { createClient } = require('@supabase/supabase-js');
 

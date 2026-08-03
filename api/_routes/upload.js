@@ -12,7 +12,7 @@ const {
   upload,
   uploadRateLimit,
   uploadSupplementalProof,
-} = require('../lib/core');
+} = require('../_lib/core');
 
 module.exports = function register(app) {
 

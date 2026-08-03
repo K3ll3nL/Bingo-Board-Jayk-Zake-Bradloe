@@ -189,7 +189,7 @@ for (const [name, routes] of byModule) {
 
   const bodies = routes.map((r) => takeChunk(r.startLine, r.endLine)).join('\n\n');
   const requireLine = needed.size
-    ? `const {\n${[...needed].sort().map((n) => `  ${n},`).join('\n')}\n} = require('../lib/core');`
+    ? `const {\n${[...needed].sort().map((n) => `  ${n},`).join('\n')}\n} = require('../_lib/core');`
     : '';
 
   const content = [

@@ -7,7 +7,7 @@ const {
   POKEMON_IMAGE_FIELDS,
   getAuthenticatedUserId,
   supabase,
-} = require('../lib/core');
+} = require('../_lib/core');
 
 module.exports = function register(app) {
 

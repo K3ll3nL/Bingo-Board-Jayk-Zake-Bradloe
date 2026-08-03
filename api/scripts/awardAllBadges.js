@@ -11,7 +11,7 @@
 
 require('dotenv').config({ path: require('path').join(__dirname, '../.env') });
 const { createClient } = require('@supabase/supabase-js');
-const { contextBuilders, buildCheckFromDB } = require('../badgeRegistry');
+const { contextBuilders, buildCheckFromDB } = require('../_badgeRegistry');
 
 const supabase = createClient(
   process.env.SUPABASE_URL,

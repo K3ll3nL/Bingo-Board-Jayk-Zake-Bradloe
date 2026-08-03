@@ -6,7 +6,7 @@ const {
   getActiveMonth,
   getAuthenticatedUserId,
   supabase,
-} = require('../lib/core');
+} = require('../_lib/core');
 
 // Pokemon pool: the 24 pokemon assigned to a month never change mid-month.
 // Keyed on month ID — auto-invalidates when a new month becomes active.

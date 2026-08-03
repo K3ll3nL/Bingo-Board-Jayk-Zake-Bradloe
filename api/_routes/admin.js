@@ -7,7 +7,7 @@ const {
   getAuthenticatedUserId,
   supabase,
   upload,
-} = require('../lib/core');
+} = require('../_lib/core');
 
 module.exports = function register(app) {
 

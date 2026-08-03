@@ -12,7 +12,7 @@ const {
   processSeasonEnd,
   processYearEnd,
   supabase,
-} = require('../lib/core');
+} = require('../_lib/core');
 
 // Number of days before a month's end_date at which the countdown banner appears.
 const COUNTDOWN_WINDOW_DAYS = 7;

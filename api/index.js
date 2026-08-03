@@ -6,7 +6,7 @@ const {
   DEV_USER_ID,
   cors,
   multer,
-} = require('./lib/core');
+} = require('./_lib/core');
 
 const app = express();
 
@@ -17,7 +17,7 @@ const app = express();
 app.use(cors());
 app.use(express.json({ limit: '50mb' })); // Increase JSON body limit
 app.use(express.urlencoded({ limit: '50mb', extended: true })); // Increase URL-encoded body limit
-require('./routes/internal')(app);
+require('./_routes/internal')(app);
 app.use((req, res, next) => {
   const authHeader = req.headers.authorization;
   const isDev = process.env.NODE_ENV !== 'production' && DEV_USER_ID && authHeader === 'Bearer dev_token';
@@ -28,28 +28,28 @@ app.use((req, res, next) => {
   
   next();
 });
-require('./routes/users')(app);
-require('./routes/system')(app);
-require('./routes/bingo')(app);
-require('./routes/leaderboard')(app);
-require('./routes/stats')(app);
-require('./routes/tierList')(app);
-require('./routes/profile')(app);
-require('./routes/pokemon')(app);
-require('./routes/ambassadors')(app);
-require('./routes/upload')(app);
-require('./routes/approvals')(app);
-require('./routes/admin')(app);
-require('./routes/notifications')(app);
-require('./routes/boardBuilder')(app);
-require('./routes/gameBoard')(app);
-require('./routes/keys')(app);
-require('./routes/overlay')(app);
-require('./routes/tools')(app);
-require('./routes/badges')(app);
-require('./routes/feedback')(app);
-require('./routes/banners')(app);
-require('./routes/radar')(app);
+require('./_routes/users')(app);
+require('./_routes/system')(app);
+require('./_routes/bingo')(app);
+require('./_routes/leaderboard')(app);
+require('./_routes/stats')(app);
+require('./_routes/tierList')(app);
+require('./_routes/profile')(app);
+require('./_routes/pokemon')(app);
+require('./_routes/ambassadors')(app);
+require('./_routes/upload')(app);
+require('./_routes/approvals')(app);
+require('./_routes/admin')(app);
+require('./_routes/notifications')(app);
+require('./_routes/boardBuilder')(app);
+require('./_routes/gameBoard')(app);
+require('./_routes/keys')(app);
+require('./_routes/overlay')(app);
+require('./_routes/tools')(app);
+require('./_routes/badges')(app);
+require('./_routes/feedback')(app);
+require('./_routes/banners')(app);
+require('./_routes/radar')(app);
 // Multer error handling middleware — must be after all routes
 app.use((err, req, res, next) => {
   if (err instanceof multer.MulterError) {

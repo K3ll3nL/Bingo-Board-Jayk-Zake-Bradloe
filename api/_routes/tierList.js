@@ -23,7 +23,7 @@ const {
   getAuthenticatedUserId,
   resolveStatsMonth,
   supabase,
-} = require('../lib/core');
+} = require('../_lib/core');
 
 const parseMode = (raw) => {
   const mode = String(raw || DEFAULT_TIER_LIST_MODE);

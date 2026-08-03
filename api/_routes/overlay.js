@@ -8,7 +8,7 @@ const {
   pokeR2Url,
   supabase,
   validateApiKey,
-} = require('../lib/core');
+} = require('../_lib/core');
 
 module.exports = function register(app) {
 

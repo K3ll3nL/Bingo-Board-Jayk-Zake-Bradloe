@@ -1,0 +1,8 @@
+# Vercel turns every .js file under api/ into its own Serverless Function
+# (Hobby plan caps at 12). Only api/index.js should be one — runtime code lives
+# in api/_lib and api/_routes, which Vercel skips because the path contains "/_".
+# These are dev-only and never required at runtime, so they are excluded from
+# the deployment entirely.
+api/scripts
+api/index.legacy.js
+api/API_INDEX.md

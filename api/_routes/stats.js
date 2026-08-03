@@ -10,7 +10,7 @@ const {
   getAuthenticatedUserId,
   resolveStatsMonth,
   supabase,
-} = require('../lib/core');
+} = require('../_lib/core');
 
 // ── "Watch out!" shapes ──────────────────────────────────────────────────────
 // Board positions are 1..25 with a free space at 13 (24 pool mons + centre) —

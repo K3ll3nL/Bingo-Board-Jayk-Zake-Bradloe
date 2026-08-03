@@ -5,7 +5,7 @@
 const {
   getAuthenticatedUserId,
   supabase,
-} = require('../lib/core');
+} = require('../_lib/core');
 
 // Visibility rules a banner row can declare. NULL/absent = always show inside
 // the starts_at/expires_at window (the original behavior). The rule itself is
