@@ -764,9 +764,29 @@ async function getTierListSchema() {
   return tierListSchemaCache;
 }
 
+// `tiers` is stored as buckets — { tier_code: [pokemon_id, ...] } — so
+// within-tier order survives (arrays preserve position; a { id: tier } map
+// can't, since JS/JSON always serialize integer-like object keys in ascending
+// numeric order regardless of insertion order). Every consensus/stats/
+// completeness check in this codebase queries the classic { pokemon_id:
+// tier_code } shape by id, so that's what this recovers. Also accepts a
+// pre-migration flat row unmodified, so a row nobody has re-saved since the
+// bucket-format switch doesn't crash — it simply has no explicit order until
+// the one-time backfill runs.
+const flattenTierBuckets = (tiers) => {
+  const raw = tiers || {};
+  const isBucketFormat = VALID_TIER_CODES.some(t => Array.isArray(raw[t]));
+  if (!isBucketFormat) return raw;
+  const out = {};
+  VALID_TIER_CODES.forEach(t => { (raw[t] || []).forEach(id => { out[String(id)] = t; }); });
+  return out;
+};
+
 // Single read path for tier list rows. Always returns rows normalised to the
-// post-migration shape (`mode` defaulted to 'standard') so callers never branch
-// on the schema themselves.
+// post-migration shape (`mode` defaulted to 'standard') so callers never
+// branch on the schema themselves. `row.tiers` is the flattened { id: tier }
+// map every existing consumer expects; `row.tier_buckets` is the raw,
+// order-preserving stored value, for the one caller that renders position.
 async function fetchTierSubmissions(monthId, { mode = null, userId = null, columns = 'user_id, tiers, submitted_at, updated_at' } = {}) {
   const schema = await getTierListSchema();
   const select = [columns, schema.mode ? 'mode' : null].filter(Boolean).join(', ');
@@ -778,7 +798,10 @@ async function fetchTierSubmissions(monthId, { mode = null, userId = null, colum
   const { data, error } = await query;
   if (error) throw error;
 
-  let rows = (data || []).map(r => ({ ...r, mode: r.mode || DEFAULT_TIER_LIST_MODE }));
+  let rows = (data || []).map(r => {
+    const rawTiers = r.tiers || {};
+    return { ...r, mode: r.mode || DEFAULT_TIER_LIST_MODE, tier_buckets: rawTiers, tiers: flattenTierBuckets(rawTiers) };
+  });
   // Pre-migration the table physically cannot hold a restricted row, so a
   // restricted read is empty rather than "every legacy row".
   if (mode && !schema.mode && mode !== DEFAULT_TIER_LIST_MODE) rows = [];
@@ -1587,6 +1610,7 @@ module.exports = {
   DEFAULT_TIER_LIST_MODE,
   getTierListSchema,
   fetchTierSubmissions,
+  flattenTierBuckets,
   isCompleteTiers,
   rankedIdsIn,
   _SW,

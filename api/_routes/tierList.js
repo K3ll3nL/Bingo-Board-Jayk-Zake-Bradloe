@@ -131,6 +131,7 @@ module.exports = function register(app) {
         viewer_submission = {
           submitted: !!mine?.submitted_at,
           tiers: mine?.tiers || {},
+          tier_buckets: mine?.tier_buckets || {},
           submitted_at: mine?.submitted_at || null,
         };
         viewer_progress = {};
@@ -199,7 +200,7 @@ module.exports = function register(app) {
           avatar_url: usersById[r.user_id]?.avatar_url || null,
           ...progressFor(r, poolIds),
           is_viewer: r.user_id === viewerId,
-          ...(withTiers ? { tiers: r.tiers || {} } : {}),
+          ...(withTiers ? { tiers: r.tiers || {}, tier_buckets: r.tier_buckets || {} } : {}),
         }))
         // Complete lists first, then most recently touched.
         .sort((a, b) => (b.complete - a.complete)
@@ -248,6 +249,7 @@ module.exports = function register(app) {
         },
         pool,
         tiers: row.tiers || {},
+        tier_buckets: row.tier_buckets || {},
         ...progressFor(row, poolIds),
       });
     } catch (err) {
@@ -290,26 +292,27 @@ module.exports = function register(app) {
       const poolIdSet = new Set((poolRows || []).map(r => String(r.pokemon_id)));
       if (poolIdSet.size === 0) return res.status(400).json({ error: 'No pokemon pool found for that month' });
 
-      // tiers can be in two formats:
-      // Old: { pokemon_id: tier_code, ... }
-      // New: { tier_code: [pokemon_id, ...], ... } (preserves order within tiers)
-      // Detect which format and normalize to old format for storage
+      // tiers can arrive in two formats:
+      // Old/flat: { pokemon_id: tier_code, ... }
+      // Bucket (what the current client always sends): { tier_code: [pokemon_id, ...], ... }
+      // `flatTiers` (id -> tier_code) is built either way and is what gets
+      // validated and counted below — unchanged from before. What's NEW is
+      // storage: we persist buckets, not the flat map, because a flat map
+      // keyed by numeric-looking ids can never carry within-tier order (JS/
+      // JSON always serialize integer-like object keys in ascending numeric
+      // order regardless of insertion order); arrays don't have that problem.
       const isBucketFormat = VALID_TIER_CODES.some(t => tiers[t] && Array.isArray(tiers[t]));
-      let normalizedTiers = tiers;
-
+      let flatTiers = tiers;
       if (isBucketFormat) {
-        // Convert from bucket format to flat format
-        normalizedTiers = {};
+        flatTiers = {};
         VALID_TIER_CODES.forEach(tierCode => {
-          if (tiers[tierCode] && Array.isArray(tiers[tierCode])) {
-            tiers[tierCode].forEach(pokemonId => {
-              normalizedTiers[String(pokemonId)] = tierCode;
-            });
+          if (Array.isArray(tiers[tierCode])) {
+            tiers[tierCode].forEach(pokemonId => { flatTiers[String(pokemonId)] = tierCode; });
           }
         });
       }
 
-      for (const [pokemonId, tier] of Object.entries(normalizedTiers)) {
+      for (const [pokemonId, tier] of Object.entries(flatTiers)) {
         if (!poolIdSet.has(String(pokemonId))) {
           return res.status(400).json({ error: `Pokemon ${pokemonId} is not in this month's pool` });
         }
@@ -318,8 +321,22 @@ module.exports = function register(app) {
         }
       }
 
+      // Build the buckets to store from the now-validated flatTiers, so a
+      // rejected entry never reaches the database. Client-sent array order is
+      // preserved when present; a flat-format submission falls back to
+      // whatever Object.entries order it arrived in.
+      const buckets = {};
+      VALID_TIER_CODES.forEach(t => { buckets[t] = []; });
+      if (isBucketFormat) {
+        VALID_TIER_CODES.forEach(tierCode => {
+          if (Array.isArray(tiers[tierCode])) buckets[tierCode] = tiers[tierCode].map(String);
+        });
+      } else {
+        Object.entries(flatTiers).forEach(([pokemonId, tier]) => { buckets[tier].push(String(pokemonId)); });
+      }
+
       const now = new Date().toISOString();
-      const payload = { user_id: userId, month_id: monthId, tiers: normalizedTiers, submitted_at: now, updated_at: now };
+      const payload = { user_id: userId, month_id: monthId, tiers: buckets, submitted_at: now, updated_at: now };
       if (schema.mode) payload.mode = mode;
 
       const { error: upsertError } = await supabase
@@ -327,14 +344,14 @@ module.exports = function register(app) {
         .upsert(payload, { onConflict: schema.mode ? 'user_id,month_id,mode' : 'user_id,month_id' });
       if (upsertError) throw upsertError;
 
-      const rankedCount = Object.keys(normalizedTiers).length;
+      const rankedCount = Object.keys(flatTiers).length;
       res.json({
         success: true,
         mode,
         submitted_at: now,
         ranked_count: rankedCount,
         pool_size: poolIdSet.size,
-        complete: rankedCount >= poolIdSet.size && [...poolIdSet].every(id => Boolean(normalizedTiers[id])),
+        complete: rankedCount >= poolIdSet.size && [...poolIdSet].every(id => Boolean(flatTiers[id])),
       });
     } catch (err) {
       console.error('Error saving tier list:', err);

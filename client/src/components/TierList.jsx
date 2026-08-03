@@ -32,21 +32,37 @@ const computeTiersFromBuckets = (buckets) => {
   return out;
 };
 
-const sameTierMap = (a, b) => {
-  const ak = Object.keys(a).sort();
-  const bk = Object.keys(b).sort();
-  if (ak.length !== bk.length) return false;
-  return ak.every(k => a[k] === b[k]);
+// Order-sensitive: a same-tier drag reorder must register as dirty, which a
+// flat tier-map comparison can't see (position isn't part of that map).
+const sameBuckets = (a, b) => {
+  const keys = [...TIER_CODES, 'unranked'];
+  return keys.every(k => {
+    const av = a?.[k] || [];
+    const bv = b?.[k] || [];
+    return av.length === bv.length && av.every((id, i) => id === bv[i]);
+  });
 };
 
-// Group a { pokemon_id: tier } map into tier rows, in pool order.
-const groupByTier = (pool, tiers) => {
+// Group a { pokemon_id: tier } map into tier rows. `tierOrder` (when present)
+// supplies each tier's saved id sequence; any tiered id missing from it
+// (a pre-bucket-format row, or a mon whose tier changed since) falls back to
+// pool order, appended after the explicit ones.
+const groupByTier = (pool, tiers, tierOrder) => {
   const grouped = emptyBuckets();
-  (pool || []).forEach(p => {
-    const id = String(p.pokemon_id);
-    const t = (tiers || {})[id];
-    (grouped[t] ? grouped[t] : grouped.unranked).push(id);
+  const tiersMap = tiers || {};
+  const orderMap = tierOrder || {};
+  const poolIds = (pool || []).map(p => String(p.pokemon_id));
+  const poolIdSet = new Set(poolIds);
+
+  TIER_CODES.forEach(t => {
+    const explicit = (orderMap[t] || []).map(String).filter(id => poolIdSet.has(id) && tiersMap[id] === t);
+    const seen = new Set(explicit);
+    poolIds.forEach(id => { if (tiersMap[id] === t && !seen.has(id)) explicit.push(id); });
+    grouped[t] = explicit;
   });
+
+  poolIds.forEach(id => { if (!TIER_CODES.includes(tiersMap[id])) grouped.unranked.push(id); });
+
   return grouped;
 };
 
@@ -96,7 +112,7 @@ const TierList = () => {
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [saveState, setSaveState] = useState('idle'); // idle | saving | saved | error
   const [saveError, setSaveError] = useState(null);
-  const [lastSaved, setLastSaved] = useState({});
+  const [lastSavedBuckets, setLastSavedBuckets] = useState(emptyBuckets());
   // Community comparison state: null = no one selected, userId = comparing
   const [communityView, setCommunityView] = useState(null);
   const [roster, setRoster] = useState([]);
@@ -156,8 +172,10 @@ const TierList = () => {
   useEffect(() => {
     if (!data) return;
     const viewerTiers = data.viewer_submission?.tiers || {};
-    setBuckets(groupByTier(data.pool, viewerTiers));
-    setLastSaved({ ...viewerTiers });
+    const viewerBuckets = data.viewer_submission?.tier_buckets || {};
+    const grouped = groupByTier(data.pool, viewerTiers, viewerBuckets);
+    setBuckets(grouped);
+    setLastSavedBuckets(grouped);
   }, [data]);
 
   const poolById = useMemo(() => {
@@ -170,8 +188,8 @@ const TierList = () => {
 
   const isDirty = useMemo(() => {
     if (!buckets) return false;
-    return !sameTierMap(tierById, lastSaved);
-  }, [tierById, buckets, lastSaved]);
+    return !sameBuckets(buckets, lastSavedBuckets);
+  }, [buckets, lastSavedBuckets]);
 
   const doSave = useCallback(async () => {
     if (!buckets || !data) return;
@@ -180,7 +198,7 @@ const TierList = () => {
     setSaveError(null);
     try {
       await api.saveTierList(data.month.id, tiers, mode);
-      setLastSaved({ ...tiers });
+      setLastSavedBuckets(tiers);
       setSaveState('saved');
       setTimeout(() => setSaveState(s => (s === 'saved' ? 'idle' : s)), 2500);
     } catch (err) {
@@ -197,7 +215,7 @@ const TierList = () => {
     if (saveTimer.current) clearTimeout(saveTimer.current);
     saveTimer.current = setTimeout(() => { doSave(); }, 900);
     return () => { if (saveTimer.current) clearTimeout(saveTimer.current); };
-  }, [isDirty, tierById, user, data, doSave]);
+  }, [isDirty, buckets, user, data, doSave]);
 
   const assign = (id, tier) => {
     setBuckets(prev => {
@@ -245,8 +263,9 @@ const TierList = () => {
   const poolSize = data?.pool?.length || 0;
   const rankedCount = buckets ? TIER_CODES.reduce((sum, t) => sum + buckets[t].length, 0) : 0;
 
+  const hasSavedAnything = TIER_CODES.some(t => (lastSavedBuckets[t] || []).length > 0);
   const saveLabel = {
-    idle: isDirty ? 'Unsaved…' : (Object.keys(lastSaved).length ? 'Saved' : 'Not started'),
+    idle: isDirty ? 'Unsaved…' : (hasSavedAnything ? 'Saved' : 'Not started'),
     saving: 'Saving…',
     saved: 'Saved',
     error: saveError || 'Save failed',
@@ -333,6 +352,7 @@ const TierList = () => {
                 <TierCompareGrid
                   viewerUser={user}
                   viewerTiers={data.viewer_submission?.tiers || {}}
+                  viewerTierBuckets={data.viewer_submission?.tier_buckets || {}}
                   rankedCount={rankedCount}
                   poolSize={poolSize}
                   comparingUserId={communityView}

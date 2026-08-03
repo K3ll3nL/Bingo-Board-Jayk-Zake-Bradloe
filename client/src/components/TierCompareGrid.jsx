@@ -5,14 +5,23 @@ import { GRADIENT, BORDER, SEMANTIC } from '../constants/theme';
 
 const CARD = { bg: GRADIENT.card, inner: GRADIENT.inset, border: BORDER.hairline };
 
-const groupByTier = (pool, tiers) => {
+// `tierOrder` (when present) supplies each tier's saved id sequence; any
+// tiered id missing from it falls back to pool order, appended after the
+// explicit ones — same fallback TierList.jsx uses when seeding the editor.
+const groupByTier = (pool, tiers, tierOrder) => {
   const grouped = {};
   TIER_ORDER.forEach(t => { grouped[t] = []; });
-  (pool || []).forEach(p => {
-    const id = String(p.pokemon_id);
-    const tier = tiers[id];
-    if (tier && tier in grouped) grouped[tier].push(id);
+  const orderMap = tierOrder || {};
+  const poolIds = (pool || []).map(p => String(p.pokemon_id));
+  const poolIdSet = new Set(poolIds);
+
+  TIER_ORDER.forEach(t => {
+    const explicit = (orderMap[t] || []).map(String).filter(id => poolIdSet.has(id) && tiers[id] === t);
+    const seen = new Set(explicit);
+    poolIds.forEach(id => { if (tiers[id] === t && !seen.has(id)) explicit.push(id); });
+    grouped[t] = explicit;
   });
+
   return grouped;
 };
 
@@ -92,16 +101,17 @@ const TierRow = ({ tierKey, ids, poolById, compareAgainst }) => {
 // prompt to pick one. One grid owns both the header and the tier rows, so
 // the two sides are structurally guaranteed to line up — there is no second
 // hand-written copy of this layout anywhere else in the codebase.
-const TierCompareGrid = ({ viewerUser, viewerTiers, rankedCount, poolSize, comparingUserId, roster, pool }) => {
+const TierCompareGrid = ({ viewerUser, viewerTiers, viewerTierBuckets, rankedCount, poolSize, comparingUserId, roster, pool }) => {
   const poolById = useMemo(
     () => Object.fromEntries((pool || []).map(p => [String(p.pokemon_id), p])),
     [pool]
   );
-  const viewerByTier = useMemo(() => groupByTier(pool, viewerTiers), [pool, viewerTiers]);
+  const viewerByTier = useMemo(() => groupByTier(pool, viewerTiers, viewerTierBuckets), [pool, viewerTiers, viewerTierBuckets]);
 
   const comparingUser = comparingUserId ? roster.find(r => r.user_id === comparingUserId) : null;
   const otherTiers = comparingUser?.tiers || {};
-  const otherByTier = useMemo(() => groupByTier(pool, otherTiers), [pool, otherTiers]);
+  const otherTierBuckets = comparingUser?.tier_buckets || {};
+  const otherByTier = useMemo(() => groupByTier(pool, otherTiers, otherTierBuckets), [pool, otherTiers, otherTierBuckets]);
 
   const agreementPct = useMemo(() => {
     if (!comparingUser) return 0;

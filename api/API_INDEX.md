@@ -272,9 +272,9 @@
 | Method | Path | Auth | Location | Notes |
 |---|---|---|---|---|
 | GET | `/api/tier-list` | auth | `api/_routes/tierList.js:99` | GET /api/tier-list — board pool, community consensus for one mode, and (if authenticated) the viewer's own submission plus per-mode progress. |
-| POST | `/api/tier-list` | auth | `api/_routes/tierList.js:261` | POST /api/tier-list — upsert the authenticated user's submission for one mode. |
-| GET | `/api/tier-list/submissions` | auth | `api/_routes/tierList.js:164` | GET /api/tier-list/submissions — who has ranked this month, per mode. Public read: browsing other players' lists needs no auth. |
-| GET | `/api/tier-list/user/:userId` | auth | `api/_routes/tierList.js:223` | GET /api/tier-list/user/:userId — one player's list. Public / read-only. |
+| POST | `/api/tier-list` | auth | `api/_routes/tierList.js:263` | POST /api/tier-list — upsert the authenticated user's submission for one mode. |
+| GET | `/api/tier-list/submissions` | auth | `api/_routes/tierList.js:165` | GET /api/tier-list/submissions — who has ranked this month, per mode. Public read: browsing other players' lists needs no auth. |
+| GET | `/api/tier-list/user/:userId` | auth | `api/_routes/tierList.js:224` | GET /api/tier-list/user/:userId — one player's list. Public / read-only. |
 
 ## /tools/sandwiches
 
@@ -365,8 +365,8 @@
 
 | Function | Location | Notes |
 |---|---|---|
-| `_sandwichIngredients` | `api/_lib/core.js:1409` |  |
-| `_SW` | `api/_lib/core.js:1418` | ── Core mechanics (mirrors sandwichSearch.worker.js) ────────────────────── |
+| `_sandwichIngredients` | `api/_lib/core.js:1432` |  |
+| `_SW` | `api/_lib/core.js:1441` | ── Core mechanics (mirrors sandwichSearch.worker.js) ────────────────────── |
 | `awardBadgesForTrigger` | `api/_lib/core.js:221` | Award any badges the user is newly eligible for given a trigger event. Fire-and-forget safe — never throws to the caller.  How it works:   1. Fetch ALL badges f |
 | `bestWeekByUser` | `api/_routes/stats.js:209` |  |
 | `broadcastNotificationToasts` | `api/_lib/core.js:152` | Fetch, enrich, and broadcast fresh unnotified notifications to a user's toast feed. Also fires to 'award-announcements' if any notification is an award (for oth |
@@ -379,43 +379,44 @@
 | `buildUniqueCatch` | `api/_routes/stats.js:242` |  |
 | `buildWatchOut` | `api/_routes/stats.js:70` | Least number of submissions any still-eligible player needs to claim each achievement type, listing every tied player (Kellen's spec: no arbitrary pick). One bu |
 | `bulkAwardBadge` | `api/_lib/core.js:328` | ── Bulk badge award helper ─────────────────────────────────────────────────── Awards a single badge to multiple users at once, skipping already-earned ones. Re |
-| `calculateCategoryThresholds` | `api/_lib/core.js:999` |  |
+| `calculateCategoryThresholds` | `api/_lib/core.js:1022` |  |
 | `claimKey` | `api/_routes/stats.js:38` | Types are claimed once per month by the first player to complete them, so a claimed type is out of reach for everyone else and drops off the panel. |
-| `computeBadgeRarity` | `api/_lib/core.js:1550` | Compute what percent of users have earned each badge. Returns { percentByBadge: { [badge_id]: number\|null }, totalUsers }. percent is rounded (0 decimals >= 1% |
+| `computeBadgeRarity` | `api/_lib/core.js:1573` | Compute what percent of users have earned each badge. Returns { percentByBadge: { [badge_id]: number\|null }, totalUsers }. percent is rounded (0 decimals >= 1% |
 | `deleteR2Images` | `api/_lib/core.js:363` | ── R2 image deletion helper (fire-and-forget safe) ────────────────────────── Deletes one or more R2-hosted proof images. Never throws to the caller. |
-| `enrichUsersWithTwitchPfp` | `api/_lib/core.js:1364` |  |
+| `enrichUsersWithTwitchPfp` | `api/_lib/core.js:1387` |  |
 | `enrichWithBadgeSlots` | `api/_lib/core.js:703` | Batch-fetches badge slots 1–3 for a list of users and attaches them as badge_slots[] |
-| `fetchTierSubmissions` | `api/_lib/core.js:770` | Single read path for tier list rows. Always returns rows normalised to the post-migration shape (`mode` defaulted to 'standard') so callers never branch on the  |
-| `generateGameBoardPool` | `api/_lib/core.js:1297` |  |
-| `generateNewPoolForMonth` | `api/_lib/core.js:1034` | Helper: Generate a completely new pool for a month (deletes old, generates new) |
+| `fetchTierSubmissions` | `api/_lib/core.js:790` | Single read path for tier list rows. Always returns rows normalised to the post-migration shape (`mode` defaulted to 'standard') so callers never branch on the  |
+| `flattenTierBuckets` | `api/_lib/core.js:776` | `tiers` is stored as buckets — { tier_code: [pokemon_id, ...] } — so within-tier order survives (arrays preserve position; a { id: tier } map can't, since JS/JS |
+| `generateGameBoardPool` | `api/_lib/core.js:1320` |  |
+| `generateNewPoolForMonth` | `api/_lib/core.js:1057` | Helper: Generate a completely new pool for a month (deletes old, generates new) |
 | `getActiveMonth` | `api/_lib/core.js:566` | Helper function to get active month ID based on current date (with optional time offset for moderators) Returns the full active month record { id, month_year_di |
 | `getActiveMonthId` | `api/_lib/core.js:658` | Convenience wrapper for callers that only need the month ID |
 | `getAuthenticatedUserId` | `api/_lib/core.js:541` | Helper function to get authenticated user ID |
 | `getTierListSchema` | `api/_lib/core.js:755` |  |
 | `getTwitchToken` | `api/_lib/core.js:665` | Fetch (or return cached) Twitch client-credentials access token. The token is valid ~60 days; we cache it until 1 hour before expiry. |
-| `hydrateGameBoardClaims` | `api/_lib/core.js:1387` |  |
-| `hydrateGameBoardTiles` | `api/_lib/core.js:1348` |  |
+| `hydrateGameBoardClaims` | `api/_lib/core.js:1410` |  |
+| `hydrateGameBoardTiles` | `api/_lib/core.js:1371` |  |
 | `isCompleteTierList` | `api/_routes/stats.js:126` | A tier list only counts once every mon on the board is ranked. A partial list is a half-formed opinion — letting one through would skew the modal tier and the c |
-| `isCompleteTiers` | `api/_lib/core.js:790` |  |
+| `isCompleteTiers` | `api/_lib/core.js:813` |  |
 | `loadPool` | `api/_routes/tierList.js:36` | Pool ids for a month, plus the display records the client needs for PokemonImage. POKEMON_IMAGE_FIELDS is mandatory here — without the gender/form columns gende |
 | `modalTierByMon` | `api/_routes/stats.js:132` |  |
 | `nowForMonth` | `api/_lib/core.js:103` |  |
 | `parseMode` | `api/_routes/tierList.js:28` |  |
-| `pickRandomPokemonForPosition` | `api/_lib/core.js:865` | Helper: Pick a random eligible pokemon for a given position during reroll |
+| `pickRandomPokemonForPosition` | `api/_lib/core.js:888` | Helper: Pick a random eligible pokemon for a given position during reroll |
 | `pokeR2Url` | `api/_lib/core.js:41` |  |
 | `processMonthEnd` | `api/_lib/core.js:394` | ── Period-end processors ───────────────────────────────────────────────────── |
 | `processSeasonEnd` | `api/_lib/core.js:419` |  |
 | `processYearEnd` | `api/_lib/core.js:442` |  |
 | `progressFor` | `api/_routes/tierList.js:87` |  |
-| `rankedIdsIn` | `api/_lib/core.js:789` | A tier list counts only once every mon on the board carries a tier. |
+| `rankedIdsIn` | `api/_lib/core.js:812` | A tier list counts only once every mon on the board carries a tier. |
 | `rarity` | `api/_routes/stats.js:184` | Rarity tallies for "Most Unique Catch", scoped to whichever entries subset is being summarised. Deliberately NOT month-wide: in Restricted mode every other pane |
 | `refreshAvatarFromProvider` | `api/_lib/core.js:515` | Looks up the user's linked OAuth identities, finds the best available avatar_url (prefers Discord, then Twitch, then Google), updates the users table, and retur |
 | `resolveGame` | `api/_routes/stats.js:47` |  |
 | `resolveStatsMonth` | `api/_lib/core.js:728` | Resolve the month for these features: an explicit ?month_id, or the active month. |
 | `selectAllRows` | `api/_routes/stats.js:57` |  |
 | `sendSSEToUser` | `api/_lib/core.js:472` |  |
-| `shuffleArray` | `api/_lib/core.js:855` |  |
-| `uploadBufferToR2` | `api/_lib/core.js:807` | Upload a single multer file buffer to R2 and return its public URL. |
-| `uploadSupplementalProof` | `api/_lib/core.js:825` | Uploads the optional evolution + extra proof files shared by both submission endpoints. Returns { proofUrl3, proofUrl4, extraImageUrls }. Throws on R2 error. |
+| `shuffleArray` | `api/_lib/core.js:878` |  |
+| `uploadBufferToR2` | `api/_lib/core.js:830` | Upload a single multer file buffer to R2 and return its public URL. |
+| `uploadSupplementalProof` | `api/_lib/core.js:848` | Uploads the optional evolution + extra proof files shared by both submission endpoints. Returns { proofUrl3, proofUrl4, extraImageUrls }. Throws on R2 error. |
 | `upsertCountdownBanner` | `api/_routes/internal.js:26` | Writes/refreshes the "month is ending" banner as a normal `banners` row, so it gets the same bar and dismiss button as every mod-authored banner for free. Idemp |
 | `validateApiKey` | `api/_lib/core.js:686` | Validate an API key (pb_xxx) and return its owner's user_id, or null if invalid. Updates last_used_at fire-and-forget. Result cached for 60s. |
