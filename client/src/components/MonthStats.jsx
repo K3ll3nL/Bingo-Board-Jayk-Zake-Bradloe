@@ -378,7 +378,7 @@ const StatTile = ({ label, value, color, best, prev, prevLabel, inProgress }) =>
   } else {
     const delta = Math.round(((value - prev) / prev) * 100);
     const sign = delta > 0 ? '+' : '';
-    caption = `${sign}${delta}% vs ${prevLabel}${inProgress ? ' so far' : ''}`;
+    caption = `${sign}${delta}% vs ${prevLabel}`;
   }
 
   return (
@@ -554,7 +554,7 @@ const UpsetCard = ({ side, title, blurb, accent, pokemon }) => {
 const TierUpsets = ({ upsets, pokemon }) => (
   <div className="grid grid-cols-1 gap-3">
     <UpsetCard side={upsets.overachiever} title="Overachiever" blurb="Voted brutal, caught anyway" accent={SUCCESS} pokemon={pokemon} />
-    <UpsetCard side={upsets.trap} title="The Trap" blurb="Voted easy, nobody landed it" accent={DANGER} pokemon={pokemon} />
+    <UpsetCard side={upsets.trap} title="Slept On" blurb="Voted easy, but nobody has one" accent={DANGER} pokemon={pokemon} />
   </div>
 );
 
@@ -598,10 +598,10 @@ const TierListCTA = ({ submissionCount, ranked, poolSize }) => {
 //   • past month, too few       → a note that not enough hunters ranked it
 // A past month with zero submissions predates the feature entirely and renders
 // nothing at all — the caller drops the whole section.
-const CommunityRead = ({ stats, bucket }) => {
+const CommunityRead = ({ stats }) => {
   const tierList = stats.tier_list || { submission_count: 0, viewer_submitted: false };
   const isCurrent = Boolean(stats.month?.is_current);
-  const upsets = bucket.tier_upsets;
+  const upsets = stats.all.tier_upsets;
 
   if (!isCurrent && tierList.submission_count === 0) return null;
 
@@ -1048,7 +1048,7 @@ const MonthStats = () => {
               </SectionCard>
             </div>
 
-            <CommunityRead stats={stats} bucket={bucket} />
+            <CommunityRead stats={stats}/>
 
             {/* Tier 3 — reference lists, ordered by how predictable their
                 height is rather than by topic. Top Hunted and Most Active are

@@ -23,7 +23,6 @@ const UNRANKED_COLOR = TEXT.faint;
 // this page nags about it.
 const MODES = [
   { id: 'standard', label: 'Standard' },
-  { id: 'restricted', label: 'Restricted' },
 ];
 
 // Display order only — Sleeper at the top, Easy at the bottom, Unranked last.
@@ -668,41 +667,29 @@ const TierList = () => {
           <>
             {!user && <SignInBanner />}
 
-            {/* Sticky control bar — mode, progress and save state must never
-                scroll away: this is the only place completeness is explained. */}
             <div
               className="sticky top-0 z-30 -mx-4 sm:-mx-6 px-4 sm:px-6 py-2.5 border-b backdrop-blur min-w-0"
               style={{ background: 'rgba(13,15,20,0.92)', borderColor: CARD.border }}
             >
               <div className="flex items-center gap-2 flex-wrap min-w-0">
-                <div className="flex items-center gap-1 rounded-lg p-1 min-w-0" style={{ background: CARD.inner }}>
-                  {MODES.map(m => {
-                    const p = progress[m.id];
-                    const active = mode === m.id;
-                    return (
-                      <button
-                        key={m.id}
-                        onClick={() => setMode(m.id)}
-                        className={`inline-flex items-center px-2.5 py-1.5 rounded-md text-xs sm:text-sm font-semibold leading-5 transition-colors min-w-0 ${
-                          active ? 'bg-purple-600 text-white' : 'text-gray-400 hover:text-white'
-                        }`}
-                      >
-                        {m.label}
-                        {user && p && <span className="ml-1.5 opacity-80">{p.ranked}/{p.pool_size}</span>}
-                        {m.id === 'restricted' && <span className="ml-1 text-[10px] opacity-70">optional</span>}
-                      </button>
-                    );
-                  })}
-                </div>
-
-                {/* NOT a segmented control. A two-item toggle implies two peer
-                    views you swap between; the board is the canonical view and
-                    Quick Rank is a one-way task you invoke and finish. Rendering
-                    it as a bare button (no pill container) also means there is no
-                    second group competing with the mode pills for weight — which
-                    is what made the old toggle read as a sizing bug. Hidden while
-                    the flow is running: its exit lives on the card, next to what
-                    you are actually doing. */}
+                            <div className="flex items-center gap-2 flex-wrap min-w-0">
+              <div className="flex items-center gap-1 rounded-lg p-1 min-w-0" style={{ background: CARD.inner }}>
+                {[
+                  { id: 'mine', label: 'My List' },
+                  { id: 'community', label: `Community${roster.length ? ` (${roster.length})` : ''}` },
+                ].map(t => (
+                  <button
+                    key={t.id}
+                    onClick={() => setTab(t.id)}
+                    className={`inline-flex items-center px-2.5 py-1.5 rounded-md text-xs sm:text-sm font-semibold leading-5 transition-colors ${
+                      tab === t.id ? 'bg-purple-600 text-white' : 'text-gray-400 hover:text-white'
+                    }`}
+                  >
+                    {t.label}
+                  </button>
+                ))}
+              </div>
+            </div>
                 {user && tab === 'mine' && (
                   <button
                     onClick={() => setView(v => (v === 'board' ? 'quick' : 'board'))}
@@ -746,44 +733,6 @@ const TierList = () => {
                   Rank all {poolSize} for your list to count toward the community consensus.
                 </p>
               )}
-            </div>
-
-            {mode === 'restricted' && !schemaReady && (
-              <div className="rounded-xl border p-3 text-sm" style={{ background: CARD.bg, borderColor: 'rgba(248,113,113,0.4)', color: SEMANTIC.danger.base }}>
-                Restricted tier lists need migration <code>20260802180000_tier_list_mode.sql</code> applied to the database. Ranking here will not save yet.
-              </div>
-            )}
-
-            {/* Mine / everyone. There is no "Viewing" dropdown any more: a picker
-                made the roster something you had to operate before it told you
-                anything, and it could only ever show one hunter at a time. The
-                Community tab just shows every board. Consensus is deliberately
-                NOT a third tab — when an aggregate exists it belongs at the top
-                of Community, which is already the page about what everyone
-                thinks. */}
-            <div className="flex items-center gap-2 flex-wrap min-w-0">
-              <div className="flex items-center gap-1 rounded-lg p-1 min-w-0" style={{ background: CARD.inner }}>
-                {[
-                  { id: 'mine', label: 'My List' },
-                  // Never gated. Browsing is public, and locking it behind a
-                  // finished list only teaches people to submit junk to unlock it.
-                  { id: 'community', label: `Community${roster.length ? ` (${roster.length})` : ''}` },
-                ].map(t => (
-                  <button
-                    key={t.id}
-                    onClick={() => setTab(t.id)}
-                    className={`inline-flex items-center px-2.5 py-1.5 rounded-md text-xs sm:text-sm font-semibold leading-5 transition-colors ${
-                      tab === t.id ? 'bg-purple-600 text-white' : 'text-gray-400 hover:text-white'
-                    }`}
-                  >
-                    {t.label}
-                  </button>
-                ))}
-              </div>
-
-              <span className="text-[11px] text-gray-400">
-                {data.submission_counts?.[mode] || 0} complete {mode} list{(data.submission_counts?.[mode] || 0) === 1 ? '' : 's'}
-              </span>
             </div>
 
             {/* Someone else's list — same rows, read-only, in place. */}
