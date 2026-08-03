@@ -102,7 +102,7 @@ module.exports = function register(app) {
       if (!mode) return res.status(400).json({ error: `mode must be one of ${TIER_LIST_MODES.join(', ')}` });
 
       const viewerId = await getAuthenticatedUserId(req);
-      const monthData = await resolveStatsMonth(req, viewerId, 'id, month_year_display');
+      const monthData = await resolveStatsMonth(req, viewerId, 'id, month_year_display, start_date');
       if (!monthData) return res.status(404).json({ error: 'Month not found' });
       const monthId = monthData.id;
 
@@ -140,7 +140,7 @@ module.exports = function register(app) {
       }
 
       res.json({
-        month: { id: monthData.id, label: monthData.month_year_display },
+        month: { id: monthData.id, label: monthData.month_year_display, start_date: monthData.start_date },
         mode,
         // False until 20260802180000_tier_list_mode.sql is applied. The client
         // uses it to explain why Restricted can't be saved yet rather than
@@ -290,7 +290,26 @@ module.exports = function register(app) {
       const poolIdSet = new Set((poolRows || []).map(r => String(r.pokemon_id)));
       if (poolIdSet.size === 0) return res.status(400).json({ error: 'No pokemon pool found for that month' });
 
-      for (const [pokemonId, tier] of Object.entries(tiers)) {
+      // tiers can be in two formats:
+      // Old: { pokemon_id: tier_code, ... }
+      // New: { tier_code: [pokemon_id, ...], ... } (preserves order within tiers)
+      // Detect which format and normalize to old format for storage
+      const isBucketFormat = VALID_TIER_CODES.some(t => tiers[t] && Array.isArray(tiers[t]));
+      let normalizedTiers = tiers;
+
+      if (isBucketFormat) {
+        // Convert from bucket format to flat format
+        normalizedTiers = {};
+        VALID_TIER_CODES.forEach(tierCode => {
+          if (tiers[tierCode] && Array.isArray(tiers[tierCode])) {
+            tiers[tierCode].forEach(pokemonId => {
+              normalizedTiers[String(pokemonId)] = tierCode;
+            });
+          }
+        });
+      }
+
+      for (const [pokemonId, tier] of Object.entries(normalizedTiers)) {
         if (!poolIdSet.has(String(pokemonId))) {
           return res.status(400).json({ error: `Pokemon ${pokemonId} is not in this month's pool` });
         }
@@ -300,7 +319,7 @@ module.exports = function register(app) {
       }
 
       const now = new Date().toISOString();
-      const payload = { user_id: userId, month_id: monthId, tiers, submitted_at: now, updated_at: now };
+      const payload = { user_id: userId, month_id: monthId, tiers: normalizedTiers, submitted_at: now, updated_at: now };
       if (schema.mode) payload.mode = mode;
 
       const { error: upsertError } = await supabase
@@ -308,14 +327,14 @@ module.exports = function register(app) {
         .upsert(payload, { onConflict: schema.mode ? 'user_id,month_id,mode' : 'user_id,month_id' });
       if (upsertError) throw upsertError;
 
-      const rankedCount = Object.keys(tiers).length;
+      const rankedCount = Object.keys(normalizedTiers).length;
       res.json({
         success: true,
         mode,
         submitted_at: now,
         ranked_count: rankedCount,
         pool_size: poolIdSet.size,
-        complete: rankedCount >= poolIdSet.size && [...poolIdSet].every(id => Boolean(tiers[id])),
+        complete: rankedCount >= poolIdSet.size && [...poolIdSet].every(id => Boolean(normalizedTiers[id])),
       });
     } catch (err) {
       console.error('Error saving tier list:', err);

@@ -29,6 +29,7 @@ Thumbs.db
 
 # Claude files
 .claude/
+.impeccable/
 CLAUDE.md
 
 # Supabase CLI local state (config.toml IS committed; these are not)

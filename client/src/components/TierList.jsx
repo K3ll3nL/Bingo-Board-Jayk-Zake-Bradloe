@@ -4,7 +4,7 @@ import {
   DndContext, DragOverlay, PointerSensor, TouchSensor, KeyboardSensor,
   useSensor, useSensors, pointerWithin, rectIntersection, useDroppable,
 } from '@dnd-kit/core';
-import { SortableContext, useSortable, rectSortingStrategy } from '@dnd-kit/sortable';
+import { SortableContext, useSortable, rectSortingStrategy, arrayMove } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import PageBackground from './PageBackground';
 import PageHeader from './PageHeader';
@@ -554,12 +554,13 @@ const TierList = () => {
 
   const doSave = useCallback(async () => {
     if (!buckets || !data) return;
-    const tiers = computeTiersFromBuckets(buckets);
+    // buckets already has order implicit in the array: { tier: [id, id, ...], ... }
+    const tiers = buckets;
     setSaveState('saving');
     setSaveError(null);
     try {
       await api.saveTierList(data.month.id, tiers, mode);
-      setLastSaved(tiers);
+      setLastSaved({ ...tiers });
       setSaveState('saved');
       setTimeout(() => setSaveState(s => (s === 'saved' ? 'idle' : s)), 2500);
     } catch (err) {
@@ -599,7 +600,22 @@ const TierList = () => {
     if (!over) return;
     const from = findContainer(active.id);
     const to = findContainer(over.id);
-    if (!from || !to || from === to) return;
+    if (!from || !to) return;
+
+    // Reordering within the same tier
+    if (from === to) {
+      const fromIndex = buckets[from].indexOf(active.id);
+      const toIndex = buckets[to].indexOf(over.id);
+      if (fromIndex !== -1 && toIndex !== -1) {
+        setBuckets(prev => ({
+          ...prev,
+          [from]: arrayMove(prev[from], fromIndex, toIndex),
+        }));
+      }
+      return;
+    }
+
+    // Moving between tiers — add to end of target tier
     setBuckets(prev => ({
       ...prev,
       [from]: prev[from].filter(id => id !== active.id),

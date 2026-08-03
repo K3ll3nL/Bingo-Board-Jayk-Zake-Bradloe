@@ -704,14 +704,14 @@ const RarestCatches = ({ items, emptyLabel, pokemon, users }) => {
 // either way. Renders only in Restricted mode — the breakdowns are context for
 // someone already looking at restricted hunting.
 const RateBar = ({ label, total, restricted, pct }) => (
-  <div className="flex items-center gap-3 min-w-0">
-    <div className="w-28 sm:w-44 shrink-0 text-xs text-muted truncate">{label}</div>
+  <div className="flex items-center gap-2 min-w-0">
+    <div className="w-20 sm:w-44 shrink-0 text-xs text-muted truncate">{label}</div>
     <div className="flex-1 min-w-0 h-4 rounded-full overflow-hidden" style={{ background: 'rgba(255,255,255,0.06)' }}>
       <div className="h-full rounded-full transition-all duration-500" style={{ width: `${Math.max(4, pct)}%`, background: RESTRICTED }} />
     </div>
-    <div className="shrink-0 w-20 text-right text-xs">
+    <div className="shrink-0 text-right text-xs whitespace-nowrap">
       <span className="font-bold text-strong">{pct}%</span>
-      <span className="text-muted"> · {restricted}/{total}</span>
+      <span className="text-muted text-[10px] block">{restricted}/{total}</span>
     </div>
   </div>
 );
@@ -807,8 +807,8 @@ const CatchesByGame = ({ items, emptyLabel }) => {
   return (
     <div className={`rounded-xl ${PANEL_PAD} border space-y-2.5 min-w-0`} style={{ background: CARD.bg, borderColor: CARD.border }}>
       {items.map(g => (
-        <div key={g.game_key} className="flex items-center gap-3 min-w-0">
-          <div className="w-28 sm:w-44 shrink-0 text-xs text-muted truncate">{g.label}</div>
+        <div key={g.game_key} className="flex items-center gap-2 min-w-0">
+          <div className="w-20 sm:w-44 shrink-0 text-xs text-muted truncate">{g.label}</div>
           <div className="flex-1 min-w-0 h-4 rounded-full overflow-hidden" style={{ background: 'rgba(255,255,255,0.06)' }}>
             <div
               className="h-full rounded-full flex items-center justify-end px-2 transition-all duration-500"

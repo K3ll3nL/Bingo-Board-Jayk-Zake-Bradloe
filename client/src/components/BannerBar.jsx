@@ -97,14 +97,23 @@ const Banner = ({ banner, onDismiss }) => {
 // looking. Adding one = a resolver here + an entry in BANNER_CONDITIONS in
 // api/routes/banners.js; no migration needed.
 const CONDITION_RESOLVERS = {
-  // Show only to a signed-in user who has not ranked every mon in this month's pool.
+  // Show only to a signed-in user who has not ranked every mon in this month's pool,
+  // AND is still within the 7-day deadline from month start.
   tier_list_incomplete: async (user) => {
     if (!user) return false;
     const data = await api.getTierList();
     const poolSize = (data.pool || []).length;
     if (!poolSize) return false;
     const ranked = Object.keys(data.viewer_submission?.tiers || {}).length;
-    return ranked < poolSize;
+    if (ranked >= poolSize) return false;
+
+    // Check if we're still within 7 days of month start
+    const monthStartDate = data.month?.start_date;
+    if (!monthStartDate) return true; // Show banner if no date available
+
+    const startDate = new Date(monthStartDate + 'T00:00:00Z');
+    const deadline = new Date(startDate.getTime() + 7 * 24 * 60 * 60 * 1000);
+    return new Date() < deadline;
   },
 };
 
