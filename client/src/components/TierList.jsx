@@ -66,12 +66,76 @@ const groupByTier = (pool, tiers, tierOrder) => {
   return grouped;
 };
 
+// One roster card placeholder — avatar, name/ranked-count lines, distribution bar.
+const TierRosterCardSkeleton = () => (
+  <div className="rounded-xl border overflow-hidden p-3 space-y-2 animate-pulse" style={{ background: CARD.bg, borderColor: CARD.border }}>
+    <div className="flex items-center gap-3 min-w-0">
+      <div className="w-8 h-8 rounded-full shrink-0" style={{ background: CARD.inner }} />
+      <div className="min-w-0 flex-1 space-y-1.5">
+        <div className="h-3 w-24 rounded" style={{ background: CARD.inner }} />
+        <div className="h-2.5 w-16 rounded" style={{ background: CARD.inner }} />
+      </div>
+    </div>
+    <div className="h-1.5 w-40 rounded-full" style={{ background: CARD.inner }} />
+  </div>
+);
+
+const TierRosterSkeleton = () => (
+  <div className="space-y-3">
+    {Array.from({ length: 4 }).map((_, i) => <TierRosterCardSkeleton key={i} />)}
+  </div>
+);
+
+// One tier row placeholder — badge column + a handful of chip squares, same
+// shape as TierCompareGrid's real TierRow so the swap-in doesn't shift layout.
+const TierRowSkeleton = () => (
+  <div className="rounded-xl overflow-hidden border flex animate-pulse" style={{ borderColor: CARD.border, background: CARD.bg }}>
+    <div className="w-2 shrink-0" style={{ background: CARD.inner }} />
+    <div className="flex flex-col items-center justify-center gap-1 py-3 px-2 shrink-0 w-20">
+      <div className="w-12 h-12 rounded-lg" style={{ background: CARD.inner }} />
+    </div>
+    <div className="flex-1 min-w-0 flex flex-wrap items-start content-start gap-2 p-3 min-h-[80px]">
+      {Array.from({ length: 4 }).map((_, i) => (
+        <div key={i} className="w-14 h-14 rounded-lg shrink-0" style={{ background: CARD.inner }} />
+      ))}
+    </div>
+  </div>
+);
+
+// Mirrors TierCompareGrid: header row (avatar + name on both sides), then five
+// tier rows per column — "Your list" on the left, comparison side on the right.
+const TierCompareGridSkeleton = () => (
+  <div className="min-w-0">
+    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 lg:gap-6 mb-6 min-w-0 animate-pulse">
+      {[0, 1].map(i => (
+        <div key={i} className="flex items-center gap-3 min-w-0">
+          <div className="w-10 h-10 rounded-full shrink-0" style={{ background: CARD.inner }} />
+          <div className="min-w-0 space-y-1.5">
+            <div className="h-3.5 w-20 rounded" style={{ background: CARD.inner }} />
+            <div className="h-2.5 w-24 rounded" style={{ background: CARD.inner }} />
+          </div>
+        </div>
+      ))}
+    </div>
+    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 lg:gap-6 min-w-0">
+      {[0, 1].map(col => (
+        <div key={col} className="space-y-2 min-w-0">
+          {Array.from({ length: 5 }).map((_, i) => <TierRowSkeleton key={i} />)}
+        </div>
+      ))}
+    </div>
+  </div>
+);
+
 const TierListSkeleton = () => (
-  <div className="space-y-2">
+  <div className="space-y-4">
     <div className="h-16 rounded-xl border animate-pulse" style={{ borderColor: CARD.border, background: CARD.bg }} />
-    {Array.from({ length: 5 }).map((_, i) => (
-      <div key={i} className="h-20 rounded-xl border animate-pulse" style={{ borderColor: CARD.border, background: CARD.bg }} />
-    ))}
+    <div className="lg:grid lg:grid-cols-[360px_1fr] gap-8 min-w-0 space-y-4 lg:space-y-0">
+      <div className="lg:sticky lg:top-[140px] h-fit">
+        <TierRosterSkeleton />
+      </div>
+      <TierCompareGridSkeleton />
+    </div>
   </div>
 );
 
@@ -344,15 +408,15 @@ const TierList = () => {
                   <TierRoster
                     roster={roster}
                     pool={data.pool}
-                    viewerTiers={data.viewer_submission?.tiers || {}}
+                    viewerTiers={tierById}
                     onCompare={setCommunityView}
                     viewingUserId={null}
                   />
                 </div>
                 <TierCompareGrid
                   viewerUser={user}
-                  viewerTiers={data.viewer_submission?.tiers || {}}
-                  viewerTierBuckets={data.viewer_submission?.tier_buckets || {}}
+                  viewerTiers={tierById}
+                  viewerTierBuckets={buckets}
                   rankedCount={rankedCount}
                   poolSize={poolSize}
                   comparingUserId={communityView}
