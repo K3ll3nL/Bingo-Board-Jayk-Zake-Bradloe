@@ -95,26 +95,65 @@ const Banner = ({ banner, onDismiss }) => {
 // its starts_at/expires_at window (NULL = always show, the original behavior).
 // The rules live here rather than in the API because they depend on who is
 // looking. Adding one = a resolver here + an entry in BANNER_CONDITIONS in
-// api/routes/banners.js; no migration needed.
+// api/routes/banners.js; no migration needed. Still used if a mod hand-authors
+// a banner gated on this condition — the automatic monthly nudge below is a
+// separate, client-only mechanism that doesn't touch this table at all.
 const CONDITION_RESOLVERS = {
-  // Show only to a signed-in user who has not ranked every mon in this month's pool,
-  // AND is still within the 7-day deadline from month start.
   tier_list_incomplete: async (user) => {
     if (!user) return false;
     const data = await api.getTierList();
     const poolSize = (data.pool || []).length;
     if (!poolSize) return false;
     const ranked = Object.keys(data.viewer_submission?.tiers || {}).length;
-    if (ranked >= poolSize) return false;
-
-    // Check if we're still within 7 days of month start
-    const monthStartDate = data.month?.start_date;
-    if (!monthStartDate) return true; // Show banner if no date available
-
-    const startDate = new Date(monthStartDate + 'T00:00:00Z');
-    const deadline = new Date(startDate.getTime() + 7 * 24 * 60 * 60 * 1000);
-    return new Date() < deadline;
+    return ranked < poolSize;
   },
+};
+
+// ── Tier list reminder — injected client-side, never written to `banners` ──
+// There is no submission lock (the API still accepts a late tier list), so
+// this is a nudge, not enforcement, and it changes identity by date (two
+// different messages) for one viewer in one month — a poor fit for a table
+// row that would need seeding, upserting, and cleanup out of band. This is
+// computed fresh on every load instead.
+//
+// `id` changes at the day-5 boundary on purpose: dismissal is tracked per id
+// in localStorage, so a viewer who dismissed the day-0 prompt still sees the
+// day-5 countdown reminder as a fresh, undismissed banner — same trick the
+// month-countdown banner uses via `banner_key`, just without a database row
+// behind it.
+const TIER_LIST_REMINDER_DAY = 5; // the countdown reminder takes over here
+const TIER_LIST_WINDOW_DAYS = 7;  // neither banner shows again after this
+
+const buildTierListBanner = (data) => {
+  const poolSize = (data.pool || []).length;
+  if (!poolSize) return null;
+  const ranked = Object.keys(data.viewer_submission?.tiers || {}).length;
+  if (ranked >= poolSize) return null; // already complete — nothing to nudge
+
+  const startDate = data.month?.start_date;
+  const monthId = data.month?.id;
+  if (!startDate || monthId == null) return null;
+
+  const start = new Date(`${startDate}T00:00:00Z`);
+  const daysSinceStart = Math.floor((Date.now() - start.getTime()) / 86400000);
+  if (daysSinceStart < 0 || daysSinceStart >= TIER_LIST_WINDOW_DAYS) return null;
+
+  if (daysSinceStart < TIER_LIST_REMINDER_DAY) {
+    return {
+      id: `tier_list_prompt:${monthId}`,
+      message: 'Call which Pokémon will be brutal before anyone catches them.',
+      link_url: '/tier-list',
+      link_label: 'Rank the board',
+    };
+  }
+
+  const daysLeft = TIER_LIST_WINDOW_DAYS - daysSinceStart;
+  return {
+    id: `tier_list_reminder:${monthId}`,
+    message: `${daysLeft} ${daysLeft === 1 ? 'day' : 'days'} left to rank this month's board.`,
+    link_url: '/tier-list',
+    link_label: 'Finish ranking',
+  };
 };
 
 const BannerBar = () => {
@@ -123,6 +162,7 @@ const BannerBar = () => {
   const [dismissed, setDismissed] = useState(getDismissed);
   // conditionName -> true/false. A condition stays hidden until it resolves.
   const [conditions, setConditions] = useState({});
+  const [tierListBanner, setTierListBanner] = useState(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -153,13 +193,25 @@ const BannerBar = () => {
     return () => { cancelled = true; };
   }, [banners, user]);
 
+  // The tier list reminder, computed client-side — see buildTierListBanner
+  // above for why this never touches the `banners` table.
+  useEffect(() => {
+    if (!user) { setTierListBanner(null); return undefined; }
+    let cancelled = false;
+    api.getTierList()
+      .then(data => { if (!cancelled) setTierListBanner(buildTierListBanner(data)); })
+      .catch(() => { if (!cancelled) setTierListBanner(null); });
+    return () => { cancelled = true; };
+  }, [user]);
+
   const dismiss = (id) => {
     const next = [...dismissed, id];
     localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
     setDismissed(next);
   };
 
-  const visible = banners.filter(b =>
+  const allBanners = tierListBanner ? [...banners, tierListBanner] : banners;
+  const visible = allBanners.filter(b =>
     !dismissed.includes(b.id) && (!b.condition || conditions[b.condition] === true)
   );
   if (!visible.length) return null;

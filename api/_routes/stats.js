@@ -199,6 +199,46 @@ const rarity = (subset) => {
 // all-time baseline made the answer depend on months the page isn't showing.
 // Ties break on the rarer game, then the rarer pokemon, which collapses most of
 // them; whatever survives goes to the client as a carousel.
+// ── Hunter Spotlight ─────────────────────────────────────────────────────────
+// Best 7-day catch run anywhere in the month, per user, from raw timestamps.
+// Deliberately NOT tied to current standing: a hunter who went off for a week
+// then went quiet keeps that week credited, which is the whole point (a
+// mid-month hot streak shouldn't disappear just because the hunter cooled off
+// before the month closed).
+const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
+const bestWeekByUser = (subset) => {
+  const timesByUser = new Map();
+  subset.forEach(e => {
+    if (!e.created_at) return;
+    let arr = timesByUser.get(e.user_id);
+    if (!arr) { arr = []; timesByUser.set(e.user_id, arr); }
+    arr.push(new Date(e.created_at).getTime());
+  });
+  const best = new Map();
+  timesByUser.forEach((times, userId) => {
+    times.sort((a, b) => a - b);
+    let start = 0;
+    let peak = 0;
+    for (let end = 0; end < times.length; end += 1) {
+      while (times[end] - times[start] >= WEEK_MS) start += 1;
+      peak = Math.max(peak, end - start + 1);
+    }
+    best.set(userId, peak);
+  });
+  return best;
+};
+
+// Most Disputed: the pool mon with the lowest modal-tier percentage. Only
+// complete tier lists count toward modalByMon, so every mon there has the same
+// total_votes (== submissionCount) — the split itself, not the sample size, is
+// what makes one mon more contested than another.
+const buildMostDisputed = (modalByMon, catchCountByMon) => {
+  const entries = Object.entries(modalByMon);
+  if (!entries.length) return null;
+  const [id, m] = entries.reduce((best, cur) => (cur[1].pct < best[1].pct ? cur : best));
+  return { id: parseInt(id, 10), ...m, catch_count: catchCountByMon[id] || 0 };
+};
+
 const buildUniqueCatch = (subset, baseline) => {
   const scored = [];
   const seen = new Set();
@@ -263,14 +303,21 @@ module.exports = function register(app) {
         { rows: tierSubmissionsRestricted },
         { data: poolRows, error: poolError },
         { data: pointRows, error: pointsError },
+        { data: badgeRows, error: badgeError },
       ] = await Promise.all([
-        selectAllRows(() => supabase.from('entries').select('user_id, pokemon_id, game, restricted_submission, historical').eq('month_id', monthId)),
+        // created_at powers Hunter Spotlight's Hot Streak (a sliding 7-day
+        // window needs real timestamps, not just a monthly total).
+        selectAllRows(() => supabase.from('entries').select('user_id, pokemon_id, game, restricted_submission, historical, created_at').eq('month_id', monthId)),
         // Four narrow columns across every month — the denominator behind the
         // Overview bars. A raw count has nothing to be a fraction of, so the
-        // bars measure this month against the best month on record.
+        // bars measure this month against the best month on record. Also the
+        // source for Hunter Spotlight's Most Improved and Consistently Elite,
+        // which both compare this month's per-user counts against other months.
         selectAllRows(() => supabase.from('entries').select('month_id, user_id, restricted_submission, historical')),
         supabase.from('bingo_months').select('id, month_year_display, start_date').order('start_date', { ascending: true }),
-        supabase.from('bingo_achievements').select('bingo_type').eq('month_id', monthId),
+        // user_id added alongside bingo_type — the Month Champion hero needs
+        // the winner's own achievement count once the month is finished.
+        supabase.from('bingo_achievements').select('bingo_type, user_id').eq('month_id', monthId),
         // user_id comes along so `viewer_submitted` needs no second query.
         //
         // MUST stay mode-scoped. Tier lists are ranked per mode (migration
@@ -293,10 +340,23 @@ module.exports = function register(app) {
         fetchTierSubmissions(monthId, { mode: 'restricted' }),
         supabase.from('monthly_pokemon_pool').select('position, pokemon_id').eq('month_id', monthId),
         supabase.from('user_monthly_points').select('user_id, points').eq('month_id', monthId),
+        // Badges earned this calendar month, regardless of badge type — a
+        // monthly-winner badge's own `month_id` can point at a different,
+        // earlier month than when it was actually awarded, so `earned_at` is
+        // the only honest filter for "who got badged this month". Secret
+        // badge identity is scrubbed below the query, not here, since it's a
+        // per-row decision.
+        supabase
+          .from('user_badges')
+          .select('user_id, badge_id, earned_at, badges(name, image_url, is_secret), users(display_name, avatar_url)')
+          .gte('earned_at', monthData.start_date)
+          .lt('earned_at', monthData.end_date)
+          .order('earned_at', { ascending: false }),
       ]);
       if (monthsError) throw monthsError;
       if (achievementsError) throw achievementsError;
       if (poolError) throw poolError;
+      if (badgeError) throw badgeError;
       if (pointsError) throw pointsError;
 
       // Historical entries are retroactive dex-completion catches: they carry a
@@ -337,6 +397,25 @@ module.exports = function register(app) {
       for (let i = monthIdx - 1; i >= 0; i -= 1) {
         if (tallyByMonth.has(orderedMonths[i].id)) { prevMonth = orderedMonths[i]; break; }
       }
+
+      // Per-user-per-month catch counts and each user's first active month —
+      // the raw material for Hunter Spotlight's Most Improved, Consistently
+      // Elite, and Newcomer categories. One extra pass over the same narrow
+      // history scan `tallyByMonth` already reads; no new query.
+      const monthIdxById = new Map(orderedMonths.map((m, i) => [m.id, i]));
+      const userMonthCounts = new Map(); // month_id -> Map(user_id -> count)
+      const firstMonthIdxByUser = new Map(); // user_id -> earliest month index with a catch
+      (historyEntries || []).forEach(e => {
+        if (e.historical) return;
+        let counts = userMonthCounts.get(e.month_id);
+        if (!counts) { counts = new Map(); userMonthCounts.set(e.month_id, counts); }
+        counts.set(e.user_id, (counts.get(e.user_id) || 0) + 1);
+        const idx = monthIdxById.get(e.month_id);
+        if (idx != null) {
+          const prevIdx = firstMonthIdxByUser.get(e.user_id);
+          if (prevIdx == null || idx < prevIdx) firstMonthIdxByUser.set(e.user_id, idx);
+        }
+      });
 
       const buildTrend = (key) => {
         const stat = (id) => {
@@ -426,6 +505,198 @@ module.exports = function register(app) {
       const allSummary = summarize(allEntries);
       const restrictedSummary = summarize(restrictedEntries);
 
+      // ── Hunter Spotlight ────────────────────────────────────────────────────
+      // Month-wide (not bucket-scoped) — same treatment as consensus_callout
+      // and restricted_rate: it answers "what happened this month", not "what
+      // happened in this toggle view". Built from `allEntries`/history rather
+      // than the buckets above because it needs raw timestamps and cross-month
+      // comparisons neither bucket carries. Deliberately credits MULTIPLE
+      // hunters per category (ties are never broken arbitrarily) and skips a
+      // category entirely rather than force a winner when nothing clears the
+      // bar — an empty slot beats a hollow one.
+      const spotlightUserIds = new Set();
+      const spotlightEntries = [];
+      const pushSpotlight = (category, title, blurb, unit, userStats) => {
+        if (!userStats.length) return;
+        userStats.forEach(u => spotlightUserIds.add(u.user_id));
+        spotlightEntries.push({ category, title, blurb, unit, users: userStats });
+      };
+
+      // Hot Streak — best 7-day run anywhere in the month. Survives a cooldown
+      // at the end of the month by design (see bestWeekByUser above).
+      const weekBest = bestWeekByUser(allEntries);
+      let hotStreakPeak = 0;
+      weekBest.forEach(v => { hotStreakPeak = Math.max(hotStreakPeak, v); });
+      if (hotStreakPeak >= 5) {
+        const winners = [...weekBest.entries()].filter(([, v]) => v === hotStreakPeak).slice(0, 3);
+        pushSpotlight(
+          'hot_streak', 'Hot Streak', `${hotStreakPeak} catches in a single week`, 'catches',
+          winners.map(([user_id]) => ({ user_id, stat: hotStreakPeak })),
+        );
+      }
+
+      // Most Improved — biggest jump in catches vs the previous active month.
+      // Only counts hunters who were active last month too, or "improvement"
+      // is meaningless.
+      if (prevMonth) {
+        const prevCounts = userMonthCounts.get(prevMonth.id) || new Map();
+        const curCounts = userMonthCounts.get(monthId) || new Map();
+        let bestDelta = 0;
+        let improved = [];
+        curCounts.forEach((count, uid) => {
+          const prevCount = prevCounts.get(uid) || 0;
+          if (prevCount <= 0) return;
+          const delta = count - prevCount;
+          if (delta > bestDelta) { bestDelta = delta; improved = [{ user_id: uid, stat: delta, count, prevCount }]; }
+          else if (delta === bestDelta && delta > 0) improved.push({ user_id: uid, stat: delta, count, prevCount });
+        });
+        if (bestDelta >= 3) {
+          pushSpotlight(
+            'most_improved', 'Most Improved',
+            `+${bestDelta} catches vs ${prevMonth.month_year_display}`, 'catches',
+            improved.slice(0, 3),
+          );
+        }
+      }
+
+      // Consistently Elite — longest current streak of consecutive months
+      // (ending this month) inside the monthly top 3 by catches. Needs 2+
+      // months to mean anything, so a first strong month alone doesn't qualify
+      // (that's Newcomer's job, or just a good Hunter of the Month).
+      const TOP_N = 3;
+      let maxStreak = 0;
+      let consistentWinners = [];
+      if (monthIdx >= 1) {
+        const curCounts = userMonthCounts.get(monthId);
+        if (curCounts) {
+          const curTop = [...curCounts.entries()].sort((a, b) => b[1] - a[1]).slice(0, TOP_N).map(([uid]) => uid);
+          curTop.forEach(uid => {
+            let streak = 0;
+            for (let i = monthIdx; i >= 0; i -= 1) {
+              const counts = userMonthCounts.get(orderedMonths[i].id);
+              if (!counts) break;
+              const top = [...counts.entries()].sort((a, b) => b[1] - a[1]).slice(0, TOP_N).map(([id]) => id);
+              if (top.includes(uid)) streak += 1; else break;
+            }
+            if (streak > maxStreak) { maxStreak = streak; consistentWinners = [uid]; }
+            else if (streak === maxStreak) consistentWinners.push(uid);
+          });
+        }
+      }
+      if (maxStreak >= 2) {
+        pushSpotlight(
+          'consistent', 'Consistently Elite', `Top ${TOP_N} hunters ${maxStreak} months running`, 'months',
+          consistentWinners.slice(0, 3).map(user_id => ({ user_id, stat: maxStreak })),
+        );
+      }
+
+      // Range Rider — breadth over volume: most distinct games hunted this
+      // month, not most catches.
+      const gamesByUser = new Map();
+      allEntries.forEach(e => {
+        if (!e.game) return;
+        let set = gamesByUser.get(e.user_id);
+        if (!set) { set = new Set(); gamesByUser.set(e.user_id, set); }
+        set.add(e.game);
+      });
+      let bestGameSpread = 0;
+      gamesByUser.forEach(set => { bestGameSpread = Math.max(bestGameSpread, set.size); });
+      if (bestGameSpread >= 3) {
+        const winners = [...gamesByUser.entries()].filter(([, set]) => set.size === bestGameSpread).slice(0, 3);
+        pushSpotlight(
+          'range_rider', 'Range Rider', `Caught across ${bestGameSpread} different games this month`, 'games',
+          winners.map(([user_id]) => ({ user_id, stat: bestGameSpread })),
+        );
+      }
+
+      // Comeback Champion — bottom half of the field last month, this month's
+      // hardest-to-reach cutoff (top 10, or top half if the field is small
+      // enough that top half is the tighter bar). Needs real standing in both
+      // months or "comeback" has no starting point to climb from, and both
+      // fields need a minimum size or a 4-person month makes "bottom half"
+      // trivial to clear.
+      const MIN_SPOTLIGHT_FIELD = 6;
+      if (prevMonth) {
+        const prevCounts = userMonthCounts.get(prevMonth.id) || new Map();
+        const curCounts = userMonthCounts.get(monthId) || new Map();
+        const rankOf = (counts) => {
+          const sorted = [...counts.entries()].sort((a, b) => b[1] - a[1]);
+          const byUser = new Map();
+          sorted.forEach(([uid], i) => byUser.set(uid, i + 1));
+          return { byUser, n: sorted.length };
+        };
+        const prevRanked = rankOf(prevCounts);
+        const curRanked = rankOf(curCounts);
+        if (prevRanked.n >= MIN_SPOTLIGHT_FIELD && curRanked.n >= MIN_SPOTLIGHT_FIELD) {
+          const prevBottomStart = Math.floor(prevRanked.n / 2) + 1;
+          const eliteCutoff = Math.min(10, Math.ceil(curRanked.n / 2));
+          let bestClimb = 0;
+          let climbers = [];
+          curRanked.byUser.forEach((curRank, uid) => {
+            const prevRank = prevRanked.byUser.get(uid);
+            if (prevRank == null || prevRank < prevBottomStart || curRank > eliteCutoff) return;
+            const climb = prevRank - curRank;
+            if (climb > bestClimb) { bestClimb = climb; climbers = [{ user_id: uid, curRank, prevRank }]; }
+            else if (climb === bestClimb) climbers.push({ user_id: uid, curRank, prevRank });
+          });
+          if (climbers.length && bestClimb > 0) {
+            pushSpotlight(
+              'comeback_champion', 'Comeback Champion',
+              `#${climbers[0].prevRank} to #${climbers[0].curRank} this month`, 'places',
+              climbers.slice(0, 3).map(c => ({ user_id: c.user_id, stat: bestClimb })),
+            );
+          }
+        }
+      }
+
+      // Iron Hunter — longest streak of consecutive calendar days with at
+      // least one catch this month. A different axis from Hot Streak (best
+      // 7-day volume) — this rewards showing up daily over a single hot burst.
+      const daysByUser = new Map();
+      allEntries.forEach(e => {
+        if (!e.created_at) return;
+        const day = e.created_at.slice(0, 10);
+        let set = daysByUser.get(e.user_id);
+        if (!set) { set = new Set(); daysByUser.set(e.user_id, set); }
+        set.add(day);
+      });
+      const dayStreakByUser = new Map();
+      daysByUser.forEach((days, uid) => {
+        const sorted = [...days].sort();
+        let peak = 1;
+        let cur = 1;
+        for (let i = 1; i < sorted.length; i += 1) {
+          const diffDays = Math.round((new Date(sorted[i]) - new Date(sorted[i - 1])) / (24 * 60 * 60 * 1000));
+          cur = diffDays === 1 ? cur + 1 : 1;
+          peak = Math.max(peak, cur);
+        }
+        dayStreakByUser.set(uid, peak);
+      });
+      let bestDayStreak = 0;
+      dayStreakByUser.forEach(v => { bestDayStreak = Math.max(bestDayStreak, v); });
+      if (bestDayStreak >= 5) {
+        const winners = [...dayStreakByUser.entries()].filter(([, v]) => v === bestDayStreak).slice(0, 3);
+        pushSpotlight(
+          'iron_hunter', 'Iron Hunter', `${bestDayStreak} days in a row with a catch`, 'days',
+          winners.map(([user_id]) => ({ user_id, stat: bestDayStreak })),
+        );
+      }
+
+      // Newcomer — this is their first month with any catch on record, and it
+      // wasn't just a toe in the water. Per-user stat is their own catch count
+      // (unlike the other categories, this one genuinely varies per winner).
+      const curCounts = userMonthCounts.get(monthId) || new Map();
+      const newcomers = [];
+      curCounts.forEach((count, uid) => {
+        if (firstMonthIdxByUser.get(uid) === monthIdx && count >= 3) newcomers.push({ user_id: uid, stat: count });
+      });
+      if (newcomers.length) {
+        pushSpotlight(
+          'newcomer', 'Newcomer Spotlight', 'First month hunting with the community', 'catches',
+          newcomers.sort((a, b) => b.stat - a.stat).slice(0, 3),
+        );
+      }
+
       // "Watch out!" - who is closest to claiming each unclaimed achievement.
       const positionByPokemon = {};
       (poolRows || []).forEach(p => { positionByPokemon[p.pokemon_id] = p.position; });
@@ -464,6 +735,13 @@ module.exports = function register(app) {
       const upsetsAll = submissionCount >= 3 ? buildTierUpsets(modalByMon, allSummary.catchCountByMon) : null;
       const upsetsRestricted = restrictedSubmissionCount >= 3
         ? buildTierUpsets(modalByMonRestricted, restrictedSummary.catchCountByMon)
+        : null;
+      // Most Disputed reuses the same modal-tier maps as the upsets above —
+      // same gate, same per-mode split, just a different question asked of the
+      // same data (lowest consensus rather than biggest surprise).
+      const disputedAll = submissionCount >= 3 ? buildMostDisputed(modalByMon, allSummary.catchCountByMon) : null;
+      const disputedRestricted = restrictedSubmissionCount >= 3
+        ? buildMostDisputed(modalByMonRestricted, restrictedSummary.catchCountByMon)
         : null;
 
       // Restricted rate — what share of catches were attempted the hard way.
@@ -513,6 +791,7 @@ module.exports = function register(app) {
         .filter(Boolean)
         .flatMap(u => [u.overachiever?.id, u.trap?.id])
         .filter(id => id != null);
+      const disputedMonIds = [disputedAll?.id, disputedRestricted?.id].filter(id => id != null);
       const allTopMonIds = [...new Set([
         ...allSummary.topMonIds,
         ...restrictedSummary.topMonIds,
@@ -522,6 +801,7 @@ module.exports = function register(app) {
         ...restrictedSummary.unique_catch.items.map(i => i.pokemon_id),
         ...restricted_rate.by_pokemon.map(p => p.pokemon_id),
         ...upsetMonIds,
+        ...disputedMonIds,
       ])];
       const allTopUserIds = [...new Set([
         ...allSummary.topUserIds,
@@ -531,6 +811,7 @@ module.exports = function register(app) {
         ...allSummary.unique_catch.items.map(i => i.user_id),
         ...restrictedSummary.unique_catch.items.map(i => i.user_id),
         ...watchUserIds,
+        ...spotlightUserIds,
       ])];
 
       const [
@@ -543,7 +824,10 @@ module.exports = function register(app) {
           ? supabase.from('pokemon_master').select(POKEMON_IMAGE_FIELDS).in('id', allTopMonIds)
           : Promise.resolve({ data: [] }),
         allTopUserIds.length
-          ? supabase.from('users').select('id, display_name').in('id', allTopUserIds)
+          // avatar_url added for Hunter Spotlight, which embeds it directly on
+          // each winner (self-contained, outside the pokemon/users dedupe
+          // system below — see spotlight assembly further down).
+          ? supabase.from('users').select('id, display_name, avatar_url').in('id', allTopUserIds)
           : Promise.resolve({ data: [] }),
       ]);
       if (monError) throw monError;
@@ -553,6 +837,18 @@ module.exports = function register(app) {
       (monRows || []).forEach(p => { monById[p.id] = p; });
       const userById = {};
       (userRows || []).forEach(u => { userById[u.id] = u; });
+
+      // Hunter Spotlight winners get their display data embedded inline
+      // (name + avatar) rather than routed through the pokemon/users dedupe
+      // dicts below — at most 15 winners, so the duplication cost is trivial
+      // and the client doesn't need a second lookup just for this section.
+      spotlightEntries.forEach(entry => {
+        entry.users = entry.users.map(u => ({
+          ...u,
+          name: userById[u.user_id]?.display_name || 'Unknown',
+          avatar_url: userById[u.user_id]?.avatar_url || null,
+        }));
+      });
 
       // Every panel that shows a mon renders it through <PokemonImage>, which
       // needs the whole gender/form field set - see CLAUDE.md.
@@ -631,12 +927,19 @@ module.exports = function register(app) {
         }),
       });
 
-      const hydrateUpsets = (upsets) => {
-        if (!upsets) return { available: false };
+      const hydrateUpsets = (upsets, disputed) => {
+        if (!upsets && !disputed) return { available: false };
         const side = (u) => (u ? { pokemon_id: monRef(u.id), tier: u.tier, votes: u.votes, total_votes: u.total_votes, pct: u.pct, catch_count: u.catch_count } : null);
-        const overachiever = side(upsets.overachiever);
-        const trap = side(upsets.trap);
-        return { available: Boolean(overachiever || trap), submission_count: submissionCount, overachiever, trap };
+        const overachiever = side(upsets?.overachiever);
+        const trap = side(upsets?.trap);
+        const mostDisputed = side(disputed);
+        return {
+          available: Boolean(overachiever || trap || mostDisputed),
+          submission_count: submissionCount,
+          overachiever,
+          trap,
+          most_disputed: mostDisputed,
+        };
       };
 
       // Contenders are ordered by points so the biggest threat reads first;
@@ -652,7 +955,7 @@ module.exports = function register(app) {
           .sort((a, b) => b.points - a.points || nameOf(a.user_id).localeCompare(nameOf(b.user_id))),
       }));
 
-      const buildBucket = (summary, watch, upsets, trend, historicalCount) => ({
+      const buildBucket = (summary, watch, upsets, disputed, trend, historicalCount) => ({
         overview: {
           total_shinies: summary.total_shinies,
           participants: summary.participantIds.size,
@@ -669,8 +972,29 @@ module.exports = function register(app) {
         watch_out: hydrateWatch(watch),
         rarest_catches: buildRarest(summary),
         unique_catch: hydrateUnique(summary.unique_catch),
-        tier_upsets: hydrateUpsets(upsets),
+        tier_upsets: hydrateUpsets(upsets, disputed),
       });
+
+      // Month Champion — top points scorer, used once a month is finished to
+      // swap the Watch Out! hero slot for a congratulations card instead of a
+      // frozen race. Month-wide (points aren't bucket-scoped), so this is
+      // only ever computed once, not per bucket, and only bothers computing
+      // for a finished month — a live month renders Watch Out! in that slot
+      // instead and never reads this field.
+      let month_winner = null;
+      if (!isCurrentMonth) {
+        const ranked = Object.entries(pointsByUser).sort((a, b) => b[1] - a[1]);
+        if (ranked.length) {
+          const [winnerId, winnerPoints] = ranked[0];
+          month_winner = {
+            user_id: userRef(winnerId),
+            points: winnerPoints,
+            catches: allSummary.catchCountByUser[winnerId] || 0,
+            achievements: (achievements || []).filter(a => a.user_id === winnerId).length,
+            margin: ranked.length > 1 ? winnerPoints - ranked[1][1] : winnerPoints,
+          };
+        }
+      }
 
       // Consensus callout - "Community Fan Favorite": the pool pokemon with the most
       // Super Hard votes (the "hardest hunt" superlative). Hidden entirely
@@ -706,8 +1030,8 @@ module.exports = function register(app) {
 
       // Panels must be built before the dictionaries: constructing them is what
       // registers which ids are actually referenced, so only those get sent.
-      const allBucket = buildBucket(allSummary, watchAll, upsetsAll, trendAll, historicalCounts.all);
-      const restrictedBucket = buildBucket(restrictedSummary, watchRestricted, upsetsRestricted, trendRestricted, historicalCounts.restricted);
+      const allBucket = buildBucket(allSummary, watchAll, upsetsAll, disputedAll, trendAll, historicalCounts.all);
+      const restrictedBucket = buildBucket(restrictedSummary, watchRestricted, upsetsRestricted, disputedRestricted, trendRestricted, historicalCounts.restricted);
       const rateByPokemon = restricted_rate.by_pokemon.map(p => ({
         pokemon_id: monRef(p.pokemon_id), total: p.total, restricted: p.restricted, pct: p.pct,
       }));
@@ -767,6 +1091,22 @@ module.exports = function register(app) {
         // reason.
         restricted_rate: { ...restricted_rate, by_pokemon: rateByPokemon },
         consensus_callout,
+        // Null on a live month (Watch Out! occupies that hero slot instead).
+        month_winner,
+        // Month-wide, mode-independent — see the assembly block above.
+        hunter_spotlight: spotlightEntries,
+        // Badges earned this calendar month, secret ones scrubbed to their
+        // earner + a placeholder rather than the real name/image.
+        badges_this_month: (badgeRows || []).slice(0, 30).map(r => ({
+          user_id: r.user_id,
+          user_name: r.users?.display_name || 'Unknown',
+          avatar_url: r.users?.avatar_url || null,
+          badge_id: r.badge_id,
+          is_secret: Boolean(r.badges?.is_secret),
+          badge_name: r.badges?.is_secret ? null : (r.badges?.name || 'Badge'),
+          badge_image: r.badges?.is_secret ? null : (r.badges?.image_url || null),
+          earned_at: r.earned_at,
+        })),
       });
     } catch (err) {
       console.error('Error fetching month stats:', err);

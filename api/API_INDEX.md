@@ -265,7 +265,7 @@
 
 | Method | Path | Auth | Location | Notes |
 |---|---|---|---|---|
-| GET | `/api/stats/month` | auth | `api/_routes/stats.js:242` | GET /api/stats/month - read-only aggregate dashboard for a given month. Aggregations are split into an `all` bucket (every entry) and a `restricted` bucket (res |
+| GET | `/api/stats/month` | auth | `api/_routes/stats.js:282` | GET /api/stats/month - read-only aggregate dashboard for a given month. Aggregations are split into an `all` bucket (every entry) and a `restricted` bucket (res |
 
 ## /tier-list
 
@@ -368,13 +368,15 @@
 | `_sandwichIngredients` | `api/_lib/core.js:1409` |  |
 | `_SW` | `api/_lib/core.js:1418` | ── Core mechanics (mirrors sandwichSearch.worker.js) ────────────────────── |
 | `awardBadgesForTrigger` | `api/_lib/core.js:221` | Award any badges the user is newly eligible for given a trigger event. Fire-and-forget safe — never throws to the caller.  How it works:   1. Fetch ALL badges f |
+| `bestWeekByUser` | `api/_routes/stats.js:209` |  |
 | `broadcastNotificationToasts` | `api/_lib/core.js:152` | Fetch, enrich, and broadcast fresh unnotified notifications to a user's toast feed. Also fires to 'award-announcements' if any notification is an award (for oth |
 | `broadcastSSE` | `api/_lib/core.js:486` |  |
 | `broadcastUpdate` | `api/_lib/core.js:131` | Supabase Realtime Broadcast helper — fire-and-forget, no WebSocket needed |
 | `buildCheckFromDB` | `api/_badgeRegistry.js:567` | ── DB-driven check evaluator ───────────────────────────────────────────────── Used by awardBadgesForTrigger to evaluate badges created via the admin form (whic |
 | `buildConsensus` | `api/_routes/tierList.js:74` | Per-mon plurality across every submission in one mode. Deliberately unchanged from the pre-mode behaviour (all rows, complete or not, first-wins on ties) — unif |
+| `buildMostDisputed` | `api/_routes/stats.js:235` | Most Disputed: the pool mon with the lowest modal-tier percentage. Only complete tier lists count toward modalByMon, so every mon there has the same total_votes |
 | `buildTierUpsets` | `api/_routes/stats.js:150` |  |
-| `buildUniqueCatch` | `api/_routes/stats.js:202` | ── Most unique catch ──────────────────────────────────────────────────────── The rarest (pokemon, game) pairing logged this month, within the active bucket (se |
+| `buildUniqueCatch` | `api/_routes/stats.js:242` |  |
 | `buildWatchOut` | `api/_routes/stats.js:70` | Least number of submissions any still-eligible player needs to claim each achievement type, listing every tied player (Kellen's spec: no arbitrary pick). One bu |
 | `bulkAwardBadge` | `api/_lib/core.js:328` | ── Bulk badge award helper ─────────────────────────────────────────────────── Awards a single badge to multiple users at once, skipping already-earned ones. Re |
 | `calculateCategoryThresholds` | `api/_lib/core.js:999` |  |

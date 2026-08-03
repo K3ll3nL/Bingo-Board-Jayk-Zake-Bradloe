@@ -7,6 +7,9 @@
 // (docs/TIER_LIST_PLAN.md Q4) and reversed by the owner on 2026-08-02.
 export const TIER_CODES = ['easy', 'medium', 'hard', 'super_hard', 'sleeper'];
 
+// Display order: Sleeper at top, Easy at bottom (for tier list rendering)
+export const TIER_ORDER = [...TIER_CODES].reverse();
+
 export const TIER_COLORS = {
   easy: '#10b981',       // emerald-500
   medium: '#eab308',     // yellow-500
