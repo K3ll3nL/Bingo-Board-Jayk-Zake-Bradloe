@@ -61,4 +61,65 @@ export const api = {
     if (!response.ok) throw httpError('Failed to fetch periods', response.status);
     return response.json();
   },
+
+  // Month Statistics endpoints
+  getMonthStats: async (monthId = null) => {
+    const headers = await getAuthHeaders();
+    const q = monthId ? `?month_id=${monthId}` : '';
+    const response = await fetch(`${API_BASE_URL}/stats/month${q}`, { headers, cache: 'no-store' });
+    if (!response.ok) throw httpError('Failed to fetch month stats', response.status);
+    return response.json();
+  },
+
+  // Community Tier List endpoints
+  // `mode` is 'standard' | 'restricted' — two independent, optional rankings of
+  // the same 24 board mons. Omitting it means Standard, which keeps every
+  // existing caller (BannerBar's tier_list_incomplete resolver) unchanged.
+  getTierList: async (monthId = null, mode = 'standard') => {
+    const headers = await getAuthHeaders();
+    const params = new URLSearchParams({ mode });
+    if (monthId) params.set('month_id', monthId);
+    const response = await fetch(`${API_BASE_URL}/tier-list?${params}`, { headers, cache: 'no-store' });
+    if (!response.ok) throw httpError('Failed to fetch tier list', response.status);
+    return response.json();
+  },
+
+  // Who has ranked this month, in one mode. Public — browsing needs no auth,
+  // but the header is sent so the response can mark the viewer's own row.
+  // `withTiers` also returns each hunter's placements plus the month's pool, so
+  // the Community tab draws every board from this one call.
+  getTierListSubmissions: async (monthId = null, mode = 'standard', withTiers = false) => {
+    const headers = await getAuthHeaders();
+    const params = new URLSearchParams({ mode });
+    if (withTiers) params.set('include', 'tiers');
+    if (monthId) params.set('month_id', monthId);
+    const response = await fetch(`${API_BASE_URL}/tier-list/submissions?${params}`, { headers, cache: 'no-store' });
+    if (!response.ok) throw httpError('Failed to fetch tier list submissions', response.status);
+    return response.json();
+  },
+
+  getUserTierList: async (userId, monthId = null, mode = 'standard') => {
+    const headers = await getAuthHeaders();
+    const params = new URLSearchParams({ mode });
+    if (monthId) params.set('month_id', monthId);
+    const response = await fetch(`${API_BASE_URL}/tier-list/user/${userId}?${params}`, { headers, cache: 'no-store' });
+    if (!response.ok) throw httpError('Failed to fetch that player\'s tier list', response.status);
+    return response.json();
+  },
+
+  saveTierList: async (monthId, tiers, mode = 'standard') => {
+    const headers = await getAuthHeaders();
+    const response = await fetch(`${API_BASE_URL}/tier-list`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ month_id: monthId, mode, tiers }),
+    });
+    if (!response.ok) {
+      const data = await response.json().catch(() => ({}));
+      const err = httpError(data.error || 'Failed to save tier list', response.status);
+      err.migrationPending = Boolean(data.migration_pending);
+      throw err;
+    }
+    return response.json();
+  },
 };

@@ -1,4 +1,7 @@
 import React, { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
+import { api, getAuthHeaders } from '../services/api';
+import { useAuth } from '../contexts/AuthContext';
 
 const STORAGE_KEY = 'dismissed_banners';
 
@@ -58,10 +61,18 @@ const Banner = ({ banner, onDismiss }) => {
         {banner.link_url && (
           <>
             {' '}
-            <a href={banner.link_url}
-              className="text-purple-400 hover:text-purple-300 underline underline-offset-2 transition-colors font-medium">
-              {banner.link_label || 'Learn more'}
-            </a>
+            {banner.link_url.startsWith('/') ? (
+              // In-app destination — route without a full page reload.
+              <Link to={banner.link_url}
+                className="text-purple-400 hover:text-purple-300 underline underline-offset-2 transition-colors font-medium">
+                {banner.link_label || 'Learn more'}
+              </Link>
+            ) : (
+              <a href={banner.link_url}
+                className="text-purple-400 hover:text-purple-300 underline underline-offset-2 transition-colors font-medium">
+                {banner.link_label || 'Learn more'}
+              </a>
+            )}
           </>
         )}
       </p>
@@ -80,16 +91,58 @@ const Banner = ({ banner, onDismiss }) => {
   );
 };
 
+// A banner row may declare a `condition` — a per-viewer visibility rule on top of
+// its starts_at/expires_at window (NULL = always show, the original behavior).
+// The rules live here rather than in the API because they depend on who is
+// looking. Adding one = a resolver here + an entry in BANNER_CONDITIONS in
+// api/routes/banners.js; no migration needed.
+const CONDITION_RESOLVERS = {
+  // Show only to a signed-in user who has not ranked every mon in this month's pool.
+  tier_list_incomplete: async (user) => {
+    if (!user) return false;
+    const data = await api.getTierList();
+    const poolSize = (data.pool || []).length;
+    if (!poolSize) return false;
+    const ranked = Object.keys(data.viewer_submission?.tiers || {}).length;
+    return ranked < poolSize;
+  },
+};
+
 const BannerBar = () => {
+  const { user } = useAuth();
   const [banners, setBanners] = useState([]);
   const [dismissed, setDismissed] = useState(getDismissed);
+  // conditionName -> true/false. A condition stays hidden until it resolves.
+  const [conditions, setConditions] = useState({});
 
   useEffect(() => {
-    fetch('/api/banners')
-      .then(r => r.json())
-      .then(data => Array.isArray(data) && setBanners(data))
-      .catch(() => {});
+    let cancelled = false;
+    (async () => {
+      try {
+        const headers = await getAuthHeaders();
+        const res = await fetch('/api/banners', { headers });
+        const data = await res.json();
+        if (!cancelled && Array.isArray(data)) setBanners(data);
+      } catch { /* banners are non-critical — fail silently */ }
+    })();
+    return () => { cancelled = true; };
   }, []);
+
+  // Resolve each distinct condition once, only when a live banner actually uses it.
+  useEffect(() => {
+    let cancelled = false;
+    const needed = [...new Set(banners.map(b => b.condition).filter(Boolean))];
+    needed.forEach(async (name) => {
+      const resolver = CONDITION_RESOLVERS[name];
+      // Unknown condition (client older than the row) → stay hidden.
+      if (!resolver) return;
+      try {
+        const show = await resolver(user);
+        if (!cancelled) setConditions(prev => ({ ...prev, [name]: show }));
+      } catch { /* leave unresolved → hidden */ }
+    });
+    return () => { cancelled = true; };
+  }, [banners, user]);
 
   const dismiss = (id) => {
     const next = [...dismissed, id];
@@ -97,11 +150,15 @@ const BannerBar = () => {
     setDismissed(next);
   };
 
-  const visible = banners.filter(b => !dismissed.includes(b.id));
+  const visible = banners.filter(b =>
+    !dismissed.includes(b.id) && (!b.condition || conditions[b.condition] === true)
+  );
   if (!visible.length) return null;
 
   return (
-    <div className="space-y-2 mb-4">
+    // No bottom margin: <main> owns the 24px rhythm via space-y-6. An mb-4 here
+    // stacked on top of it and pushed the banner 40px off the board.
+    <div className="space-y-2">
       {visible.map(banner => (
         <Banner key={banner.id} banner={banner} onDismiss={dismiss} />
       ))}

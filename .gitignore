@@ -36,3 +36,6 @@ supabase/.branches/
 supabase/.temp/
 supabase/.env
 supabase/dev-fixtures/
+
+# Docs
+docs/

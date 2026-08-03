@@ -1,4 +1,7 @@
 {
+  "scripts": {
+    "index:api": "node api/scripts/buildApiIndex.js"
+  },
   "devDependencies": {
     "nodemon": "^3.1.11"
   }

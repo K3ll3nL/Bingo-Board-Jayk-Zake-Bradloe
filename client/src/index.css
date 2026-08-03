@@ -11,9 +11,13 @@
 }
 
 
-/* Prevent white background showing through */
+/* Prevent white background showing through.
+   `surface` (#0d0f14) — must match the page background every route paints on
+   its own `min-h-screen` wrapper. This used to be #212326, which is *lighter*
+   than the card colour, so the page flashed too bright before a route mounted.
+   See docs/DESIGN_TOKENS.md §1.1. */
 html, body {
-  background-color: #212326;
+  background-color: #0d0f14;
   margin: 0;
   padding: 0;
   /* Change this one value to test a different font globally */
@@ -22,7 +26,7 @@ html, body {
 
 #root {
   min-height: 100vh;
-  background-color: #212326;
+  background-color: #0d0f14;
 }
 
 /* App-like UI: text isn't selectable by default so drag-highlighting the
@@ -65,16 +69,21 @@ a {
   width: 8px;
 }
 
+/* Track is `surface-inset` — it was #f1f1f1, a white gutter running down a
+   near-black app, visible on every scrollable panel. */
 ::-webkit-scrollbar-track {
-  background: #f1f1f1;
+  background: #13151a;
   border-radius: 10px;
 }
 
+/* Thumb is `accent-strong` (a fill); hover lifts to `accent`. The old hover
+   (#7c3aed) maps to accent-strong too, which would have made hover a no-op —
+   so hover goes one step lighter inside the same family instead. */
 ::-webkit-scrollbar-thumb {
   background: #8b5cf6;
   border-radius: 10px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #7c3aed;
+  background: #a78bfa;
 }

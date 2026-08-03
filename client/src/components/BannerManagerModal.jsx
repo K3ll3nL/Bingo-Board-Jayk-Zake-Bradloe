@@ -26,9 +26,17 @@ const defaultExpiresAt = () => {
 };
 
 const EMPTY_FORM = {
-  message: '', link_url: '', link_label: '', image_url: '',
+  message: '', link_url: '', link_label: '', image_url: '', condition: '',
   starts_at: defaultStartsAt(), expires_at: defaultExpiresAt(),
 };
+
+// Extra per-viewer visibility rules on top of the start/end window. Must stay in
+// sync with BANNER_CONDITIONS (api/routes/banners.js) and CONDITION_RESOLVERS
+// (BannerBar.jsx).
+const CONDITIONS = [
+  { value: '', label: 'Always (everyone)' },
+  { value: 'tier_list_incomplete', label: 'Only users who have not finished this month’s tier list' },
+];
 
 const inputCls = 'w-full rounded-lg px-3 py-2 text-sm text-white placeholder-gray-600 border focus:border-purple-500 focus:outline-none transition-colors';
 const inputStyle = { background: C.input, borderColor: C.border, colorScheme: 'dark' };
@@ -85,6 +93,7 @@ const BannerManagerModal = ({ isOpen, onClose }) => {
           image_url:  form.image_url.trim()  || null,
           starts_at:  new Date(form.starts_at).toISOString(),
           expires_at: new Date(form.expires_at).toISOString(),
+          condition:  form.condition || null,
         }),
       });
       if (!res.ok) { const d = await res.json(); throw new Error(d.error || 'Failed'); }
@@ -195,6 +204,14 @@ const BannerManagerModal = ({ isOpen, onClose }) => {
                 </Field>
               </div>
 
+              <Field label="Show to">
+                <select value={form.condition}
+                  onChange={e => setForm(f => ({ ...f, condition: e.target.value }))}
+                  className={inputCls} style={inputStyle}>
+                  {CONDITIONS.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
+                </select>
+              </Field>
+
               <p className="text-[11px] text-gray-600">Times are in your local timezone.</p>
 
               <button type="submit" disabled={submitting}
@@ -232,6 +249,22 @@ const BannerManagerModal = ({ isOpen, onClose }) => {
                       <p className="text-[11px] text-gray-600 mt-1">
                         {new Date(banner.starts_at).toLocaleString()} → {new Date(banner.expires_at).toLocaleString()}
                       </p>
+                      {(banner.condition || banner.banner_key) && (
+                        <div className="flex flex-wrap gap-1.5 mt-1.5">
+                          {banner.condition && (
+                            <span className="text-[10px] rounded-full px-2 py-0.5"
+                              style={{ background: 'rgba(147,51,234,0.15)', color: '#c4b5fd' }}>
+                              {CONDITIONS.find(c => c.value === banner.condition)?.label || banner.condition}
+                            </span>
+                          )}
+                          {banner.banner_key && (
+                            <span className="text-[10px] rounded-full px-2 py-0.5"
+                              style={{ background: 'rgba(255,255,255,0.06)', color: '#9ca3af' }}>
+                              auto · {banner.banner_key}
+                            </span>
+                          )}
+                        </div>
+                      )}
                     </div>
                     <button onClick={() => handleDelete(banner.id)} aria-label="Delete banner"
                       className="flex-shrink-0 w-7 h-7 flex items-center justify-center rounded-lg transition-colors mt-0.5"

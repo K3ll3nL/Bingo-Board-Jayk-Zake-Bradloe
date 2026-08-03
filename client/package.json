@@ -9,6 +9,9 @@
     "vercel-build": "vite build"
   },
   "dependencies": {
+    "@dnd-kit/core": "^6.3.1",
+    "@dnd-kit/sortable": "^10.0.0",
+    "@dnd-kit/utilities": "^3.2.2",
     "@supabase/supabase-js": "^2.91.0",
     "@vercel/analytics": "^2.0.1",
     "glpk.js": "^5.0.0",

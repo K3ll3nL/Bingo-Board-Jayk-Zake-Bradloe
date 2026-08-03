@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, Link } from 'react-router-dom';
 import PokemonModal from './PokemonModal';
 import PokemonImage from './PokemonImage';
 import BadgeCase from './BadgeCase';
@@ -11,7 +11,7 @@ import shinyDexUrl from '../Icons/ShinyDex Logo.png';
 import PageBackground from './PageBackground';
 import PageHeader from './PageHeader';
 import ReconnectingPill from './ReconnectingPill';
-import { getAuthHeaders } from '../services/api';
+import { getAuthHeaders, api } from '../services/api';
 
 // Card gradient styles — avoids repeating the strings everywhere
 const CARD = {
@@ -788,8 +788,23 @@ const Profile = () => {
   // clears the glow in the All Badges grid (both read this set).
   const [seenBadgeIds, setSeenBadgeIds] = useState(() => new Set());
   const markedSeenRef = useRef(new Set());
+  const [tierListStatus, setTierListStatus] = useState(null); // { ranked, total } — own profile only
 
   const isOwn = !paramUserId || user?.id === paramUserId;
+
+  // Own-profile-only tier-list completion card, sourced from GET /api/tier-list.
+  useEffect(() => {
+    if (!isOwn || !user?.id) { setTierListStatus(null); return; }
+    let cancelled = false;
+    api.getTierList()
+      .then(data => {
+        if (cancelled) return;
+        const ranked = Object.keys(data?.viewer_submission?.tiers || {}).length;
+        setTierListStatus({ ranked, total: data?.pool?.length || 0 });
+      })
+      .catch(() => { if (!cancelled) setTierListStatus(null); });
+    return () => { cancelled = true; };
+  }, [isOwn, user?.id]);
 
   // Fetch the unseen-badge count for the tab dot (own profile only).
   useEffect(() => {
@@ -1179,6 +1194,24 @@ const Profile = () => {
         {/* ── Nav + Content ─────────────────────────────────── */}
         <MobileTabStrip tab={tab} setTab={setTab} accentColor={accentColor} badgeDot={unseenBadgeCount > 0} />
 
+        {/* Tier List completion card — mobile only (desktop shows it in the left sidebar below) */}
+        {isOwnProfile && tierListStatus && (
+          <div className="lg:hidden mt-3 rounded-xl p-3 border flex items-center justify-between gap-3 min-w-0" style={{ background: CARD.bg, borderColor: CARD.border }}>
+            <div className="min-w-0">
+              <div className="text-[10px] uppercase tracking-widest mb-0.5" style={{ color: 'rgba(255,255,255,0.35)' }}>Tier List — Active Month</div>
+              <span className="text-lg font-extrabold leading-none" style={{ color: '#fbbf24' }}>{tierListStatus.ranked} / {tierListStatus.total}</span>
+              <span className="text-xs text-gray-500 ml-1.5">ranked</span>
+            </div>
+            <Link
+              to="/tier-list"
+              className="shrink-0 text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors"
+              style={{ backgroundColor: 'rgba(251,191,36,0.12)', border: '1px solid rgba(251,191,36,0.3)', color: '#fbbf24' }}
+            >
+              {tierListStatus.ranked > 0 ? 'Edit Ranking' : 'Rank Now'}
+            </Link>
+          </div>
+        )}
+
         <div className="mt-3 flex gap-4 items-start">
 
           {/* Left game nav — desktop only */}
@@ -1207,6 +1240,26 @@ const Profile = () => {
                 )}
               </div>
             </div>
+
+            {/* Tier List completion — own profile only (never shown on /profile/:userId for other users) */}
+            {isOwnProfile && tierListStatus && (
+              <div className="rounded-xl p-3 border" style={{ background: CARD.bg, borderColor: CARD.border }}>
+                <div className="text-[10px] uppercase tracking-widest mb-1.5" style={{ color: 'rgba(255,255,255,0.35)' }}>Tier List — Active Month</div>
+                <div className="flex items-baseline justify-between mb-2">
+                  <span className="text-xl font-extrabold leading-none" style={{ color: '#fbbf24' }}>
+                    {tierListStatus.ranked} / {tierListStatus.total}
+                  </span>
+                  <span className="text-xs text-gray-500">ranked</span>
+                </div>
+                <Link
+                  to="/tier-list"
+                  className="block text-center text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors"
+                  style={{ backgroundColor: 'rgba(251,191,36,0.12)', border: '1px solid rgba(251,191,36,0.3)', color: '#fbbf24' }}
+                >
+                  {tierListStatus.ranked > 0 ? 'Edit Ranking' : 'Rank Now'}
+                </Link>
+              </div>
+            )}
           </div>
 
           {/* Content */}
