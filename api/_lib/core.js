@@ -1317,10 +1317,15 @@ async function generateNewPoolForMonth(monthId, lockedPokemonIds = [], countToGe
 
 const SHALPHA_GAMES = new Set(['legends_arceus', 'legends_za']);
 
-async function generateGameBoardPool(boardId, game) {
-  const positions = [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25];
-  const tileCount = 25;
+async function generateJeopardyPool(boardId, game, columns = 5) {
+  const tileCount = columns * 5;
+  const positions = Array.from({ length: tileCount }, (_, i) => i + 1);
 
+  // Every lobby rolls independently — no cross-board family exclusion. That
+  // rule made sense when only one board could ever exist at a time (avoid
+  // repeating the last event); it stops being coherent once lobbies run
+  // concurrently, since "the most recent board" could be an unrelated
+  // stranger's game happening at the same moment.
   let query = supabase
     .from('pokemon_master')
     .select('id, name, national_dex_id, display_name, family_id, genderless, custom_gender_code, has_gender_difference, has_major_gender_difference, form_id, forms_count')
@@ -1328,33 +1333,9 @@ async function generateGameBoardPool(boardId, game) {
   if (game) query = query.contains('game_slugs', [game]);
   const { data: allPokemon } = await query;
   if (!allPokemon || allPokemon.length === 0) throw new Error(`No pokemon available for game: ${game}`);
+  if (allPokemon.length < tileCount) throw new Error('Not enough pokemon available for this game');
 
-  // Exclude families from the most recent game board
-  const { data: lastBoard } = await supabase
-    .from('game_boards')
-    .select('id')
-    .neq('id', boardId)
-    .order('created_at', { ascending: false })
-    .limit(1);
-
-  const excludedFamilyIds = new Set();
-  if (lastBoard && lastBoard.length > 0) {
-    const { data: lastPool } = await supabase
-      .from('game_board_pool')
-      .select('pokemon_id')
-      .eq('board_id', lastBoard[0].id);
-    const lastIds = (lastPool || []).map(r => r.pokemon_id);
-    if (lastIds.length > 0) {
-      const { data: lastPk } = await supabase
-        .from('pokemon_master').select('id, family_id').in('id', lastIds);
-      (lastPk || []).forEach(p => { if (p.family_id != null) excludedFamilyIds.add(p.family_id); });
-    }
-  }
-
-  const available = allPokemon.filter(p => !excludedFamilyIds.has(p.family_id));
-  if (available.length < tileCount) throw new Error('Not enough pokemon available after exclusion');
-
-  const selected = shuffleArray([...available]).slice(0, tileCount);
+  const selected = shuffleArray([...allPokemon]).slice(0, tileCount);
   const shuffledPositions = shuffleArray([...positions]);
 
   const rows = selected.map((pok, i) => ({
@@ -1364,13 +1345,13 @@ async function generateGameBoardPool(boardId, game) {
     locked: false,
   }));
 
-  const { error } = await supabase.from('game_board_pool').insert(rows);
+  const { error } = await supabase.from('jeopardy_pool').insert(rows);
   if (error) throw new Error(`Failed to insert pool: ${error.message}`);
 }
 
-async function hydrateGameBoardTiles(boardId) {
+async function hydrateJeopardyTiles(boardId) {
   const { data: pool } = await supabase
-    .from('game_board_pool')
+    .from('jeopardy_pool')
     .select('id, position, pokemon_id, locked')
     .eq('board_id', boardId);
   if (!pool || pool.length === 0) return [];
@@ -1407,9 +1388,9 @@ async function enrichUsersWithTwitchPfp(users) {
   });
 }
 
-async function hydrateGameBoardClaims(boardId) {
+async function hydrateJeopardyClaims(boardId) {
   const { data: claims } = await supabase
-    .from('game_board_claims')
+    .from('jeopardy_claims')
     .select('position, claimed_by, claim_type, original_claimed_by, claimed_at')
     .eq('board_id', boardId);
   if (!claims || claims.length === 0) return [];
@@ -1635,14 +1616,14 @@ module.exports = {
   deleteR2Images,
   enrichUsersWithTwitchPfp,
   enrichWithBadgeSlots,
-  generateGameBoardPool,
+  generateJeopardyPool,
   generateNewPoolForMonth,
   getActiveMonth,
   getActiveMonthId,
   getAuthenticatedUserId,
   getTwitchToken,
-  hydrateGameBoardClaims,
-  hydrateGameBoardTiles,
+  hydrateJeopardyClaims,
+  hydrateJeopardyTiles,
   leaderboardCache,
   multer,
   nowForMonth,

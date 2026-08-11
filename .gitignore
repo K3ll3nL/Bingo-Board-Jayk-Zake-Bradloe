@@ -31,6 +31,8 @@ Thumbs.db
 .claude/
 .impeccable/
 CLAUDE.md
+/DESIGN.md
+/PRODUCT.md
 
 # Supabase CLI local state (config.toml IS committed; these are not)
 supabase/.branches/

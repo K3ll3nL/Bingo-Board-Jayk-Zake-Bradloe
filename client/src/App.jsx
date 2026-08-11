@@ -12,7 +12,10 @@ import TwitchAmbassadors from './components/TwitchAmbassadors';
 import Upload from './components/Upload';
 import Approvals from './components/Approvals';
 import BoardBuilder from './components/BoardBuilder';
-import GameBoard from './components/GameBoard';
+import GameHostPicker from './components/GameHostPicker';
+import JeopardyCreate from './components/JeopardyCreate';
+import JeopardyRoom from './components/JeopardyRoom';
+import ShinyGames from './components/ShinyGames';
 import SubmissionHistory from './components/SubmissionHistory';
 import NotificationToast from './components/NotificationToast';
 import About from './components/About';
@@ -20,6 +23,7 @@ import Pro from './components/Pro';
 import OverlayBoard from './components/OverlayBoard';
 import OverlayLeaderboard from './components/OverlayLeaderboard';
 import OverlayApprovals from './components/OverlayApprovals';
+import OverlayJeopardy from './components/OverlayJeopardy';
 import BadgeUpload from './components/BadgeUpload';
 import PokemonGameManager from './components/PokemonGameManager';
 import FeedbackModal from './components/FeedbackModal';
@@ -270,13 +274,13 @@ const AppLayout = () => {
                 </Link>
               )}
               {isModerator && (
-                <Link to="/game-board" onClick={() => setMenuOpen(false)}
+                <Link to="/games" onClick={() => setMenuOpen(false)}
                   className="w-full px-3 py-2 text-left text-sm text-accent hover:bg-edge flex items-center gap-2.5 transition-colors">
                   <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                   </svg>
-                  Game Board
+                  Shiny Games
                 </Link>
               )}
             </>
@@ -483,13 +487,13 @@ const AppLayout = () => {
                       Stream Overlays
                     </Link>
                   )}
-                  <Link to="/game-board" onClick={() => setDrawerOpen(false)}
+                  <Link to="/games" onClick={() => setDrawerOpen(false)}
                     className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-accent hover:bg-edge transition-colors">
                     <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                     </svg>
-                    Game Board
+                    Shiny Games
                   </Link>
                 </>
               )}
@@ -735,6 +739,7 @@ function App() {
           <Route path="/overlay/board" element={<OverlayBoard />} />
           <Route path="/overlay/leaderboard" element={<OverlayLeaderboard />} />
           <Route path="/overlay/approvals" element={<OverlayApprovals />} />
+          <Route path="/overlay/jeopardy" element={<OverlayJeopardy />} />
 
           {/* Routes with the shared header */}
           <Route element={<AppLayout />}>
@@ -748,7 +753,12 @@ function App() {
             <Route path="/approvals" element={<Approvals />} />
             <Route path="/history" element={<SubmissionHistory />} />
             <Route path="/board-builder" element={<BoardBuilder />} />
-            <Route path="/game-board" element={<GameBoard />} />
+            <Route path="/games" element={<ShinyGames />} />
+            <Route path="/games/host" element={<GameHostPicker />} />
+            <Route path="/games/jeopardy" element={<JeopardyCreate />} />
+            <Route path="/games/jeopardy/:code" element={<JeopardyRoom />} />
+            <Route path="/games/board" element={<Navigate to="/games/jeopardy" replace />} />
+            <Route path="/game-board" element={<Navigate to="/games/jeopardy" replace />} />
             <Route path="/about" element={<About />} />
             <Route path="/overlays" element={<Pro />} />
             <Route path="/pro" element={<Navigate to="/overlays" replace />} />

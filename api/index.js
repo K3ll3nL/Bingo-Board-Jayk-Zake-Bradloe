@@ -42,7 +42,7 @@ require('./_routes/approvals')(app);
 require('./_routes/admin')(app);
 require('./_routes/notifications')(app);
 require('./_routes/boardBuilder')(app);
-require('./_routes/gameBoard')(app);
+require('./_routes/jeopardy')(app);
 require('./_routes/keys')(app);
 require('./_routes/overlay')(app);
 require('./_routes/tools')(app);

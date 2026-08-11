@@ -4,13 +4,49 @@
  */
 const {
   broadcastUpdate,
+  enrichUsersWithTwitchPfp,
   getActiveMonth,
+  hydrateJeopardyClaims,
+  hydrateJeopardyTiles,
   pokeR2Url,
   supabase,
   validateApiKey,
 } = require('../_lib/core');
 
 module.exports = function register(app) {
+
+  // GET /api/overlay/jeopardy?key=pb_xxx&code=ABC123 — read-only live board state
+  // for an OBS browser source. Pro-only (same key gate as the other overlays);
+  // `code` picks which lobby, since a pro host may run more than one.
+  app.get('/api/overlay/jeopardy', async (req, res) => {
+    try {
+      const userId = await validateApiKey(req.query.key);
+      if (!userId) return res.status(401).json({ error: 'Invalid or missing API key' });
+
+      const { code } = req.query;
+      if (!code) return res.status(400).json({ error: 'code required' });
+
+      const { data: board } = await supabase
+        .from('jeopardy_boards').select('*').ilike('code', code).maybeSingle();
+      if (!board) return res.status(404).json({ error: 'No lobby found for that code' });
+
+      const [tiles, claims, { data: memberRows }] = await Promise.all([
+        hydrateJeopardyTiles(board.id),
+        hydrateJeopardyClaims(board.id),
+        supabase.from('jeopardy_members').select('user_id, role').eq('board_id', board.id),
+      ]);
+
+      const userIds = (memberRows || []).map(m => m.user_id);
+      const { data: userRows } = userIds.length
+        ? await supabase.from('users').select('id, display_name, avatar_url, twitch_url').in('id', userIds)
+        : { data: [] };
+      const enrichedUsers = await enrichUsersWithTwitchPfp(userRows || []);
+      const userMap = Object.fromEntries(enrichedUsers.map(u => [u.id, u]));
+      const members = (memberRows || []).map(m => ({ ...m, user: userMap[m.user_id] || null }));
+
+      res.json({ board, tiles, claims, members });
+    } catch (err) { res.status(500).json({ error: err.message }); }
+  });
 
   // GET /api/overlay/board?key=pb_xxx&mode=live|template
   app.get('/api/overlay/board', async (req, res) => {

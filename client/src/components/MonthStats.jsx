@@ -859,7 +859,7 @@ const ConsensusCallout = ({ callout }) => {
       </div>
       <div className="min-w-0 flex-1">
         <div className={`${MICRO_LABEL} mb-0.5`}>Community Fan Favorite</div>
-        <div className="text-sm text-strong leading-snug">
+        <div className="text-sm text-strong leading-snug break-words">
           <span className="font-bold">{callout.name}</span> placed {callout.percentage}% in {TIER_LABELS[callout.tier] || callout.tier} tier
         </div>
         <div className="text-xs text-muted truncate">{callout.submission_count} rankers</div>
@@ -1282,7 +1282,7 @@ const MonthStats = () => {
             <select
               value={monthId ?? ''}
               onChange={e => setMonthId(e.target.value ? parseInt(e.target.value, 10) : null)}
-              className="px-3 py-2 rounded-lg text-sm text-strong outline-none border"
+              className="px-3 py-2 rounded-lg text-sm text-strong outline-none border max-w-full truncate"
               // colorScheme: 'dark' is what actually darkens the native option
               // popup — the gradient `background` only ever styles the closed
               // control, leaving the expanded list white on Windows Chrome. The
