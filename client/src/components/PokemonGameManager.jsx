@@ -1,15 +1,10 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { createPortal } from 'react-dom';
-import { createClient } from '@supabase/supabase-js';
+import { supabase } from '../services/supabaseClient';
 import { ALLOWED_GAMES, GAMES_BY_MANAGER_ORDER } from '../constants/games';
 import PokemonImage from './PokemonImage';
 import PageBackground from './PageBackground';
 import PageHeader from './PageHeader';
-
-const supabase = createClient(
-  import.meta.env.VITE_SUPABASE_URL,
-  import.meta.env.VITE_SUPABASE_ANON_KEY
-);
 
 const getAuthHeader = async () => {
   if (import.meta.env.DEV &&

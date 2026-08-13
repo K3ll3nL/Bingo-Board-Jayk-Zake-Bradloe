@@ -1,12 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { createClient } from '@supabase/supabase-js';
+import { supabase } from '../services/supabaseClient';
 import faviconImage from '/logo-16x16.png';
 import PokemonImage from './PokemonImage';
-
-const supabase = createClient(
-  import.meta.env.VITE_SUPABASE_URL,
-  import.meta.env.VITE_SUPABASE_ANON_KEY
-);
 
 const API_BASE_URL = import.meta.env.DEV ? 'http://localhost:3000/api' : '/api';
 

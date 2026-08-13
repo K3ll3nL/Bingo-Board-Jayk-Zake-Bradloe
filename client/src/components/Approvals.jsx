@@ -2,16 +2,11 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import restrictedIcon from '../Icons/restricted-icon.png';
 import { useNavigate } from 'react-router-dom';
-import { createClient } from '@supabase/supabase-js';
+import { supabase } from '../services/supabaseClient';
 import PageBackground from './PageBackground';
 import PageHeader from './PageHeader';
 import { ALLOWED_GAMES } from '../constants/games';
 import PokemonImage from './PokemonImage';
-
-const supabase = createClient(
-  import.meta.env.VITE_SUPABASE_URL,
-  import.meta.env.VITE_SUPABASE_ANON_KEY
-);
 
 const getAuthHeader = async () => {
   if (import.meta.env.DEV &&

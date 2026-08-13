@@ -1,12 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { createClient } from '@supabase/supabase-js';
+import { supabase } from '../services/supabaseClient';
 import restrictedIconSrc from '../Icons/restricted-icon.png';
 import PokemonImage from './PokemonImage';
-
-const supabase = createClient(
-  import.meta.env.VITE_SUPABASE_URL,
-  import.meta.env.VITE_SUPABASE_ANON_KEY
-);
 
 const API_BASE_URL = import.meta.env.DEV ? 'http://localhost:3000/api' : '/api';
 
@@ -74,9 +69,11 @@ const OverlayBoard = () => {
   // Initial load
   useEffect(() => { fetchBoard(); }, []);
 
-  // Live Realtime updates + polling fallback (only in live mode)
+  // Live Realtime updates, with polling only as a fallback while the socket is down
   useEffect(() => {
     if (mode !== 'live') return;
+
+    const connectedRef = { current: false };
 
     // Subscribe to the same channel the API broadcasts on
     const channel = supabase
@@ -85,10 +82,15 @@ const OverlayBoard = () => {
         versionRef.current += 1;
         fetchBoard({ slim: true });
       })
-      .subscribe();
+      .subscribe((status) => {
+        connectedRef.current = status === 'SUBSCRIBED';
+        if (connectedRef.current) fetchBoard({ slim: true }); // resync after (re)connect in case an update was missed while down
+      });
 
-    // Polling fallback: catches any broadcast missed during a WS reconnect
-    const poll = setInterval(() => fetchBoard({ slim: true }), 30_000);
+    // Fallback poll: only fires while the realtime channel is disconnected/reconnecting
+    const poll = setInterval(() => {
+      if (!connectedRef.current) fetchBoard({ slim: true });
+    }, 30_000);
 
     return () => {
       supabase.removeChannel(channel);

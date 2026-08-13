@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
-import { createClient } from '@supabase/supabase-js';
+import { supabase as supabaseClient } from '../services/supabaseClient';
 import { useAuth } from '../contexts/AuthContext';
 import backgroundImage from '../Icons/2026Jan.png';
 import logoImage from '../Icons/pokemon-bounty-board.png';
@@ -117,11 +117,6 @@ function GameUtilization({ gameStats, restrictedGameStats, boardMonTotal, dexTot
     </div>
   );
 }
-
-const supabaseClient = createClient(
-  import.meta.env.VITE_SUPABASE_URL,
-  import.meta.env.VITE_SUPABASE_ANON_KEY
-);
 
 const getAuthHeader = async () => {
   if (import.meta.env.DEV &&

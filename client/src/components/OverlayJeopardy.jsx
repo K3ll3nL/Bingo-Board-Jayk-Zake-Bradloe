@@ -63,14 +63,18 @@ export default function OverlayJeopardy() {
 
   useEffect(() => { fetchBoard(); }, []);
 
-  // Realtime + polling fallback, once we know which board to listen to.
+  // Realtime updates, with polling only as a fallback while the socket is down.
   useEffect(() => {
     if (!board?.id) return;
+    const connectedRef = { current: false };
     const channel = supabase
       .channel(`jeopardy-updates-${board.id}`)
       .on('broadcast', { event: 'tile-update' }, () => { fetchBoard(); })
-      .subscribe();
-    const poll = setInterval(fetchBoard, 15_000);
+      .subscribe((status) => {
+        connectedRef.current = status === 'SUBSCRIBED';
+        if (connectedRef.current) fetchBoard();
+      });
+    const poll = setInterval(() => { if (!connectedRef.current) fetchBoard(); }, 15_000);
     return () => {
       supabase.removeChannel(channel);
       clearInterval(poll);

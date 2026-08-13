@@ -1,11 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { createClient } from '@supabase/supabase-js';
+import { supabase } from '../services/supabaseClient';
 import restrictedIconSrc from '../Icons/restricted-icon.png';
-
-const supabase = createClient(
-  import.meta.env.VITE_SUPABASE_URL,
-  import.meta.env.VITE_SUPABASE_ANON_KEY
-);
 
 const API_BASE_URL = import.meta.env.DEV ? 'http://localhost:3000/api' : '/api';
 
@@ -140,14 +135,18 @@ const OverlayLeaderboard = () => {
   useEffect(() => { fetchLeaderboard(); }, []);
 
   useEffect(() => {
+    const connectedRef = { current: false };
     const channel = supabase
       .channel('leaderboard-updates')
       .on('broadcast', { event: 'leaderboard-changed' }, () => {
         versionRef.current += 1;
         fetchLeaderboard();
       })
-      .subscribe();
-    const poll = setInterval(() => fetchLeaderboard(), 30_000);
+      .subscribe((status) => {
+        connectedRef.current = status === 'SUBSCRIBED';
+        if (connectedRef.current) fetchLeaderboard();
+      });
+    const poll = setInterval(() => { if (!connectedRef.current) fetchLeaderboard(); }, 30_000);
     return () => { supabase.removeChannel(channel); clearInterval(poll); };
   }, []);
 
