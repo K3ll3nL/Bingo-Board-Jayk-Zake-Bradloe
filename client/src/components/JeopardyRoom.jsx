@@ -63,6 +63,7 @@ export default function JeopardyRoom() {
 
   const [fadingOut, setFadingOut]   = useState(new Set());
   const [rerolling, setRerolling]   = useState(new Set());
+  const [rerollingAll, setRerollingAll] = useState(false);
   const [shuffling, setShuffling]   = useState(false);
   const [dragSource, setDragSource] = useState(null);
   const [dragTarget, setDragTarget] = useState(null);
@@ -80,8 +81,15 @@ export default function JeopardyRoom() {
   const pendingOps = useRef(new Set());
 
   const isMember  = viewerRole === 'host' || viewerRole === 'player';
-  const canManage = isModerator; // host controls — creation is mod-only for now, so host === mod
+  const canManage = isModerator; // lobby lifecycle (start/discard/end) — creation is mod-only for now, so host === mod
   const canClaim  = isMember || isModerator;
+  const isHost    = viewerRole === 'host';
+  // Tile edits (reroll/lock/swap/shuffle) are scoped to the lobby roster —
+  // host always, everyone else only once the host grants it. Derived from
+  // `members` (not a separate server flag) so it stays in sync with the
+  // realtime 'permissions-updated' broadcast for free.
+  const viewerMember = members.find(m => m.user_id === user?.id);
+  const canEditTiles = viewerMember?.role === 'host' || !!viewerMember?.can_edit;
 
   useEffect(() => { loadBoard(); }, [code]);
 
@@ -135,6 +143,11 @@ export default function JeopardyRoom() {
       case 'reroll':
         setTiles(prev => prev.map(t => t.position === payload.tile.position ? { ...t, ...payload.tile } : t));
         break;
+      case 'reroll-all': {
+        const byPosition = Object.fromEntries(payload.tiles.map(t => [t.position, t]));
+        setTiles(prev => prev.map(t => byPosition[t.position] ? { ...t, ...byPosition[t.position] } : t));
+        break;
+      }
       case 'swap':
         setTiles(prev => swapTileData(prev, payload.pos1, payload.pos2));
         break;
@@ -157,7 +170,18 @@ export default function JeopardyRoom() {
         setClaims(prev => prev.filter(c => c.position !== payload.position));
         break;
       case 'member-joined':
+      case 'permissions-updated':
         setMembers(payload.members || []);
+        break;
+      case 'member-kicked':
+        setMembers(payload.members || []);
+        if (payload.kickedUserId === user?.id) {
+          setViewerRole(null);
+          pushToast('You were removed from this lobby by the host.', 'warn');
+        }
+        break;
+      case 'visibility-updated':
+        setBoard(prev => prev ? { ...prev, visibility: payload.visibility } : prev);
         break;
       default: break;
     }
@@ -171,6 +195,64 @@ export default function JeopardyRoom() {
     const id = `${Date.now()}-${Math.random()}`;
     setToasts(prev => [...prev, { id, message, tone }]);
     setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), 2800);
+  };
+
+  const handleTogglePermission = async (targetUserId, nextCanEdit) => {
+    const prevMembers = members;
+    setMembers(prev => prev.map(m => m.user_id === targetUserId ? { ...m, can_edit: nextCanEdit } : m));
+    try {
+      const res = await fetch(`/api/jeopardy/${code}/permissions`, {
+        method: 'PUT',
+        headers: await getAuthHeaders(),
+        body: JSON.stringify({ userId: targetUserId, canEdit: nextCanEdit }),
+      });
+      if (!res.ok) {
+        setMembers(prevMembers);
+        pushToast((await res.json().catch(() => ({}))).error || 'Could not update edit access.');
+      }
+    } catch {
+      setMembers(prevMembers);
+      pushToast('Network error — try again.');
+    }
+  };
+
+  const handleKick = async (targetUserId, targetName) => {
+    if (!window.confirm(`Remove ${targetName || 'this player'} from the lobby?`)) return;
+    const prevMembers = members;
+    setMembers(prev => prev.filter(m => m.user_id !== targetUserId));
+    try {
+      const res = await fetch(`/api/jeopardy/${code}/members/${targetUserId}`, {
+        method: 'DELETE',
+        headers: await getAuthHeaders(),
+      });
+      if (!res.ok) {
+        setMembers(prevMembers);
+        pushToast((await res.json().catch(() => ({}))).error || 'Could not remove that player.');
+      }
+    } catch {
+      setMembers(prevMembers);
+      pushToast('Network error — try again.');
+    }
+  };
+
+  const handleVisibilityChange = async (nextVisibility) => {
+    if (!board || nextVisibility === board.visibility) return;
+    const prevVisibility = board.visibility;
+    setBoard(prev => prev ? { ...prev, visibility: nextVisibility } : prev);
+    try {
+      const res = await fetch('/api/mod/jeopardy/visibility', {
+        method: 'PUT',
+        headers: await getAuthHeaders(),
+        body: JSON.stringify({ boardId: board.id, visibility: nextVisibility }),
+      });
+      if (!res.ok) {
+        setBoard(prev => prev ? { ...prev, visibility: prevVisibility } : prev);
+        pushToast((await res.json().catch(() => ({}))).error || 'Could not update visibility.');
+      }
+    } catch {
+      setBoard(prev => prev ? { ...prev, visibility: prevVisibility } : prev);
+      pushToast('Network error — try again.');
+    }
   };
 
   const handleJoin = async () => {
@@ -206,6 +288,37 @@ export default function JeopardyRoom() {
     } finally {
       setRerolling(prev => { const s = new Set(prev); s.delete(position); return s; });
       setFadingOut(prev => { const s = new Set(prev); s.delete(position); return s; });
+    }
+  };
+
+  const handleRerollAll = async () => {
+    if (!board || rerollingAll) return;
+    const opId = `reroll-all-${Date.now()}`;
+    pendingOps.current.add(opId);
+    setRerollingAll(true);
+    const unlockedPositions = tiles.filter(t => !t.locked).map(t => t.position);
+    setFadingOut(new Set(unlockedPositions));
+    try {
+      const res = await fetch('/api/mod/jeopardy/reroll-all', {
+        method: 'POST',
+        headers: await getAuthHeaders(),
+        body: JSON.stringify({ boardId: board.id, operationId: opId }),
+      });
+      if (!res.ok) {
+        pendingOps.current.delete(opId);
+        pushToast((await res.json().catch(() => ({}))).error || 'Reroll all failed — try again.');
+        return;
+      }
+      const { tiles: newTiles } = await res.json();
+      const byPosition = Object.fromEntries(newTiles.map(t => [t.position, t]));
+      setTiles(prev => prev.map(t => byPosition[t.position] ? { ...t, ...byPosition[t.position] } : t));
+    } catch (err) {
+      console.error('Reroll all failed:', err);
+      pendingOps.current.delete(opId);
+      pushToast('Reroll all failed — try again.');
+    } finally {
+      setRerollingAll(false);
+      setFadingOut(new Set());
     }
   };
 
@@ -499,7 +612,7 @@ export default function JeopardyRoom() {
                 dead space beside the side panel at 1440px+ instead of letting
                 the board (and its tiles) actually grow. */}
             <div className="w-full lg:flex-1 lg:max-w-3xl xl:max-w-4xl">
-              {board.status === 'building' && canManage && (
+              {board.status === 'building' && isMember && (
                 <>
                   <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
                     <div>
@@ -516,40 +629,57 @@ export default function JeopardyRoom() {
                         )}
                       </div>
                       <div className="text-xs text-muted mt-0.5">Lobby — not yet started</div>
-                      <div className="text-[10px] text-faint mt-0.5">Drag a tile, or tap one then tap another, to swap them</div>
-                    </div>
-                    <div className="flex gap-2 flex-wrap justify-end">
-                      {tiles.some(t => t.locked) && (
-                        <button
-                          onClick={handleClearAllLocks}
-                          className="px-3 py-1 text-sm bg-danger-strong/80 hover:bg-danger-strong text-strong rounded transition-colors"
-                        >
-                          ⟲ Clear Locks
-                        </button>
+                      {canEditTiles && (
+                        <div className="text-[10px] text-faint mt-0.5">Drag a tile, or tap one then tap another, to swap them</div>
                       )}
-                      <button
-                        onClick={handleShuffle}
-                        disabled={shuffling}
-                        className="px-3 py-1 text-sm bg-surface-inset hover:bg-edge border border-edge disabled:opacity-50 text-body hover:text-strong rounded transition-colors"
-                      >
-                        {shuffling ? '⤨ Shuffling…' : '⤨ Shuffle'}
-                      </button>
-                      <button
-                        onClick={handleStart}
-                        disabled={starting || tiles.length < boardColumns * 5 || members.length < MIN_PLAYERS_TO_START}
-                        className="px-4 py-1 text-sm bg-success-strong hover:brightness-110 disabled:bg-surface-inset disabled:text-faint disabled:cursor-not-allowed text-strong rounded font-semibold transition-all"
-                      >
-                        {starting ? 'Starting…' : '▶ Start'}
-                      </button>
-                      <button
-                        onClick={handleEnd}
-                        disabled={ending}
-                        className="px-3 py-1 text-sm bg-surface-inset hover:bg-edge border border-edge text-body hover:text-strong rounded transition-colors"
-                      >
-                        Discard
-                      </button>
                     </div>
-                    {members.length < MIN_PLAYERS_TO_START && (
+                    {canEditTiles ? (
+                      <div className="flex gap-2 flex-wrap justify-end">
+                        {tiles.some(t => t.locked) && (
+                          <button
+                            onClick={handleClearAllLocks}
+                            className="px-3 py-1 text-sm bg-danger-strong/80 hover:bg-danger-strong text-strong rounded transition-colors"
+                          >
+                            ⟲ Clear Locks
+                          </button>
+                        )}
+                        <button
+                          onClick={handleRerollAll}
+                          disabled={rerollingAll || tiles.every(t => t.locked)}
+                          className="px-3 py-1 text-sm bg-surface-inset hover:bg-edge border border-edge disabled:opacity-50 text-body hover:text-strong rounded transition-colors"
+                        >
+                          {rerollingAll ? '↺ Rerolling…' : '↺ Reroll All'}
+                        </button>
+                        <button
+                          onClick={handleShuffle}
+                          disabled={shuffling}
+                          className="px-3 py-1 text-sm bg-surface-inset hover:bg-edge border border-edge disabled:opacity-50 text-body hover:text-strong rounded transition-colors"
+                        >
+                          {shuffling ? '⤨ Shuffling…' : '⤨ Shuffle'}
+                        </button>
+                        {isHost && (
+                          <button
+                            onClick={handleStart}
+                            disabled={starting || tiles.length < boardColumns * 5 || members.length < MIN_PLAYERS_TO_START}
+                            className="px-4 py-1 text-sm bg-success-strong hover:brightness-110 disabled:bg-surface-inset disabled:text-faint disabled:cursor-not-allowed text-strong rounded font-semibold transition-all"
+                          >
+                            {starting ? 'Starting…' : '▶ Start'}
+                          </button>
+                        )}
+                        {isHost && (
+                          <button
+                            onClick={handleEnd}
+                            disabled={ending}
+                            className="px-3 py-1 text-sm bg-surface-inset hover:bg-edge border border-edge text-body hover:text-strong rounded transition-colors"
+                          >
+                            Discard
+                          </button>
+                        )}
+                      </div>
+                    ) : (
+                      <p className="text-xs text-muted italic">Waiting for the host to start the game</p>
+                    )}
+                    {isHost && members.length < MIN_PLAYERS_TO_START && (
                       <p className="w-full text-right text-[10px] text-warn">
                         Need {MIN_PLAYERS_TO_START}+ players to start — share the code
                       </p>
@@ -565,7 +695,7 @@ export default function JeopardyRoom() {
                     selectedSwapPos={selectedSwapPos}
                     rowPoints={boardRowPts}
                     columns={boardColumns}
-                    canManage
+                    canManage={canEditTiles}
                     onReroll={handleReroll}
                     onToggleLock={handleToggleLock}
                     onDragStart={handleDragStart}
@@ -577,11 +707,27 @@ export default function JeopardyRoom() {
                 </>
               )}
 
-              {board.status === 'building' && !canManage && isMember && (
+              {board.status === 'building' && !isMember && (
                 <>
-                  <div className="mb-4">
-                    <h2 className="text-xl font-bold text-accent">{gameLabel}</h2>
-                    <div className="text-xs text-muted mt-0.5">Waiting for the host to start…</div>
+                  <div className="rounded-xl p-4 mb-4 border border-hairline bg-black/30">
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <h2 className="text-lg font-bold text-strong">{gameLabel}</h2>
+                        <p className="text-xs text-muted mt-0.5">
+                          {hostMember?.user?.display_name ? `Hosted by ${hostMember.user.display_name}` : 'Waiting to start'} · {members.length} in lobby
+                        </p>
+                      </div>
+                      <button
+                        onClick={handleJoin}
+                        disabled={joining}
+                        className="shrink-0 px-4 py-2 bg-accent-strong hover:brightness-110 disabled:bg-surface-inset disabled:text-faint text-strong rounded-lg font-semibold transition-all"
+                      >
+                        {joining ? 'Joining…' : 'Join Game'}
+                      </button>
+                    </div>
+                    <p className="text-xs text-muted leading-relaxed mt-2">
+                      Once the host starts it, everyone here races to claim the square matching a shiny they've caught.
+                    </p>
                   </div>
                   <BoardGrid
                     tileMap={tileMap}
@@ -602,25 +748,6 @@ export default function JeopardyRoom() {
                     onTileTap={() => {}}
                   />
                 </>
-              )}
-
-              {board.status === 'building' && !isMember && (
-                <div className="max-w-md rounded-xl p-6 border border-hairline bg-black/30">
-                  <h2 className="text-lg font-bold text-strong mb-1">{gameLabel}</h2>
-                  <p className="text-xs text-muted mb-1">
-                    {hostMember?.user?.display_name ? `Hosted by ${hostMember.user.display_name}` : 'Waiting to start'} · {members.length} in lobby
-                  </p>
-                  <p className="text-xs text-muted leading-relaxed mb-5">
-                    Once the host starts it, everyone here races to claim the square matching a shiny they've caught.
-                  </p>
-                  <button
-                    onClick={handleJoin}
-                    disabled={joining}
-                    className="w-full px-4 py-2 bg-accent-strong hover:brightness-110 disabled:bg-surface-inset disabled:text-faint text-strong rounded-lg font-semibold transition-all"
-                  >
-                    {joining ? 'Joining…' : 'Join Game'}
-                  </button>
-                </div>
               )}
 
               {board.status === 'active' && (
@@ -675,10 +802,13 @@ export default function JeopardyRoom() {
 
             {/* ── Side panel: code + roster + (when active) leaderboard ── */}
             <div className="w-full lg:w-72 shrink-0 space-y-4">
-              {board.status === 'building' && canManage && board.code && (
-                <LobbyCodeCard code={board.code} />
+              {board.status === 'building' && board.code && (
+                isMember ? <LobbyCodeCard code={board.code} /> : <LobbyCodeLockedCard />
               )}
-              <RosterList members={members} />
+              {board.status === 'building' && isHost && (
+                <LobbySettingsCard visibility={board.visibility} onChange={handleVisibilityChange} />
+              )}
+              <RosterList members={members} isHost={isHost} onTogglePermission={handleTogglePermission} onKick={handleKick} />
               {board.status === 'active' && (
                 <ClaimsLegend claims={claims} claimersMap={claimersMap} rowPoints={boardRowPts} shalphaDbl={boardShalphaDbl} columns={boardColumns} />
               )}
@@ -835,8 +965,60 @@ function LobbyCodeCard({ code }) {
   );
 }
 
+// ── Locked lobby code card — shown to viewers who haven't joined yet ────────
+function LobbyCodeLockedCard() {
+  return (
+    <div className="rounded-xl p-4 border border-hairline bg-black/30">
+      <div className="text-[10px] font-bold uppercase tracking-wider text-muted mb-2">Connection Code</div>
+      <div className="relative">
+        <div className="text-2xl font-black tracking-[0.2em] text-strong text-center py-2 rounded-lg bg-black/30 blur-sm select-none" aria-hidden="true">
+          ••••••
+        </div>
+        <div className="absolute inset-0 flex items-center justify-center px-2">
+          <p className="text-xs font-semibold text-center text-muted">Join the lobby to share the code</p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Host-only lobby settings — visibility toggle ─────────────────────────────
+function LobbySettingsCard({ visibility, onChange }) {
+  return (
+    <div className="rounded-xl p-4 border border-hairline bg-black/30">
+      <div className="text-[10px] font-bold uppercase tracking-wider text-muted mb-2">Lobby Settings</div>
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-xs text-body">Visible on Shiny Games list</span>
+        <div className="flex rounded-lg border border-edge overflow-hidden shrink-0">
+          <button
+            onClick={() => onChange('public')}
+            className={[
+              'px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider transition-colors',
+              visibility === 'public' ? 'bg-accent-strong text-strong' : 'bg-surface-inset text-faint hover:text-body',
+            ].join(' ')}
+          >
+            Public
+          </button>
+          <button
+            onClick={() => onChange('private')}
+            className={[
+              'px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider transition-colors',
+              visibility === 'private' ? 'bg-accent-strong text-strong' : 'bg-surface-inset text-faint hover:text-body',
+            ].join(' ')}
+          >
+            Private
+          </button>
+        </div>
+      </div>
+      <p className="text-[10px] text-faint mt-2">
+        {visibility === 'private' ? 'Only visible to people with the code.' : 'Anyone can see and join this lobby from Shiny Games.'}
+      </p>
+    </div>
+  );
+}
+
 // ── Roster ───────────────────────────────────────────────────────────────────
-function RosterList({ members }) {
+function RosterList({ members, isHost, onTogglePermission, onKick }) {
   return (
     <div className="rounded-xl p-4 border border-hairline bg-black/30">
       <div className="text-[10px] font-bold uppercase tracking-wider text-muted mb-2">
@@ -861,11 +1043,38 @@ function RosterList({ members }) {
                 </div>
               )}
               <span className="text-sm text-body truncate">{m.user?.display_name || 'Unknown'}</span>
-              {m.role === 'host' && (
+              {m.role === 'host' ? (
                 <span className="shrink-0 text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-full bg-accent-strong/20 text-accent border border-accent-strong/40 ml-auto">
                   Host
                 </span>
-              )}
+              ) : isHost ? (
+                <div className="flex items-center gap-1.5 ml-auto">
+                  <button
+                    onClick={() => onTogglePermission(m.user_id, !m.can_edit)}
+                    className={[
+                      'shrink-0 text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-full border transition-colors',
+                      m.can_edit
+                        ? 'bg-success-strong/20 text-success border-success-strong/40 hover:bg-success-strong/30'
+                        : 'bg-surface-inset text-faint border-edge hover:text-body',
+                    ].join(' ')}
+                    title={m.can_edit ? 'Revoke edit access' : 'Grant edit access'}
+                  >
+                    {m.can_edit ? 'Can Edit' : 'View Only'}
+                  </button>
+                  <button
+                    onClick={() => onKick(m.user_id, m.user?.display_name)}
+                    className="shrink-0 w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold bg-danger-strong/20 text-danger border border-danger-strong/40 hover:bg-danger-strong/30 transition-colors"
+                    title="Remove from lobby"
+                    aria-label={`Remove ${m.user?.display_name || 'this player'} from the lobby`}
+                  >
+                    ✕
+                  </button>
+                </div>
+              ) : m.can_edit ? (
+                <span className="shrink-0 text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-full bg-success-strong/20 text-success border border-success-strong/40 ml-auto">
+                  Can Edit
+                </span>
+              ) : null}
             </div>
           ))}
         </div>
@@ -887,6 +1096,8 @@ function BoardGrid({
         backgroundImage: `url(${backgroundImage})`,
         backgroundSize: 'cover',
         backgroundPosition: 'center',
+        backgroundRepeat: 'no-repeat',
+        backgroundColor: '#212326',
         padding: '8px',
       }}
     >
@@ -907,9 +1118,10 @@ function BoardGrid({
             onDragOver={e => onDragOver(e, pos)}
             onDrop={e => onDrop(e, pos)}
             onDragEnd={onDragEnd}
+            style={{ backgroundColor: '#212326' }}
             className={[
               'group aspect-square relative flex flex-col items-center justify-center rounded-lg border-2 overflow-hidden select-none transition-all duration-150',
-              'border-edge bg-black/30',
+              'border-edge',
               isDragging ? 'opacity-40 scale-95' : '',
               isOver     ? 'border-accent scale-105' : '',
               isSelected ? 'border-accent ring-2 ring-accent-strong scale-105' : '',
@@ -998,6 +1210,8 @@ function ClaimGrid({ tileMap, claimMap, claimersMap, isShalpha, shalphaDbl, rowP
           backgroundImage: `url(${backgroundImage})`,
           backgroundSize: 'cover',
           backgroundPosition: 'center',
+          backgroundRepeat: 'no-repeat',
+          backgroundColor: '#212326',
           padding: '8px',
         }}
       >
@@ -1043,12 +1257,13 @@ function ClaimTile({ pos, tile, claim, isClaimed, isShalphaClaim, isShalpha, sha
 
   return (
     <div
+      style={{ backgroundColor: isClaimed ? '#16161a' : '#212326' }}
       className={[
         'group aspect-square relative flex flex-col items-center justify-center rounded-lg border-2 overflow-hidden select-none transition-all duration-150',
         isConflict ? 'border-danger-strong animate-jeopardy-shake' : '',
         !isConflict && (isClaimed
-          ? 'border-hairline bg-black/70 cursor-default'
-          : canClaim ? 'border-edge bg-black/30 cursor-pointer hover:border-success hover:scale-105' : 'border-edge bg-black/30 cursor-default'),
+          ? 'border-hairline cursor-default'
+          : canClaim ? 'border-edge cursor-pointer hover:border-success hover:scale-105' : 'border-edge cursor-default'),
       ].join(' ')}
       onClick={() => { if (!isClaimed && canClaim) onClaim(pos, 'standard'); }}
     >

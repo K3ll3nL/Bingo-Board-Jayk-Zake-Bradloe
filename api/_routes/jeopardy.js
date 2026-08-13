@@ -31,13 +31,22 @@ function generateBoardCode(length = 6) {
 
 async function enrichMembers(boardId) {
   const { data: rows } = await supabase
-    .from('jeopardy_members').select('user_id, role, joined_at').eq('board_id', boardId).order('joined_at');
+    .from('jeopardy_members').select('user_id, role, can_edit, joined_at').eq('board_id', boardId).order('joined_at');
   const userIds = (rows || []).map(m => m.user_id);
   if (userIds.length === 0) return [];
   const { data: userRows } = await supabase.from('users').select('id, display_name, avatar_url, twitch_url').in('id', userIds);
   const enriched = await enrichUsersWithTwitchPfp(userRows || []);
   const userMap = Object.fromEntries(enriched.map(u => [u.id, u]));
   return rows.map(m => ({ ...m, user: userMap[m.user_id] || null }));
+}
+
+// Tile edits (reroll/swap/lock/shuffle) are scoped to the lobby, not global
+// moderator status — a moderator who never joined this lobby can't edit it.
+// The host always has edit rights; other members need can_edit granted.
+async function canEditBoard(userId, boardId) {
+  const { data: memberRow } = await supabase
+    .from('jeopardy_members').select('role, can_edit').eq('board_id', boardId).eq('user_id', userId).maybeSingle();
+  return !!memberRow && (memberRow.role === 'host' || memberRow.can_edit);
 }
 
 module.exports = function register(app) {
@@ -102,7 +111,89 @@ module.exports = function register(app) {
       ]);
 
       const viewerRole = memberRow?.role ?? (modRow ? 'spectator' : null);
-      res.json({ board, tiles, claims, members, viewerRole, isModerator: !!modRow });
+      const viewerCanEdit = memberRow?.role === 'host' || !!memberRow?.can_edit;
+      res.json({ board, tiles, claims, members, viewerRole, viewerCanEdit, isModerator: !!modRow });
+    } catch (err) { res.status(500).json({ error: err.message }); }
+  });
+
+  // PUT /api/jeopardy/:code/permissions — host grants/revokes another member's
+  // edit access. Host-only; the host's own row can't be revoked this way.
+  app.put('/api/jeopardy/:code/permissions', async (req, res) => {
+    try {
+      const userId = await getAuthenticatedUserId(req);
+      if (!userId) return res.status(401).json({ error: 'Authentication required' });
+
+      const { userId: targetUserId, canEdit } = req.body;
+      if (!targetUserId || typeof canEdit !== 'boolean') return res.status(400).json({ error: 'userId and canEdit required' });
+
+      const { data: board } = await supabase
+        .from('jeopardy_boards').select('id').ilike('code', req.params.code).maybeSingle();
+      if (!board) return res.status(404).json({ error: 'No lobby found for that code' });
+
+      const { data: requesterRow } = await supabase
+        .from('jeopardy_members').select('role').eq('board_id', board.id).eq('user_id', userId).maybeSingle();
+      if (requesterRow?.role !== 'host') return res.status(403).json({ error: 'Only the host can manage edit access' });
+
+      const { data: targetRow } = await supabase
+        .from('jeopardy_members').select('role').eq('board_id', board.id).eq('user_id', targetUserId).maybeSingle();
+      if (!targetRow) return res.status(404).json({ error: 'That user is not in this lobby' });
+      if (targetRow.role === 'host') return res.status(400).json({ error: "Can't change the host's own access" });
+
+      await supabase.from('jeopardy_members').update({ can_edit: canEdit }).eq('board_id', board.id).eq('user_id', targetUserId);
+
+      const members = await enrichMembers(board.id);
+      await broadcastUpdate(`jeopardy-updates-${board.id}`, 'tile-update', { type: 'permissions-updated', members });
+      res.json({ ok: true, members });
+    } catch (err) { res.status(500).json({ error: err.message }); }
+  });
+
+  // DELETE /api/jeopardy/:code/members/:userId — host kicks a member out of the lobby.
+  app.delete('/api/jeopardy/:code/members/:userId', async (req, res) => {
+    try {
+      const userId = await getAuthenticatedUserId(req);
+      if (!userId) return res.status(401).json({ error: 'Authentication required' });
+      const targetUserId = req.params.userId;
+
+      const { data: board } = await supabase
+        .from('jeopardy_boards').select('id').ilike('code', req.params.code).maybeSingle();
+      if (!board) return res.status(404).json({ error: 'No lobby found for that code' });
+
+      const { data: requesterRow } = await supabase
+        .from('jeopardy_members').select('role').eq('board_id', board.id).eq('user_id', userId).maybeSingle();
+      if (requesterRow?.role !== 'host') return res.status(403).json({ error: 'Only the host can remove members' });
+      if (targetUserId === userId) return res.status(400).json({ error: "Can't kick yourself" });
+
+      const { data: targetRow } = await supabase
+        .from('jeopardy_members').select('role').eq('board_id', board.id).eq('user_id', targetUserId).maybeSingle();
+      if (!targetRow) return res.status(404).json({ error: 'That user is not in this lobby' });
+
+      await supabase.from('jeopardy_members').delete().eq('board_id', board.id).eq('user_id', targetUserId);
+
+      const members = await enrichMembers(board.id);
+      await broadcastUpdate(`jeopardy-updates-${board.id}`, 'tile-update', { type: 'member-kicked', kickedUserId: targetUserId, members });
+      res.json({ ok: true, members });
+    } catch (err) { res.status(500).json({ error: err.message }); }
+  });
+
+  // PUT /api/mod/jeopardy/visibility — host toggles whether the lobby shows
+  // up on the public Shiny Games lobby list.
+  app.put('/api/mod/jeopardy/visibility', async (req, res) => {
+    try {
+      const userId = await getAuthenticatedUserId(req);
+      if (!userId) return res.status(401).json({ error: 'Authentication required' });
+      const { boardId, visibility } = req.body;
+      if (!boardId || !['public', 'private'].includes(visibility)) return res.status(400).json({ error: 'boardId and a valid visibility required' });
+
+      const { data: requesterRow } = await supabase
+        .from('jeopardy_members').select('role').eq('board_id', boardId).eq('user_id', userId).maybeSingle();
+      if (requesterRow?.role !== 'host') return res.status(403).json({ error: 'Only the host can change lobby visibility' });
+
+      const { data: board, error } = await supabase
+        .from('jeopardy_boards').update({ visibility }).eq('id', boardId).select().single();
+      if (error || !board) return res.status(500).json({ error: error?.message || 'Could not update visibility' });
+
+      await broadcastUpdate(`jeopardy-updates-${boardId}`, 'tile-update', { type: 'visibility-updated', visibility });
+      res.json({ board });
     } catch (err) { res.status(500).json({ error: err.message }); }
   });
 
@@ -164,7 +255,7 @@ module.exports = function register(app) {
       }
       if (!board) return res.status(500).json({ error: boardErr?.message || 'Could not create lobby' });
 
-      await supabase.from('jeopardy_members').insert({ board_id: board.id, user_id: userId, role: 'host' });
+      await supabase.from('jeopardy_members').insert({ board_id: board.id, user_id: userId, role: 'host', can_edit: true });
 
       await generateJeopardyPool(board.id, game, boardColumns);
       const tiles = await hydrateJeopardyTiles(board.id);
@@ -178,11 +269,9 @@ module.exports = function register(app) {
     try {
       const userId = await getAuthenticatedUserId(req);
       if (!userId) return res.status(401).json({ error: 'Authentication required' });
-      const modRow = await isModerator(userId);
-      if (!modRow) return res.status(403).json({ error: 'Moderator access required' });
-
       const { boardId, position, operationId } = req.body;
       if (!boardId || position == null) return res.status(400).json({ error: 'boardId and position required' });
+      if (!await canEditBoard(userId, boardId)) return res.status(403).json({ error: 'Edit access required' });
 
       const { data: board } = await supabase.from('jeopardy_boards').select('id, status, game').eq('id', boardId).maybeSingle();
       if (!board || board.status !== 'building') return res.status(400).json({ error: 'Lobby not in building state' });
@@ -210,16 +299,56 @@ module.exports = function register(app) {
     } catch (err) { res.status(500).json({ error: err.message }); }
   });
 
+  // POST /api/mod/jeopardy/reroll-all — reroll every unlocked tile at once
+  app.post('/api/mod/jeopardy/reroll-all', async (req, res) => {
+    try {
+      const userId = await getAuthenticatedUserId(req);
+      if (!userId) return res.status(401).json({ error: 'Authentication required' });
+      const { boardId, operationId } = req.body;
+      if (!boardId) return res.status(400).json({ error: 'boardId required' });
+      if (!await canEditBoard(userId, boardId)) return res.status(403).json({ error: 'Edit access required' });
+
+      const { data: board } = await supabase.from('jeopardy_boards').select('id, status, game').eq('id', boardId).maybeSingle();
+      if (!board || board.status !== 'building') return res.status(400).json({ error: 'Lobby not in building state' });
+
+      const { data: pool } = await supabase.from('jeopardy_pool').select('id, position, pokemon_id, locked').eq('board_id', boardId);
+      const locked = (pool || []).filter(p => p.locked);
+      const unlocked = (pool || []).filter(p => !p.locked);
+      if (unlocked.length === 0) return res.status(400).json({ error: 'Every tile is locked' });
+
+      let pkQuery = supabase
+        .from('pokemon_master')
+        .select('id, name, national_dex_id, display_name, family_id, genderless, custom_gender_code, has_gender_difference, has_major_gender_difference, form_id, forms_count')
+        .eq('shiny_available', true);
+      if (board.game) pkQuery = pkQuery.contains('game_slugs', [board.game]);
+      const { data: allPokemon } = await pkQuery;
+
+      const lockedIds = new Set(locked.map(p => p.pokemon_id));
+      const pool_ = shuffleArray((allPokemon || []).filter(p => !lockedIds.has(p.id)));
+      if (pool_.length < unlocked.length) return res.status(400).json({ error: 'Not enough pokemon available to reroll every tile' });
+
+      const newByPosition = {};
+      const updates = unlocked.map((slot, i) => {
+        const newPokemon = pool_[i];
+        newByPosition[slot.position] = newPokemon;
+        return supabase.from('jeopardy_pool').update({ pokemon_id: newPokemon.id }).eq('id', slot.id);
+      });
+      await Promise.all(updates);
+
+      const tiles = unlocked.map(slot => ({ id: slot.id, position: slot.position, pokemon_id: newByPosition[slot.position].id, pokemon: newByPosition[slot.position], locked: false }));
+      await broadcastUpdate(`jeopardy-updates-${boardId}`, 'tile-update', { type: 'reroll-all', tiles, operationId });
+      res.json({ tiles });
+    } catch (err) { res.status(500).json({ error: err.message }); }
+  });
+
   // PUT /api/mod/jeopardy/swap
   app.put('/api/mod/jeopardy/swap', async (req, res) => {
     try {
       const userId = await getAuthenticatedUserId(req);
       if (!userId) return res.status(401).json({ error: 'Authentication required' });
-      const modRow = await isModerator(userId);
-      if (!modRow) return res.status(403).json({ error: 'Moderator access required' });
-
       const { boardId, pos1, pos2, operationId } = req.body;
       if (!boardId || pos1 == null || pos2 == null) return res.status(400).json({ error: 'boardId, pos1, pos2 required' });
+      if (!await canEditBoard(userId, boardId)) return res.status(403).json({ error: 'Edit access required' });
 
       const { data: pool } = await supabase.from('jeopardy_pool').select('id, position, pokemon_id, locked').eq('board_id', boardId).in('position', [pos1, pos2]);
       const t1 = (pool || []).find(p => p.position === pos1);
@@ -240,11 +369,9 @@ module.exports = function register(app) {
     try {
       const userId = await getAuthenticatedUserId(req);
       if (!userId) return res.status(401).json({ error: 'Authentication required' });
-      const modRow = await isModerator(userId);
-      if (!modRow) return res.status(403).json({ error: 'Moderator access required' });
-
       const { boardId, position, locked, operationId } = req.body;
       if (!boardId || position == null || typeof locked !== 'boolean') return res.status(400).json({ error: 'boardId, position, locked required' });
+      if (!await canEditBoard(userId, boardId)) return res.status(403).json({ error: 'Edit access required' });
 
       await supabase.from('jeopardy_pool').update({ locked }).eq('board_id', boardId).eq('position', position);
       await broadcastUpdate(`jeopardy-updates-${boardId}`, 'tile-update', { type: 'lock-toggled', position, locked, operationId });
@@ -257,11 +384,9 @@ module.exports = function register(app) {
     try {
       const userId = await getAuthenticatedUserId(req);
       if (!userId) return res.status(401).json({ error: 'Authentication required' });
-      const modRow = await isModerator(userId);
-      if (!modRow) return res.status(403).json({ error: 'Moderator access required' });
-
       const { boardId, operationId } = req.body;
       if (!boardId) return res.status(400).json({ error: 'boardId required' });
+      if (!await canEditBoard(userId, boardId)) return res.status(403).json({ error: 'Edit access required' });
 
       const { data: pool } = await supabase.from('jeopardy_pool').select('id, position, pokemon_id, locked').eq('board_id', boardId);
       if (!pool || pool.length === 0) return res.status(400).json({ error: 'No pool found' });
