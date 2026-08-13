@@ -5,6 +5,7 @@
 const {
   TOS_VERSION,
   getAuthenticatedUserId,
+  isModerator,
   refreshAvatarFromProvider,
   supabase,
 } = require('../_lib/core');
@@ -98,13 +99,7 @@ module.exports = function register(app) {
         return res.json({ isModerator: false });
       }
 
-      const { data: mod, error } = await supabase
-        .from('moderators')
-        .select('id')
-        .eq('id', userId)
-        .single();
-
-      res.json({ isModerator: !error && !!mod });
+      res.json({ isModerator: await isModerator(userId) });
     } catch (error) {
       console.error('Error checking moderator status:', error);
       res.json({ isModerator: false });

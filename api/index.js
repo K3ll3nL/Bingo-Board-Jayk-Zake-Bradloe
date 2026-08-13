@@ -14,7 +14,19 @@ const app = express();
 // order, so both middleware precedence and path-matching precedence
 // (e.g. /reorder before /:id) match the pre-split behavior exactly.
 
-app.use(cors());
+const ALLOWED_ORIGINS = [
+  'https://www.pokeboard.net',
+  'https://pokeboard.net',
+  'http://localhost:5173',
+  'http://127.0.0.1:5173',
+];
+app.use(cors({
+  origin: (origin, callback) => {
+    // No Origin header (same-origin requests, curl, server-to-server) — allow.
+    if (!origin || ALLOWED_ORIGINS.includes(origin)) return callback(null, true);
+    callback(new Error('Not allowed by CORS'));
+  },
+}));
 app.use(express.json({ limit: '50mb' })); // Increase JSON body limit
 app.use(express.urlencoded({ limit: '50mb', extended: true })); // Increase URL-encoded body limit
 require('./_routes/internal')(app);

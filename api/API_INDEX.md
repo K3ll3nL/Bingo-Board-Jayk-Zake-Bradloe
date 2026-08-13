@@ -11,55 +11,55 @@
 
 | Method | Path | Auth | Location | Notes |
 |---|---|---|---|---|
-| GET | `/api/admin/badge-families` | auth+mod | `api/_routes/admin.js:48` | GET /api/admin/badge-families — all families ordered by display_order |
-| PATCH | `/api/admin/badge-families/:id` | auth+mod | `api/_routes/admin.js:315` | PATCH /api/admin/badge-families/:id — inline edit display_name / is_sequential |
-| PATCH | `/api/admin/badge-families/reorder` | auth+mod | `api/_routes/admin.js:293` | PATCH /api/admin/badge-families/reorder — must be before /:id to avoid param conflict |
+| GET | `/api/admin/badge-families` | auth | `api/_routes/admin.js:45` | GET /api/admin/badge-families — all families ordered by display_order |
+| PATCH | `/api/admin/badge-families/:id` | auth | `api/_routes/admin.js:312` | PATCH /api/admin/badge-families/:id — inline edit display_name / is_sequential |
+| PATCH | `/api/admin/badge-families/reorder` | auth | `api/_routes/admin.js:290` | PATCH /api/admin/badge-families/reorder — must be before /:id to avoid param conflict |
 
 ## /admin/badges
 
 | Method | Path | Auth | Location | Notes |
 |---|---|---|---|---|
-| GET | `/api/admin/badges` | auth+mod | `api/_routes/admin.js:67` | GET /api/admin/badges — all badges, full data (no hint hiding) |
-| GET | `/api/admin/badges/:badgeId/monthly-holders` | auth+mod | `api/_routes/admin.js:161` | GET /api/admin/badges/:badgeId/monthly-holders — month list + current winner per month (used by the Grant tab's month picker for first_approval_month badges) |
-| PATCH | `/api/admin/badges/:id/image` | auth+mod | `api/_routes/admin.js:335` | PATCH /api/admin/badges/:id/image — replace a badge's image in R2 (mod only) |
-| POST | `/api/admin/badges/:id/refresh-cache` | auth+mod | `api/_routes/admin.js:393` | POST /api/admin/badges/:id/refresh-cache — bump the image_url version query param without re-uploading. Use this after replacing a badge image directly in the R |
+| GET | `/api/admin/badges` | auth | `api/_routes/admin.js:64` | GET /api/admin/badges — all badges, full data (no hint hiding) |
+| GET | `/api/admin/badges/:badgeId/monthly-holders` | auth | `api/_routes/admin.js:158` | GET /api/admin/badges/:badgeId/monthly-holders — month list + current winner per month (used by the Grant tab's month picker for first_approval_month badges) |
+| PATCH | `/api/admin/badges/:id/image` | auth | `api/_routes/admin.js:332` | PATCH /api/admin/badges/:id/image — replace a badge's image in R2 (mod only) |
+| POST | `/api/admin/badges/:id/refresh-cache` | auth | `api/_routes/admin.js:390` | POST /api/admin/badges/:id/refresh-cache — bump the image_url version query param without re-uploading. Use this after replacing a badge image directly in the R |
 
 ## /admin/clear-cache
 
 | Method | Path | Auth | Location | Notes |
 |---|---|---|---|---|
-| POST | `/api/admin/clear-cache` | auth+mod | `api/_routes/admin.js:15` | Admin-only: Clear cache manually |
+| POST | `/api/admin/clear-cache` | auth | `api/_routes/admin.js:16` | Admin-only: Clear cache manually |
 
 ## /admin/collections
 
 | Method | Path | Auth | Location | Notes |
 |---|---|---|---|---|
-| GET | `/api/admin/collections` | auth+mod | `api/_routes/admin.js:429` | GET /api/admin/collections — all distinct collection slugs with their required_game |
-| GET | `/api/admin/collections/:slug` | auth+mod | `api/_routes/admin.js:483` | GET /api/admin/collections/:slug — all Pokémon tagged with this slug |
-| PUT | `/api/admin/collections/:slug/game` | auth+mod | `api/_routes/admin.js:458` | PUT /api/admin/collections/:slug/game — set or clear the required game for a collection |
-| POST | `/api/admin/collections/:slug/pokemon/:pokemonId` | auth+mod | `api/_routes/admin.js:512` | POST /api/admin/collections/:slug/pokemon/:pokemonId — add Pokémon to collection |
-| DELETE | `/api/admin/collections/:slug/pokemon/:pokemonId` | auth+mod | `api/_routes/admin.js:546` | DELETE /api/admin/collections/:slug/pokemon/:pokemonId — remove Pokémon from collection |
+| GET | `/api/admin/collections` | auth | `api/_routes/admin.js:426` | GET /api/admin/collections — all distinct collection slugs with their required_game |
+| GET | `/api/admin/collections/:slug` | auth | `api/_routes/admin.js:480` | GET /api/admin/collections/:slug — all Pokémon tagged with this slug |
+| PUT | `/api/admin/collections/:slug/game` | auth | `api/_routes/admin.js:455` | PUT /api/admin/collections/:slug/game — set or clear the required game for a collection |
+| POST | `/api/admin/collections/:slug/pokemon/:pokemonId` | auth | `api/_routes/admin.js:509` | POST /api/admin/collections/:slug/pokemon/:pokemonId — add Pokémon to collection |
+| DELETE | `/api/admin/collections/:slug/pokemon/:pokemonId` | auth | `api/_routes/admin.js:543` | DELETE /api/admin/collections/:slug/pokemon/:pokemonId — remove Pokémon from collection |
 
 ## /admin/pokemon
 
 | Method | Path | Auth | Location | Notes |
 |---|---|---|---|---|
-| PATCH | `/api/admin/pokemon/:id/game-slugs` | auth+mod | `api/_routes/admin.js:598` |  |
+| PATCH | `/api/admin/pokemon/:id/game-slugs` | auth | `api/_routes/admin.js:594` |  |
 
 ## /admin/pokemon-game-slugs
 
 | Method | Path | Auth | Location | Notes |
 |---|---|---|---|---|
-| GET | `/api/admin/pokemon-game-slugs` | auth+mod | `api/_routes/admin.js:575` |  |
+| GET | `/api/admin/pokemon-game-slugs` | auth | `api/_routes/admin.js:572` |  |
 
 ## /admin/users
 
 | Method | Path | Auth | Location | Notes |
 |---|---|---|---|---|
-| GET | `/api/admin/users/:userId/badges` | auth+mod | `api/_routes/admin.js:109` | GET /api/admin/users/:userId/badges — every badge + whether this user has earned it |
-| POST | `/api/admin/users/:userId/badges/:badgeId` | auth+mod | `api/_routes/admin.js:196` | POST /api/admin/users/:userId/badges/:badgeId — manually grant a badge Body (monthly badges only): { month_id, reassign } — reassign takes the month from its cu |
-| DELETE | `/api/admin/users/:userId/badges/:badgeId` | auth+mod | `api/_routes/admin.js:257` | DELETE /api/admin/users/:userId/badges/:badgeId — manually revoke a badge Monthly badges: pass ?month_id= to revoke that specific month's win. |
-| GET | `/api/admin/users/search` | auth+mod | `api/_routes/admin.js:86` | GET /api/admin/users/search?q= — search users by display name / username |
+| GET | `/api/admin/users/:userId/badges` | auth | `api/_routes/admin.js:106` | GET /api/admin/users/:userId/badges — every badge + whether this user has earned it |
+| POST | `/api/admin/users/:userId/badges/:badgeId` | auth | `api/_routes/admin.js:193` | POST /api/admin/users/:userId/badges/:badgeId — manually grant a badge Body (monthly badges only): { month_id, reassign } — reassign takes the month from its cu |
+| DELETE | `/api/admin/users/:userId/badges/:badgeId` | auth | `api/_routes/admin.js:254` | DELETE /api/admin/users/:userId/badges/:badgeId — manually revoke a badge Monthly badges: pass ?month_id= to revoke that specific month's win. |
+| GET | `/api/admin/users/search` | auth | `api/_routes/admin.js:83` | GET /api/admin/users/search?q= — search users by display name / username |
 
 ## /ambassadors
 
@@ -71,31 +71,31 @@
 
 | Method | Path | Auth | Location | Notes |
 |---|---|---|---|---|
-| POST | `/api/approvals/:id/approve` | auth+mod | `api/_routes/approvals.js:19` | Approve a submission |
-| POST | `/api/approvals/:id/reject` | auth+mod | `api/_routes/approvals.js:228` | Reject a submission |
-| GET | `/api/approvals/history` | auth+mod | `api/_routes/approvals.js:512` | GET /api/approvals/history?page=1&limit=20 — moderator auth required Returns processed approval records (from approval_history table). |
-| GET | `/api/approvals/pending` | auth+mod | `api/_routes/approvals.js:400` | Get pending approvals (moderators only) |
+| POST | `/api/approvals/:id/approve` | auth+mod | `api/_routes/approvals.js:20` | Approve a submission |
+| POST | `/api/approvals/:id/reject` | auth | `api/_routes/approvals.js:229` | Reject a submission |
+| GET | `/api/approvals/history` | auth | `api/_routes/approvals.js:505` | GET /api/approvals/history?page=1&limit=20 — moderator auth required Returns processed approval records (from approval_history table). |
+| GET | `/api/approvals/pending` | auth | `api/_routes/approvals.js:397` | Get pending approvals (moderators only) |
 
 ## /badge-families
 
 | Method | Path | Auth | Location | Notes |
 |---|---|---|---|---|
-| GET | `/api/badge-families` | auth | `api/_routes/badges.js:175` | Public badge family ordering (display_order from badge_families table) |
+| GET | `/api/badge-families` | auth | `api/_routes/badges.js:176` | Public badge family ordering (display_order from badge_families table) |
 
 ## /badges
 
 | Method | Path | Auth | Location | Notes |
 |---|---|---|---|---|
-| GET | `/api/badges` | auth | `api/_routes/badges.js:16` | Get all badges with hint/description visibility resolved for the current user. Unauthenticated users see the same view as a user with no earned badges. |
-| POST | `/api/badges` | auth+mod | `api/_routes/badges.js:330` | Create a new badge (moderator only) — uploads image to R2 and inserts DB record |
+| GET | `/api/badges` | auth | `api/_routes/badges.js:17` | Get all badges with hint/description visibility resolved for the current user. Unauthenticated users see the same view as a user with no earned badges. |
+| POST | `/api/badges` | auth | `api/_routes/badges.js:331` | Create a new badge (moderator only) — uploads image to R2 and inserts DB record |
 
 ## /banners
 
 | Method | Path | Auth | Location | Notes |
 |---|---|---|---|---|
-| GET | `/api/banners` | auth+mod | `api/_routes/banners.js:18` |  |
-| POST | `/api/banners` | auth+mod | `api/_routes/banners.js:34` |  |
-| DELETE | `/api/banners/:id` | auth+mod | `api/_routes/banners.js:63` |  |
+| GET | `/api/banners` | auth | `api/_routes/banners.js:19` |  |
+| POST | `/api/banners` | auth | `api/_routes/banners.js:35` |  |
+| DELETE | `/api/banners/:id` | auth | `api/_routes/banners.js:64` |  |
 
 ## /bingo
 
@@ -125,7 +125,7 @@
 
 | Method | Path | Auth | Location | Notes |
 |---|---|---|---|---|
-| POST | `/api/feedback` | auth+mod | `api/_routes/feedback.js:12` |  |
+| POST | `/api/feedback` | auth | `api/_routes/feedback.js:13` |  |
 
 ## /health
 
@@ -155,11 +155,11 @@
 
 | Method | Path | Auth | Location | Notes |
 |---|---|---|---|---|
-| GET | `/api/jeopardy` | auth+mod | `api/_routes/jeopardy.js:48` | GET /api/jeopardy — list every open (non-completed) lobby. Auth required, NOT mod-gated. Public lobbies are visible to everyone; private lobbies (visibility='pr |
-| GET | `/api/jeopardy/:code` | auth+mod | `api/_routes/jeopardy.js:84` | GET /api/jeopardy/:code — fetch one lobby's full state by connection code. Auth required, NOT mod-gated: this is how a preview/join screen works before you've j |
-| POST | `/api/jeopardy/:code/join` | auth+mod | `api/_routes/jeopardy.js:109` | POST /api/jeopardy/:code/join — join this lobby's roster. |
-| POST | `/api/jeopardy/claim` | auth+mod | `api/_routes/jeopardy.js:313` | POST /api/jeopardy/claim — mods, or anyone who has joined this lobby's roster |
-| DELETE | `/api/jeopardy/claim` | auth+mod | `api/_routes/jeopardy.js:379` | DELETE /api/jeopardy/claim — unclaim a square (mods, or anyone in the roster) |
+| GET | `/api/jeopardy` | auth | `api/_routes/jeopardy.js:49` | GET /api/jeopardy — list every open (non-completed) lobby. Auth required, NOT mod-gated. Public lobbies are visible to everyone; private lobbies (visibility='pr |
+| GET | `/api/jeopardy/:code` | auth | `api/_routes/jeopardy.js:85` | GET /api/jeopardy/:code — fetch one lobby's full state by connection code. Auth required, NOT mod-gated: this is how a preview/join screen works before you've j |
+| POST | `/api/jeopardy/:code/join` | auth | `api/_routes/jeopardy.js:110` | POST /api/jeopardy/:code/join — join this lobby's roster. |
+| POST | `/api/jeopardy/claim` | auth | `api/_routes/jeopardy.js:314` | POST /api/jeopardy/claim — mods, or anyone who has joined this lobby's roster |
+| DELETE | `/api/jeopardy/claim` | auth | `api/_routes/jeopardy.js:380` | DELETE /api/jeopardy/claim — unclaim a square (mods, or anyone in the roster) |
 
 ## /keys
 
@@ -180,32 +180,32 @@
 
 | Method | Path | Auth | Location | Notes |
 |---|---|---|---|---|
-| GET | `/api/mod/board-builder` | auth+mod | `api/_routes/boardBuilder.js:19` | GET /api/mod/board-builder |
-| POST | `/api/mod/board-builder/:monthId/clear-all-locks` | auth+mod | `api/_routes/boardBuilder.js:884` | POST /api/mod/board-builder/:monthId/clear-all-locks |
-| POST | `/api/mod/board-builder/:monthId/toggle-lock` | auth+mod | `api/_routes/boardBuilder.js:823` | POST /api/mod/board-builder/:monthId/toggle-lock |
-| POST | `/api/mod/board-builder/refresh-all` | auth+mod | `api/_routes/boardBuilder.js:516` | POST /api/mod/board-builder/refresh-all |
-| POST | `/api/mod/board-builder/reroll` | auth+mod | `api/_routes/boardBuilder.js:464` | POST /api/mod/board-builder/reroll |
-| POST | `/api/mod/board-builder/shuffle` | auth+mod | `api/_routes/boardBuilder.js:707` | POST /api/mod/board-builder/shuffle |
-| PUT | `/api/mod/board-builder/swap` | auth+mod | `api/_routes/boardBuilder.js:418` | PUT /api/mod/board-builder/swap |
+| GET | `/api/mod/board-builder` | auth | `api/_routes/boardBuilder.js:20` | GET /api/mod/board-builder |
+| POST | `/api/mod/board-builder/:monthId/clear-all-locks` | auth | `api/_routes/boardBuilder.js:878` | POST /api/mod/board-builder/:monthId/clear-all-locks |
+| POST | `/api/mod/board-builder/:monthId/toggle-lock` | auth | `api/_routes/boardBuilder.js:818` | POST /api/mod/board-builder/:monthId/toggle-lock |
+| POST | `/api/mod/board-builder/refresh-all` | auth | `api/_routes/boardBuilder.js:513` | POST /api/mod/board-builder/refresh-all |
+| POST | `/api/mod/board-builder/reroll` | auth | `api/_routes/boardBuilder.js:462` | POST /api/mod/board-builder/reroll |
+| POST | `/api/mod/board-builder/shuffle` | auth | `api/_routes/boardBuilder.js:703` | POST /api/mod/board-builder/shuffle |
+| PUT | `/api/mod/board-builder/swap` | auth | `api/_routes/boardBuilder.js:417` | PUT /api/mod/board-builder/swap |
 
 ## /mod/feedback
 
 | Method | Path | Auth | Location | Notes |
 |---|---|---|---|---|
-| GET | `/api/mod/feedback` | auth+mod | `api/_routes/feedback.js:38` |  |
-| PATCH | `/api/mod/feedback/:id/status` | auth+mod | `api/_routes/feedback.js:59` |  |
+| GET | `/api/mod/feedback` | auth | `api/_routes/feedback.js:39` |  |
+| PATCH | `/api/mod/feedback/:id/status` | auth | `api/_routes/feedback.js:60` |  |
 
 ## /mod/jeopardy
 
 | Method | Path | Auth | Location | Notes |
 |---|---|---|---|---|
-| POST | `/api/mod/jeopardy` | auth+mod | `api/_routes/jeopardy.js:131` | POST /api/mod/jeopardy — host a new lobby |
-| DELETE | `/api/mod/jeopardy` | auth+mod | `api/_routes/jeopardy.js:399` | DELETE /api/mod/jeopardy — end/reset a lobby |
-| POST | `/api/mod/jeopardy/lock` | auth+mod | `api/_routes/jeopardy.js:238` | POST /api/mod/jeopardy/lock |
-| POST | `/api/mod/jeopardy/reroll` | auth+mod | `api/_routes/jeopardy.js:176` | POST /api/mod/jeopardy/reroll |
-| POST | `/api/mod/jeopardy/shuffle` | auth+mod | `api/_routes/jeopardy.js:255` | POST /api/mod/jeopardy/shuffle |
-| POST | `/api/mod/jeopardy/start` | auth+mod | `api/_routes/jeopardy.js:284` | POST /api/mod/jeopardy/start |
-| PUT | `/api/mod/jeopardy/swap` | auth+mod | `api/_routes/jeopardy.js:213` | PUT /api/mod/jeopardy/swap |
+| POST | `/api/mod/jeopardy` | auth | `api/_routes/jeopardy.js:132` | POST /api/mod/jeopardy — host a new lobby |
+| DELETE | `/api/mod/jeopardy` | auth | `api/_routes/jeopardy.js:400` | DELETE /api/mod/jeopardy — end/reset a lobby |
+| POST | `/api/mod/jeopardy/lock` | auth | `api/_routes/jeopardy.js:239` | POST /api/mod/jeopardy/lock |
+| POST | `/api/mod/jeopardy/reroll` | auth | `api/_routes/jeopardy.js:177` | POST /api/mod/jeopardy/reroll |
+| POST | `/api/mod/jeopardy/shuffle` | auth | `api/_routes/jeopardy.js:256` | POST /api/mod/jeopardy/shuffle |
+| POST | `/api/mod/jeopardy/start` | auth | `api/_routes/jeopardy.js:285` | POST /api/mod/jeopardy/start |
+| PUT | `/api/mod/jeopardy/swap` | auth | `api/_routes/jeopardy.js:214` | PUT /api/mod/jeopardy/swap |
 
 ## /notifications
 
@@ -218,44 +218,44 @@
 
 | Method | Path | Auth | Location | Notes |
 |---|---|---|---|---|
-| GET | `/api/overlay/approvals` | mod+api-key | `api/_routes/overlay.js:304` | GET /api/overlay/approvals?key=pb_xxx — mod API key required Returns pending approval count and item list for stream overlays. |
+| GET | `/api/overlay/approvals` | api-key | `api/_routes/overlay.js:305` | GET /api/overlay/approvals?key=pb_xxx — mod API key required Returns pending approval count and item list for stream overlays. |
 
 ## /overlay/board
 
 | Method | Path | Auth | Location | Notes |
 |---|---|---|---|---|
-| GET | `/api/overlay/board` | api-key | `api/_routes/overlay.js:52` | GET /api/overlay/board?key=pb_xxx&mode=live\|template |
+| GET | `/api/overlay/board` | api-key | `api/_routes/overlay.js:53` | GET /api/overlay/board?key=pb_xxx&mode=live\|template |
 
 ## /overlay/jeopardy
 
 | Method | Path | Auth | Location | Notes |
 |---|---|---|---|---|
-| GET | `/api/overlay/jeopardy` | api-key | `api/_routes/overlay.js:21` | GET /api/overlay/jeopardy?key=pb_xxx&code=ABC123 — read-only live board state for an OBS browser source. Pro-only (same key gate as the other overlays); `code`  |
+| GET | `/api/overlay/jeopardy` | api-key | `api/_routes/overlay.js:22` | GET /api/overlay/jeopardy?key=pb_xxx&code=ABC123 — read-only live board state for an OBS browser source. Pro-only (same key gate as the other overlays); `code`  |
 
 ## /overlay/leaderboard
 
 | Method | Path | Auth | Location | Notes |
 |---|---|---|---|---|
-| GET | `/api/overlay/leaderboard` | api-key | `api/_routes/overlay.js:168` | GET /api/overlay/leaderboard?key=pb_xxx&period=monthly\|season\|year\|alltime&limit=5\|10\|20\|25&pin=1 |
+| GET | `/api/overlay/leaderboard` | api-key | `api/_routes/overlay.js:169` | GET /api/overlay/leaderboard?key=pb_xxx&period=monthly\|season\|year\|alltime&limit=5\|10\|20\|25&pin=1 |
 
 ## /overlay/test-event
 
 | Method | Path | Auth | Location | Notes |
 |---|---|---|---|---|
-| POST | `/api/overlay/test-event` | mod+api-key | `api/_routes/overlay.js:338` | POST /api/overlay/test-event?key=pb_xxx — mod API key required Fires a queue-changed broadcast so the approvals overlay can be tested on stream. |
+| POST | `/api/overlay/test-event` | api-key | `api/_routes/overlay.js:339` | POST /api/overlay/test-event?key=pb_xxx — mod API key required Fires a queue-changed broadcast so the approvals overlay can be tested on stream. |
 
 ## /pokedex
 
 | Method | Path | Auth | Location | Notes |
 |---|---|---|---|---|
-| GET | `/api/pokedex` | auth | `api/_routes/pokemon.js:15` | Get user's Pokedex (all pokemon with caught status) |
+| GET | `/api/pokedex` | auth | `api/_routes/pokemon.js:16` | Get user's Pokedex (all pokemon with caught status) |
 
 ## /pokemon
 
 | Method | Path | Auth | Location | Notes |
 |---|---|---|---|---|
-| GET | `/api/pokemon/:pokemonId/recent-catches` | auth | `api/_routes/pokemon.js:107` | Get recent catches for a specific Pokemon |
-| GET | `/api/pokemon/search` | auth+mod | `api/_routes/pokemon.js:216` | ── Pokémon search (mod use — collection tagger) ────────────────────────────── GET /api/pokemon/search?q=rayquaza |
+| GET | `/api/pokemon/:pokemonId/recent-catches` | auth | `api/_routes/pokemon.js:108` | Get recent catches for a specific Pokemon |
+| GET | `/api/pokemon/search` | auth | `api/_routes/pokemon.js:217` | ── Pokémon search (mod use — collection tagger) ────────────────────────────── GET /api/pokemon/search?q=rayquaza |
 
 ## /profile
 
@@ -270,15 +270,15 @@
 
 | Method | Path | Auth | Location | Notes |
 |---|---|---|---|---|
-| GET | `/api/radar/pokemon-lookup` | public | `api/_routes/radar.js:17` | GET /api/radar/pokemon-lookup?names=Pikachu,Flabébé (Blue) Public, read-only — resolves species names (with optional " (Form)" suffix) to pokemon_master rows so |
-| GET | `/api/radar/routes/:routeId` | auth+mod | `api/_routes/radar.js:57` |  |
-| PUT | `/api/radar/routes/:routeId` | auth+mod | `api/_routes/radar.js:74` |  |
+| GET | `/api/radar/pokemon-lookup` | public | `api/_routes/radar.js:18` | GET /api/radar/pokemon-lookup?names=Pikachu,Flabébé (Blue) Public, read-only — resolves species names (with optional " (Form)" suffix) to pokemon_master rows so |
+| GET | `/api/radar/routes/:routeId` | auth | `api/_routes/radar.js:58` |  |
+| PUT | `/api/radar/routes/:routeId` | auth | `api/_routes/radar.js:75` |  |
 
 ## /stats
 
 | Method | Path | Auth | Location | Notes |
 |---|---|---|---|---|
-| GET | `/api/stats/month` | auth | `api/_routes/stats.js:282` | GET /api/stats/month - read-only aggregate dashboard for a given month. Aggregations are split into an `all` bucket (every entry) and a `restricted` bucket (res |
+| GET | `/api/stats/month` | auth | `api/_routes/stats.js:330` | GET /api/stats/month - read-only aggregate dashboard for a given month. Aggregations are split into an `all` bucket (every entry) and a `restricted` bucket (res |
 
 ## /tier-list
 
@@ -330,108 +330,112 @@
 
 | Method | Path | Auth | Location | Notes |
 |---|---|---|---|---|
-| POST | `/api/user/accept-tos` | auth+mod | `api/_routes/users.js:73` |  |
+| POST | `/api/user/accept-tos` | auth | `api/_routes/users.js:74` |  |
 
 ## /user/identities
 
 | Method | Path | Auth | Location | Notes |
 |---|---|---|---|---|
-| GET | `/api/user/identities` | auth | `api/_routes/users.js:16` | Returns the list of OAuth providers linked to the authenticated user's account. Each entry has: { provider, identity_id, email, created_at } |
+| GET | `/api/user/identities` | auth | `api/_routes/users.js:17` | Returns the list of OAuth providers linked to the authenticated user's account. Each entry has: { provider, identity_id, email, created_at } |
 
 ## /user/is-moderator
 
 | Method | Path | Auth | Location | Notes |
 |---|---|---|---|---|
-| GET | `/api/user/is-moderator` | auth+mod | `api/_routes/users.js:94` |  |
+| GET | `/api/user/is-moderator` | auth | `api/_routes/users.js:95` |  |
 
 ## /user/is-pro
 
 | Method | Path | Auth | Location | Notes |
 |---|---|---|---|---|
-| GET | `/api/user/is-pro` | auth | `api/_routes/users.js:115` | GET /api/user/is-pro |
+| GET | `/api/user/is-pro` | auth | `api/_routes/users.js:110` | GET /api/user/is-pro |
 
 ## /user/sync-avatar
 
 | Method | Path | Auth | Location | Notes |
 |---|---|---|---|---|
-| POST | `/api/user/sync-avatar` | auth | `api/_routes/users.js:40` | Check if user is a moderator Sync avatar from Discord identity — call after OAuth login to keep avatar_url fresh |
+| POST | `/api/user/sync-avatar` | auth | `api/_routes/users.js:41` | Check if user is a moderator Sync avatar from Discord identity — call after OAuth login to keep avatar_url fresh |
 
 ## /user/tos-status
 
 | Method | Path | Auth | Location | Notes |
 |---|---|---|---|---|
-| GET | `/api/user/tos-status` | auth | `api/_routes/users.js:52` |  |
+| GET | `/api/user/tos-status` | auth | `api/_routes/users.js:53` |  |
 
 ## /users/:userId
 
 | Method | Path | Auth | Location | Notes |
 |---|---|---|---|---|
-| GET | `/api/users/:userId/badge-slots` | auth | `api/_routes/badges.js:190` | Get a user's equipped badge slots — reads slot column on user_badges (public) |
-| PUT | `/api/users/:userId/badge-slots` | auth | `api/_routes/badges.js:240` | Save a user's badge slot assignments — updates slot column on user_badges rows (authenticated, own user only) |
-| GET | `/api/users/:userId/badges` | auth | `api/_routes/badges.js:125` | Get all badges earned by a specific user (public — for profile pages) |
-| POST | `/api/users/:userId/badges/mark-seen` | auth+mod | `api/_routes/badges.js:303` | Mark badges as seen (own user only) — clears the "new badge" glow/dot. Body: { badge_ids: [...] } to mark specific badges, or omit to mark all. |
-| GET | `/api/users/:userId/badges/unseen-count` | auth | `api/_routes/badges.js:279` | Count of the user's earned-but-unseen badges (own user only — drives the "new badge" dot) |
-| PUT | `/api/users/:userId/display-name` | auth | `api/_routes/users.js:146` |  |
-| PUT | `/api/users/:userId/socials` | auth | `api/_routes/users.js:125` | Update a user's social links (authenticated, own user only) |
+| GET | `/api/users/:userId/badge-slots` | auth | `api/_routes/badges.js:191` | Get a user's equipped badge slots — reads slot column on user_badges (public) |
+| PUT | `/api/users/:userId/badge-slots` | auth | `api/_routes/badges.js:241` | Save a user's badge slot assignments — updates slot column on user_badges rows (authenticated, own user only) |
+| GET | `/api/users/:userId/badges` | auth | `api/_routes/badges.js:126` | Get all badges earned by a specific user (public — for profile pages) |
+| POST | `/api/users/:userId/badges/mark-seen` | auth | `api/_routes/badges.js:304` | Mark badges as seen (own user only) — clears the "new badge" glow/dot. Body: { badge_ids: [...] } to mark specific badges, or omit to mark all. |
+| GET | `/api/users/:userId/badges/unseen-count` | auth | `api/_routes/badges.js:280` | Count of the user's earned-but-unseen badges (own user only — drives the "new badge" dot) |
+| PUT | `/api/users/:userId/display-name` | auth | `api/_routes/users.js:141` |  |
+| PUT | `/api/users/:userId/socials` | auth | `api/_routes/users.js:120` | Update a user's social links (authenticated, own user only) |
 
 ## Shared helpers
 
 | Function | Location | Notes |
 |---|---|---|
-| `_sandwichIngredients` | `api/_lib/core.js:1413` |  |
-| `_SW` | `api/_lib/core.js:1422` | ── Core mechanics (mirrors sandwichSearch.worker.js) ────────────────────── |
-| `awardBadgesForTrigger` | `api/_lib/core.js:221` | Award any badges the user is newly eligible for given a trigger event. Fire-and-forget safe — never throws to the caller.  How it works:   1. Fetch ALL badges f |
+| `_sandwichIngredients` | `api/_lib/core.js:1436` |  |
+| `_SW` | `api/_lib/core.js:1445` | ── Core mechanics (mirrors sandwichSearch.worker.js) ────────────────────── |
+| `awardBadgesForTrigger` | `api/_lib/core.js:231` | Award any badges the user is newly eligible for given a trigger event. Fire-and-forget safe — never throws to the caller.  How it works:   1. Fetch ALL badges f |
 | `bestWeekByUser` | `api/_routes/stats.js:209` |  |
-| `broadcastNotificationToasts` | `api/_lib/core.js:152` | Fetch, enrich, and broadcast fresh unnotified notifications to a user's toast feed. Also fires to 'award-announcements' if any notification is an award (for oth |
-| `broadcastSSE` | `api/_lib/core.js:486` |  |
-| `broadcastUpdate` | `api/_lib/core.js:131` | Supabase Realtime Broadcast helper — fire-and-forget, no WebSocket needed |
+| `broadcastNotificationToasts` | `api/_lib/core.js:162` | Fetch, enrich, and broadcast fresh unnotified notifications to a user's toast feed. Also fires to 'award-announcements' if any notification is an award (for oth |
+| `broadcastSSE` | `api/_lib/core.js:496` |  |
+| `broadcastUpdate` | `api/_lib/core.js:141` | Supabase Realtime Broadcast helper — fire-and-forget, no WebSocket needed |
 | `buildCheckFromDB` | `api/_badgeRegistry.js:567` | ── DB-driven check evaluator ───────────────────────────────────────────────── Used by awardBadgesForTrigger to evaluate badges created via the admin form (whic |
 | `buildConsensus` | `api/_routes/tierList.js:74` | Per-mon plurality across every submission in one mode. Deliberately unchanged from the pre-mode behaviour (all rows, complete or not, first-wins on ties) — unif |
 | `buildMostDisputed` | `api/_routes/stats.js:235` | Most Disputed: the pool mon with the lowest modal-tier percentage. Only complete tier lists count toward modalByMon, so every mon there has the same total_votes |
 | `buildTierUpsets` | `api/_routes/stats.js:150` |  |
 | `buildUniqueCatch` | `api/_routes/stats.js:242` |  |
+| `buildViewerTierFields` | `api/_routes/stats.js:287` | tier_list.viewer_* fields are per-viewer and must never be cached for everyone — a cache hit recomputes just these from one targeted per-user query instead of t |
 | `buildWatchOut` | `api/_routes/stats.js:70` | Least number of submissions any still-eligible player needs to claim each achievement type, listing every tied player (Kellen's spec: no arbitrary pick). One bu |
-| `bulkAwardBadge` | `api/_lib/core.js:328` | ── Bulk badge award helper ─────────────────────────────────────────────────── Awards a single badge to multiple users at once, skipping already-earned ones. Re |
-| `calculateCategoryThresholds` | `api/_lib/core.js:1022` |  |
+| `bulkAwardBadge` | `api/_lib/core.js:338` | ── Bulk badge award helper ─────────────────────────────────────────────────── Awards a single badge to multiple users at once, skipping already-earned ones. Re |
+| `cacheMonthStats` | `api/_routes/stats.js:305` | Exported so the period-end cron (internal.js) can precompute a just-closed month's stats immediately, off the request path entirely. |
+| `calculateCategoryThresholds` | `api/_lib/core.js:1045` |  |
 | `claimKey` | `api/_routes/stats.js:38` | Types are claimed once per month by the first player to complete them, so a claimed type is out of reach for everyone else and drops off the panel. |
-| `computeBadgeRarity` | `api/_lib/core.js:1554` | Compute what percent of users have earned each badge. Returns { percentByBadge: { [badge_id]: number\|null }, totalUsers }. percent is rounded (0 decimals >= 1% |
-| `deleteR2Images` | `api/_lib/core.js:363` | ── R2 image deletion helper (fire-and-forget safe) ────────────────────────── Deletes one or more R2-hosted proof images. Never throws to the caller. |
-| `enrichMembers` | `api/_routes/jeopardy.js:31` |  |
-| `enrichUsersWithTwitchPfp` | `api/_lib/core.js:1368` |  |
-| `enrichWithBadgeSlots` | `api/_lib/core.js:703` | Batch-fetches badge slots 1–3 for a list of users and attaches them as badge_slots[] |
-| `fetchTierSubmissions` | `api/_lib/core.js:790` | Single read path for tier list rows. Always returns rows normalised to the post-migration shape (`mode` defaulted to 'standard') so callers never branch on the  |
-| `flattenTierBuckets` | `api/_lib/core.js:776` | `tiers` is stored as buckets — { tier_code: [pokemon_id, ...] } — so within-tier order survives (arrays preserve position; a { id: tier } map can't, since JS/JS |
-| `generateBoardCode` | `api/_routes/jeopardy.js:24` |  |
-| `generateJeopardyPool` | `api/_lib/core.js:1320` |  |
-| `generateNewPoolForMonth` | `api/_lib/core.js:1057` | Helper: Generate a completely new pool for a month (deletes old, generates new) |
-| `getActiveMonth` | `api/_lib/core.js:566` | Helper function to get active month ID based on current date (with optional time offset for moderators) Returns the full active month record { id, month_year_di |
-| `getActiveMonthId` | `api/_lib/core.js:658` | Convenience wrapper for callers that only need the month ID |
-| `getAuthenticatedUserId` | `api/_lib/core.js:541` | Helper function to get authenticated user ID |
-| `getTierListSchema` | `api/_lib/core.js:755` |  |
-| `getTwitchToken` | `api/_lib/core.js:665` | Fetch (or return cached) Twitch client-credentials access token. The token is valid ~60 days; we cache it until 1 hour before expiry. |
-| `hydrateJeopardyClaims` | `api/_lib/core.js:1391` |  |
-| `hydrateJeopardyTiles` | `api/_lib/core.js:1352` |  |
+| `computeBadgeRarity` | `api/_lib/core.js:1577` | Compute what percent of users have earned each badge. Returns { percentByBadge: { [badge_id]: number\|null }, totalUsers }. percent is rounded (0 decimals >= 1% |
+| `deleteR2Images` | `api/_lib/core.js:373` | ── R2 image deletion helper (fire-and-forget safe) ────────────────────────── Deletes one or more R2-hosted proof images. Never throws to the caller. |
+| `enrichMembers` | `api/_routes/jeopardy.js:32` |  |
+| `enrichUsersWithTwitchPfp` | `api/_lib/core.js:1391` |  |
+| `enrichWithBadgeSlots` | `api/_lib/core.js:726` | Batch-fetches badge slots 1–3 for a list of users and attaches them as badge_slots[] |
+| `fetchPoolIds` | `api/_routes/stats.js:279` | ── Closed-month stats cache ──────────────────────────────────────────────── A closed month's entries are immutable (nothing edits/deletes an approved entries r |
+| `fetchTierSubmissions` | `api/_lib/core.js:813` | Single read path for tier list rows. Always returns rows normalised to the post-migration shape (`mode` defaulted to 'standard') so callers never branch on the  |
+| `flattenTierBuckets` | `api/_lib/core.js:799` | `tiers` is stored as buckets — { tier_code: [pokemon_id, ...] } — so within-tier order survives (arrays preserve position; a { id: tier } map can't, since JS/JS |
+| `generateBoardCode` | `api/_routes/jeopardy.js:25` |  |
+| `generateJeopardyPool` | `api/_lib/core.js:1343` |  |
+| `generateNewPoolForMonth` | `api/_lib/core.js:1080` | Helper: Generate a completely new pool for a month (deletes old, generates new) |
+| `getActiveMonth` | `api/_lib/core.js:576` | Helper function to get active month ID based on current date (with optional time offset for moderators) Returns the full active month record { id, month_year_di |
+| `getActiveMonthId` | `api/_lib/core.js:668` | Convenience wrapper for callers that only need the month ID |
+| `getAuthenticatedUserId` | `api/_lib/core.js:551` | Helper function to get authenticated user ID |
+| `getTierListSchema` | `api/_lib/core.js:778` |  |
+| `getTwitchToken` | `api/_lib/core.js:675` | Fetch (or return cached) Twitch client-credentials access token. The token is valid ~60 days; we cache it until 1 hour before expiry. |
+| `hydrateJeopardyClaims` | `api/_lib/core.js:1414` |  |
+| `hydrateJeopardyTiles` | `api/_lib/core.js:1375` |  |
 | `isCompleteTierList` | `api/_routes/stats.js:126` | A tier list only counts once every mon on the board is ranked. A partial list is a half-formed opinion — letting one through would skew the modal tier and the c |
-| `isCompleteTiers` | `api/_lib/core.js:813` |  |
+| `isCompleteTiers` | `api/_lib/core.js:836` |  |
+| `isModerator` | `api/_lib/core.js:715` | Whether a user is a moderator, cached for MODERATOR_CACHE_TTL. Replaces the inline `select from moderators where id = userId` check duplicated across route modu |
 | `loadPool` | `api/_routes/tierList.js:36` | Pool ids for a month, plus the display records the client needs for PokemonImage. POKEMON_IMAGE_FIELDS is mandatory here — without the gender/form columns gende |
 | `modalTierByMon` | `api/_routes/stats.js:132` |  |
 | `nowForMonth` | `api/_lib/core.js:103` |  |
 | `parseMode` | `api/_routes/tierList.js:28` |  |
-| `pickRandomPokemonForPosition` | `api/_lib/core.js:888` | Helper: Pick a random eligible pokemon for a given position during reroll |
+| `pickRandomPokemonForPosition` | `api/_lib/core.js:911` | Helper: Pick a random eligible pokemon for a given position during reroll |
 | `pokeR2Url` | `api/_lib/core.js:41` |  |
-| `processMonthEnd` | `api/_lib/core.js:394` | ── Period-end processors ───────────────────────────────────────────────────── |
-| `processSeasonEnd` | `api/_lib/core.js:419` |  |
-| `processYearEnd` | `api/_lib/core.js:442` |  |
+| `processMonthEnd` | `api/_lib/core.js:404` | ── Period-end processors ───────────────────────────────────────────────────── |
+| `processSeasonEnd` | `api/_lib/core.js:429` |  |
+| `processYearEnd` | `api/_lib/core.js:452` |  |
 | `progressFor` | `api/_routes/tierList.js:87` |  |
-| `rankedIdsIn` | `api/_lib/core.js:812` | A tier list counts only once every mon on the board carries a tier. |
+| `rankedIdsIn` | `api/_lib/core.js:835` | A tier list counts only once every mon on the board carries a tier. |
 | `rarity` | `api/_routes/stats.js:184` | Rarity tallies for "Most Unique Catch", scoped to whichever entries subset is being summarised. Deliberately NOT month-wide: in Restricted mode every other pane |
-| `refreshAvatarFromProvider` | `api/_lib/core.js:515` | Looks up the user's linked OAuth identities, finds the best available avatar_url (prefers Discord, then Twitch, then Google), updates the users table, and retur |
+| `refreshAvatarFromProvider` | `api/_lib/core.js:525` | Looks up the user's linked OAuth identities, finds the best available avatar_url (prefers Discord, then Twitch, then Google), updates the users table, and retur |
 | `resolveGame` | `api/_routes/stats.js:47` |  |
-| `resolveStatsMonth` | `api/_lib/core.js:728` | Resolve the month for these features: an explicit ?month_id, or the active month. |
+| `resolveStatsMonth` | `api/_lib/core.js:751` | Resolve the month for these features: an explicit ?month_id, or the active month. |
 | `selectAllRows` | `api/_routes/stats.js:57` |  |
-| `sendSSEToUser` | `api/_lib/core.js:472` |  |
-| `shuffleArray` | `api/_lib/core.js:878` |  |
-| `uploadBufferToR2` | `api/_lib/core.js:830` | Upload a single multer file buffer to R2 and return its public URL. |
-| `uploadSupplementalProof` | `api/_lib/core.js:848` | Uploads the optional evolution + extra proof files shared by both submission endpoints. Returns { proofUrl3, proofUrl4, extraImageUrls }. Throws on R2 error. |
+| `sendSSEToUser` | `api/_lib/core.js:482` |  |
+| `shuffleArray` | `api/_lib/core.js:901` |  |
+| `uploadBufferToR2` | `api/_lib/core.js:853` | Upload a single multer file buffer to R2 and return its public URL. |
+| `uploadSupplementalProof` | `api/_lib/core.js:871` | Uploads the optional evolution + extra proof files shared by both submission endpoints. Returns { proofUrl3, proofUrl4, extraImageUrls }. Throws on R2 error. |
 | `upsertCountdownBanner` | `api/_routes/internal.js:26` | Writes/refreshes the "month is ending" banner as a normal `banners` row, so it gets the same bar and dismiss button as every mod-authored banner for free. Idemp |
-| `validateApiKey` | `api/_lib/core.js:686` | Validate an API key (pb_xxx) and return its owner's user_id, or null if invalid. Updates last_used_at fire-and-forget. Result cached for 60s. |
+| `validateApiKey` | `api/_lib/core.js:696` | Validate an API key (pb_xxx) and return its owner's user_id, or null if invalid. Updates last_used_at fire-and-forget. Result cached for 60s. |

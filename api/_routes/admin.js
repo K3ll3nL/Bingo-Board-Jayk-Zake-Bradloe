@@ -5,6 +5,7 @@
 const {
   broadcastUpdate,
   getAuthenticatedUserId,
+  isModerator,
   supabase,
   upload,
 } = require('../_lib/core');
@@ -21,13 +22,9 @@ module.exports = function register(app) {
       }
 
       // Check if user is moderator
-      const { data: isMod, error: modError } = await supabase
-        .from('moderators')
-        .select('id')
-        .eq('id', userId)
-        .single();
-      
-      if (modError || !isMod) {
+      const isMod = await isModerator(userId);
+
+      if (!isMod) {
         return res.status(403).json({ error: 'Admin access required' });
       }
       
@@ -49,7 +46,7 @@ module.exports = function register(app) {
     try {
       const userId = await getAuthenticatedUserId(req);
       if (!userId) return res.status(401).json({ error: 'Unauthorized' });
-      const { data: mod } = await supabase.from('moderators').select('id').eq('id', userId).single();
+      const mod = await isModerator(userId);
       if (!mod) return res.status(403).json({ error: 'Moderators only' });
 
       const { data, error } = await supabase
@@ -68,7 +65,7 @@ module.exports = function register(app) {
     try {
       const userId = await getAuthenticatedUserId(req);
       if (!userId) return res.status(401).json({ error: 'Unauthorized' });
-      const { data: mod } = await supabase.from('moderators').select('id').eq('id', userId).single();
+      const mod = await isModerator(userId);
       if (!mod) return res.status(403).json({ error: 'Moderators only' });
 
       const { data, error } = await supabase
@@ -87,7 +84,7 @@ module.exports = function register(app) {
     try {
       const userId = await getAuthenticatedUserId(req);
       if (!userId) return res.status(401).json({ error: 'Unauthorized' });
-      const { data: mod } = await supabase.from('moderators').select('id').eq('id', userId).single();
+      const mod = await isModerator(userId);
       if (!mod) return res.status(403).json({ error: 'Moderators only' });
 
       const q = (req.query.q || '').trim();
@@ -110,7 +107,7 @@ module.exports = function register(app) {
     try {
       const modId = await getAuthenticatedUserId(req);
       if (!modId) return res.status(401).json({ error: 'Unauthorized' });
-      const { data: mod } = await supabase.from('moderators').select('id').eq('id', modId).single();
+      const mod = await isModerator(modId);
       if (!mod) return res.status(403).json({ error: 'Moderators only' });
 
       const { userId } = req.params;
@@ -162,7 +159,7 @@ module.exports = function register(app) {
     try {
       const modId = await getAuthenticatedUserId(req);
       if (!modId) return res.status(401).json({ error: 'Unauthorized' });
-      const { data: mod } = await supabase.from('moderators').select('id').eq('id', modId).single();
+      const mod = await isModerator(modId);
       if (!mod) return res.status(403).json({ error: 'Moderators only' });
 
       const { badgeId } = req.params;
@@ -197,7 +194,7 @@ module.exports = function register(app) {
     try {
       const modId = await getAuthenticatedUserId(req);
       if (!modId) return res.status(401).json({ error: 'Unauthorized' });
-      const { data: mod } = await supabase.from('moderators').select('id').eq('id', modId).single();
+      const mod = await isModerator(modId);
       if (!mod) return res.status(403).json({ error: 'Moderators only' });
 
       const { userId, badgeId } = req.params;
@@ -258,7 +255,7 @@ module.exports = function register(app) {
     try {
       const modId = await getAuthenticatedUserId(req);
       if (!modId) return res.status(401).json({ error: 'Unauthorized' });
-      const { data: mod } = await supabase.from('moderators').select('id').eq('id', modId).single();
+      const mod = await isModerator(modId);
       if (!mod) return res.status(403).json({ error: 'Moderators only' });
 
       const { userId, badgeId } = req.params;
@@ -294,7 +291,7 @@ module.exports = function register(app) {
     try {
       const userId = await getAuthenticatedUserId(req);
       if (!userId) return res.status(401).json({ error: 'Unauthorized' });
-      const { data: mod } = await supabase.from('moderators').select('id').eq('id', userId).single();
+      const mod = await isModerator(userId);
       if (!mod) return res.status(403).json({ error: 'Moderators only' });
 
       const { order } = req.body;
@@ -316,7 +313,7 @@ module.exports = function register(app) {
     try {
       const userId = await getAuthenticatedUserId(req);
       if (!userId) return res.status(401).json({ error: 'Unauthorized' });
-      const { data: mod } = await supabase.from('moderators').select('id').eq('id', userId).single();
+      const mod = await isModerator(userId);
       if (!mod) return res.status(403).json({ error: 'Moderators only' });
 
       const { display_name, is_sequential } = req.body;
@@ -336,7 +333,7 @@ module.exports = function register(app) {
     try {
       const userId = await getAuthenticatedUserId(req);
       if (!userId) return res.status(401).json({ error: 'Unauthorized' });
-      const { data: mod } = await supabase.from('moderators').select('id').eq('id', userId).single();
+      const mod = await isModerator(userId);
       if (!mod) return res.status(403).json({ error: 'Moderators only' });
 
       const file = req.file;
@@ -394,7 +391,7 @@ module.exports = function register(app) {
     try {
       const userId = await getAuthenticatedUserId(req);
       if (!userId) return res.status(401).json({ error: 'Unauthorized' });
-      const { data: mod } = await supabase.from('moderators').select('id').eq('id', userId).single();
+      const mod = await isModerator(userId);
       if (!mod) return res.status(403).json({ error: 'Moderators only' });
 
       const bump = (url) => {
@@ -430,7 +427,7 @@ module.exports = function register(app) {
     try {
       const userId = await getAuthenticatedUserId(req);
       if (!userId) return res.status(401).json({ error: 'Unauthorized' });
-      const { data: mod } = await supabase.from('moderators').select('id').eq('id', userId).single();
+      const mod = await isModerator(userId);
       if (!mod) return res.status(403).json({ error: 'Moderators only' });
 
       const { data, error } = await supabase
@@ -459,7 +456,7 @@ module.exports = function register(app) {
     try {
       const userId = await getAuthenticatedUserId(req);
       if (!userId) return res.status(401).json({ error: 'Unauthorized' });
-      const { data: mod } = await supabase.from('moderators').select('id').eq('id', userId).single();
+      const mod = await isModerator(userId);
       if (!mod) return res.status(403).json({ error: 'Moderators only' });
 
       const { slug } = req.params;
@@ -484,7 +481,7 @@ module.exports = function register(app) {
     try {
       const userId = await getAuthenticatedUserId(req);
       if (!userId) return res.status(401).json({ error: 'Unauthorized' });
-      const { data: mod } = await supabase.from('moderators').select('id').eq('id', userId).single();
+      const mod = await isModerator(userId);
       if (!mod) return res.status(403).json({ error: 'Moderators only' });
 
       const { slug } = req.params;
@@ -513,7 +510,7 @@ module.exports = function register(app) {
     try {
       const userId = await getAuthenticatedUserId(req);
       if (!userId) return res.status(401).json({ error: 'Unauthorized' });
-      const { data: mod } = await supabase.from('moderators').select('id').eq('id', userId).single();
+      const mod = await isModerator(userId);
       if (!mod) return res.status(403).json({ error: 'Moderators only' });
 
       const { slug, pokemonId } = req.params;
@@ -547,7 +544,7 @@ module.exports = function register(app) {
     try {
       const userId = await getAuthenticatedUserId(req);
       if (!userId) return res.status(401).json({ error: 'Unauthorized' });
-      const { data: mod } = await supabase.from('moderators').select('id').eq('id', userId).single();
+      const mod = await isModerator(userId);
       if (!mod) return res.status(403).json({ error: 'Moderators only' });
 
       const { slug, pokemonId } = req.params;
@@ -577,9 +574,8 @@ module.exports = function register(app) {
       const userId = await getAuthenticatedUserId(req);
       if (!userId) return res.status(401).json({ error: 'Authentication required' });
 
-      const { data: isMod, error: modError } = await supabase
-        .from('moderators').select('id').eq('id', userId).single();
-      if (modError || !isMod) return res.status(403).json({ error: 'Moderator access required' });
+      const isMod = await isModerator(userId);
+      if (!isMod) return res.status(403).json({ error: 'Moderator access required' });
 
       const { data, error } = await supabase
         .from('pokemon_master')
@@ -603,9 +599,8 @@ module.exports = function register(app) {
       const userId = await getAuthenticatedUserId(req);
       if (!userId) return res.status(401).json({ error: 'Authentication required' });
 
-      const { data: isMod, error: modError } = await supabase
-        .from('moderators').select('id').eq('id', userId).single();
-      if (modError || !isMod) return res.status(403).json({ error: 'Moderator access required' });
+      const isMod = await isModerator(userId);
+      if (!isMod) return res.status(403).json({ error: 'Moderator access required' });
 
       const updates = {};
       if (Array.isArray(game_slugs)) updates.game_slugs = game_slugs;

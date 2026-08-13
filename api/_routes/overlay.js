@@ -8,6 +8,7 @@ const {
   getActiveMonth,
   hydrateJeopardyClaims,
   hydrateJeopardyTiles,
+  isModerator,
   pokeR2Url,
   supabase,
   validateApiKey,
@@ -307,7 +308,7 @@ module.exports = function register(app) {
       if (!userId) return res.status(401).json({ error: 'Invalid or missing API key' });
 
       // Only moderators may use this overlay
-      const { data: mod } = await supabase.from('moderators').select('id').eq('id', userId).single();
+      const mod = await isModerator(userId);
       if (!mod) return res.status(403).json({ error: 'Moderator API key required' });
 
       const { data: approvals } = await supabase
@@ -340,7 +341,7 @@ module.exports = function register(app) {
       const userId = await validateApiKey(req.query.key);
       if (!userId) return res.status(401).json({ error: 'Invalid or missing API key' });
 
-      const { data: mod } = await supabase.from('moderators').select('id').eq('id', userId).single();
+      const mod = await isModerator(userId);
       if (!mod) return res.status(403).json({ error: 'Moderator API key required' });
 
       await broadcastUpdate('approvals-updates', 'queue-changed', {

@@ -10,6 +10,7 @@ const {
   generateJeopardyPool,
   getAuthenticatedUserId,
   hydrateJeopardyClaims,
+  isModerator,
   hydrateJeopardyTiles,
   shuffleArray,
   supabase,
@@ -49,7 +50,7 @@ module.exports = function register(app) {
     try {
       const userId = await getAuthenticatedUserId(req);
       if (!userId) return res.status(401).json({ error: 'Authentication required' });
-      const { data: modRow } = await supabase.from('moderators').select('id').eq('id', userId).maybeSingle();
+      const modRow = await isModerator(userId);
 
       let query = supabase
         .from('jeopardy_boards').select('id, code, game, status, visibility, columns, created_at, started_at, created_by')
@@ -90,7 +91,7 @@ module.exports = function register(app) {
         .from('jeopardy_boards').select('*').ilike('code', req.params.code).maybeSingle();
       if (!board) return res.status(404).json({ error: 'No lobby found for that code' });
 
-      const { data: modRow } = await supabase.from('moderators').select('id').eq('id', userId).maybeSingle();
+      const modRow = await isModerator(userId);
       const { data: memberRow } = await supabase
         .from('jeopardy_members').select('role').eq('board_id', board.id).eq('user_id', userId).maybeSingle();
 
@@ -132,7 +133,7 @@ module.exports = function register(app) {
     try {
       const userId = await getAuthenticatedUserId(req);
       if (!userId) return res.status(401).json({ error: 'Authentication required' });
-      const { data: modRow } = await supabase.from('moderators').select('id').eq('id', userId).maybeSingle();
+      const modRow = await isModerator(userId);
       if (!modRow) return res.status(403).json({ error: 'Moderator access required' });
 
       const { game, row_points, shalpha_double_points, visibility, columns } = req.body;
@@ -177,7 +178,7 @@ module.exports = function register(app) {
     try {
       const userId = await getAuthenticatedUserId(req);
       if (!userId) return res.status(401).json({ error: 'Authentication required' });
-      const { data: modRow } = await supabase.from('moderators').select('id').eq('id', userId).maybeSingle();
+      const modRow = await isModerator(userId);
       if (!modRow) return res.status(403).json({ error: 'Moderator access required' });
 
       const { boardId, position, operationId } = req.body;
@@ -214,7 +215,7 @@ module.exports = function register(app) {
     try {
       const userId = await getAuthenticatedUserId(req);
       if (!userId) return res.status(401).json({ error: 'Authentication required' });
-      const { data: modRow } = await supabase.from('moderators').select('id').eq('id', userId).maybeSingle();
+      const modRow = await isModerator(userId);
       if (!modRow) return res.status(403).json({ error: 'Moderator access required' });
 
       const { boardId, pos1, pos2, operationId } = req.body;
@@ -239,7 +240,7 @@ module.exports = function register(app) {
     try {
       const userId = await getAuthenticatedUserId(req);
       if (!userId) return res.status(401).json({ error: 'Authentication required' });
-      const { data: modRow } = await supabase.from('moderators').select('id').eq('id', userId).maybeSingle();
+      const modRow = await isModerator(userId);
       if (!modRow) return res.status(403).json({ error: 'Moderator access required' });
 
       const { boardId, position, locked, operationId } = req.body;
@@ -256,7 +257,7 @@ module.exports = function register(app) {
     try {
       const userId = await getAuthenticatedUserId(req);
       if (!userId) return res.status(401).json({ error: 'Authentication required' });
-      const { data: modRow } = await supabase.from('moderators').select('id').eq('id', userId).maybeSingle();
+      const modRow = await isModerator(userId);
       if (!modRow) return res.status(403).json({ error: 'Moderator access required' });
 
       const { boardId, operationId } = req.body;
@@ -285,7 +286,7 @@ module.exports = function register(app) {
     try {
       const userId = await getAuthenticatedUserId(req);
       if (!userId) return res.status(401).json({ error: 'Authentication required' });
-      const { data: modRow } = await supabase.from('moderators').select('id').eq('id', userId).maybeSingle();
+      const modRow = await isModerator(userId);
       if (!modRow) return res.status(403).json({ error: 'Moderator access required' });
 
       const { boardId } = req.body;
@@ -319,7 +320,7 @@ module.exports = function register(app) {
       if (!boardId || position == null) return res.status(400).json({ error: 'boardId and position required' });
       if (!['standard', 'shalpha'].includes(claimType)) return res.status(400).json({ error: 'Invalid claimType' });
 
-      const { data: modRow } = await supabase.from('moderators').select('id').eq('id', userId).maybeSingle();
+      const modRow = await isModerator(userId);
       const { data: memberRow } = await supabase
         .from('jeopardy_members').select('id').eq('board_id', boardId).eq('user_id', userId).maybeSingle();
       if (!modRow && !memberRow) return res.status(403).json({ error: 'Join this game to claim a square' });
@@ -384,7 +385,7 @@ module.exports = function register(app) {
       const { boardId, position } = req.body;
       if (!boardId || position == null) return res.status(400).json({ error: 'boardId and position required' });
 
-      const { data: modRow } = await supabase.from('moderators').select('id').eq('id', userId).maybeSingle();
+      const modRow = await isModerator(userId);
       const { data: memberRow } = await supabase
         .from('jeopardy_members').select('id').eq('board_id', boardId).eq('user_id', userId).maybeSingle();
       if (!modRow && !memberRow) return res.status(403).json({ error: 'Join this game to manage claims' });
@@ -400,7 +401,7 @@ module.exports = function register(app) {
     try {
       const userId = await getAuthenticatedUserId(req);
       if (!userId) return res.status(401).json({ error: 'Authentication required' });
-      const { data: modRow } = await supabase.from('moderators').select('id').eq('id', userId).maybeSingle();
+      const modRow = await isModerator(userId);
       if (!modRow) return res.status(403).json({ error: 'Moderator access required' });
 
       const { boardId } = req.body;

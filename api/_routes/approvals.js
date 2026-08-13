@@ -8,6 +8,7 @@ const {
   broadcastNotificationToasts,
   broadcastUpdate,
   getAuthenticatedUserId,
+  isModerator,
   leaderboardCache,
   pokeR2Url,
   supabase,
@@ -240,14 +241,10 @@ module.exports = function register(app) {
       console.log('Moderator ID:', moderatorId);
 
       // Check if user is moderator
-      const { data: isMod, error: modError } = await supabase
-        .from('moderators')
-        .select('id')
-        .eq('id', moderatorId)
-        .single();
-      
-      if (modError || !isMod) {
-        console.log('Moderator check failed:', modError);
+      const isMod = await isModerator(moderatorId);
+
+      if (!isMod) {
+        console.log('Moderator check failed');
         return res.status(403).json({ error: 'Moderator access required' });
       }
       
@@ -405,13 +402,9 @@ module.exports = function register(app) {
       }
 
       // Verify moderator status
-      const { data: ambassador, error: modError } = await supabase
-        .from('moderators')
-        .select('id')
-        .eq('id', userId)
-        .single();
+      const ambassador = await isModerator(userId);
 
-      if (modError || !ambassador) {
+      if (!ambassador) {
         return res.status(403).json({ error: 'Forbidden' });
       }
 
@@ -513,7 +506,7 @@ module.exports = function register(app) {
     try {
       const userId = await getAuthenticatedUserId(req);
       if (!userId) return res.status(401).json({ error: 'Unauthorized' });
-      const { data: mod } = await supabase.from('moderators').select('id').eq('id', userId).single();
+      const mod = await isModerator(userId);
       if (!mod) return res.status(403).json({ error: 'Moderators only' });
 
       const page = Math.max(1, parseInt(req.query.page, 10) || 1);

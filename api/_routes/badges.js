@@ -5,6 +5,7 @@
 const {
   computeBadgeRarity,
   getAuthenticatedUserId,
+  isModerator,
   supabase,
   upload,
 } = require('../_lib/core');
@@ -332,7 +333,7 @@ module.exports = function register(app) {
       const userId = await getAuthenticatedUserId(req);
       if (!userId) return res.status(401).json({ error: 'Unauthorized' });
 
-      const { data: mod } = await supabase.from('moderators').select('id').eq('id', userId).single();
+      const mod = await isModerator(userId);
       if (!mod) return res.status(403).json({ error: 'Forbidden: moderators only' });
 
       const { key, name, description, hint, is_secret, family, family_order,

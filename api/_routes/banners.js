@@ -4,6 +4,7 @@
  */
 const {
   getAuthenticatedUserId,
+  isModerator,
   supabase,
 } = require('../_lib/core');
 
@@ -35,7 +36,7 @@ module.exports = function register(app) {
     try {
       const userId = await getAuthenticatedUserId(req);
       if (!userId) return res.status(401).json({ error: 'Unauthorized' });
-      const { data: mod } = await supabase.from('moderators').select('id').eq('id', userId).single();
+      const mod = await isModerator(userId);
       if (!mod) return res.status(403).json({ error: 'Moderators only' });
       const { message, link_url, link_label, image_url, starts_at, expires_at, condition } = req.body;
       if (!message?.trim()) return res.status(400).json({ error: 'message is required' });
@@ -64,7 +65,7 @@ module.exports = function register(app) {
     try {
       const userId = await getAuthenticatedUserId(req);
       if (!userId) return res.status(401).json({ error: 'Unauthorized' });
-      const { data: mod } = await supabase.from('moderators').select('id').eq('id', userId).single();
+      const mod = await isModerator(userId);
       if (!mod) return res.status(403).json({ error: 'Moderators only' });
       const { error } = await supabase.from('banners').delete().eq('id', req.params.id);
       if (error) throw error;

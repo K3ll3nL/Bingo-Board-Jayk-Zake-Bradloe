@@ -7,6 +7,7 @@ const {
   calculateCategoryThresholds,
   generateNewPoolForMonth,
   getAuthenticatedUserId,
+  isModerator,
   nowForMonth,
   pickRandomPokemonForPosition,
   shuffleArray,
@@ -22,9 +23,7 @@ module.exports = function register(app) {
       const userId = await getAuthenticatedUserId(req);
       if (!userId) return res.status(401).json({ error: 'Authentication required' });
 
-      const { data: modRow, error: modErr } = await supabase
-        .from('moderators').select('id').eq('id', userId).maybeSingle();
-      if (modErr) return res.status(500).json({ error: 'Mod check failed', details: modErr.message });
+      const modRow = await isModerator(userId);
       if (!modRow) return res.status(403).json({ error: 'Moderator access required' });
 
       // ── Compute next calendar month from today (UTC, rollover-shifted) ───────
@@ -420,8 +419,7 @@ module.exports = function register(app) {
       const userId = await getAuthenticatedUserId(req);
       if (!userId) return res.status(401).json({ error: 'Authentication required' });
 
-      const { data: modRow } = await supabase
-        .from('moderators').select('id').eq('id', userId).maybeSingle();
+      const modRow = await isModerator(userId);
       if (!modRow) return res.status(403).json({ error: 'Moderator access required' });
 
       const { pos1, pos2, monthId, operationId } = req.body;
@@ -466,8 +464,7 @@ module.exports = function register(app) {
       const userId = await getAuthenticatedUserId(req);
       if (!userId) return res.status(401).json({ error: 'Authentication required' });
 
-      const { data: modRow } = await supabase
-        .from('moderators').select('id').eq('id', userId).maybeSingle();
+      const modRow = await isModerator(userId);
       if (!modRow) return res.status(403).json({ error: 'Moderator access required' });
 
       const { position, monthId, operationId } = req.body;
@@ -518,8 +515,7 @@ module.exports = function register(app) {
       const userId = await getAuthenticatedUserId(req);
       if (!userId) return res.status(401).json({ error: 'Authentication required' });
 
-      const { data: modRow } = await supabase
-        .from('moderators').select('id').eq('id', userId).maybeSingle();
+      const modRow = await isModerator(userId);
       if (!modRow) return res.status(403).json({ error: 'Moderator access required' });
 
       const { monthId, operationId } = req.body;
@@ -709,8 +705,7 @@ module.exports = function register(app) {
       const userId = await getAuthenticatedUserId(req);
       if (!userId) return res.status(401).json({ error: 'Authentication required' });
 
-      const { data: modRow } = await supabase
-        .from('moderators').select('id').eq('id', userId).maybeSingle();
+      const modRow = await isModerator(userId);
       if (!modRow) return res.status(403).json({ error: 'Moderator access required' });
 
       const { monthId, operationId } = req.body;
@@ -825,8 +820,7 @@ module.exports = function register(app) {
       const userId = await getAuthenticatedUserId(req);
       if (!userId) return res.status(401).json({ error: 'Authentication required' });
 
-      const { data: modRow } = await supabase
-        .from('moderators').select('id').eq('id', userId).maybeSingle();
+      const modRow = await isModerator(userId);
       if (!modRow) return res.status(403).json({ error: 'Moderator access required' });
 
       const { monthId } = req.params;
@@ -886,8 +880,7 @@ module.exports = function register(app) {
       const userId = await getAuthenticatedUserId(req);
       if (!userId) return res.status(401).json({ error: 'Authentication required' });
 
-      const { data: modRow } = await supabase
-        .from('moderators').select('id').eq('id', userId).maybeSingle();
+      const modRow = await isModerator(userId);
       if (!modRow) return res.status(403).json({ error: 'Moderator access required' });
 
       const { monthId } = req.params;

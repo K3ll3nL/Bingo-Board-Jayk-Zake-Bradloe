@@ -271,6 +271,54 @@ const buildUniqueCatch = (subset, baseline) => {
   return { available: true, items, tied_total: items.length };
 };
 
+// ── Closed-month stats cache ────────────────────────────────────────────────
+// A closed month's entries are immutable (nothing edits/deletes an approved
+// entries row besides moderator_note, which no panel here reads), so its
+// stats never change once computed. Reused by both the read-path cache-hit
+// shortcut below and the period-end cron's precompute step.
+const fetchPoolIds = async (monthId) => {
+  const { data } = await supabase.from('monthly_pokemon_pool').select('pokemon_id').eq('month_id', monthId);
+  return new Set((data || []).map(p => p.pokemon_id));
+};
+
+// tier_list.viewer_* fields are per-viewer and must never be cached for
+// everyone — a cache hit recomputes just these from one targeted per-user
+// query instead of the full month scan.
+const buildViewerTierFields = async (monthId, userId, poolIds) => {
+  if (!userId) return { viewer_submitted: false, viewer_ranked: 0, restricted_viewer_submitted: false, restricted_viewer_ranked: 0 };
+  const [{ rows: ownStandard }, { rows: ownRestricted }] = await Promise.all([
+    fetchTierSubmissions(monthId, { mode: 'standard', userId }),
+    fetchTierSubmissions(monthId, { mode: 'restricted', userId }),
+  ]);
+  const own = ownStandard[0];
+  const ownR = ownRestricted[0];
+  return {
+    viewer_submitted: Boolean(own && isCompleteTierList(own, poolIds)),
+    viewer_ranked: own ? Object.keys(own.tiers || {}).length : 0,
+    restricted_viewer_submitted: Boolean(ownR && isCompleteTierList(ownR, poolIds)),
+    restricted_viewer_ranked: ownR ? Object.keys(ownR.tiers || {}).length : 0,
+  };
+};
+
+// Exported so the period-end cron (internal.js) can precompute a just-closed
+// month's stats immediately, off the request path entirely.
+const cacheMonthStats = async (monthId, payload) => {
+  // Never persist one viewer's personal tier_list fields into the shared
+  // cache row — every future reader gets these recomputed fresh instead.
+  const cacheable = {
+    ...payload,
+    tier_list: {
+      ...payload.tier_list,
+      viewer_submitted: false, viewer_ranked: 0,
+      restricted_viewer_submitted: false, restricted_viewer_ranked: 0,
+    },
+  };
+  const { error } = await supabase
+    .from('month_stats_cache')
+    .upsert({ month_id: monthId, payload: cacheable, computed_at: new Date().toISOString() });
+  if (error) console.error('Failed to cache month stats:', error.message);
+};
+
 module.exports = function register(app) {
 
   // GET /api/stats/month - read-only aggregate dashboard for a given month.
@@ -294,9 +342,30 @@ module.exports = function register(app) {
       const activeMonth = req.query.month_id ? await getActiveMonth(userId) : monthData;
       const isCurrentMonth = Boolean(activeMonth && activeMonth.id === monthId);
 
+      // A closed month's entries never change (see cacheMonthStats above), so
+      // a cache hit skips the entire computation below — just a PK lookup plus
+      // one cheap per-viewer personalization pass for the tier_list fields.
+      if (!isCurrentMonth) {
+        const { data: cached, error: cacheReadError } = await supabase
+          .from('month_stats_cache').select('payload').eq('month_id', monthId).maybeSingle();
+        if (cacheReadError) console.error('month_stats_cache read failed, falling back to live compute:', cacheReadError.message);
+        if (cached) {
+          console.log(`stats/month cache HIT month_id=${monthId} computed_at=${cached.computed_at}`);
+          const poolIds = await fetchPoolIds(monthId);
+          const viewerFields = await buildViewerTierFields(monthId, userId, poolIds);
+          return res.json({
+            ...cached.payload,
+            tier_list: { ...cached.payload.tier_list, ...viewerFields },
+          });
+        }
+        console.log(`stats/month cache MISS month_id=${monthId} — computing live and populating cache`);
+      } else {
+        console.log(`stats/month live compute (current month) month_id=${monthId}`);
+      }
+
       const [
         entries,
-        historyEntries,
+        { data: historyCounts, error: historyCountsError },
         { data: monthRows, error: monthsError },
         { data: achievements, error: achievementsError },
         { rows: tierSubmissionsStandard },
@@ -308,12 +377,16 @@ module.exports = function register(app) {
         // created_at powers Hunter Spotlight's Hot Streak (a sliding 7-day
         // window needs real timestamps, not just a monthly total).
         selectAllRows(() => supabase.from('entries').select('user_id, pokemon_id, game, restricted_submission, historical, created_at').eq('month_id', monthId)),
-        // Four narrow columns across every month — the denominator behind the
-        // Overview bars. A raw count has nothing to be a fraction of, so the
-        // bars measure this month against the best month on record. Also the
-        // source for Hunter Spotlight's Most Improved and Consistently Elite,
-        // which both compare this month's per-user counts against other months.
-        selectAllRows(() => supabase.from('entries').select('month_id, user_id, restricted_submission, historical')),
+        // The denominator behind the Overview bars. A raw count has nothing to
+        // be a fraction of, so the bars measure this month against the best
+        // month on record. Also the source for Hunter Spotlight's Most
+        // Improved and Consistently Elite, which both compare this month's
+        // per-user counts against other months.
+        //
+        // Pre-aggregated server-side (one row per month/user/restricted-flag
+        // combo, historical already excluded) instead of pulling every entry
+        // ever made — that raw scan grew unboundedly with total catches.
+        supabase.rpc('entries_monthly_user_counts'),
         supabase.from('bingo_months').select('id, month_year_display, start_date').order('start_date', { ascending: true }),
         // user_id added alongside bingo_type — the Month Champion hero needs
         // the winner's own achievement count once the month is finished.
@@ -353,6 +426,7 @@ module.exports = function register(app) {
           .lt('earned_at', monthData.end_date)
           .order('earned_at', { ascending: false }),
       ]);
+      if (historyCountsError) throw historyCountsError;
       if (monthsError) throw monthsError;
       if (achievementsError) throw achievementsError;
       if (poolError) throw poolError;
@@ -379,14 +453,14 @@ module.exports = function register(app) {
       // ── Overview trend ──────────────────────────────────────────────────────
       // Per-month totals for both buckets, so each Overview bar can be a real
       // fraction (this month / best month on record) with a delta against the
-      // previous month. Built from the narrow history scan; no per-month queries.
+      // previous month. Built from the pre-aggregated RPC rows (historical
+      // already excluded server-side); no per-month queries.
       const tallyByMonth = new Map(); // month_id -> { all:{n,users}, restricted:{n,users} }
-      (historyEntries || []).forEach(e => {
-        if (e.historical) return; // same exclusion as the month itself, or the baseline drifts
-        let t = tallyByMonth.get(e.month_id);
-        if (!t) { t = { all: { n: 0, users: new Set() }, restricted: { n: 0, users: new Set() } }; tallyByMonth.set(e.month_id, t); }
-        t.all.n += 1; t.all.users.add(e.user_id);
-        if (e.restricted_submission) { t.restricted.n += 1; t.restricted.users.add(e.user_id); }
+      (historyCounts || []).forEach(row => {
+        let t = tallyByMonth.get(row.month_id);
+        if (!t) { t = { all: { n: 0, users: new Set() }, restricted: { n: 0, users: new Set() } }; tallyByMonth.set(row.month_id, t); }
+        t.all.n += row.cnt; t.all.users.add(row.user_id);
+        if (row.restricted_submission) { t.restricted.n += row.cnt; t.restricted.users.add(row.user_id); }
       });
 
       const orderedMonths = monthRows || [];
@@ -400,20 +474,19 @@ module.exports = function register(app) {
 
       // Per-user-per-month catch counts and each user's first active month —
       // the raw material for Hunter Spotlight's Most Improved, Consistently
-      // Elite, and Newcomer categories. One extra pass over the same narrow
-      // history scan `tallyByMonth` already reads; no new query.
+      // Elite, and Newcomer categories. One extra pass over the same
+      // pre-aggregated RPC rows `tallyByMonth` already reads; no new query.
       const monthIdxById = new Map(orderedMonths.map((m, i) => [m.id, i]));
       const userMonthCounts = new Map(); // month_id -> Map(user_id -> count)
       const firstMonthIdxByUser = new Map(); // user_id -> earliest month index with a catch
-      (historyEntries || []).forEach(e => {
-        if (e.historical) return;
-        let counts = userMonthCounts.get(e.month_id);
-        if (!counts) { counts = new Map(); userMonthCounts.set(e.month_id, counts); }
-        counts.set(e.user_id, (counts.get(e.user_id) || 0) + 1);
-        const idx = monthIdxById.get(e.month_id);
+      (historyCounts || []).forEach(row => {
+        let counts = userMonthCounts.get(row.month_id);
+        if (!counts) { counts = new Map(); userMonthCounts.set(row.month_id, counts); }
+        counts.set(row.user_id, (counts.get(row.user_id) || 0) + row.cnt);
+        const idx = monthIdxById.get(row.month_id);
         if (idx != null) {
-          const prevIdx = firstMonthIdxByUser.get(e.user_id);
-          if (prevIdx == null || idx < prevIdx) firstMonthIdxByUser.set(e.user_id, idx);
+          const prevIdx = firstMonthIdxByUser.get(row.user_id);
+          if (prevIdx == null || idx < prevIdx) firstMonthIdxByUser.set(row.user_id, idx);
         }
       });
 
@@ -1041,7 +1114,7 @@ module.exports = function register(app) {
       const usersDict = {};
       referencedUserIds.forEach(id => { usersDict[id] = nameOf(id); });
 
-      res.json({
+      const payload = {
         month: {
           id: monthData.id,
           label: monthData.month_year_display,
@@ -1107,7 +1180,19 @@ module.exports = function register(app) {
           badge_image: r.badges?.is_secret ? null : (r.badges?.image_url || null),
           earned_at: r.earned_at,
         })),
-      });
+      };
+
+      // Cache miss on a now-closed month: populate it for every future
+      // reader. Fire-and-forget — a slow write must never delay this
+      // response, and a rare double-write (concurrent requests both missing
+      // the cache) just upserts the same payload twice.
+      if (!isCurrentMonth) {
+        cacheMonthStats(monthId, payload)
+          .then(() => console.log(`stats/month cache POPULATED month_id=${monthId}`))
+          .catch(() => {});
+      }
+
+      res.json(payload);
     } catch (err) {
       console.error('Error fetching month stats:', err);
       if (err?.transient) return res.status(503).json({ error: 'Database temporarily unavailable', transient: true });

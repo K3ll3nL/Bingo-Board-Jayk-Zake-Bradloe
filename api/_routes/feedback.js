@@ -4,6 +4,7 @@
  */
 const {
   getAuthenticatedUserId,
+  isModerator,
   supabase,
 } = require('../_lib/core');
 
@@ -40,7 +41,7 @@ module.exports = function register(app) {
       const userId = await getAuthenticatedUserId(req);
       if (!userId) return res.status(401).json({ error: 'Unauthorized' });
 
-      const { data: mod } = await supabase.from('moderators').select('id').eq('id', userId).single();
+      const mod = await isModerator(userId);
       if (!mod) return res.status(403).json({ error: 'Moderators only' });
 
       const { data, error } = await supabase
@@ -61,7 +62,7 @@ module.exports = function register(app) {
       const userId = await getAuthenticatedUserId(req);
       if (!userId) return res.status(401).json({ error: 'Unauthorized' });
 
-      const { data: mod } = await supabase.from('moderators').select('id').eq('id', userId).single();
+      const mod = await isModerator(userId);
       if (!mod) return res.status(403).json({ error: 'Moderators only' });
 
       const { status } = req.body;

@@ -120,6 +120,16 @@ const apiKeyCache = new Map(); // hash → { userId, expiresAt }
 
 const API_KEY_CACHE_TTL = 60_000;
 
+// Moderator status per user_id: the moderators table has no admin endpoint
+// that writes to it (managed manually), so a short TTL is purely a safety
+// net for that manual case, not a real invalidation need. Was previously a
+// bare `select from moderators where id = userId` repeated inline at ~100
+// call sites — moderators_pkey alone saw 159K+ index scans against a
+// 1-row table over 94 days.
+const moderatorCache = new Map(); // userId → { isMod, expiresAt }
+
+const MODERATOR_CACHE_TTL = 60_000;
+
 // Leaderboard results per mode — expensive aggregation queries that only change
 // on approval. Manually cleared when leaderboard-changed is broadcast.
 // Also has a 60s TTL as a safety net (e.g. for Twitch live status freshness).
@@ -697,6 +707,19 @@ async function validateApiKey(key) {
   apiKeyCache.set(hash, { userId: data.user_id, expiresAt: Date.now() + API_KEY_CACHE_TTL });
   supabase.from('api_keys').update({ last_used_at: new Date().toISOString() }).eq('id', data.id).then(() => {});
   return data.user_id;
+}
+
+// Whether a user is a moderator, cached for MODERATOR_CACHE_TTL. Replaces the
+// inline `select from moderators where id = userId` check duplicated across
+// route modules — see moderatorCache above for why.
+async function isModerator(userId) {
+  if (!userId) return false;
+  const cached = moderatorCache.get(userId);
+  if (cached && Date.now() < cached.expiresAt) return cached.isMod;
+  const { data } = await supabase.from('moderators').select('id').eq('id', userId).maybeSingle();
+  const isMod = Boolean(data);
+  moderatorCache.set(userId, { isMod, expiresAt: Date.now() + MODERATOR_CACHE_TTL });
+  return isMod;
 }
 
 // Batch-fetches badge slots 1–3 for a list of users and attaches them as badge_slots[]
@@ -1581,6 +1604,9 @@ module.exports = {
   FLABEBE_FORM_INDEX,
   GAME_LABELS,
   LEADERBOARD_CACHE_TTL,
+  MODERATOR_CACHE_TTL,
+  isModerator,
+  moderatorCache,
   MONTH_ROLLOVER_OFFSET_MS,
   POKEMON_IMAGE_FIELDS,
   R2_BASE,
