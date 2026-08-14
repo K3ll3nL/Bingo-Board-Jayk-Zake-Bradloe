@@ -76,6 +76,9 @@ export default function JeopardyCreate() {
   const [error, setError] = useState(null);
   const [gameSearch, setGameSearch] = useState('');
   const [columns, setColumns] = useState(5);
+  const [visibility, setVisibility] = useState('public');
+  const [isTimed, setIsTimed] = useState(false);
+  const [timedMinutes, setTimedMinutes] = useState(30);
 
   useEffect(() => {
     if (isModerator === false) navigate('/games');
@@ -97,7 +100,10 @@ export default function JeopardyCreate() {
       const res = await fetch('/api/mod/jeopardy', {
         method: 'POST',
         headers: await getAuthHeaders(),
-        body: JSON.stringify({ game: selectedGame, row_points: rowPts, shalpha_double_points: shalphaDbl, columns }),
+        body: JSON.stringify({
+          game: selectedGame, row_points: rowPts, shalpha_double_points: shalphaDbl, columns, visibility,
+          timed_minutes: isTimed ? timedMinutes : null,
+        }),
       });
       if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || `HTTP ${res.status}`);
       const { board } = await res.json();
@@ -210,6 +216,58 @@ export default function JeopardyCreate() {
                 ))}
               </div>
               <p className="text-[10px] text-faint mt-1.5">{columns * 5} squares total — 5 rows × {columns} columns</p>
+            </div>
+
+            <div>
+              <div className="text-[10px] font-bold uppercase tracking-wider text-muted mb-2">Visibility</div>
+              <div className="flex rounded-lg border border-hairline overflow-hidden w-fit">
+                <button
+                  type="button"
+                  onClick={() => setVisibility('public')}
+                  className={`px-3 py-1.5 text-xs font-bold uppercase tracking-wider transition-colors ${
+                    visibility === 'public' ? 'bg-accent-strong text-strong' : 'bg-black/20 text-faint hover:text-body'
+                  }`}
+                >
+                  Public
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setVisibility('private')}
+                  className={`px-3 py-1.5 text-xs font-bold uppercase tracking-wider transition-colors ${
+                    visibility === 'private' ? 'bg-accent-strong text-strong' : 'bg-black/20 text-faint hover:text-body'
+                  }`}
+                >
+                  Private
+                </button>
+              </div>
+              <p className="text-[10px] text-faint mt-1.5">
+                {visibility === 'private' ? 'Only visible to people with the code.' : 'Anyone can see and join this lobby from Shiny Games.'}
+              </p>
+            </div>
+
+            <div>
+              <label className="flex items-center gap-2 cursor-pointer mb-2">
+                <input
+                  type="checkbox"
+                  checked={isTimed}
+                  onChange={e => setIsTimed(e.target.checked)}
+                  className="w-4 h-4 accent-yellow-500"
+                />
+                <span className="text-sm text-body">Timed event — auto-finish when the clock runs out</span>
+              </label>
+              {isTimed && (
+                <div className="flex items-center gap-2">
+                  <input
+                    type="number"
+                    min="1"
+                    max="480"
+                    value={timedMinutes}
+                    onChange={e => setTimedMinutes(Math.max(1, Math.min(480, parseInt(e.target.value) || 1)))}
+                    className="w-20 px-2 py-1.5 rounded-md text-center bg-black/30 border border-hairline text-strong text-sm font-bold outline-none focus:ring-2 focus:ring-accent-strong"
+                  />
+                  <span className="text-xs text-muted">minutes, starting when the host hits Start</span>
+                </div>
+              )}
             </div>
 
             {SHALPHA_GAMES.has(selectedGame) && (

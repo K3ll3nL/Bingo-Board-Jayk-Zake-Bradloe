@@ -31,6 +31,15 @@ function claimPoints(claim, rowPoints, shalphaDbl, columns) {
   return (claim.claim_type === 'shalpha' && shalphaDbl) ? base * 2 : base;
 }
 
+function formatCountdown(ms) {
+  const total = Math.max(0, Math.ceil(ms / 1000));
+  const h = Math.floor(total / 3600);
+  const m = Math.floor((total % 3600) / 60);
+  const s = total % 60;
+  const pad = n => String(n).padStart(2, '0');
+  return h > 0 ? `${h}:${pad(m)}:${pad(s)}` : `${m}:${pad(s)}`;
+}
+
 function swapTileData(tiles, pos1, pos2) {
   const updated = tiles.map(t => ({ ...t }));
   const i1 = updated.findIndex(t => t.position === pos1);
@@ -54,6 +63,7 @@ export default function JeopardyRoom() {
   const [isModerator, setIsModerator] = useState(false);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
+  const [blocked, setBlocked] = useState(null); // non-null = kicked from this lobby, holds the message
   const [error, setError]     = useState(null);
 
   const [joining, setJoining] = useState(false);
@@ -79,6 +89,8 @@ export default function JeopardyRoom() {
   const [toasts, setToasts] = useState([]);
 
   const pendingOps = useRef(new Set());
+  const [nowTick, setNowTick] = useState(() => Date.now());
+  const finishCalledRef = useRef(false);
 
   const isMember  = viewerRole === 'host' || viewerRole === 'player';
   const canManage = isModerator; // lobby lifecycle (start/discard/end) — creation is mod-only for now, so host === mod
@@ -90,8 +102,33 @@ export default function JeopardyRoom() {
   // realtime 'permissions-updated' broadcast for free.
   const viewerMember = members.find(m => m.user_id === user?.id);
   const canEditTiles = viewerMember?.role === 'host' || !!viewerMember?.can_edit;
+  // A moderator who isn't the host of this specific lobby (host walked away
+  // and nobody transferred hosting) still needs a way to close it out.
+  const canForceEnd = isModerator && !isHost;
+
+  const remainingMs = board?.status === 'active' && board?.ends_at ? new Date(board.ends_at).getTime() - nowTick : null;
 
   useEffect(() => { loadBoard(); }, [code]);
+
+  // Countdown tick for timed lobbies. When it hits zero, opportunistically
+  // ask the server to finalize — server re-validates ends_at itself, so this
+  // is safe to fire from every open client without double-finalizing.
+  useEffect(() => {
+    if (board?.status !== 'active' || !board?.ends_at) { finishCalledRef.current = false; return; }
+    const interval = setInterval(() => setNowTick(Date.now()), 1000);
+    return () => clearInterval(interval);
+  }, [board?.status, board?.ends_at]);
+
+  useEffect(() => {
+    if (remainingMs != null && remainingMs <= 0 && !finishCalledRef.current) {
+      finishCalledRef.current = true;
+      (async () => {
+        try {
+          await fetch(`/api/jeopardy/${code}/finish-timed`, { method: 'POST', headers: await getAuthHeaders() });
+        } catch { /* another client will catch it, or the next page load will */ }
+      })();
+    }
+  }, [remainingMs, code]);
 
   useEffect(() => {
     if (!canManage || !isPro) { setApiKey(null); return; }
@@ -109,8 +146,10 @@ export default function JeopardyRoom() {
       setLoading(true);
       setError(null);
       setNotFound(false);
+      setBlocked(null);
       const res = await fetch(`/api/jeopardy/${code}`, { headers: await getAuthHeaders() });
       if (res.status === 404) { setNotFound(true); return; }
+      if (res.status === 403) { setBlocked((await res.json().catch(() => ({}))).error || 'You no longer have access to this lobby.'); return; }
       if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || `HTTP ${res.status}`);
       const data = await res.json();
       setBoard(data.board);
@@ -158,7 +197,7 @@ export default function JeopardyRoom() {
         setTiles(prev => prev.map(t => t.position === payload.position ? { ...t, locked: payload.locked } : t));
         break;
       case 'started':
-        setBoard(prev => prev ? { ...prev, status: 'active' } : prev);
+        setBoard(prev => prev ? { ...prev, status: 'active', ends_at: payload.endsAt ?? null } : prev);
         break;
       case 'ended':
         setBoard(prev => prev ? { ...prev, status: 'completed' } : prev);
@@ -173,15 +212,18 @@ export default function JeopardyRoom() {
       case 'permissions-updated':
         setMembers(payload.members || []);
         break;
+      case 'host-transferred': {
+        setMembers(payload.members || []);
+        const mine = (payload.members || []).find(m => m.user_id === user?.id);
+        if (mine) setViewerRole(mine.role);
+        break;
+      }
       case 'member-kicked':
         setMembers(payload.members || []);
         if (payload.kickedUserId === user?.id) {
           setViewerRole(null);
           pushToast('You were removed from this lobby by the host.', 'warn');
         }
-        break;
-      case 'visibility-updated':
-        setBoard(prev => prev ? { ...prev, visibility: payload.visibility } : prev);
         break;
       default: break;
     }
@@ -235,22 +277,22 @@ export default function JeopardyRoom() {
     }
   };
 
-  const handleVisibilityChange = async (nextVisibility) => {
-    if (!board || nextVisibility === board.visibility) return;
-    const prevVisibility = board.visibility;
-    setBoard(prev => prev ? { ...prev, visibility: nextVisibility } : prev);
+  const handleTransferHost = async (targetUserId, targetName) => {
+    if (!window.confirm(`Make ${targetName || 'this player'} the new host? You'll become a regular player.`)) return;
     try {
-      const res = await fetch('/api/mod/jeopardy/visibility', {
+      const res = await fetch(`/api/jeopardy/${code}/transfer-host`, {
         method: 'PUT',
         headers: await getAuthHeaders(),
-        body: JSON.stringify({ boardId: board.id, visibility: nextVisibility }),
+        body: JSON.stringify({ userId: targetUserId }),
       });
       if (!res.ok) {
-        setBoard(prev => prev ? { ...prev, visibility: prevVisibility } : prev);
-        pushToast((await res.json().catch(() => ({}))).error || 'Could not update visibility.');
+        pushToast((await res.json().catch(() => ({}))).error || 'Could not transfer hosting.');
+        return;
       }
+      const { members: newMembers } = await res.json();
+      setMembers(newMembers || []);
+      setViewerRole('player');
     } catch {
-      setBoard(prev => prev ? { ...prev, visibility: prevVisibility } : prev);
       pushToast('Network error — try again.');
     }
   };
@@ -581,6 +623,21 @@ export default function JeopardyRoom() {
     );
   }
 
+  if (blocked) {
+    return (
+      <div className="min-h-screen" style={{ isolation: 'isolate', position: 'relative' }}>
+        <PageBackground />
+        <PageHeader title="Shiny Jeopardy" />
+        <div className="w-full px-4 sm:px-6 lg:px-8 py-6">
+          <Breadcrumb />
+          <div className="max-w-md rounded-xl p-6 text-center bg-danger-strong/10 border border-danger-strong/40">
+            <p className="text-sm font-semibold text-danger">{blocked}</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen" style={{ isolation: 'isolate', position: 'relative' }}>
       <PageBackground />
@@ -628,7 +685,10 @@ export default function JeopardyRoom() {
                           </>
                         )}
                       </div>
-                      <div className="text-xs text-muted mt-0.5">Lobby — not yet started</div>
+                      <div className="text-xs text-muted mt-0.5">
+                        Lobby — not yet started
+                        {board.timed_minutes && <span className="text-warn ml-2">· ⏱ {board.timed_minutes} min once started</span>}
+                      </div>
                       {canEditTiles && (
                         <div className="text-[10px] text-faint mt-0.5">Drag a tile, or tap one then tap another, to swap them</div>
                       )}
@@ -675,9 +735,31 @@ export default function JeopardyRoom() {
                             Discard
                           </button>
                         )}
+                        {canForceEnd && (
+                          <button
+                            onClick={handleEnd}
+                            disabled={ending}
+                            title="The host isn't around — end this lobby as a moderator"
+                            className="px-3 py-1 text-sm bg-danger-strong/10 hover:bg-danger-strong/20 border border-danger-strong/40 text-danger rounded transition-colors"
+                          >
+                            {ending ? 'Ending…' : 'Force End (Mod)'}
+                          </button>
+                        )}
                       </div>
                     ) : (
-                      <p className="text-xs text-muted italic">Waiting for the host to start the game</p>
+                      <div className="flex items-center gap-2">
+                        <p className="text-xs text-muted italic">Waiting for the host to start the game</p>
+                        {canForceEnd && (
+                          <button
+                            onClick={handleEnd}
+                            disabled={ending}
+                            title="The host isn't around — end this lobby as a moderator"
+                            className="px-3 py-1 text-sm bg-danger-strong/10 hover:bg-danger-strong/20 border border-danger-strong/40 text-danger rounded transition-colors"
+                          >
+                            {ending ? 'Ending…' : 'Force End (Mod)'}
+                          </button>
+                        )}
+                      </div>
                     )}
                     {isHost && members.length < MIN_PLAYERS_TO_START && (
                       <p className="w-full text-right text-[10px] text-warn">
@@ -715,6 +797,7 @@ export default function JeopardyRoom() {
                         <h2 className="text-lg font-bold text-strong">{gameLabel}</h2>
                         <p className="text-xs text-muted mt-0.5">
                           {hostMember?.user?.display_name ? `Hosted by ${hostMember.user.display_name}` : 'Waiting to start'} · {members.length} in lobby
+                          {board.timed_minutes && <span className="text-warn"> · ⏱ {board.timed_minutes} min</span>}
                         </p>
                       </div>
                       <button
@@ -728,6 +811,16 @@ export default function JeopardyRoom() {
                     <p className="text-xs text-muted leading-relaxed mt-2">
                       Once the host starts it, everyone here races to claim the square matching a shiny they've caught.
                     </p>
+                    {canForceEnd && (
+                      <button
+                        onClick={handleEnd}
+                        disabled={ending}
+                        title="The host isn't around — end this lobby as a moderator"
+                        className="mt-3 px-3 py-1 text-sm bg-danger-strong/10 hover:bg-danger-strong/20 border border-danger-strong/40 text-danger rounded transition-colors"
+                      >
+                        {ending ? 'Ending…' : 'Force End (Mod)'}
+                      </button>
+                    )}
                   </div>
                   <BoardGrid
                     tileMap={tileMap}
@@ -771,16 +864,41 @@ export default function JeopardyRoom() {
                         {isShalpha && canClaim && <span className="text-warn ml-2">· Shalpha clause enabled</span>}
                       </div>
                     </div>
-                    {canManage && (
-                      <button
-                        onClick={handleEnd}
-                        disabled={ending}
-                        className="px-3 py-1 text-sm bg-danger-strong/10 hover:bg-danger-strong/20 border border-danger-strong/40 text-danger rounded transition-colors"
-                      >
-                        {ending ? 'Ending…' : 'End Lobby'}
-                      </button>
-                    )}
+                    <div className="flex items-center gap-2">
+                      {remainingMs != null && (
+                        <span className={`text-sm font-bold tabular-nums px-2.5 py-1 rounded-lg border ${remainingMs <= 60000 ? 'text-danger border-danger-strong/40 bg-danger-strong/10' : 'text-body border-edge bg-surface-inset'}`}>
+                          ⏱ {formatCountdown(remainingMs)}
+                        </span>
+                      )}
+                      {isHost && (
+                        <button
+                          onClick={handleEnd}
+                          disabled={ending}
+                          className="px-3 py-1 text-sm bg-danger-strong/10 hover:bg-danger-strong/20 border border-danger-strong/40 text-danger rounded transition-colors"
+                        >
+                          {ending ? 'Ending…' : 'End Lobby'}
+                        </button>
+                      )}
+                      {canForceEnd && (
+                        <button
+                          onClick={handleEnd}
+                          disabled={ending}
+                          title="The host isn't around — end this lobby as a moderator"
+                          className="px-3 py-1 text-sm bg-danger-strong/10 hover:bg-danger-strong/20 border border-danger-strong/40 text-danger rounded transition-colors"
+                        >
+                          {ending ? 'Ending…' : 'Force End (Mod)'}
+                        </button>
+                      )}
+                    </div>
                   </div>
+
+                  {claims.length >= boardColumns * 5 && (
+                    <div className="mb-4 p-3 rounded-lg border border-success-strong/40 bg-success-strong/10 text-center">
+                      <p className="text-sm font-semibold text-success">
+                        🎉 Every square's been claimed!{isHost ? ' End the lobby to lock in the standings.' : ' Waiting for the host to end the lobby.'}
+                      </p>
+                    </div>
+                  )}
 
                   <ClaimGrid
                     tileMap={tileMap}
@@ -805,10 +923,7 @@ export default function JeopardyRoom() {
               {board.status === 'building' && board.code && (
                 isMember ? <LobbyCodeCard code={board.code} /> : <LobbyCodeLockedCard />
               )}
-              {board.status === 'building' && isHost && (
-                <LobbySettingsCard visibility={board.visibility} onChange={handleVisibilityChange} />
-              )}
-              <RosterList members={members} isHost={isHost} onTogglePermission={handleTogglePermission} onKick={handleKick} />
+              <RosterList members={members} isHost={isHost} onTogglePermission={handleTogglePermission} onKick={handleKick} onTransferHost={handleTransferHost} />
               {board.status === 'active' && (
                 <ClaimsLegend claims={claims} claimersMap={claimersMap} rowPoints={boardRowPts} shalphaDbl={boardShalphaDbl} columns={boardColumns} />
               )}
@@ -982,43 +1097,8 @@ function LobbyCodeLockedCard() {
   );
 }
 
-// ── Host-only lobby settings — visibility toggle ─────────────────────────────
-function LobbySettingsCard({ visibility, onChange }) {
-  return (
-    <div className="rounded-xl p-4 border border-hairline bg-black/30">
-      <div className="text-[10px] font-bold uppercase tracking-wider text-muted mb-2">Lobby Settings</div>
-      <div className="flex items-center justify-between gap-2">
-        <span className="text-xs text-body">Visible on Shiny Games list</span>
-        <div className="flex rounded-lg border border-edge overflow-hidden shrink-0">
-          <button
-            onClick={() => onChange('public')}
-            className={[
-              'px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider transition-colors',
-              visibility === 'public' ? 'bg-accent-strong text-strong' : 'bg-surface-inset text-faint hover:text-body',
-            ].join(' ')}
-          >
-            Public
-          </button>
-          <button
-            onClick={() => onChange('private')}
-            className={[
-              'px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider transition-colors',
-              visibility === 'private' ? 'bg-accent-strong text-strong' : 'bg-surface-inset text-faint hover:text-body',
-            ].join(' ')}
-          >
-            Private
-          </button>
-        </div>
-      </div>
-      <p className="text-[10px] text-faint mt-2">
-        {visibility === 'private' ? 'Only visible to people with the code.' : 'Anyone can see and join this lobby from Shiny Games.'}
-      </p>
-    </div>
-  );
-}
-
 // ── Roster ───────────────────────────────────────────────────────────────────
-function RosterList({ members, isHost, onTogglePermission, onKick }) {
+function RosterList({ members, isHost, onTogglePermission, onKick, onTransferHost }) {
   return (
     <div className="rounded-xl p-4 border border-hairline bg-black/30">
       <div className="text-[10px] font-bold uppercase tracking-wider text-muted mb-2">
@@ -1060,6 +1140,13 @@ function RosterList({ members, isHost, onTogglePermission, onKick }) {
                     title={m.can_edit ? 'Revoke edit access' : 'Grant edit access'}
                   >
                     {m.can_edit ? 'Can Edit' : 'View Only'}
+                  </button>
+                  <button
+                    onClick={() => onTransferHost(m.user_id, m.user?.display_name)}
+                    className="shrink-0 text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-full border bg-surface-inset text-faint border-edge hover:text-accent hover:border-accent-strong/40 transition-colors"
+                    title="Make this player the host"
+                  >
+                    Make Host
                   </button>
                   <button
                     onClick={() => onKick(m.user_id, m.user?.display_name)}

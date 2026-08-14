@@ -160,6 +160,9 @@ export default function ShinyGames() {
                       {lobby.visibility === 'private' && (
                         <span className="shrink-0 text-[10px] font-bold uppercase tracking-wider text-faint">Private</span>
                       )}
+                      {lobby.timed_minutes && (
+                        <span className="shrink-0 text-[10px] font-bold uppercase tracking-wider text-warn">⏱ {lobby.timed_minutes}m</span>
+                      )}
                     </div>
                     <p className="text-xs text-muted">
                       {gameLabel}
