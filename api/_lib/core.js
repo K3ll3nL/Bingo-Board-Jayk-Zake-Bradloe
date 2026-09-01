@@ -85,7 +85,11 @@ const GAME_LABELS = {
 // `sleeper` IS one of the five tiers. Converting it to an orthogonal flag was
 // proposed (docs/TIER_LIST_PLAN.md Q4) and then reversed by the owner on
 // 2026-08-02 — it stays a tier. Do not remove it from this list.
-const VALID_TIER_CODES = ['easy', 'medium', 'hard', 'super_hard', 'sleeper'];
+// `cant_get` ("Can't Get") is an OFF-SCALE tier — a valid stored code, but
+// intentionally excluded from any difficulty ordering (see the note in
+// client/src/constants/tierColors.js and OVERACHIEVER_TIERS/TRAP_TIERS in
+// api/_routes/stats.js, which never reference it). Keep it LAST.
+const VALID_TIER_CODES = ['easy', 'medium', 'hard', 'super_hard', 'sleeper', 'cant_get'];
 
 // Tier lists are ranked twice: once for Standard hunting, once for Restricted.
 // Both rank the SAME 24 board mons (owner decision Q1) — the restricted pool is

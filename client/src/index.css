@@ -88,6 +88,17 @@ a {
   background: #a78bfa;
 }
 
+/* Hide the scrollbar on swipe/scroll-snap tracks (Month Stats carousels,
+   Profile tab strip) — the dots/arrows are the controls, a gutter would just
+   be visual noise under the cards. Scrolling still works. */
+.scrollbar-hide {
+  -ms-overflow-style: none;   /* IE / old Edge */
+  scrollbar-width: none;      /* Firefox */
+}
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;              /* Chrome / Safari / WebKit */
+}
+
 /* Claim-conflict feedback (Shiny Jeopardy) — a losing 409 tap gets a visible
    shake instead of silently doing nothing. See docs/JEOPARDY_ROOM_DESIGN.md. */
 @keyframes jeopardy-conflict-shake {

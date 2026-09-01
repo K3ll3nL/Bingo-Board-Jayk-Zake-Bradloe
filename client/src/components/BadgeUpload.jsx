@@ -814,7 +814,7 @@ function ManageCollectionsTab() {
         headers: { ...headers, 'Content-Type': 'application/json' },
         body: JSON.stringify({ required_game: game || null }),
       });
-      if (!res.ok) { const d = await res.json(); throw new Error(d.error); }
+      if (!res.ok) { const d = await res.json().catch(() => ({})); throw new Error(d.error || `Request failed (${res.status})`); }
       setRequiredGame(game);
       setSlugOptions(prev => prev.map(o => o.slug === slug ? { ...o, required_game: game || null } : o));
       setFeedback({ type: 'success', msg: game ? `Game set to "${ALLOWED_GAMES.find(g => g.key === game)?.label ?? game}".` : 'Game requirement cleared.' });
@@ -829,7 +829,7 @@ function ManageCollectionsTab() {
       const res = await fetch(`/api/admin/collections/${encodeURIComponent(slug.trim())}/pokemon/${pokemon.id}`, {
         method: 'DELETE', headers: await getAuthHeaders(),
       });
-      if (!res.ok) { const d = await res.json(); throw new Error(d.error); }
+      if (!res.ok) { const d = await res.json().catch(() => ({})); throw new Error(d.error || `Request failed (${res.status})`); }
       setMembers(m => m.filter(p => p.id !== pokemon.id));
       setFeedback({ type: 'success', msg: `Removed ${pokemon.name}.` });
     } catch (err) {
@@ -843,7 +843,7 @@ function ManageCollectionsTab() {
       const res = await fetch(`/api/admin/collections/${encodeURIComponent(slug.trim())}/pokemon/${pokemon.id}`, {
         method: 'POST', headers: await getAuthHeaders(),
       });
-      if (!res.ok) { const d = await res.json(); throw new Error(d.error); }
+      if (!res.ok) { const d = await res.json().catch(() => ({})); throw new Error(d.error || `Request failed (${res.status})`); }
       setMembers(m => m ? [...m, pokemon] : [pokemon]);
       setResults(r => r.filter(p => p.id !== pokemon.id));
       setFeedback({ type: 'success', msg: `Added ${pokemon.name}.` });

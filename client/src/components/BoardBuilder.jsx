@@ -70,13 +70,13 @@ function GameUtilization({ gameStats, restrictedGameStats, boardMonTotal, dexTot
           </button>
         </div>
       </div>
-      <p className="text-[11px] text-gray-500 mb-2 leading-snug">
+      <p className="text-[11px] text-gray-400 mb-2 leading-snug">
         Board share ÷ dex share. Bars grow right if a game is
         <span style={{ color: OVER }}> over-</span> and left if
         <span style={{ color: UNDER }}> under-</span>represented.
       </p>
       {rows.length === 0 ? (
-        <p className="text-[11px] text-gray-500 py-3 text-center">
+        <p className="text-[11px] text-gray-400 py-3 text-center">
           No {mode === 'restricted' ? 'restricted-eligible ' : ''}Pokémon on the board.
         </p>
       ) : (
@@ -371,8 +371,8 @@ export default function BoardBuilder() {
         body: JSON.stringify({ position, locked: newLockedState }),
       });
       if (!res.ok) {
-        const errBody = await res.json();
-        throw new Error(`HTTP ${res.status}: ${errBody.error}`);
+        const errBody = await res.json().catch(() => ({}));
+        throw new Error(`HTTP ${res.status}: ${errBody.error || 'request failed'}`);
       }
       const data = await res.json();
     } catch (err) {
@@ -400,8 +400,8 @@ export default function BoardBuilder() {
         body: JSON.stringify({ operationId: opId }),
       });
       if (!res.ok) {
-        const errBody = await res.json();
-        throw new Error(`HTTP ${res.status}: ${errBody.error}`);
+        const errBody = await res.json().catch(() => ({}));
+        throw new Error(`HTTP ${res.status}: ${errBody.error || 'request failed'}`);
       }
     } catch (err) {
       console.error('Clear all locks failed:', err);

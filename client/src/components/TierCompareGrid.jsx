@@ -54,7 +54,10 @@ const TierRow = ({ tierKey, ids, poolById, compareAgainst }) => {
           let chevronDir = null;
           let chevronColor = null;
           const otherTier = compareAgainst?.[id];
-          if (otherTier) {
+          // `cant_get` is off the difficulty scale — a card in it (on either
+          // side) is neither harder nor easier, so it gets no directional
+          // chevron. `agreementPct` still counts it as a plain match/mismatch.
+          if (otherTier && tierKey !== 'cant_get' && otherTier !== 'cant_get') {
             const otherIdx = TIER_ORDER.indexOf(otherTier);
             if (tierIdx < otherIdx) {
               // This side ranked it harder/more sleeper than the other side.

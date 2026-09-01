@@ -133,7 +133,7 @@ const QuickRank = ({ pool, tierById, onAssign, onExit }) => {
         )}
       </div>
 
-      <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 mt-4 min-w-0">
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mt-4 min-w-0">
         {TIER_CODES.map(t => {
           const selected = tierById[currentId] === t;
           return (

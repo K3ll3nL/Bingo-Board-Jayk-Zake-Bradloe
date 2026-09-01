@@ -24,7 +24,7 @@ const collisionDetectionStrategy = (args) => {
   return rectIntersection(args);
 };
 
-const emptyBuckets = () => ({ easy: [], medium: [], hard: [], super_hard: [], sleeper: [], unranked: [] });
+const emptyBuckets = () => ({ ...Object.fromEntries(TIER_CODES.map(t => [t, []])), unranked: [] });
 
 const computeTiersFromBuckets = (buckets) => {
   const out = {};

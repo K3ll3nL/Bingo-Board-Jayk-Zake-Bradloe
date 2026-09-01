@@ -373,47 +373,6 @@ const About = () => {
       {/* ── Body ─────────────────────────────────────────────────────────── */}
       <div className="max-w-3xl mx-auto px-4 pt-8 pb-40 space-y-6 select-text" style={{ minHeight: 'calc(100vh - 56px)' }}>
 
-        {/* ── How to Submit ─────────────────────────────────────────────── */}
-        <Section
-          title="How to Submit"
-          icon={<UploadIcon />}
-          accentColor="#9147ff"
-          headerBg="rgba(145,71,255,0.10)"
-        >
-          <p className="text-gray-300 leading-relaxed mb-6">
-            There are two ways to submit a Pokémon. You can click directly on any Pokémon tile on
-            the bingo board to open the submission form for that slot, or you can click your profile
-            picture in the top-right corner and select{' '}
-            <span className="text-white font-medium">Upload</span> from the menu.
-          </p>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <figure className="rounded-lg overflow-hidden" style={{ background: 'linear-gradient(160deg, #13151a 0%, #181a21 100%)' }}>
-              <img
-                src="https://pub-583ae6cd5f8b4b58b0ee7053ea1d4b0b.r2.dev/assets/gif_website_1.gif"
-                alt="Clicking a Pokémon tile to submit"
-                className="w-full object-cover"
-                loading="lazy"
-              />
-              <figcaption className="text-center text-gray-500 text-xs py-2 px-3">
-                Clicking a tile on the board
-              </figcaption>
-            </figure>
-
-            <figure className="rounded-lg overflow-hidden" style={{ background: 'linear-gradient(160deg, #13151a 0%, #181a21 100%)' }}>
-              <img
-                src="https://pub-583ae6cd5f8b4b58b0ee7053ea1d4b0b.r2.dev/assets/gif_website_2.gif"
-                alt="Using the Upload option from the profile menu"
-                className="w-full object-cover"
-                loading="lazy"
-              />
-              <figcaption className="text-center text-gray-500 text-xs py-2 px-3">
-                Using the Upload option from the menu
-              </figcaption>
-            </figure>
-          </div>
-        </Section>
-
         {/* ── Rules for Submission ──────────────────────────────────────── */}
         <Section
           title="Rules for Submission"

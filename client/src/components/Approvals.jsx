@@ -321,7 +321,7 @@ const Approvals = () => {
         body: JSON.stringify({ status: 'accepted_historical' })
       });
       if (!response.ok) {
-        const err = await response.json();
+        const err = await response.json().catch(() => ({}));
         throw new Error(err.error || 'Approval failed');
       }
       removeHistoricalApproval(approvalId);
@@ -355,7 +355,7 @@ const Approvals = () => {
         });
       }
       if (!response.ok) {
-        const err = await response.json();
+        const err = await response.json().catch(() => ({}));
         throw new Error(err.error || 'Action failed');
       }
       removeHistoricalApproval(approvalId);
@@ -373,7 +373,7 @@ const Approvals = () => {
         body: JSON.stringify({ message: actionNotes[approvalId] || '', status: 'rejected' })
       });
       if (!response.ok) {
-        const err = await response.json();
+        const err = await response.json().catch(() => ({}));
         throw new Error(err.error || 'Rejection failed');
       }
       removeHistoricalApproval(approvalId);
@@ -393,7 +393,7 @@ const Approvals = () => {
         body: JSON.stringify({ status })
       });
       if (!response.ok) {
-        const err = await response.json();
+        const err = await response.json().catch(() => ({}));
         throw new Error(err.error || 'Approval failed');
       }
       removeApproval(approvalId);
@@ -411,7 +411,7 @@ const Approvals = () => {
         body: JSON.stringify({ message: actionNotes[approvalId] || '', status: 'rejected' })
       });
       if (!response.ok) {
-        const err = await response.json();
+        const err = await response.json().catch(() => ({}));
         throw new Error(err.error || 'Rejection failed');
       }
       removeApproval(approvalId);
@@ -445,7 +445,7 @@ const Approvals = () => {
         });
       }
       if (!response.ok) {
-        const err = await response.json();
+        const err = await response.json().catch(() => ({}));
         throw new Error(err.error || 'Action failed');
       }
       removeApproval(approvalId);
@@ -734,7 +734,7 @@ const Approvals = () => {
             <button
               onClick={() => setActiveTab('approvals')}
               className={`px-4 py-1.5 rounded-full text-sm font-medium transition-colors ${
-                activeTab === 'approvals' ? 'bg-purple-600/20 text-purple-300 border border-purple-500/30' : 'text-gray-500 hover:text-gray-200'
+                activeTab === 'approvals' ? 'bg-purple-600/20 text-purple-300 border border-purple-500/30' : 'text-gray-400 hover:text-gray-200'
               }`}
             >
               Pending Approvals
@@ -748,7 +748,7 @@ const Approvals = () => {
                 if (!historicalLoaded) loadHistoricalApprovals();
               }}
               className={`px-4 py-1.5 rounded-full text-sm font-medium transition-colors ${
-                activeTab === 'historical' ? 'bg-purple-600/20 text-purple-300 border border-purple-500/30' : 'text-gray-500 hover:text-gray-200'
+                activeTab === 'historical' ? 'bg-purple-600/20 text-purple-300 border border-purple-500/30' : 'text-gray-400 hover:text-gray-200'
               }`}
             >
               Historical
@@ -762,7 +762,7 @@ const Approvals = () => {
                 if (!historyLoaded) loadHistory(1);
               }}
               className={`px-4 py-1.5 rounded-full text-sm font-medium transition-colors ${
-                activeTab === 'history' ? 'bg-purple-600/20 text-purple-300 border border-purple-500/30' : 'text-gray-500 hover:text-gray-200'
+                activeTab === 'history' ? 'bg-purple-600/20 text-purple-300 border border-purple-500/30' : 'text-gray-400 hover:text-gray-200'
               }`}
             >
               Approval History

@@ -96,7 +96,7 @@ const BannerManagerModal = ({ isOpen, onClose }) => {
           condition:  form.condition || null,
         }),
       });
-      if (!res.ok) { const d = await res.json(); throw new Error(d.error || 'Failed'); }
+      if (!res.ok) { const d = await res.json().catch(() => ({})); throw new Error(d.error || 'Failed'); }
       setForm({ ...EMPTY_FORM, starts_at: defaultStartsAt(), expires_at: defaultExpiresAt() });
       await fetchBanners();
     } catch (err) {

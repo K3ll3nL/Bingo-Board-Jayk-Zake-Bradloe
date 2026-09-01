@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { getAuthHeaders } from '../services/api';
+import { getAuthHeaders, parseApiError } from '../services/api';
 
 export default function FeedbackModal({ isOpen, onClose }) {
   const [type, setType] = useState('suggestion');
@@ -27,8 +27,7 @@ export default function FeedbackModal({ isOpen, onClose }) {
         body: JSON.stringify({ type, title: title.trim(), description: description.trim() }),
       });
       if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.error || 'Submission failed');
+        throw new Error(await parseApiError(res));
       }
       setSuccess(true);
     } catch (err) {

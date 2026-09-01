@@ -37,6 +37,44 @@ const httpError = (msg, status) => {
   return e;
 };
 
+// Pull a human-readable message out of a failed `fetch` Response WITHOUT ever
+// throwing on a non-JSON body. The bug this exists for: components used to do
+// `await response.json()` in their error branch, which throws a cryptic
+// `SyntaxError: Unexpected token` whenever the body isn't JSON — a Vercel 413
+// (request too large), a 502 gateway HTML page, an empty body, etc. — masking
+// the real failure. Read as text once, try to parse it, and always fall back to
+// a sensible message. Returns a string; never rejects.
+//
+// `fallbacks` lets a caller special-case common statuses, e.g.
+//   parseApiError(res, { 413: 'That upload is too large.' })
+export const parseApiError = async (response, fallbacks = {}) => {
+  if (fallbacks[response.status]) return fallbacks[response.status];
+  // A 413 almost always comes from the platform edge (non-JSON), so give it a
+  // useful default even when the caller didn't special-case it.
+  const genericByStatus = {
+    413: 'That request was too large. Please reduce the file size and try again.',
+    502: 'The server is temporarily unavailable. Please try again in a moment.',
+    503: 'The server is temporarily unavailable. Please try again in a moment.',
+    504: 'The request timed out. Please try again.',
+  };
+  let text = '';
+  try {
+    text = await response.text();
+  } catch {
+    return genericByStatus[response.status] || `Request failed (${response.status}).`;
+  }
+  if (text) {
+    try {
+      const data = JSON.parse(text);
+      if (data && (data.error || data.message)) return data.error || data.message;
+    } catch {
+      // Not JSON (HTML error page, plain text). Fall through to a clean default
+      // rather than surfacing raw markup to the user.
+    }
+  }
+  return genericByStatus[response.status] || `Request failed (${response.status}).`;
+};
+
 export const api = {
   // Bingo Board endpoints
   getBingoBoard: async (version = 0) => {

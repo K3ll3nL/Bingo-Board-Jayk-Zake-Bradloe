@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import PageBackground from './PageBackground';
 import PageHeader from './PageHeader';
@@ -483,31 +483,100 @@ const OverviewCardSkeleton = ({ cellCount = 4 }) => (
 );
 
 // ── Most Unique Catch ────────────────────────────────────────────────────────
+// ── Carousel primitive ───────────────────────────────────────────────────────
+// One scroll-snap track backs both Month Stats carousels (Most Unique Catch,
+// Hunter Spotlight). Native horizontal swipe on touch comes free from the
+// browser's CSS scroll-snap; on desktop the arrows and dots drive the same
+// track via `scrollTo`. This replaced a JS `translateX(-active*100%)` slider,
+// which had no native touch swipe.
+//
+// Auto-advance rotates ties until the viewer interacts — a swipe (pointerdown
+// on the track), an arrow, or a dot all pause it for good, so a deliberate
+// pick is never overridden. Same intent as the old `paused` flag.
+const useSnapCarousel = (count, intervalMs, resetKey) => {
+  const trackRef = useRef(null);
+  const [active, setActive] = useState(0);
+  const [paused, setPaused] = useState(false);
+
+  const indexFromScroll = () => {
+    const el = trackRef.current;
+    return el && el.clientWidth ? Math.round(el.scrollLeft / el.clientWidth) : 0;
+  };
+
+  const scrollToIndex = useCallback((i, smooth = true) => {
+    const el = trackRef.current;
+    if (!el) return;
+    const clamped = Math.max(0, Math.min(i, count - 1));
+    el.scrollTo({ left: clamped * el.clientWidth, behavior: smooth ? 'smooth' : 'auto' });
+  }, [count]);
+
+  // Native swipe and programmatic scroll both land here — keep `active` (which
+  // drives the caption + dots) in step with wherever the track actually is.
+  const syncActive = useCallback(() => {
+    setActive(prev => {
+      const i = indexFromScroll();
+      return prev === i ? prev : i;
+    });
+  }, []);
+
+  const pause = useCallback(() => setPaused(true), []);
+  const goTo = useCallback((i) => { setPaused(true); scrollToIndex(i); }, [scrollToIndex]);
+  const step = useCallback((delta) => { setPaused(true); scrollToIndex(indexFromScroll() + delta); }, [scrollToIndex]);
+
+  // Snap back to the first slide (no animation) when the data swaps out — same
+  // trigger the old `setIdx(0)` effects used.
+  useEffect(() => {
+    setPaused(false);
+    setActive(0);
+    scrollToIndex(0, false);
+  }, [resetKey]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (count < 2 || paused) return undefined;
+    const t = setInterval(() => scrollToIndex((indexFromScroll() + 1) % count), intervalMs);
+    return () => clearInterval(t);
+  }, [count, paused, intervalMs, scrollToIndex]);
+
+  return { trackRef, active: Math.min(active, Math.max(count - 1, 0)), syncActive, pause, goTo, step };
+};
+
+// Prev/next control. `overlay` (default) floats it on the edges of a roomy
+// sliding region (Most Unique Catch — right side is empty). `inline` drops the
+// absolute positioning so it can flank the dots instead, for a slide whose
+// content runs edge-to-edge and would sit under an overlaid arrow (Hunter
+// Spotlight — icon on the left, winner avatars on the right). Only rendered
+// when there's more than one slide.
+const CarouselArrow = ({ dir, onClick, color = ACCENT, variant = 'overlay' }) => (
+  <button
+    type="button"
+    onClick={onClick}
+    aria-label={dir === 'prev' ? 'Previous' : 'Next'}
+    className={`w-7 h-7 rounded-full flex items-center justify-center transition-colors hover:brightness-125 shrink-0 ${
+      variant === 'overlay' ? 'absolute top-1/2 -translate-y-1/2 z-10' : ''
+    }`}
+    style={{
+      ...(variant === 'overlay' ? { [dir === 'prev' ? 'left' : 'right']: 6 } : null),
+      background: 'rgba(13,15,20,0.66)',
+      border: `1px solid ${CARD.border}`,
+      color,
+    }}
+  >
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d={dir === 'prev' ? 'M15 18l-6-6 6-6' : 'M9 6l6 6-6 6'} />
+    </svg>
+  </button>
+);
+
 // The rarest (pokemon, game) pairing this month. Ties rotate through a carousel
 // rather than picking arbitrarily: the whole card slides, so each tie reads as
 // its own card rather than as one card whose contents mutate.
 const UniqueCatch = ({ unique, emptyLabel, pokemon, users }) => {
-  const [idx, setIdx] = useState(0);
-  // Once the viewer picks a slide, the carousel stops overriding their
-  // choice — auto-advancing past a tie they deliberately selected read as
-  // the control fighting them.
-  const [paused, setPaused] = useState(false);
   const items = unique?.items || [];
-
-  // Reset when the bucket/month swaps out from under a non-zero index.
-  useEffect(() => { setIdx(0); setPaused(false); }, [items.length, items[0]?.pokemon_id]);
-
-  // Auto-advance ties so all of them get seen without the user hunting for
-  // controls; pauses at a single item since there is nothing to rotate, and
-  // stops for good once the viewer clicks a dot.
-  useEffect(() => {
-    if (items.length < 2 || paused) return undefined;
-    const t = setInterval(() => setIdx(i => (i + 1) % items.length), 6000);
-    return () => clearInterval(t);
-  }, [items.length, paused]);
+  const { trackRef, active, syncActive, pause, goTo, step } = useSnapCarousel(
+    items.length, 6000, `${items.length}-${items[0]?.pokemon_id}`,
+  );
 
   if (!unique?.available || !items.length) return <EmptyCard className="h-full">{emptyLabel}</EmptyCard>;
-  const active = Math.min(idx, items.length - 1);
 
   const item = items[active];
 
@@ -519,13 +588,15 @@ const UniqueCatch = ({ unique, emptyLabel, pokemon, users }) => {
     // the track takes the slack, and the footer stays pinned to the bottom edge
     // instead of floating mid-card.
     <div className="rounded-xl border overflow-hidden min-w-0 h-full flex flex-col" style={{ background: CARD.bg, borderColor: CARD.border }}>
-      <div className="overflow-hidden flex-1">
+      <div className="relative flex-1 min-h-0">
         <div
-          className="flex h-full transition-transform duration-500 ease-out"
-          style={{ transform: `translateX(-${active * 100}%)` }}
+          ref={trackRef}
+          onScroll={syncActive}
+          onPointerDown={pause}
+          className="h-full flex overflow-x-auto snap-x snap-mandatory scrollbar-hide overscroll-x-contain"
         >
           {items.map(it => (
-            <div key={`${it.user_id}-${it.pokemon_id}`} className={`w-full shrink-0 min-w-0 ${PANEL_PAD} flex items-center gap-3`}>
+            <div key={`${it.user_id}-${it.pokemon_id}`} className={`w-full shrink-0 snap-center min-w-0 flex items-center gap-3 ${items.length > 1 ? 'py-4 sm:py-5 px-11' : PANEL_PAD}`}>
               <div className="w-14 h-14 shrink-0 rounded-xl overflow-hidden" style={{ background: CARD.inner }}>
                 <PokemonImage pokemon={monOf(pokemon, it.pokemon_id)} className="w-full h-full" disableCycling />
               </div>
@@ -539,6 +610,12 @@ const UniqueCatch = ({ unique, emptyLabel, pokemon, users }) => {
             </div>
           ))}
         </div>
+        {items.length > 1 && (
+          <>
+            <CarouselArrow dir="prev" onClick={() => step(-1)} />
+            <CarouselArrow dir="next" onClick={() => step(1)} />
+          </>
+        )}
       </div>
       {/* Static footer: caption follows the active slide, dots never move. */}
       <div className="px-4 sm:px-5 py-2.5 border-t flex items-center justify-between gap-3 min-w-0" style={{ borderColor: CARD.borderSubtle, background: CARD.inner }}>
@@ -554,7 +631,7 @@ const UniqueCatch = ({ unique, emptyLabel, pokemon, users }) => {
                 key={`${it.user_id}-${it.pokemon_id}`}
                 type="button"
                 aria-label={`Show ${monOf(pokemon, it.pokemon_id).name} on ${it.game_label}`}
-                onClick={() => { setIdx(i); setPaused(true); }}
+                onClick={() => goTo(i)}
                 className="rounded-full transition-all"
                 style={{
                   width: i === active ? 18 : 6, height: 6,
@@ -597,16 +674,11 @@ const SpotlightAvatar = ({ user }) => (
 // slide, sliding like Most Unique Catch's carousel, except each slide names
 // multiple hunters rather than a single catch.
 const HunterSpotlight = ({ items }) => {
-  const [idx, setIdx] = useState(0);
   // Stops overriding the viewer's choice once they've picked a category —
   // same reasoning as Most Unique Catch's carousel.
-  const [paused, setPaused] = useState(false);
-  useEffect(() => { setIdx(0); setPaused(false); }, [items.length, items[0]?.category]);
-  useEffect(() => {
-    if (items.length < 2 || paused) return undefined;
-    const t = setInterval(() => setIdx(i => (i + 1) % items.length), 7000);
-    return () => clearInterval(t);
-  }, [items.length, paused]);
+  const { trackRef, active, syncActive, pause, goTo, step } = useSnapCarousel(
+    items.length, 7000, `${items.length}-${items[0]?.category}`,
+  );
 
   // An empty message, not a vanished section — this hero shares a row with
   // Watch Out!/Month Champion, and disappearing would leave that card alone
@@ -618,14 +690,18 @@ const HunterSpotlight = ({ items }) => {
       </HeroSection>
     );
   }
-  const active = Math.min(idx, items.length - 1);
 
   return (
     <HeroSection label="Hunter Spotlight" tint={GOLD_RGB}>
-      <div className="overflow-hidden">
-        <div className="flex transition-transform duration-500 ease-out" style={{ transform: `translateX(-${active * 100}%)` }}>
+      <div className="relative">
+        <div
+          ref={trackRef}
+          onScroll={syncActive}
+          onPointerDown={pause}
+          className="flex overflow-x-auto snap-x snap-mandatory scrollbar-hide overscroll-x-contain"
+        >
           {items.map(entry => (
-            <div key={entry.category} className="w-full shrink-0 min-w-0 flex items-center gap-3">
+            <div key={entry.category} className="w-full shrink-0 snap-center min-w-0 flex items-center gap-3">
               <StatIcon name={entry.category} className="w-7 h-7 shrink-0" style={{ color: WARN }} />
               <div className="min-w-0 flex-1">
                 {/* Same fix as WatchOutHero/MonthChampionHero — HERO_FIGURE's
@@ -644,17 +720,21 @@ const HunterSpotlight = ({ items }) => {
         </div>
       </div>
       {items.length > 1 && (
-        <div className="flex items-center gap-1.5 mt-4">
-          {items.map((entry, i) => (
-            <button
-              key={entry.category}
-              type="button"
-              aria-label={`Show ${entry.title}`}
-              onClick={() => { setIdx(i); setPaused(true); }}
-              className="rounded-full transition-all"
-              style={{ width: i === active ? 18 : 6, height: 6, background: i === active ? WARN : 'rgba(255,255,255,0.2)' }}
-            />
-          ))}
+        <div className="flex items-center gap-2 mt-4">
+          <CarouselArrow dir="prev" variant="inline" color={WARN} onClick={() => step(-1)} />
+          <div className="flex items-center gap-1.5">
+            {items.map((entry, i) => (
+              <button
+                key={entry.category}
+                type="button"
+                aria-label={`Show ${entry.title}`}
+                onClick={() => goTo(i)}
+                className="rounded-full transition-all"
+                style={{ width: i === active ? 18 : 6, height: 6, background: i === active ? WARN : 'rgba(255,255,255,0.2)' }}
+              />
+            ))}
+          </div>
+          <CarouselArrow dir="next" variant="inline" color={WARN} onClick={() => step(1)} />
         </div>
       )}
     </HeroSection>

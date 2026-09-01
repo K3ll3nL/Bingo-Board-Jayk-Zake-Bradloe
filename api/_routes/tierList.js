@@ -72,7 +72,7 @@ async function loadPool(monthId) {
 // unifying this with the stricter definition in stats.js is explicitly deferred.
 // The only change is that the rows fed in are now mode-scoped.
 const buildConsensus = (poolIds, submissions) => poolIds.map(pokemonId => {
-  const distribution = { easy: 0, medium: 0, hard: 0, super_hard: 0, sleeper: 0, unranked: 0 };
+  const distribution = { ...Object.fromEntries(VALID_TIER_CODES.map(t => [t, 0])), unranked: 0 };
   submissions.forEach(sub => {
     const tier = (sub.tiers || {})[pokemonId];
     if (tier && distribution[tier] !== undefined) distribution[tier] += 1;
