@@ -12,6 +12,10 @@ module.exports = function register(app) {
   // Get Twitch ambassadors with live status
   app.get('/api/ambassadors', async (req, res) => {
     try {
+      // Public + user-invariant (Twitch live status, same for everyone). Cache at
+      // the edge so a stream's viewers share one response instead of each firing
+      // an invocation. Overridden to no-store on hard error (catch) below.
+      res.set('Cache-Control', 'public, s-maxage=60, stale-while-revalidate=120');
       // Get ambassadors from database
       const { data: ambassadors, error } = await supabase
         .from('twitch_ambassadors')
@@ -116,6 +120,7 @@ module.exports = function register(app) {
       }
     } catch (error) {
       console.error('Error fetching ambassadors:', error);
+      res.set('Cache-Control', 'no-store'); // never edge-cache an error response
       res.status(500).json({ error: 'Failed to fetch ambassadors' });
     }
   });

@@ -116,6 +116,44 @@ module.exports = function register(app) {
     } catch { res.json({ isPro: false }); }
   });
 
+  // GET /api/user/context — one call answering "who is this user?" for app boot.
+  // Consolidates identities + tos-status + is-moderator + is-pro, which the client
+  // used to fire as FOUR separate serverless invocations on every page load. One
+  // JWT validation, four lookups in parallel, one function invocation. The four
+  // endpoints above are kept for any other callers; the client boot path uses this.
+  app.get('/api/user/context', async (req, res) => {
+    try {
+      const userId = await getAuthenticatedUserId(req);
+      if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+
+      const [authUser, tosRow, moderator, proRow] = await Promise.all([
+        supabase.auth.admin.getUserById(userId),
+        supabase.from('users').select('tos_version_accepted').eq('id', userId).maybeSingle(),
+        isModerator(userId),
+        supabase.from('site_pro').select('user_id').eq('user_id', userId).maybeSingle(),
+      ]);
+
+      const identities = (authUser?.data?.user?.identities || []).map(i => ({
+        provider: i.provider,
+        identity_id: i.id,
+        email: i.identity_data?.email ?? null,
+        created_at: i.created_at,
+      }));
+
+      const acceptedVersion = tosRow?.data?.tos_version_accepted ?? 0;
+      const tos = {
+        accepted: acceptedVersion >= TOS_VERSION,
+        is_update: tosRow?.data?.tos_version_accepted != null && tosRow.data.tos_version_accepted < TOS_VERSION,
+        current_version: TOS_VERSION,
+      };
+
+      res.json({ identities, tos, isModerator: !!moderator, isPro: !!(proRow?.data) });
+    } catch (err) {
+      console.error('user/context error:', err.message);
+      res.status(500).json({ error: 'Failed to load user context' });
+    }
+  });
+
   // Update a user's social links (authenticated, own user only)
   app.put('/api/users/:userId/socials', async (req, res) => {
     try {

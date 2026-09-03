@@ -26,6 +26,10 @@ module.exports = function register(app) {
         .gt('expires_at', now)
         .order('starts_at', { ascending: true });
       if (error) throw error;
+      // Public + user-invariant (per-user `condition` is resolved client-side in
+      // BannerBar), so the edge can share one response across all viewers. Set
+      // only on success — errors stay uncached.
+      res.set('Cache-Control', 'public, s-maxage=60, stale-while-revalidate=300');
       res.json(data);
     } catch (err) {
       res.status(500).json({ error: 'Failed to fetch banners' });

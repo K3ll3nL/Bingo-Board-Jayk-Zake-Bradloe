@@ -14,6 +14,35 @@ const {
   supabase,
 } = require('../_lib/core');
 
+// Coalesce leaderboard refreshes across a batch of approvals. A mod clearing a
+// queue of 10 used to fire 10 `leaderboard-changed` broadcasts → 10 client
+// refetch waves → 10× the leaderboard invocations (multiplied by every viewer).
+// Instead, hold the broadcast until the pending (non-historical) queue drains to
+// zero, so the whole batch produces ONE refresh wave. Per owner decision: mods
+// clear the queue as a batch and don't expect each individual approval to reflect
+// live, so this trades per-approval immediacy for a large invocation reduction.
+//
+// board-changed / queue-changed stay per-approval (the affected user's board and
+// the mod's own queue must update now). The in-memory leaderboardCache is still
+// cleared on every approval, and its 60s TTL is the safety net if a mod leaves
+// the queue partially cleared — the next fetch after expiry recomputes fresh.
+const broadcastLeaderboardIfQueueEmpty = async () => {
+  try {
+    const { count, error } = await supabase
+      .from('approvals')
+      .select('id', { count: 'exact', head: true })
+      .eq('historical', false);
+    if (error) throw error;
+    if ((count ?? 0) === 0) {
+      await broadcastUpdate('leaderboard-updates', 'leaderboard-changed', {});
+    }
+  } catch (err) {
+    // Fail toward freshness — one extra broadcast is cheaper than a stale board.
+    console.error('leaderboard queue-drain check failed; broadcasting anyway:', err.message);
+    await broadcastUpdate('leaderboard-updates', 'leaderboard-changed', {}).catch(() => {});
+  }
+};
+
 module.exports = function register(app) {
 
   // Approve a submission
@@ -194,7 +223,8 @@ module.exports = function register(app) {
       // make the client think the approval failed when the DB already committed it)
       Promise.all([
         broadcastUpdate('board-updates', 'board-changed', { userId: approval.user_id }),
-        broadcastUpdate('leaderboard-updates', 'leaderboard-changed', {}),
+        // Coalesced: only refreshes clients once the pending queue is empty.
+        broadcastLeaderboardIfQueueEmpty(),
         broadcastUpdate('approvals-updates', 'queue-changed', {}),
         broadcastNotificationToasts(approval.user_id),
         awardBadgesForTrigger(approval.user_id, 'approved', { monthId: approval.month_id }),
@@ -364,6 +394,9 @@ module.exports = function register(app) {
       Promise.all([
         broadcastUpdate('board-updates', 'board-changed', { userId: approval.user_id }),
         broadcastUpdate('approvals-updates', 'queue-changed', {}),
+        // A reject can be the action that empties the queue — flush any coalesced
+        // approvals so their points reach clients (harmless no-op if still pending).
+        broadcastLeaderboardIfQueueEmpty(),
         broadcastNotificationToasts(approval.user_id),
         awardBadgesForTrigger(approval.user_id, 'rejected'),
         supabase.from('approval_history').insert({

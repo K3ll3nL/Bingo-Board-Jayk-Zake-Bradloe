@@ -13,7 +13,61 @@ const {
   supabase,
 } = require('../_lib/core');
 
+// Query Twitch Helix for who is currently live among `usernames` (lowercased
+// twitch logins). Returns { login: true } for live streamers. Never throws —
+// a Twitch outage just yields an empty map (no live dots), never a 500.
+// Extracted from three duplicated in-handler copies so the leaderboard response
+// no longer bakes in live status: the leaderboard is now long-cacheable and the
+// live dots come from GET /api/leaderboard/live on a short cache instead.
+async function fetchTwitchLiveMap(usernames) {
+  const liveMap = {};
+  const logins = [...new Set((usernames || []).filter(Boolean))].slice(0, 100); // Helix caps 100 logins/call
+  if (logins.length === 0) return liveMap;
+  try {
+    const access_token = await getTwitchToken();
+    if (!access_token) return liveMap;
+    const TWITCH_CLIENT_ID = process.env.TWITCH_CLIENT_ID;
+    const { data: twitchApiUsers } = await fetch(`https://api.twitch.tv/helix/users?${logins.map(u => `login=${u}`).join('&')}`, {
+      headers: { 'Authorization': `Bearer ${access_token}`, 'Client-Id': TWITCH_CLIENT_ID }
+    }).then(r => r.json());
+    const twitchIds = twitchApiUsers?.map(u => u.id) || [];
+    if (twitchIds.length > 0) {
+      const { data: streams } = await fetch(`https://api.twitch.tv/helix/streams?${twitchIds.map(id => `user_id=${id}`).join('&')}`, {
+        headers: { 'Authorization': `Bearer ${access_token}`, 'Client-Id': TWITCH_CLIENT_ID }
+      }).then(r => r.json());
+      streams?.forEach(stream => {
+        const u = twitchApiUsers.find(x => x.id === stream.user_id);
+        if (u) liveMap[u.login.toLowerCase()] = true;
+      });
+    }
+  } catch (err) {
+    console.error('Twitch live check error:', err.message);
+  }
+  return liveMap;
+}
+
 module.exports = function register(app) {
+
+  // GET /api/leaderboard/live — live-status map for every Twitch-linked user, in
+  // one Helix batch (covers all leaderboard views). Split out of /api/leaderboard
+  // so that heavy, rarely-changing response can be cached long while these dots
+  // stay fresh on their own short cache. The client overlays this onto the rows.
+  app.get('/api/leaderboard/live', async (req, res) => {
+    try {
+      const { data: twitchUsers } = await supabase
+        .from('users').select('twitch_url').not('twitch_url', 'is', null);
+      const usernames = (twitchUsers || [])
+        .map(u => u.twitch_url?.split('/').pop()?.toLowerCase())
+        .filter(Boolean);
+      const liveMap = await fetchTwitchLiveMap(usernames);
+      res.set('Cache-Control', 'public, s-maxage=60, stale-while-revalidate=120');
+      res.json(liveMap);
+    } catch (err) {
+      console.error('leaderboard/live error:', err.message);
+      res.set('Cache-Control', 'no-store');
+      res.status(500).json({});
+    }
+  });
 
   // List available historical leaderboard periods
   app.get('/api/leaderboard/periods', async (req, res) => {
@@ -52,6 +106,9 @@ module.exports = function register(app) {
         }
       });
 
+      // Period list (months/seasons/years) is public and only changes at month
+      // rollover — cache it at the edge. Success path only; errors stay uncached.
+      res.set('Cache-Control', 'public, s-maxage=300, stale-while-revalidate=600');
       res.json({
         months: months
           .filter(m => new Date(m.start_date + 'T00:00:00Z').getUTCMonth() !== 0)
@@ -103,6 +160,17 @@ module.exports = function register(app) {
       if (mode !== 'alltime' && !preloadedMonth) {
         return res.status(404).json({ error: 'No active month found' });
       }
+
+      // The leaderboard is viewer-agnostic (same data for everyone; `userId` only
+      // resolves the global active month) and the client fetches it per version
+      // via ?v=<leaderboardVersion>, which bumps on approval. So the edge can
+      // share one response across all viewers of a version — during a stream,
+      // N simultaneous viewers cost 1 invocation instead of N. Live-status dots
+      // are no longer in this response (see /api/leaderboard/live), so the only
+      // thing that changes the standings is an approval — which bumps ?v= and
+      // busts the cache via a fresh URL. That lets s-maxage be long; the TTL is
+      // just a backstop. Success paths only; 404 above and 500/503 stay uncached.
+      res.set('Cache-Control', 'public, s-maxage=300, stale-while-revalidate=600');
       const cacheKey = preloadedMonth ? `${mode}:${preloadedMonth.id}` : 'alltime';
 
       // Return cached leaderboard if still fresh
@@ -173,31 +241,10 @@ module.exports = function register(app) {
         const hexCodeMap = {};
         if (ambassadors) ambassadors.forEach(a => { hexCodeMap[a.id] = a.hex_code || '#9147ff'; });
 
-        // Twitch live status
+        // Twitch live status is served separately (GET /api/leaderboard/live) so
+        // this response stays long-cacheable; empty map → is_live falls back to
+        // false and the client overlays the real live dots.
         const liveStatusMap = {};
-        try {
-          const twitchUsers = top10.filter(u => usersMap[u.user_id]?.twitch_url);
-          const access_token = twitchUsers.length > 0 ? await getTwitchToken() : null;
-          if (access_token) {
-            const TWITCH_CLIENT_ID = process.env.TWITCH_CLIENT_ID;
-            const usernames = twitchUsers.map(u => usersMap[u.user_id].twitch_url.split('/').pop().toLowerCase());
-            const { data: twitchApiUsers } = await fetch(`https://api.twitch.tv/helix/users?${usernames.map(u => `login=${u}`).join('&')}`, {
-              headers: { 'Authorization': `Bearer ${access_token}`, 'Client-Id': TWITCH_CLIENT_ID }
-            }).then(r => r.json());
-            const twitchIds = twitchApiUsers?.map(u => u.id) || [];
-            if (twitchIds.length > 0) {
-              const { data: streams } = await fetch(`https://api.twitch.tv/helix/streams?${twitchIds.map(id => `user_id=${id}`).join('&')}`, {
-                headers: { 'Authorization': `Bearer ${access_token}`, 'Client-Id': TWITCH_CLIENT_ID }
-              }).then(r => r.json());
-              streams?.forEach(stream => {
-                const u = twitchApiUsers.find(u => u.id === stream.user_id);
-                if (u) liveStatusMap[u.login.toLowerCase()] = true;
-              });
-            }
-          }
-        } catch (err) {
-          console.error('Twitch live check error (alltime):', err);
-        }
 
         const transformedAllTime = top10.map((entry, index) => {
           const u = usersMap[entry.user_id] || {};
@@ -220,7 +267,6 @@ module.exports = function register(app) {
 
         const enrichedAllTime = await enrichWithBadgeSlots(transformedAllTime);
         leaderboardCache.set(cacheKey, { data: enrichedAllTime, expiresAt: Date.now() + LEADERBOARD_CACHE_TTL });
-        res.set('Cache-Control', 'no-store');
         return res.json(enrichedAllTime);
       }
 
@@ -321,31 +367,9 @@ module.exports = function register(app) {
         const hexCodeMap = {};
         if (ambassadors) ambassadors.forEach(a => { hexCodeMap[a.id] = a.hex_code || '#9147ff'; });
 
-        // Twitch live status
+        // Twitch live status is served separately (GET /api/leaderboard/live) —
+        // empty map → is_live falls back to false; the client overlays live dots.
         const liveStatusMap = {};
-        try {
-          const twitchUsers = sorted.filter(u => usersMap[u.user_id]?.twitch_url);
-          const access_token = twitchUsers.length > 0 ? await getTwitchToken() : null;
-          if (access_token) {
-            const TWITCH_CLIENT_ID = process.env.TWITCH_CLIENT_ID;
-            const usernames = twitchUsers.map(u => usersMap[u.user_id].twitch_url.split('/').pop().toLowerCase());
-            const { data: twitchApiUsers } = await fetch(`https://api.twitch.tv/helix/users?${usernames.map(u => `login=${u}`).join('&')}`, {
-              headers: { 'Authorization': `Bearer ${access_token}`, 'Client-Id': TWITCH_CLIENT_ID }
-            }).then(r => r.json());
-            const twitchIds = twitchApiUsers?.map(u => u.id) || [];
-            if (twitchIds.length > 0) {
-              const { data: streams } = await fetch(`https://api.twitch.tv/helix/streams?${twitchIds.map(id => `user_id=${id}`).join('&')}`, {
-                headers: { 'Authorization': `Bearer ${access_token}`, 'Client-Id': TWITCH_CLIENT_ID }
-              }).then(r => r.json());
-              streams?.forEach(stream => {
-                const u = twitchApiUsers.find(u => u.id === stream.user_id);
-                if (u) liveStatusMap[u.login.toLowerCase()] = true;
-              });
-            }
-          }
-        } catch (err) {
-          console.error(`Twitch live check error (${mode}):`, err);
-        }
 
         const result = sorted.map((entry, index) => {
           const u = usersMap[entry.user_id] || {};
@@ -368,7 +392,6 @@ module.exports = function register(app) {
 
         const enrichedResult = await enrichWithBadgeSlots(result);
         leaderboardCache.set(cacheKey, { data: enrichedResult, expiresAt: Date.now() + LEADERBOARD_CACHE_TTL });
-        res.set('Cache-Control', 'no-store');
         return res.json(enrichedResult);
       }
 
@@ -435,31 +458,9 @@ module.exports = function register(app) {
         ambassadors.forEach(amb => { hexCodeMap[amb.id] = amb.hex_code || '#9147ff'; });
       }
       
-      // Check Twitch live status
-      const twitchUsers = dataWithAchievements.filter(entry => entry.users.twitch_url);
+      // Twitch live status is served separately (GET /api/leaderboard/live) —
+      // empty map → is_live falls back to false; the client overlays live dots.
       const liveStatusMap = {};
-      try {
-        const access_token = twitchUsers.length > 0 ? await getTwitchToken() : null;
-        if (access_token) {
-          const TWITCH_CLIENT_ID = process.env.TWITCH_CLIENT_ID;
-          const usernames = twitchUsers.map(u => u.users.twitch_url.split('/').pop().toLowerCase());
-          const { data: twitchApiUsers } = await fetch(`https://api.twitch.tv/helix/users?${usernames.map(u => `login=${u}`).join('&')}`, {
-            headers: { 'Authorization': `Bearer ${access_token}`, 'Client-Id': TWITCH_CLIENT_ID }
-          }).then(r => r.json());
-          const twitchIds = twitchApiUsers?.map(u => u.id) || [];
-          if (twitchIds.length > 0) {
-            const { data: streams } = await fetch(`https://api.twitch.tv/helix/streams?${twitchIds.map(id => `user_id=${id}`).join('&')}`, {
-              headers: { 'Authorization': `Bearer ${access_token}`, 'Client-Id': TWITCH_CLIENT_ID }
-            }).then(r => r.json());
-            streams?.forEach(stream => {
-              const user = twitchApiUsers.find(u => u.id === stream.user_id);
-              if (user) liveStatusMap[user.login.toLowerCase()] = true;
-            });
-          }
-        }
-      } catch (err) {
-        console.error('Twitch live check error (monthly):', err);
-      }
       
       const transformedData = dataWithAchievements.map((entry, index) => {
         const username = entry.users.twitch_url ? entry.users.twitch_url.split('/').pop().toLowerCase() : null;
@@ -481,10 +482,10 @@ module.exports = function register(app) {
 
       const enrichedData = await enrichWithBadgeSlots(transformedData);
       leaderboardCache.set(cacheKey, { data: enrichedData, expiresAt: Date.now() + LEADERBOARD_CACHE_TTL });
-      res.set('Cache-Control', 'no-store');
       res.json(enrichedData);
     } catch (error) {
       console.error('Error fetching leaderboard:', error);
+      res.set('Cache-Control', 'no-store'); // never edge-cache an error response
       if (error?.transient) {
         return res.status(503).json({ error: 'Database temporarily unavailable', transient: true });
       }

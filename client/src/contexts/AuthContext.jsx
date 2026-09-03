@@ -32,8 +32,15 @@ export const AuthProvider = ({ children }) => {
   const [isPro, setIsPro] = useState(false);
   const [isModerator, setIsModerator] = useState(null);
   const [identities, setIdentities] = useState([]);
+  const [tos, setTos] = useState(null); // { accepted, is_update, current_version } | null (unknown)
 
-  const refreshIdentities = async () => {
+  // One request answers "who is this user?" for app boot — identities, ToS
+  // status, moderator and pro flags. Replaces four separate endpoints
+  // (/api/user/{identities,tos-status,is-moderator,is-pro}) the client used to
+  // fire as four serverless invocations on every page load — see
+  // GET /api/user/context. Fails open on ToS so a network blip never locks a
+  // user out; permission flags fall back to their safe defaults.
+  const refreshUserContext = async () => {
     try {
       let authHeader;
       if (useDevBypass()) {
@@ -43,58 +50,28 @@ export const AuthProvider = ({ children }) => {
         if (!session) return;
         authHeader = `Bearer ${session.access_token}`;
       }
-      const res = await fetch('/api/user/identities', { headers: { Authorization: authHeader } });
-      if (!res.ok) return;
-      const { identities: ids } = await res.json();
-      setIdentities(ids ?? []);
-    } catch { setIdentities([]); }
+      const res = await fetch('/api/user/context', { headers: { Authorization: authHeader } });
+      if (!res.ok) { setTos({ accepted: true, is_update: false }); return; }
+      const d = await res.json();
+      setIdentities(d.identities ?? []);
+      setIsPro(!!d.isPro);
+      setIsModerator(!!d.isModerator);
+      setTos(d.tos ?? { accepted: true, is_update: false });
+    } catch {
+      setTos({ accepted: true, is_update: false });
+    }
   };
+  // Kept for callers that only need identities refreshed (e.g. after unlink) —
+  // refreshing the whole context is a superset and costs the same one request.
+  const refreshIdentities = refreshUserContext;
 
-  // Check pro status whenever the user changes.
-  // Wait for auth to finish loading before resolving — otherwise a page refresh
-  // briefly sees user=null and flips these flags to false, bouncing gated pages home.
+  // Load the consolidated context once auth settles; reset to safe defaults when
+  // signed out. Gated on `loading` so a refresh doesn't briefly see user=null
+  // and flip gated pages home (same reasoning the split pro/mod effects used).
   useEffect(() => {
     if (loading) return;
-    if (!user) { setIsPro(false); return; }
-    const checkPro = async () => {
-      try {
-        let authHeader;
-        if (isLocalhostDev()) {
-          authHeader = 'Bearer dev_token';
-        } else {
-          const { data: { session } } = await supabase.auth.getSession();
-          authHeader = session ? `Bearer ${session.access_token}` : null;
-        }
-        if (!authHeader) { setIsPro(false); return; }
-        const res = await fetch('/api/user/is-pro', { headers: { Authorization: authHeader } });
-        const d = await res.json();
-        setIsPro(!!d.isPro);
-      } catch { setIsPro(false); }
-    };
-    checkPro();
-  }, [user, loading]);
-
-  // Check moderator status whenever the user changes.
-  // Gated on `loading` for the same reason as the pro check above.
-  useEffect(() => {
-    if (loading) return;
-    if (!user) { setIsModerator(false); return; }
-    const checkMod = async () => {
-      try {
-        let authHeader;
-        if (isLocalhostDev()) {
-          authHeader = 'Bearer dev_token';
-        } else {
-          const { data: { session } } = await supabase.auth.getSession();
-          authHeader = session ? `Bearer ${session.access_token}` : null;
-        }
-        if (!authHeader) { setIsModerator(false); return; }
-        const res = await fetch('/api/user/is-moderator', { headers: { Authorization: authHeader } });
-        const d = await res.json();
-        setIsModerator(!!d.isModerator);
-      } catch { setIsModerator(false); }
-    };
-    checkMod();
+    if (!user) { setIdentities([]); setIsPro(false); setIsModerator(false); setTos(null); return; }
+    refreshUserContext();
   }, [user, loading]);
 
   // Realtime subscriptions live here so they survive route changes
@@ -129,20 +106,17 @@ export const AuthProvider = ({ children }) => {
         user_metadata: { full_name: 'Dev (localhost)' }
       });
       setLoading(false);
-      refreshIdentities();
+      // Context (identities/tos/mod/pro) is loaded by the [user, loading] effect.
       return;
     }
 
     supabase.auth.getSession().then(({ data: { session } }) => {
       setUser(session?.user ?? null);
       setLoading(false);
-      if (session?.user) refreshIdentities();
     });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setUser(session?.user ?? null);
-      if (session?.user) refreshIdentities();
-      else setIdentities([]);
     });
 
     return () => subscription.unsubscribe();
@@ -207,7 +181,9 @@ export const AuthProvider = ({ children }) => {
     linkIdentity,
     unlinkIdentity,
     refreshIdentities,
+    refreshUserContext,
     identities,
+    tos,
     signOut,
     supabase,
     boardVersion,

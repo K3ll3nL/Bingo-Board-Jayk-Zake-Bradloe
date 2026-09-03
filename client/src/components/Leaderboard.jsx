@@ -79,6 +79,7 @@ const StatValue = ({ points, pokemonCount, hovered }) => {
 const Leaderboard = () => {
   const { leaderboardVersion } = useAuth();
   const [leaderboard, setLeaderboard] = useState([]);
+  const [liveMap, setLiveMap] = useState({}); // twitch login → true, from /api/leaderboard/live
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState(null);
@@ -136,6 +137,19 @@ const Leaderboard = () => {
   const lastLoadArgs = useRef(null);
 
   useEffect(() => () => { if (retryTimer.current) clearTimeout(retryTimer.current); }, []);
+
+  // Twitch live dots are served separately from the (now long-cached) leaderboard,
+  // so poll them on their own light cadence (matches the endpoint's ~60s cache)
+  // and overlay by twitch username at render.
+  useEffect(() => {
+    let cancelled = false;
+    const loadLive = () => api.getLeaderboardLive()
+      .then(m => { if (!cancelled) setLiveMap(m || {}); })
+      .catch(() => {});
+    loadLive();
+    const t = setInterval(loadLive, 60000);
+    return () => { cancelled = true; clearInterval(t); };
+  }, []);
 
   const loadLeaderboard = async (key, mode, version, periodMonthId) => {
     lastLoadArgs.current = { key, mode, version, periodMonthId };
@@ -400,7 +414,7 @@ const Leaderboard = () => {
                     <div>
                       <div className={`font-semibold text-l text-white flex items-center gap-1`}>
                         <span>{user.display_name}</span>
-                        {showBadge && user.is_live && user.twitch_url && (
+                        {showBadge && user.twitch_url && (liveMap[user.twitch_url.split('/').pop()?.toLowerCase()] || user.is_live) && (
                           <a
                             href={user.twitch_url}
                             target="_blank"

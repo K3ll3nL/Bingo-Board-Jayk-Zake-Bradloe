@@ -89,13 +89,25 @@ export const api = {
     const VALID_MODES = ['monthly', 'alltime', 'season', 'year'];
     const mode = VALID_MODES.includes(viewMode) ? viewMode : 'monthly';
     const periodParam = periodMonthId ? `&period_month_id=${periodMonthId}` : '';
-    const response = await fetch(`${API_BASE_URL}/leaderboard?mode=${mode}&v=${version}${periodParam}`, { cache: 'no-store' });
+    // No `cache: 'no-store'` — freshness comes from the `?v=` version bump (which
+    // changes the URL on approval), so the browser + Vercel edge can safely cache
+    // each version and share it across viewers. See Cache-Control in leaderboard.js.
+    const response = await fetch(`${API_BASE_URL}/leaderboard?mode=${mode}&v=${version}${periodParam}`);
     if (!response.ok) throw httpError('Failed to fetch leaderboard', response.status);
     return response.json();
   },
 
+  // Twitch live-status map { twitchLogin: true } — split out of the leaderboard so
+  // the standings can be long-cached while these dots refresh on their own short
+  // cache. Overlaid onto rows client-side by twitch username.
+  getLeaderboardLive: async () => {
+    const response = await fetch(`${API_BASE_URL}/leaderboard/live`);
+    if (!response.ok) return {};
+    return response.json();
+  },
+
   getLeaderboardPeriods: async () => {
-    const response = await fetch(`${API_BASE_URL}/leaderboard/periods`, { cache: 'no-store' });
+    const response = await fetch(`${API_BASE_URL}/leaderboard/periods`);
     if (!response.ok) throw httpError('Failed to fetch periods', response.status);
     return response.json();
   },

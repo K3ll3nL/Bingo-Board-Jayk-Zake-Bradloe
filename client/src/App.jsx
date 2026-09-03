@@ -671,7 +671,7 @@ const HomePage = () => {
 // Bypassed in localhost dev (no real auth) unless ?force_tos=fresh|update
 // is passed for manual QA of the modal copy.
 const ConsentGate = ({ children }) => {
-  const { user, loading } = useAuth();
+  const { user, loading, tos } = useAuth();
   const { pathname, search } = useLocation();
   const [tosAccepted, setTosAccepted] = React.useState(null); // null = unknown
   const [isUpdate, setIsUpdate] = React.useState(false);
@@ -682,22 +682,18 @@ const ConsentGate = ({ children }) => {
     return v === 'fresh' || v === 'update' ? v : null;
   }, [search]);
 
+  // ToS status now rides along on the consolidated /api/user/context call that
+  // AuthContext already makes on boot (see `tos` there) — this gate no longer
+  // fires its own /api/user/tos-status request. Unknown (`tos == null`) leaves
+  // `tosAccepted` null, which renders children with no modal: fail-open, exactly
+  // as the old network-error path did.
   React.useEffect(() => {
     if (forceTos) { setTosAccepted(false); setIsUpdate(forceTos === 'update'); return; }
     if (!user || import.meta.env.DEV) { setTosAccepted(true); return; }
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (!session) { setTosAccepted(true); return; }
-      fetch('/api/user/tos-status', {
-        headers: { Authorization: `Bearer ${session.access_token}` },
-      })
-        .then(r => r.json())
-        .then(d => {
-          setTosAccepted(!!d.accepted);
-          setIsUpdate(!!d.is_update);
-        })
-        .catch(() => setTosAccepted(true)); // fail open so a network error doesn't lock users out
-    });
-  }, [user, forceTos]);
+    if (!tos) return;
+    setTosAccepted(!!tos.accepted);
+    setIsUpdate(!!tos.is_update);
+  }, [user, forceTos, tos]);
 
   const handleAccept = async () => {
     if (forceTos) { setTosAccepted(true); return; }

@@ -107,9 +107,11 @@ const MONTH_ROLLOVER_OFFSET_MS = 4 * 60 * 60 * 1000;
 const nowForMonth = () => new Date(Date.now() - MONTH_ROLLOVER_OFFSET_MS);
 
 // ── Module-level caches ───────────────────────────────────────────────────────
-// Active month: only changes once a month. Cache the result and use end_date to
-// know exactly when it's stale — no arbitrary TTL needed. Mod users with a
-// time_offset_days bypass the cache since their effective date differs.
+// Active month: only changes once a month, at the rollover date line. Cache the
+// result and use end_date to know exactly when it's stale — no arbitrary TTL
+// needed; it only refetches in the hours around rollover. Shared by every viewer
+// (the old per-mod time_offset_days bypass was removed), so mods hit the cache
+// too instead of querying the DB on every request.
 let activeMonthCache = null; // { id, month_year_display, start_date, end_date }
 
 let activeMonthPromise = null; // in-flight fetch shared by concurrent callers (prevents cold-start race)
@@ -579,42 +581,12 @@ async function getAuthenticatedUserId(req) {
 // Returns the full active month record { id, month_year_display, start_date, end_date }, or null
 async function getActiveMonth(userId = null) {
   const now = nowForMonth();
-
-  // Mod users with a time offset always bypass the cache (their effective date differs)
-  if (userId) {
-    const { data: userData } = await supabase
-      .from('users')
-      .select('time_offset_days')
-      .eq('id', userId)
-      .single();
-
-    const timeOffsetDays = userData?.time_offset_days || 0;
-    if (timeOffsetDays !== 0) {
-      const effectiveDate = new Date(now.getTime() + timeOffsetDays * 86400000);
-      const effectiveDateISO = effectiveDate.toISOString();
-      console.log('Getting active month (mod offset) - User:', userId, 'Offset days:', timeOffsetDays, 'Effective date:', effectiveDateISO);
-      // Order by start_date desc + limit(1) so overlapping windows (end_date of
-      // month N intentionally extends past start_date of month N+1) pick the
-      // NEWEST month rather than PGRST erroring on >1 row.
-      const { data, error } = await supabase
-        .from('bingo_months')
-        .select('id, month_year_display, start_date, end_date')
-        .lte('start_date', effectiveDateISO)
-        .gte('end_date', effectiveDateISO)
-        .order('start_date', { ascending: false })
-        .limit(1)
-        .maybeSingle();
-      if (error) {
-        // Transient DB / edge-function failure — bubble up so the caller can 503.
-        const e = new Error('Failed to look up active month');
-        e.transient = true; e.cause = error;
-        throw e;
-      }
-      if (!data) { console.error('No active month found (mod)'); return null; }
-      return data;
-    }
-  }
-
+  // `userId` is accepted for signature compatibility but is intentionally unused.
+  // The per-mod "view next month 4h early" offset (users.time_offset_days) was
+  // removed on the owner's request: the active month is now GLOBAL for every
+  // viewer. This is also what makes the leaderboard safely edge-cacheable — the
+  // month no longer varies by who's asking. (The param can be dropped from
+  // callers, and the users.time_offset_days column retired, as a later cleanup.)
   const nowISO = now.toISOString();
 
   // end_date is TIMESTAMPTZ (the exact moment the month expires) — direct compare.
