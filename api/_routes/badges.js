@@ -4,11 +4,84 @@
  */
 const {
   computeBadgeRarity,
+  getActiveMonth,
   getAuthenticatedUserId,
   isModerator,
   supabase,
   upload,
 } = require('../_lib/core');
+const { contextBuilders } = require('../_badgeRegistry');
+
+// ── Badge progress ────────────────────────────────────────────────────────────
+// Every badge check in _badgeRegistry.js is a threshold comparison
+// (`ctx.<value> >= check_value`), so "how close am I" is derivable for all of
+// them except `first_approval_month`, which is binary and has no middle.
+//
+// PROGRESS_SOURCES maps a check_type to { current, target, unit } given a merged
+// context. Returning null means "no meaningful progress to show" and the badge
+// is dropped from the ladder rather than rendered at 0%.
+const PROGRESS_SOURCES = {
+  submission_count:     (ctx, b) => ({ current: ctx.totalSubmissions ?? 0,   target: b.check_value, unit: 'submissions' }),
+  approved_count:       (ctx, b) => ({ current: ctx.totalApproved ?? 0,      target: b.check_value, unit: 'catches' }),
+  rejected_count:       (ctx, b) => ({ current: ctx.totalRejected ?? 0,      target: b.check_value, unit: 'rejections' }),
+  restricted_count:     (ctx, b) => ({ current: ctx.restrictedApproved ?? 0, target: b.check_value, unit: 'restricted catches' }),
+  monthly_active_count: (ctx, b) => ({ current: ctx.activeMonths ?? 0,       target: b.check_value, unit: 'months' }),
+  account_age_months:   (ctx, b) => ({ current: ctx.accountAgeMonths ?? 0,   target: b.check_value, unit: 'months' }),
+  bingo_achievement_count: (ctx, b) => {
+    const types = (!b.check_qualifier || b.check_qualifier === 'any')
+      ? ['row', 'column', 'x', 'blackout']
+      : String(b.check_qualifier).split(',').map(t => t.trim()).filter(Boolean);
+    // strictBingoCounts, NOT ctx.bingoTypeCounts. The shared context builder
+    // folds `row_restricted` into `row`, which counts one line twice: finishing
+    // a row with all-restricted entries writes both rows. Held badges across
+    // the lines/x/blackout families all match the UNFOLDED totals, so the
+    // unfolded count is the one the product actually means.
+    const current = types.reduce((n, t) => n + (ctx.strictBingoCounts?.[t] ?? 0), 0);
+    return { current, target: b.check_value, unit: 'bounties' };
+  },
+  // Percentage checks are reported in CATCHES, not percent — "6 of 9 fire" is a
+  // hunt you can act on; "67%" is a statistic you cannot.
+  type_percentage: (ctx, b) => {
+    const t = String(b.check_qualifier).toLowerCase();
+    const total = ctx.typeTotal?.[t] ?? 0;
+    if (!total) return null;
+    return {
+      current: ctx.typeApproved?.[t] ?? 0,
+      target: Math.ceil((b.check_value / 100) * total),
+      unit: `${t}-type`,
+    };
+  },
+  generation_percentage: (ctx, b) => {
+    const g = Number(b.check_qualifier);
+    const total = ctx.genTotal?.[g] ?? 0;
+    if (!total) return null;
+    return {
+      current: ctx.genApproved?.[g] ?? 0,
+      target: Math.ceil((b.check_value / 100) * total),
+      unit: `gen ${g}`,
+    };
+  },
+  collection_complete: (ctx, b) => {
+    const prog = ctx.collectionProgress?.[String(b.check_qualifier)];
+    if (!prog || !prog.total) return null;
+    return { current: prog.caught, target: prog.total, unit: 'in the set' };
+  },
+};
+
+// Which context builder feeds which check_type — so we only run the builders the
+// user's unearned badges actually need instead of all six on every request.
+const BUILDER_FOR_CHECK = {
+  submission_count: 'submission',
+  approved_count: 'approved',
+  restricted_count: 'approved',
+  type_percentage: 'approved',
+  generation_percentage: 'approved',
+  collection_complete: 'approved',
+  rejected_count: 'rejected',
+  monthly_active_count: 'monthly_active',
+  account_age_months: 'account_age',
+  bingo_achievement_count: 'bingo_achievement',
+};
 
 module.exports = function register(app) {
 
@@ -29,6 +102,14 @@ module.exports = function register(app) {
         .order('id', { ascending: true });
 
       if (error) throw error;
+
+      // Exact types only — a `_restricted` row is the same line as the standard
+      // row it also satisfies, so it must not add a second count.
+      const strictBingoCounts = { row: 0, column: 0, x: 0, blackout: 0 };
+      for (const a of (myBingos || [])) {
+        if (a.bingo_type in strictBingoCounts) strictBingoCounts[a.bingo_type]++;
+      }
+      ctx.strictBingoCounts = strictBingoCounts;
 
       const { percentByBadge } = await computeBadgeRarity();
 
@@ -135,6 +216,14 @@ module.exports = function register(app) {
 
       if (error) throw error;
 
+      // Exact types only — a `_restricted` row is the same line as the standard
+      // row it also satisfies, so it must not add a second count.
+      const strictBingoCounts = { row: 0, column: 0, x: 0, blackout: 0 };
+      for (const a of (myBingos || [])) {
+        if (a.bingo_type in strictBingoCounts) strictBingoCounts[a.bingo_type]++;
+      }
+      ctx.strictBingoCounts = strictBingoCounts;
+
       const { percentByBadge } = await computeBadgeRarity();
 
       // Flag which of these badges the *viewer* has personally earned, so the
@@ -198,6 +287,14 @@ module.exports = function register(app) {
         .not('slot', 'is', null)
         .order('slot', { ascending: true });
       if (error) throw error;
+
+      // Exact types only — a `_restricted` row is the same line as the standard
+      // row it also satisfies, so it must not add a second count.
+      const strictBingoCounts = { row: 0, column: 0, x: 0, blackout: 0 };
+      for (const a of (myBingos || [])) {
+        if (a.bingo_type in strictBingoCounts) strictBingoCounts[a.bingo_type]++;
+      }
+      ctx.strictBingoCounts = strictBingoCounts;
 
       const { percentByBadge } = await computeBadgeRarity();
 
@@ -433,6 +530,161 @@ module.exports = function register(app) {
     } catch (error) {
       console.error('Error creating badge:', error);
       res.status(500).json({ error: 'Failed to create badge', details: error.message });
+    }
+  });
+
+  // GET /api/badges/progress — the badges this user is CLOSEST to earning.
+  //
+  // The badge case shows what you have won; this shows what is nearly in reach,
+  // which is the thing that actually gets someone hunting mid-month. Secret
+  // badges are excluded: a carrot you are not allowed to describe is not a
+  // carrot. Already-earned badges are excluded for the same reason.
+  app.get('/api/badges/progress', async (req, res) => {
+    try {
+      const userId = await getAuthenticatedUserId(req);
+      if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+
+      const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 4, 1), 12);
+
+      const monthRow = await getActiveMonth(userId);
+
+      const [{ data: badges }, { data: earnedRows }, { data: poolRows }, { data: myEntries }, { data: myBingos }] = await Promise.all([
+        supabase.from('badges').select('*'),
+        supabase.from('user_badges').select('badge_id').eq('user_id', userId),
+        monthRow
+          ? supabase.from('monthly_pokemon_pool').select('pokemon_id').eq('month_id', monthRow.id)
+          : Promise.resolve({ data: [] }),
+        supabase.from('entries').select('pokemon_id').eq('user_id', userId),
+        supabase.from('bingo_achievements').select('bingo_type').eq('user_id', userId),
+      ]);
+
+      // This month's board, and what the hunter already has, so a badge can be
+      // judged on whether it is ACTIONABLE right now rather than merely close.
+      const poolIds = [...new Set((poolRows || []).map(r => r.pokemon_id).filter(Boolean))];
+      const caughtIds = new Set((myEntries || []).map(r => r.pokemon_id));
+
+      const { data: poolMons } = poolIds.length
+        ? await supabase.from('pokemon_master').select('id, collection_ids').in('id', poolIds)
+        : { data: [] };
+
+      // Collections with at least one member on this month's board that the
+      // hunter has NOT already caught. Any collection badge outside this set is
+      // un-progressable this month and must not be dangled.
+      const liveCollections = new Set();
+      for (const mon of (poolMons || [])) {
+        if (caughtIds.has(mon.id)) continue;
+        for (const slug of (mon.collection_ids || [])) liveCollections.add(slug);
+      }
+
+      const earned = new Set((earnedRows || []).map(r => r.badge_id));
+      const candidates = (badges || []).filter(b => {
+        if (earned.has(b.id) || b.is_secret) return false;
+        if (!PROGRESS_SOURCES[b.check_type]) return false;
+        if (!Number.isFinite(Number(b.check_value ?? NaN))) return false;
+        // Nothing on this month's board can advance this collection.
+        if (b.check_type === 'collection_complete' && !liveCollections.has(String(b.check_qualifier))) return false;
+        return true;
+      });
+
+      if (candidates.length === 0) return res.json({ badges: [] });
+
+      // Run only the builders these candidates need.
+      const needed = [...new Set(candidates.map(b => BUILDER_FOR_CHECK[b.check_type]).filter(Boolean))];
+      const built = await Promise.all(
+        needed.map(name => contextBuilders[name](userId, supabase).catch(() => ({})))
+      );
+      const ctx = Object.assign({}, ...built);
+
+      // Exact types only — a `_restricted` row is the same line as the standard
+      // row it also satisfies, so it must not add a second count.
+      const strictBingoCounts = { row: 0, column: 0, x: 0, blackout: 0 };
+      for (const a of (myBingos || [])) {
+        if (a.bingo_type in strictBingoCounts) strictBingoCounts[a.bingo_type]++;
+      }
+      ctx.strictBingoCounts = strictBingoCounts;
+
+      const { percentByBadge } = await computeBadgeRarity();
+
+      // A family is a ladder (10 / 25 / 50 catches). Measuring the bar from zero
+      // makes the fourth rung look almost done the moment you start it, so the
+      // bar starts at the PREVIOUS rung in the same family and check_type.
+      // The floor must be a rung the hunter has actually passed. Using the rung
+      // immediately below the target would put the bar's origin ahead of where
+      // they stand (target 10, previous rung 5, hunter on 4) and render a bar
+      // that is both empty and wrong about why.
+      const floorFor = (b, current) => {
+        if (!b.family) return 0;
+        const below = (badges || [])
+          .filter(o =>
+            o.id !== b.id &&
+            o.family === b.family &&
+            o.check_type === b.check_type &&
+            String(o.check_qualifier ?? '') === String(b.check_qualifier ?? '') &&
+            Number(o.check_value) < Number(b.check_value)
+          )
+          .map(o => Number(o.check_value))
+          .filter(v => v <= current);
+        return below.length ? Math.max(...below) : 0;
+      };
+
+      const scored = candidates.map(b => {
+        const prog = PROGRESS_SOURCES[b.check_type](ctx, b);
+        if (!prog || !prog.target || prog.target <= 0) return null;
+        const current = Math.min(prog.current, prog.target);
+        const remaining = Math.max(0, prog.target - current);
+        // Percentage-style checks already express a span; only threshold ladders
+        // carry a previous rung.
+        const floor = prog.unit === 'in the set' ? 0 : Math.min(floorFor(b, current), prog.target - 1);
+        const span = Math.max(1, prog.target - floor);
+        const within = Math.max(0, current - floor);
+        return {
+          from: floor,
+          id: b.id,
+          key: b.key,
+          name: b.name,
+          description: b.description,
+          image_url: b.image_url,
+          family: b.family,
+          current,
+          target: prog.target,
+          remaining,
+          unit: prog.unit,
+          pct: Math.round(Math.min(1, within / span) * 100),
+          earned_percent: percentByBadge[b.id] ?? null,
+        };
+      }).filter(Boolean)
+        // A rung spanning a single step is a yes/no, not a climb: its bar would
+        // read 0% until the instant it reads 100%. Not worth a progress row.
+        .filter(b => (b.target - b.from) > 1)
+        // Badges are awarded automatically — there is no claim step — so an
+        // unearned badge at remaining === 0 means THIS endpoint counted wrong,
+        // not that an award is pending. Hide it rather than show a false carrot.
+        .filter(b => b.remaining > 0)
+        // Zero progress toward THIS rung is not a carrot — it is a list of
+        // things you have not begun. Filtering on pct (not raw count) also
+        // guarantees every row rendered has a bar with something in it: a
+        // hunter sitting exactly on the previous rung reads 0% and is dropped.
+        .filter(b => b.pct > 0)
+        .sort((a, b) =>  (b.pct - a.pct)) || (a.remaining - b.remaining);
+
+      // One rung per family. Families are ladders, so the next rung is the only
+      // one that is actually next — showing X IV and X V together is one carrot
+      // printed twice.
+      const seenFamily = new Set();
+      const ladder = [];
+      for (const b of scored) {
+        const fam = b.family || `__${b.id}`;
+        if (seenFamily.has(fam)) continue;
+        seenFamily.add(fam);
+        ladder.push(b);
+        if (ladder.length >= limit) break;
+      }
+
+      res.set('Cache-Control', 'no-store');
+      res.json({ badges: ladder });
+    } catch (error) {
+      console.error('Error computing badge progress:', error);
+      res.status(500).json({ error: 'Failed to compute badge progress' });
     }
   });
 

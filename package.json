@@ -4,5 +4,8 @@
   },
   "devDependencies": {
     "nodemon": "^3.1.11"
+  },
+  "dependencies": {
+    "speak-like-you-eat": "^1.1.0"
   }
 }

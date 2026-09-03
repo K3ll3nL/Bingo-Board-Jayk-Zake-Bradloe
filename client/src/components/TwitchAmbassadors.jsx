@@ -98,8 +98,14 @@ const TwitchAmbassadors = () => {
 
             {/* Username — Twitch-tinted TEXT must be `twitch-text` (#a98ff3), not
                 the 3.48:1 brand fill (§2.6 / §5.2). */}
-            <div className="mt-2 text-center">
-              <div className="text-sm text-white font-medium group-hover:text-twitch-text transition-colors">
+            <div className="mt-2 w-full min-w-0 text-center">
+              {/* w-full + truncate: `items-center` on the column sizes children to
+                  their content, so a long display name (21+ chars) overflowed the
+                  fixed 110px track and painted over its neighbours. */}
+              <div
+                className="text-sm text-white font-medium truncate group-hover:text-twitch-text transition-colors"
+                title={ambassador.display_name}
+              >
                 {ambassador.display_name}
               </div>
               {ambassador.is_live && ambassador.viewer_count !== undefined && (

@@ -33,6 +33,8 @@ import BannerManagerModal from './components/BannerManagerModal';
 import MonthStats from './components/MonthStats';
 import TierList from './components/TierList';
 import HomeHighlights from './components/HomeHighlights';
+import HomeV2 from './components/HomeV2';
+import HomeV3 from './components/HomeV3';
 import ShinyTools from './components/ShinyTools';
 import SVSandwichCalculator from './components/tools/SVSandwichCalculator';
 import BDSPRadar from './components/tools/BDSPRadar';
@@ -629,8 +631,20 @@ const AppLayout = () => {
   );
 };
 
-// Home page content only (no header — AppLayout provides it)
+// Home page content only (no header — AppLayout provides it).
+//
+// `?layout=v2` renders the redesigned returning-hunter dashboard (HomeV2.jsx)
+// instead of this one. The flag is read per-render from the live location, so
+// toggling it in the address bar switches layouts without a reload, and the
+// default path is byte-for-byte the layout that shipped.
 const HomePage = () => {
+  const layout = new URLSearchParams(useLocation().search).get('layout');
+  if (layout === 'v3') return <HomeV3 />;
+  if (layout === 'v2') return <HomeV2 />;
+  return <HomeV1 />;
+};
+
+const HomeV1 = () => {
   const { user } = useAuth();
   return (
     /* One vertical scale for the whole home page: `space-y-6` (24px) between

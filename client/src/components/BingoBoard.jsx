@@ -6,7 +6,14 @@ import AchievementIcon from './AchievementIcon';
 import BingoGrid from './BingoGrid';
 import ReconnectingPill from './ReconnectingPill';
 
-const BingoBoard = () => {
+// Optionally CONTROLLED. Passing `data` (the /api/bingo/board payload, or null
+// while it's in flight) makes the parent the owner of the fetch and this
+// component a pure renderer — HomeV2 needs the same payload for its status band,
+// and /api/bingo/board is `Cache-Control: no-store`, so an uncontrolled second
+// instance would cost a real duplicate serverless invocation on every home load.
+// Omitting `data` keeps the original self-fetching behaviour byte-for-byte.
+const BingoBoard = ({ data, error: errorProp = null, hideTitle = false, hideAchievements = false, maxWidth = '645px' }) => {
+  const controlled = data !== undefined;
   const { user, boardVersion, loading: authLoading } = useAuth();
   const [board, setBoard] = useState([]);
   const [month, setMonth] = useState('');
@@ -18,7 +25,7 @@ const BingoBoard = () => {
   const retryAttempt = useRef(0);
 
   useEffect(() => {
-    if (authLoading) return;
+    if (controlled || authLoading) return;
     loadBoard();
     return () => { if (retryTimer.current) clearTimeout(retryTimer.current); };
   }, [user, boardVersion, authLoading]);
@@ -48,7 +55,16 @@ const BingoBoard = () => {
     }
   };
 
-  if (error === 'no_month') {
+  // Resolve every render input from whichever source owns it.
+  const vBoard = controlled ? (data?.board || []) : board;
+  const vMonth = controlled ? (data?.month || '') : month;
+  const vAchievements = controlled
+    ? (data?.achievements || { row: null, column: null, x: null, blackout: null })
+    : achievements;
+  const vError = controlled ? errorProp : error;
+  const vLoading = controlled ? (data === null && !errorProp) : loading;
+
+  if (vError === 'no_month') {
     return (
       <div className="w-full">
         <div style={{ maxWidth: '645px', margin: '0 auto' }} className="text-center py-16">
@@ -59,14 +75,16 @@ const BingoBoard = () => {
     );
   }
 
-  if (loading || error === 'transient') {
+  if (vLoading || vError === 'transient') {
     return (
       <div className="w-full animate-pulse relative">
-        {error === 'transient' && <ReconnectingPill label="Reconnecting to server…" />}
-        <div style={{ maxWidth: '645px', margin: '0 auto' }}>
-          <div className="mb-4">
-            <div className="h-8 bg-gray-700/60 rounded mx-auto" style={{ width: 160 }} />
-          </div>
+        {vError === 'transient' && <ReconnectingPill label="Reconnecting to server…" />}
+        <div style={{ maxWidth, margin: '0 auto' }}>
+          {!hideTitle && (
+            <div className="mb-4">
+              <div className="h-8 bg-gray-700/60 rounded mx-auto" style={{ width: 160 }} />
+            </div>
+          )}
           <div className="grid grid-cols-5 grid-rows-5 gap-2 aspect-square rounded-lg p-2" style={{ background: '#0d0f14' }}>
             {Array.from({ length: 25 }).map((_, i) => (
               <div key={i} className="rounded-lg bg-gray-700/50" />
@@ -99,24 +117,26 @@ const BingoBoard = () => {
   return (
     <div className="w-full">
       <div
-        style={{
-          maxWidth: '645px',
-        }}
+        style={{ maxWidth }}
         className="mx-auto"
       >
-      <div className="mb-4">
-        <h2 className="text-2xl font-bold text-center text-white">{month || 'Bingo Board'}</h2>
-      </div>
+      {!hideTitle && (
+        <div className="mb-4">
+          <h2 className="text-2xl font-bold text-center text-white">{vMonth || 'Bingo Board'}</h2>
+        </div>
+      )}
 
-      <BingoGrid board={board} onCellClick={setSelectedPokemon} large />
+      <BingoGrid board={vBoard} onCellClick={setSelectedPokemon} large />
 
-      {/* Bingo Achievements */}
+      {/* Bingo Achievements — hidden when the parent renders its own bounty
+          strip instead (HomeV3's RacesStrip). */}
+      {!hideAchievements && (<>
         <div className="mt-4 grid grid-cols-2 md:grid-cols-4 gap-3">
           {[
-            { type: 'row',     label: achievements.row },
-            { type: 'column',  label: achievements.column },
-            { type: 'x',       label: achievements.x },
-            { type: 'blackout',label: achievements.blackout },
+            { type: 'row',     label: vAchievements.row },
+            { type: 'column',  label: vAchievements.column },
+            { type: 'x',       label: vAchievements.x },
+            { type: 'blackout',label: vAchievements.blackout },
           ].map(({ type, label }) => (
             <div key={type} className="flex items-center gap-2">
               <AchievementIcon
@@ -141,10 +161,10 @@ const BingoBoard = () => {
             </p>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
               {[
-                { type: 'row',     label: achievements.row_restricted },
-                { type: 'column',  label: achievements.column_restricted },
-                { type: 'x',       label: achievements.x_restricted },
-                { type: 'blackout',label: achievements.blackout_restricted },
+                { type: 'row',     label: vAchievements.row_restricted },
+                { type: 'column',  label: vAchievements.column_restricted },
+                { type: 'x',       label: vAchievements.x_restricted },
+                { type: 'blackout',label: vAchievements.blackout_restricted },
               ].map(({ type, label }) => (
                 <div key={`${type}_restricted`} className="flex items-center gap-2">
                   <AchievementIcon
@@ -164,6 +184,7 @@ const BingoBoard = () => {
               ))}
             </div>
         </div>
+      </>)}
       </div>
       
       {/* Pokemon Modal */}

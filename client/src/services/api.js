@@ -77,6 +77,12 @@ export const parseApiError = async (response, fallbacks = {}) => {
 
 export const api = {
   // Bingo Board endpoints
+  getBadgeProgress: async (limit = 4) => {
+    const res = await fetch(`/api/badges/progress?limit=${limit}`, { headers: await getAuthHeaders() });
+    if (!res.ok) throw new Error('Failed to load badge progress');
+    return res.json();
+  },
+
   getBingoBoard: async (version = 0) => {
     const headers = await getAuthHeaders();
     const response = await fetch(`${API_BASE_URL}/bingo/board?v=${version}`, { headers, cache: 'no-store' });
