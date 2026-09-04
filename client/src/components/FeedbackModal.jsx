@@ -110,7 +110,31 @@ export default function FeedbackModal({ isOpen, onClose }) {
                 >
                   Bug Report
                 </button>
+                <button
+                  type="button"
+                  onClick={() => setType('legal')}
+                  className={`flex-1 py-2 text-sm font-medium transition-colors ${
+                    type === 'legal'
+                      ? 'bg-amber-600 text-white'
+                      : 'text-gray-400 hover:text-gray-200'
+                  }`}
+                  style={type !== 'legal' ? { backgroundColor: '#35373b' } : {}}
+                >
+                  Legal
+                </button>
               </div>
+
+              {/* The Terms and the Privacy Policy both send people here — for
+                  copyright takedowns and for data access/deletion requests — so
+                  this route has to actually exist and be labelled. */}
+              {type === 'legal' && (
+                <p className="text-xs text-gray-400 rounded-lg border border-amber-500/30 bg-amber-500/5 px-3 py-2">
+                  Use this for copyright or takedown requests, or to ask for a copy of your data or for your
+                  account to be deleted. Include enough detail for us to act: for a takedown, the address of
+                  the material and the work it infringes; for a data request, say which you want. We aim to
+                  respond within 30 days.
+                </p>
+              )}
 
               {/* Title */}
               <div>

@@ -19,14 +19,97 @@ const { createClient } = require('@supabase/supabase-js');
 
 const multer = require('multer');
 
+// Image types accepted for upload, mapped to the extension we will actually
+// store. Every uploader on this API takes images only (proof screenshots and
+// badge art), so this is enforced globally rather than per-route.
+//
+// SVG IS DELIBERATELY EXCLUDED. Uploads land in a PUBLIC R2 bucket, and an SVG
+// is an executable document: served inline from pub-<id>.r2.dev it runs script
+// in that origin. The same reasoning rules out text/html.
+const ALLOWED_UPLOAD_TYPES = {
+  'image/png': 'png',
+  'image/jpeg': 'jpg',
+  'image/gif': 'gif',
+  'image/webp': 'webp',
+};
+
 // Multer config with file size limits
-const upload = multer({ 
+const upload = multer({
   storage: multer.memoryStorage(),
-  limits: { 
+  limits: {
     fileSize: 4 * 1024 * 1024, // 4MB per file (Vercel limit is 4.5MB total)
     files: 10 // file + file2 + evolutionFile + evolutionSummaryFile + up to 6 extraFiles
-  }
+  },
+  // Without this, any file type was accepted and the client-supplied mimetype
+  // was echoed straight back to R2 as the stored Content-Type -- so a signed-in
+  // user could host arbitrary HTML under the site's public storage domain.
+  fileFilter: (req, file, cb) => {
+    if (ALLOWED_UPLOAD_TYPES[file.mimetype]) return cb(null, true);
+    cb(Object.assign(
+      new Error('Only PNG, JPEG, GIF, and WebP images can be uploaded.'),
+      { status: 400, code: 'UNSUPPORTED_FILE_TYPE' },
+    ));
+  },
 });
+
+// Content-Type to store, derived from our allowlist rather than trusted from
+// the client. Falls back to a type browsers will never execute.
+const safeContentType = (file) =>
+  ALLOWED_UPLOAD_TYPES[file?.mimetype] ? file.mimetype : 'application/octet-stream';
+
+// Verify a buffer really is the image type it claims, by magic bytes.
+//
+// multer's fileFilter only sees the client-declared mimetype, which is just a
+// string in the multipart body -- an attacker sets it to whatever passes. This
+// is the check that actually looks at the bytes, so it has to run AFTER multer
+// has buffered the file, not in the filter.
+//
+// Storing a forged file is not immediately exploitable (we also force the
+// stored Content-Type from our allowlist, so an HTML payload saved as
+// image/png is served as an image and never executed), but accepting it at all
+// means the public bucket holds attacker-chosen content under an image name.
+// Rejecting on content closes that.
+const IMAGE_MAGIC = [
+  { ext: 'png',  test: (b) => b.length > 8 && b.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])) },
+  { ext: 'jpg',  test: (b) => b.length > 3 && b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff },
+  { ext: 'gif',  test: (b) => b.length > 6 && b.subarray(0, 4).toString('ascii') === 'GIF8' },
+  { ext: 'webp', test: (b) => b.length > 12 && b.subarray(0, 4).toString('ascii') === 'RIFF' && b.subarray(8, 12).toString('ascii') === 'WEBP' },
+];
+
+function isRealImage(buffer) {
+  if (!Buffer.isBuffer(buffer)) return false;
+  return IMAGE_MAGIC.some(m => m.test(buffer));
+}
+
+// Throws a 400-shaped error if any supplied file is not genuinely an image.
+// Call at the top of an upload handler, before anything is written to R2.
+function assertRealImages(files) {
+  for (const file of files) {
+    if (!file) continue;
+    if (!isRealImage(file.buffer)) {
+      throw Object.assign(
+        new Error('One of the uploaded files is not a valid image. Please upload a real PNG, JPEG, GIF, or WebP.'),
+        { status: 400, code: 'UNSUPPORTED_FILE_TYPE' },
+      );
+    }
+  }
+}
+
+// Build the R2 object key for a proof image.
+//
+// The old shape was `approval/<userId>-<pokemonId>-<ts>-<slot>-<originalname>`,
+// which put two things into a PUBLIC, unauthenticated URL that do not belong
+// there: the uploader's user id, and their own filename. People name screenshots
+// after themselves, so that leaked real names into public URLs, and the user id
+// tied any leaked URL straight back to a profile.
+//
+// The key is now opaque. Nothing parses these keys -- deletion strips the bucket
+// prefix off the stored URL -- so the shape is free to change, and old URLs keep
+// working untouched.
+function proofObjectKey(file, slot) {
+  const ext = ALLOWED_UPLOAD_TYPES[file?.mimetype] || 'bin';
+  return `approval/${crypto.randomUUID()}-${slot}.${ext}`;
+}
 
 const supabase = createClient(
   process.env.SUPABASE_URL,
@@ -1017,7 +1100,13 @@ async function uploadSupplementalProof(req, userId, pokemon_id, tag) {
 // Current Terms of Service / Privacy Policy version. Bump when either changes
 // materially — every user whose stored tos_version_accepted is lower will be
 // re-prompted by ConsentGate on their next visit.
-const TOS_VERSION = 2;
+//
+// v3 (2026-09-04): Terms now choose Texas law and ask users to consent to
+// personal jurisdiction there, and add copyright/takedown terms. The Privacy
+// Policy corrects what is actually collected and discloses that proof images
+// sit on public storage. Consenting to a court's jurisdiction is exactly the
+// kind of term a user has to actually be shown, which is what this bump forces.
+const TOS_VERSION = 3;
 
 function shuffleArray(arr) {
   const out = [...arr];
@@ -1784,6 +1873,11 @@ const buildWatchOut = (subset, positionByPokemon, claimed) => {
 const FLABEBE_FORM_INDEX = { Red: 0, Yellow: 1, Orange: 2, Blue: 3, White: 4 };
 
 module.exports = {
+  assertRealImages,
+  isRealImage,
+  ALLOWED_UPLOAD_TYPES,
+  safeContentType,
+  proofObjectKey,
   getShinyPokemon,
   bustShinyPokemon,
   countShinyByGameSlug,

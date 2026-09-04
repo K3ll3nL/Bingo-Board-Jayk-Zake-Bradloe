@@ -1,4 +1,36 @@
+# pokeboard.net
+
 User-agent: *
+
+# Public pages — indexable.
 Allow: /
+
+# Personal pages. Profiles show a display name, avatar, and full catch history.
+# People signed up to play, not to be searchable, so these stay out of the index.
+# Delete this line if you decide profile discoverability is worth more.
+Disallow: /profile
+
+# Signed-in tooling. Nothing here renders for a crawler, and indexing it only
+# produces junk results that all show the logged-out state.
+Disallow: /upload
+Disallow: /approvals
+Disallow: /history
+
+# Moderator-only.
+Disallow: /board-builder
+Disallow: /badge-upload
+Disallow: /pokemon-game-manager
+Disallow: /feedback
+
+# OBS overlay endpoints. These URLs carry a personal API key in the query
+# string, so they must never be crawled, cached, or indexed.
+# Note the trailing slash: this does NOT block /overlays, the public page
+# explaining them.
+Disallow: /overlay/
+
+# Auth flow and per-room game URLs.
+Disallow: /login
+Disallow: /auth/
+Disallow: /games/jeopardy/
 
 Sitemap: https://pokeboard.net/sitemap.xml

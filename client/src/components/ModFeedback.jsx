@@ -23,7 +23,13 @@ const STATUS_COLORS = {
 const TYPE_COLORS = {
   suggestion: 'bg-purple-500 bg-opacity-20 text-purple-300',
   bug: 'bg-red-500 bg-opacity-20 text-red-300',
+  // Amber, and sorted to the top of the list below: these are copyright
+  // takedowns and data access/deletion requests, which carry a response
+  // deadline. They must not read as just another suggestion.
+  legal: 'bg-amber-500 bg-opacity-20 text-amber-300',
 };
+
+const TYPE_LABELS = { suggestion: 'Suggestion', bug: 'Bug', legal: 'Legal' };
 
 export default function ModFeedback() {
   const { isModerator } = useAuth();
@@ -85,6 +91,7 @@ export default function ModFeedback() {
     open: items.filter(i => i.status === 'open').length,
     suggestion: items.filter(i => i.type === 'suggestion').length,
     bug: items.filter(i => i.type === 'bug').length,
+    legal: items.filter(i => i.type === 'legal' && i.status === 'open').length,
   };
 
   if (isModerator === null || isModerator === undefined) return null;
@@ -92,8 +99,23 @@ export default function ModFeedback() {
   return (
     <div className="min-h-screen" style={{ isolation: 'isolate', position: 'relative' }}>
       <PageBackground />
-      <PageHeader title="Feedback" badge="mod" subtitle="Suggestions & bug reports from users" />
+      <PageHeader title="Feedback" badge="mod" subtitle="Suggestions, bug reports, and legal requests from users" />
       <div className="max-w-4xl mx-auto px-4 py-8">
+
+        {/* Open legal requests get their own callout. A takedown or a data
+            request has a response deadline attached, so it must not sit
+            unnoticed in a list of feature suggestions. */}
+        {counts.legal > 0 && (
+          <div className="mb-6 rounded-lg border border-amber-500/40 bg-amber-500/10 px-4 py-3">
+            <p className="text-amber-200 text-sm font-medium">
+              {counts.legal} open legal {counts.legal === 1 ? 'request' : 'requests'} — needs a response
+            </p>
+            <p className="text-amber-200/70 text-xs mt-1">
+              Copyright takedowns and data access/deletion requests. Our published policies commit to
+              responding within 30 days.
+            </p>
+          </div>
+        )}
 
         {/* Summary pills */}
         <div className="flex gap-3 mb-6 flex-wrap">
@@ -111,14 +133,14 @@ export default function ModFeedback() {
         {/* Filters */}
         <div className="flex gap-3 mb-6 flex-wrap">
           <div className="flex rounded-lg overflow-hidden border border-gray-600 text-sm">
-            {['all', 'suggestion', 'bug'].map(t => (
+            {['all', 'legal', 'suggestion', 'bug'].map(t => (
               <button
                 key={t}
                 onClick={() => setFilter(t)}
                 className={`px-3 py-1.5 transition-colors ${filter === t ? 'bg-purple-600 text-white' : 'text-gray-400 hover:text-gray-200'}`}
                 style={filter !== t ? { backgroundColor: '#35373b' } : {}}
               >
-                {t === 'all' ? 'All types' : t === 'suggestion' ? 'Suggestions' : 'Bugs'}
+                {t === 'all' ? 'All types' : t === 'legal' ? 'Legal' : t === 'suggestion' ? 'Suggestions' : 'Bugs'}
               </button>
             ))}
           </div>
@@ -163,7 +185,7 @@ export default function ModFeedback() {
                     onClick={() => setExpanded(isExpanded ? null : item.id)}
                   >
                     <span className={`shrink-0 mt-0.5 px-2 py-0.5 rounded text-xs font-medium ${TYPE_COLORS[item.type]}`}>
-                      {item.type === 'bug' ? 'Bug' : 'Suggestion'}
+                      {TYPE_LABELS[item.type] || 'Suggestion'}
                     </span>
                     <div className="flex-1 min-w-0">
                       <p className="text-white font-medium truncate">{item.title}</p>

@@ -199,8 +199,8 @@
 
 | Method | Path | Auth | Location | Notes |
 |---|---|---|---|---|
-| GET | `/api/mod/feedback` | auth | `api/_routes/feedback.js:39` |  |
-| PATCH | `/api/mod/feedback/:id/status` | auth | `api/_routes/feedback.js:60` |  |
+| GET | `/api/mod/feedback` | auth | `api/_routes/feedback.js:45` |  |
+| PATCH | `/api/mod/feedback/:id/status` | auth | `api/_routes/feedback.js:66` |  |
 
 ## /mod/jeopardy
 
@@ -308,31 +308,31 @@
 
 | Method | Path | Auth | Location | Notes |
 |---|---|---|---|---|
-| GET | `/api/upload/available-pokemon` | auth | `api/_routes/upload.js:20` | Get available Pokemon for upload (active months, not yet caught) |
+| GET | `/api/upload/available-pokemon` | auth | `api/_routes/upload.js:23` | Get available Pokemon for upload (active months, not yet caught) |
 
 ## /upload/available-pokemon-historical
 
 | Method | Path | Auth | Location | Notes |
 |---|---|---|---|---|
-| GET | `/api/upload/available-pokemon-historical` | auth | `api/_routes/upload.js:153` | Get available Pokemon for historical upload (past months only) Excludes: pokemon in the current month's pool, pokemon where user has a restricted entry, and pok |
+| GET | `/api/upload/available-pokemon-historical` | auth | `api/_routes/upload.js:156` | Get available Pokemon for historical upload (past months only) Excludes: pokemon in the current month's pool, pokemon where user has a restricted entry, and pok |
 
 ## /upload/available-pokemon-restricted
 
 | Method | Path | Auth | Location | Notes |
 |---|---|---|---|---|
-| GET | `/api/upload/available-pokemon-restricted` | auth | `api/_routes/upload.js:89` | Get available Pokemon for restricted upload (active month pool, excluding already restricted-submitted) |
+| GET | `/api/upload/available-pokemon-restricted` | auth | `api/_routes/upload.js:92` | Get available Pokemon for restricted upload (active month pool, excluding already restricted-submitted) |
 
 ## /upload/historical-submission
 
 | Method | Path | Auth | Location | Notes |
 |---|---|---|---|---|
-| POST | `/api/upload/historical-submission` | auth | `api/_routes/upload.js:489` | Historical submission — queues a past-month catch for mod review. No points are awarded on approval; board state is not affected. |
+| POST | `/api/upload/historical-submission` | auth | `api/_routes/upload.js:497` | Historical submission — queues a past-month catch for mod review. No points are awarded on approval; board state is not affected. |
 
 ## /upload/submission
 
 | Method | Path | Auth | Location | Notes |
 |---|---|---|---|---|
-| POST | `/api/upload/submission` | auth | `api/_routes/upload.js:252` |  |
+| POST | `/api/upload/submission` | auth | `api/_routes/upload.js:255` |  |
 
 ## /user/accept-tos
 
@@ -398,78 +398,82 @@
 
 | Function | Location | Notes |
 |---|---|---|
-| `_sandwichIngredients` | `api/_lib/core.js:1557` |  |
-| `_SW` | `api/_lib/core.js:1566` | ── Core mechanics (mirrors sandwichSearch.worker.js) ────────────────────── |
-| `awardBadgesForTrigger` | `api/_lib/core.js:237` | Award any badges the user is newly eligible for given a trigger event. Fire-and-forget safe — never throws to the caller.  How it works:   1. Fetch ALL badges f |
+| `_sandwichIngredients` | `api/_lib/core.js:1646` |  |
+| `_SW` | `api/_lib/core.js:1655` | ── Core mechanics (mirrors sandwichSearch.worker.js) ────────────────────── |
+| `assertRealImages` | `api/_lib/core.js:86` | Throws a 400-shaped error if any supplied file is not genuinely an image. Call at the top of an upload handler, before anything is written to R2. |
+| `awardBadgesForTrigger` | `api/_lib/core.js:320` | Award any badges the user is newly eligible for given a trigger event. Fire-and-forget safe — never throws to the caller.  How it works:   1. Fetch ALL badges f |
 | `bestWeekByUser` | `api/_routes/stats.js:154` |  |
 | `broadcastLeaderboardIfQueueEmpty` | `api/_routes/approvals.js:29` | Coalesce leaderboard refreshes across a batch of approvals. A mod clearing a queue of 10 used to fire 10 `leaderboard-changed` broadcasts → 10 client refetch wa |
-| `broadcastNotificationToasts` | `api/_lib/core.js:168` | Fetch, enrich, and broadcast fresh unnotified notifications to a user's toast feed. Also fires to 'award-announcements' if any notification is an award (for oth |
-| `broadcastSSE` | `api/_lib/core.js:502` |  |
-| `broadcastUpdate` | `api/_lib/core.js:147` | Supabase Realtime Broadcast helper — fire-and-forget, no WebSocket needed |
+| `broadcastNotificationToasts` | `api/_lib/core.js:251` | Fetch, enrich, and broadcast fresh unnotified notifications to a user's toast feed. Also fires to 'award-announcements' if any notification is an award (for oth |
+| `broadcastSSE` | `api/_lib/core.js:585` |  |
+| `broadcastUpdate` | `api/_lib/core.js:230` | Supabase Realtime Broadcast helper — fire-and-forget, no WebSocket needed |
 | `buildCheckFromDB` | `api/_badgeRegistry.js:590` | ── DB-driven check evaluator ───────────────────────────────────────────────── Used by awardBadgesForTrigger to evaluate badges created via the admin form (whic |
 | `buildConsensus` | `api/_routes/tierList.js:74` | Per-mon plurality across every submission in one mode. Deliberately unchanged from the pre-mode behaviour (all rows, complete or not, first-wins on ties) — unif |
 | `buildMostDisputed` | `api/_routes/stats.js:180` | Most Disputed: the pool mon with the lowest modal-tier percentage. Only complete tier lists count toward modalByMon, so every mon there has the same total_votes |
 | `buildTierUpsets` | `api/_routes/stats.js:95` |  |
 | `buildUniqueCatch` | `api/_routes/stats.js:187` |  |
 | `buildViewerTierFields` | `api/_routes/stats.js:232` | tier_list.viewer_* fields are per-viewer and must never be cached for everyone — a cache hit recomputes just these from one targeted per-user query instead of t |
-| `buildWatchOut` | `api/_lib/core.js:1741` | Types are claimed once per month by the first player to complete them, so a claimed type is out of reach for everyone else and drops off the panel. |
-| `bulkAwardBadge` | `api/_lib/core.js:344` | ── Bulk badge award helper ─────────────────────────────────────────────────── Awards a single badge to multiple users at once, skipping already-earned ones. Re |
-| `bustShinyPokemon` | `api/_lib/core.js:884` | Called by the Game Manager's PATCH handler after a successful write. |
+| `buildWatchOut` | `api/_lib/core.js:1830` | Types are claimed once per month by the first player to complete them, so a claimed type is out of reach for everyone else and drops off the panel. |
+| `bulkAwardBadge` | `api/_lib/core.js:427` | ── Bulk badge award helper ─────────────────────────────────────────────────── Awards a single badge to multiple users at once, skipping already-earned ones. Re |
+| `bustShinyPokemon` | `api/_lib/core.js:967` | Called by the Game Manager's PATCH handler after a successful write. |
 | `cacheMonthStats` | `api/_routes/stats.js:291` | Exported so the period-end cron (internal.js) can precompute a just-closed month's stats immediately, off the request path entirely. |
-| `calculateCategoryThresholds` | `api/_lib/core.js:1166` |  |
+| `calculateCategoryThresholds` | `api/_lib/core.js:1255` |  |
 | `canEditBoard` | `api/_routes/jeopardy.js:47` | Tile edits (reroll/swap/lock/shuffle) are scoped to the lobby, not global moderator status — a moderator who never joined this lobby can't edit it. The host alw |
 | `claimKey` | `api/_routes/stats.js:23` | ── "Watch out!" shapes ────────────────────────────────────────────────────── Board positions are 1..25 with a free space at 13 (24 pool mons + centre) — mirror |
-| `computeBadgeRarity` | `api/_lib/core.js:1698` | Compute what percent of users have earned each badge. Returns { percentByBadge: { [badge_id]: number\|null }, totalUsers }. percent is rounded (0 decimals >= 1% |
+| `computeBadgeRarity` | `api/_lib/core.js:1787` | Compute what percent of users have earned each badge. Returns { percentByBadge: { [badge_id]: number\|null }, totalUsers }. percent is rounded (0 decimals >= 1% |
 | `computeWinner` | `api/_routes/jeopardy.js:63` |  |
-| `countShinyByGameSlug` | `api/_lib/core.js:891` | Count rows whose `column` (game_slugs or restricted_game_slugs) contains `slug`. Replaces a per-game `count: 'exact', head: true` query -- there are 22 slugs an |
-| `deleteR2Images` | `api/_lib/core.js:379` | ── R2 image deletion helper (fire-and-forget safe) ────────────────────────── Deletes one or more R2-hosted proof images. Never throws to the caller. |
+| `countShinyByGameSlug` | `api/_lib/core.js:974` | Count rows whose `column` (game_slugs or restricted_game_slugs) contains `slug`. Replaces a per-game `count: 'exact', head: true` query -- there are 22 slugs an |
+| `deleteR2Images` | `api/_lib/core.js:462` | ── R2 image deletion helper (fire-and-forget safe) ────────────────────────── Deletes one or more R2-hosted proof images. Never throws to the caller. |
 | `depersonalize` | `api/_routes/stats.js:251` | Strip the per-viewer tier_list fields so a payload is safe to SHARE. Both caches below need this: leaking one viewer's viewer_submitted/viewer_ranked to everyon |
 | `enrichMembers` | `api/_routes/jeopardy.js:33` |  |
-| `enrichUsersWithTwitchPfp` | `api/_lib/core.js:1512` |  |
-| `enrichWithBadgeSlots` | `api/_lib/core.js:702` | Batch-fetches badge slots 1–3 for a list of users and attaches them as badge_slots[] |
+| `enrichUsersWithTwitchPfp` | `api/_lib/core.js:1601` |  |
+| `enrichWithBadgeSlots` | `api/_lib/core.js:785` | Batch-fetches badge slots 1–3 for a list of users and attaches them as badge_slots[] |
 | `fetchPoolIds` | `api/_routes/stats.js:224` | ── Closed-month stats cache ──────────────────────────────────────────────── A closed month's entries are immutable (nothing edits/deletes an approved entries r |
-| `fetchTierSubmissions` | `api/_lib/core.js:934` | Single read path for tier list rows. Always returns rows normalised to the post-migration shape (`mode` defaulted to 'standard') so callers never branch on the  |
+| `fetchTierSubmissions` | `api/_lib/core.js:1017` | Single read path for tier list rows. Always returns rows normalised to the post-migration shape (`mode` defaulted to 'standard') so callers never branch on the  |
 | `fetchTwitchLiveMap` | `api/_routes/leaderboard.js:22` | Query Twitch Helix for who is currently live among `usernames` (lowercased twitch logins). Returns { login: true } for live streamers. Never throws — a Twitch o |
 | `finalizeLobby` | `api/_routes/jeopardy.js:81` | Shared teardown for "a lobby is done" — used by manual end/discard, timer expiry, and stale-lobby cleanup. Only writes a jeopardy_history row when the game actu |
-| `flattenTierBuckets` | `api/_lib/core.js:920` | `tiers` is stored as buckets — { tier_code: [pokemon_id, ...] } — so within-tier order survives (arrays preserve position; a { id: tier } map can't, since JS/JS |
+| `flattenTierBuckets` | `api/_lib/core.js:1003` | `tiers` is stored as buckets — { tier_code: [pokemon_id, ...] } — so within-tier order survives (arrays preserve position; a { id: tier } map can't, since JS/JS |
 | `generateBoardCode` | `api/_routes/jeopardy.js:26` |  |
-| `generateJeopardyPool` | `api/_lib/core.js:1464` |  |
-| `generateNewPoolForMonth` | `api/_lib/core.js:1201` | Helper: Generate a completely new pool for a month (deletes old, generates new) |
-| `getActiveMonth` | `api/_lib/core.js:582` | Helper function to get active month ID based on current date (with optional time offset for moderators) Returns the full active month record { id, month_year_di |
-| `getActiveMonthId` | `api/_lib/core.js:644` | Convenience wrapper for callers that only need the month ID |
-| `getAuthenticatedUserId` | `api/_lib/core.js:557` | Helper function to get authenticated user ID |
-| `getDexTotals` | `api/_lib/core.js:785` |  |
-| `getShinyPokemon` | `api/_lib/core.js:858` | Returns every shiny_available row, FROZEN. Callers filter and map freely (both are non-mutating), but must never write to a row -- these objects are shared by e |
-| `getTierListSchema` | `api/_lib/core.js:899` |  |
-| `getTwitchToken` | `api/_lib/core.js:651` | Fetch (or return cached) Twitch client-credentials access token. The token is valid ~60 days; we cache it until 1 hour before expiry. |
-| `getUserStats` | `api/_lib/core.js:763` | ── tier_list_submissions access ───────────────────────────────────────────── `mode` is added by migration 20260802180000, which the deployer applies by hand, s |
-| `hydrateJeopardyClaims` | `api/_lib/core.js:1535` |  |
-| `hydrateJeopardyTiles` | `api/_lib/core.js:1496` |  |
+| `generateJeopardyPool` | `api/_lib/core.js:1553` |  |
+| `generateNewPoolForMonth` | `api/_lib/core.js:1290` | Helper: Generate a completely new pool for a month (deletes old, generates new) |
+| `getActiveMonth` | `api/_lib/core.js:665` | Helper function to get active month ID based on current date (with optional time offset for moderators) Returns the full active month record { id, month_year_di |
+| `getActiveMonthId` | `api/_lib/core.js:727` | Convenience wrapper for callers that only need the month ID |
+| `getAuthenticatedUserId` | `api/_lib/core.js:640` | Helper function to get authenticated user ID |
+| `getDexTotals` | `api/_lib/core.js:868` |  |
+| `getShinyPokemon` | `api/_lib/core.js:941` | Returns every shiny_available row, FROZEN. Callers filter and map freely (both are non-mutating), but must never write to a row -- these objects are shared by e |
+| `getTierListSchema` | `api/_lib/core.js:982` |  |
+| `getTwitchToken` | `api/_lib/core.js:734` | Fetch (or return cached) Twitch client-credentials access token. The token is valid ~60 days; we cache it until 1 hour before expiry. |
+| `getUserStats` | `api/_lib/core.js:846` | ── tier_list_submissions access ───────────────────────────────────────────── `mode` is added by migration 20260802180000, which the deployer applies by hand, s |
+| `hydrateJeopardyClaims` | `api/_lib/core.js:1624` |  |
+| `hydrateJeopardyTiles` | `api/_lib/core.js:1585` |  |
 | `isCompleteTierList` | `api/_routes/stats.js:71` | A tier list only counts once every mon on the board is ranked. A partial list is a half-formed opinion — letting one through would skew the modal tier and the c |
-| `isCompleteTiers` | `api/_lib/core.js:957` |  |
-| `isModerator` | `api/_lib/core.js:691` | Whether a user is a moderator, cached for MODERATOR_CACHE_TTL. Replaces the inline `select from moderators where id = userId` check duplicated across route modu |
+| `isCompleteTiers` | `api/_lib/core.js:1040` |  |
+| `isModerator` | `api/_lib/core.js:774` | Whether a user is a moderator, cached for MODERATOR_CACHE_TTL. Replaces the inline `select from moderators where id = userId` check duplicated across route modu |
+| `isRealImage` | `api/_lib/core.js:79` |  |
 | `loadPool` | `api/_routes/tierList.js:36` | Pool ids for a month, plus the display records the client needs for PokemonImage. POKEMON_IMAGE_FIELDS is mandatory here — without the gender/form columns gende |
 | `modalTierByMon` | `api/_routes/stats.js:77` |  |
-| `nowForMonth` | `api/_lib/core.js:107` |  |
+| `nowForMonth` | `api/_lib/core.js:190` |  |
 | `parseMode` | `api/_routes/tierList.js:28` |  |
-| `pickRandomPokemonForPosition` | `api/_lib/core.js:1032` | Helper: Pick a random eligible pokemon for a given position during reroll |
-| `pokeR2Url` | `api/_lib/core.js:41` |  |
-| `processMonthEnd` | `api/_lib/core.js:410` | ── Period-end processors ───────────────────────────────────────────────────── |
-| `processSeasonEnd` | `api/_lib/core.js:435` |  |
-| `processYearEnd` | `api/_lib/core.js:458` |  |
+| `pickRandomPokemonForPosition` | `api/_lib/core.js:1121` | Helper: Pick a random eligible pokemon for a given position during reroll |
+| `pokeR2Url` | `api/_lib/core.js:124` |  |
+| `processMonthEnd` | `api/_lib/core.js:493` | ── Period-end processors ───────────────────────────────────────────────────── |
+| `processSeasonEnd` | `api/_lib/core.js:518` |  |
+| `processYearEnd` | `api/_lib/core.js:541` |  |
 | `progressFor` | `api/_routes/tierList.js:87` |  |
-| `rankedIdsIn` | `api/_lib/core.js:956` | A tier list counts only once every mon on the board carries a tier. |
+| `proofObjectKey` | `api/_lib/core.js:109` | Build the R2 object key for a proof image.  The old shape was `approval/<userId>-<pokemonId>-<ts>-<slot>-<originalname>`, which put two things into a PUBLIC, un |
+| `rankedIdsIn` | `api/_lib/core.js:1039` | A tier list counts only once every mon on the board carries a tier. |
 | `rarity` | `api/_routes/stats.js:129` | Rarity tallies for "Most Unique Catch", scoped to whichever entries subset is being summarised. Deliberately NOT month-wide: in Restricted mode every other pane |
 | `readLiveStats` | `api/_routes/stats.js:283` |  |
-| `refreshAvatarFromProvider` | `api/_lib/core.js:531` | Looks up the user's linked OAuth identities, finds the best available avatar_url (prefers Discord, then Twitch, then Google), updates the users table, and retur |
+| `refreshAvatarFromProvider` | `api/_lib/core.js:614` | Looks up the user's linked OAuth identities, finds the best available avatar_url (prefers Discord, then Twitch, then Google), updates the users table, and retur |
 | `resolveGame` | `api/_routes/stats.js:32` |  |
-| `resolveStatsMonth` | `api/_lib/core.js:727` | Resolve the month for these features: an explicit ?month_id, or the active month. |
+| `resolveStatsMonth` | `api/_lib/core.js:810` | Resolve the month for these features: an explicit ?month_id, or the active month. |
 | `rowValue` | `api/_routes/jeopardy.js:59` | Mirrors client claimPoints()/rowValue() (JeopardyRoom.jsx) so the history row's winner/points agree with what players saw on the standings panel. |
+| `safeContentType` | `api/_lib/core.js:57` | Content-Type to store, derived from our allowlist rather than trusted from the client. Falls back to a type browsers will never execute. |
 | `selectAllRows` | `api/_routes/stats.js:42` |  |
-| `sendSSEToUser` | `api/_lib/core.js:488` |  |
-| `shuffleArray` | `api/_lib/core.js:1022` |  |
-| `uploadBufferToR2` | `api/_lib/core.js:974` | Upload a single multer file buffer to R2 and return its public URL. |
-| `uploadSupplementalProof` | `api/_lib/core.js:992` | Uploads the optional evolution + extra proof files shared by both submission endpoints. Returns { proofUrl3, proofUrl4, extraImageUrls }. Throws on R2 error. |
+| `sendSSEToUser` | `api/_lib/core.js:571` |  |
+| `shuffleArray` | `api/_lib/core.js:1111` |  |
+| `uploadBufferToR2` | `api/_lib/core.js:1057` | Upload a single multer file buffer to R2 and return its public URL. |
+| `uploadSupplementalProof` | `api/_lib/core.js:1075` | Uploads the optional evolution + extra proof files shared by both submission endpoints. Returns { proofUrl3, proofUrl4, extraImageUrls }. Throws on R2 error. |
 | `upsertCountdownBanner` | `api/_routes/internal.js:26` | Writes/refreshes the "month is ending" banner as a normal `banners` row, so it gets the same bar and dismiss button as every mod-authored banner for free. Idemp |
-| `validateApiKey` | `api/_lib/core.js:672` | Validate an API key (pb_xxx) and return its owner's user_id, or null if invalid. Updates last_used_at fire-and-forget. Result cached for 60s. |
+| `validateApiKey` | `api/_lib/core.js:755` | Validate an API key (pb_xxx) and return its owner's user_id, or null if invalid. Updates last_used_at fire-and-forget. Result cached for 60s. |
 | `wasKicked` | `api/_routes/jeopardy.js:107` | A kicked user is permanently shut out of that specific lobby — hidden from the list, blocked from direct-code access, blocked from rejoining — even if it's publ |

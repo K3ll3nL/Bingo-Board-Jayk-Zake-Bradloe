@@ -81,6 +81,12 @@ app.use((err, req, res, next) => {
     }
     return res.status(400).json({ error: `Upload error: ${err.message}` });
   }
+  // The upload allowlist in _lib/core.js rejects non-image files with a plain
+  // Error, not a MulterError, so it needs its own branch — without this it fell
+  // through to Express's default handler and surfaced as an HTML 500.
+  if (err && err.code === 'UNSUPPORTED_FILE_TYPE') {
+    return res.status(400).json({ error: err.message, unsupportedFileType: true });
+  }
   next(err);
 });
 

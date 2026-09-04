@@ -88,12 +88,60 @@ const BadgeRow = ({ badge: b }) => (
   </div>
 );
 
+// Panel chrome, shared by the real ladder and the pre-auth placeholder so the
+// two are pixel-identical and nothing shifts when one replaces the other.
+const LadderShell = ({ children }) => (
+  <Panel className="p-4 flex flex-col gap-3">
+    <div className="flex items-baseline justify-between gap-3 min-w-0">
+      <Eyebrow>Upcoming Badges</Eyebrow>
+      <Link to="/profile?tab=badges" className="text-[10px] font-bold uppercase tracking-[0.1em] shrink-0 transition-colors hover:opacity-80"
+            style={{ color: ACCENT.base }}>Case</Link>
+    </div>
+    {/* Constant height whether it holds four badges, one, or none. */}
+    <div className="flex flex-col gap-3" style={{ minHeight: LADDER_MIN_H }}>
+      {children}
+    </div>
+  </Panel>
+);
+
+const LadderSkeleton = () => (
+  <div className="flex flex-col gap-3 animate-pulse">
+    {Array.from({ length: LADDER_SLOTS }).map((_, i) => (
+      <div key={i} className="flex items-center gap-3" style={{ height: ROW_H }}>
+        <div className="w-10 h-10 rounded-lg bg-white/5 shrink-0" />
+        <div className="flex-1 flex flex-col gap-1.5">
+          <div className="h-3 w-28 rounded bg-white/5" />
+          <div className="h-1 w-full rounded-full bg-white/5" />
+        </div>
+      </div>
+    ))}
+  </div>
+);
+
+// Supabase restores the session from localStorage asynchronously, so on first
+// paint `user` is null even for a signed-in visitor. Reading the stored token
+// synchronously tells us which way that is about to resolve, which is what lets
+// this panel reserve its space immediately instead of popping in afterwards.
+// Only ever used to decide whether to render a skeleton — never as auth.
+const hasStoredSession = () => {
+  try {
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (k && k.startsWith('sb-') && k.endsWith('-auth-token')) return true;
+    }
+  } catch { /* private mode / blocked storage: fall through to "no" */ }
+  return false;
+};
+
 const BadgeLadder = () => {
   const { user, leaderboardVersion, loading: authLoading } = useAuth();
   const [state, setState] = useState({ loading: true, badges: [] });
 
   useEffect(() => {
-    if (authLoading || !user) { setState({ loading: false, badges: [] }); return; }
+    // While auth is still resolving, STAY loading — clearing it here is what made
+    // the panel render its empty state for a frame before the real fetch began.
+    if (authLoading) { setState(s => ({ ...s, loading: true })); return; }
+    if (!user) { setState({ loading: false, badges: [] }); return; }
     let cancelled = false;
     setState(s => ({ ...s, loading: true }));
     api.getBadgeProgress(LADDER_SLOTS)
@@ -102,47 +150,34 @@ const BadgeLadder = () => {
     return () => { cancelled = true; };
   }, [user, authLoading, leaderboardVersion]);
 
+  // Returning null here while auth was still loading is what caused the flash:
+  // the panel was absent from the layout on first paint, then appeared and
+  // shoved the rest of the rail down. Hold the space instead — but only for a
+  // visitor who actually has a stored session, so a logged-out visitor does not
+  // get a skeleton that then vanishes.
+  if (authLoading) return hasStoredSession() ? <LadderShell><LadderSkeleton /></LadderShell> : null;
   if (!user) return null;
 
   const badges = state.badges.slice(0, LADDER_SLOTS);
   const blanks = Math.max(0, LADDER_SLOTS - badges.length);
 
   return (
-    <Panel className="p-4 flex flex-col gap-3">
-      <div className="flex items-baseline justify-between gap-3 min-w-0">
-        <Eyebrow>Upcoming Badges</Eyebrow>
-        <Link to="/profile?tab=badges" className="text-[10px] font-bold uppercase tracking-[0.1em] shrink-0 transition-colors hover:opacity-80"
-              style={{ color: ACCENT.base }}>Case</Link>
-      </div>
-
-      {/* Constant height whether it holds four badges, one, or none. */}
-      <div className="flex flex-col gap-3" style={{ minHeight: LADDER_MIN_H }}>
-        {state.loading ? (
-          <div className="flex flex-col gap-3 animate-pulse">
-            {Array.from({ length: LADDER_SLOTS }).map((_, i) => (
-              <div key={i} className="flex items-center gap-3" style={{ height: ROW_H }}>
-                <div className="w-10 h-10 rounded-lg bg-white/5 shrink-0" />
-                <div className="flex-1 flex flex-col gap-1.5">
-                  <div className="h-3 w-28 rounded bg-white/5" />
-                  <div className="h-1 w-full rounded-full bg-white/5" />
-                </div>
-              </div>
-            ))}
-          </div>
-        ) : badges.length === 0 ? (
-          <div className="flex-1 flex items-center justify-center text-center">
-            <p className="text-xs" style={{ color: TEXT.muted }}>Start hunting to earn badges!</p>
-          </div>
-        ) : (
-          <>
-            {badges.map(b => <BadgeRow key={b.id} badge={b} />)}
-            {Array.from({ length: blanks }).map((_, i) => (
-              <div key={`blank-${i}`} style={{ height: ROW_H }} aria-hidden="true" />
-            ))}
-          </>
-        )}
-      </div>
-    </Panel>
+    <LadderShell>
+      {state.loading ? (
+        <LadderSkeleton />
+      ) : badges.length === 0 ? (
+        <div className="flex-1 flex items-center justify-center text-center">
+          <p className="text-xs" style={{ color: TEXT.muted }}>Start hunting to earn badges!</p>
+        </div>
+      ) : (
+        <>
+          {badges.map(b => <BadgeRow key={b.id} badge={b} />)}
+          {Array.from({ length: blanks }).map((_, i) => (
+            <div key={`blank-${i}`} style={{ height: ROW_H }} aria-hidden="true" />
+          ))}
+        </>
+      )}
+    </LadderShell>
   );
 };
 

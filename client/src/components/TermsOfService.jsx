@@ -23,7 +23,7 @@ export default function TermsOfService() {
       <PageHeader title="Terms of Service" />
       <div className="text-center">
         <h1 className="text-2xl font-bold text-white mb-1">Terms of Service</h1>
-        <p className="text-xs text-gray-500">Last updated: July 20, 2026</p>
+        <p className="text-xs text-gray-500">Last updated: September 4, 2026</p>
       </div>
 
       <Section title="Acceptance of Terms">
@@ -104,6 +104,34 @@ export default function TermsOfService() {
         </p>
       </Section>
 
+      <Section title="Copyright and Takedown Requests">
+        <p>
+          We host images uploaded by our users. If you own the copyright in something posted here, or are
+          authorised to act for the owner, you can ask us to remove it and we will act promptly.
+        </p>
+        <p>
+          Send your request through the Suggestions &amp; Bugs form in the site menu, choosing the
+          "Copyright / takedown" type, and include:
+        </p>
+        <ul className="list-disc list-inside space-y-1.5">
+          <li>The web address of the specific material you want removed.</li>
+          <li>A description of the work you say it infringes.</li>
+          <li>Your name and contact details, and the rights holder you represent.</li>
+          <li>
+            A statement that you believe in good faith the use is not authorised by the rights holder or the
+            law, and that the information you have given is accurate.
+          </li>
+        </ul>
+        <p>
+          We will remove or disable access to material that is the subject of a valid request, and we will
+          terminate the accounts of users who repeatedly infringe.
+        </p>
+        <p>
+          If you believe your content was removed in error, you can reply through the same form and we will
+          review the decision.
+        </p>
+      </Section>
+
       <Section title="Prohibited Conduct">
         <p>You agree not to:</p>
         <ul className="list-disc list-inside space-y-1.5">
@@ -153,8 +181,17 @@ export default function TermsOfService() {
 
       <Section title="Governing Law">
         <p>
-          These terms are governed by the laws of the United States. Any disputes arising from these terms
-          or your use of the Site shall be resolved in the applicable courts of the United States.
+          These terms are governed by the laws of the State of Texas, United States, without regard to its
+          conflict of law rules.
+        </p>
+        <p>
+          Any dispute arising from these terms or your use of the Site shall be brought in the state or
+          federal courts located in Texas, and you consent to the personal jurisdiction of those courts.
+        </p>
+        <p>
+          If you are a consumer resident in the European Union or the United Kingdom, nothing here removes
+          the protection of the mandatory consumer laws of your country of residence, or your right to bring
+          proceedings there.
         </p>
       </Section>
 

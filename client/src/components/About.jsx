@@ -127,35 +127,6 @@ const ExceptionCard = ({ game, open, onToggle, divider, children }) => (
 /* ── Exceptions subsection for "Rules for Submission" ─────────────────── */
 const EXCEPTIONS = [
   {
-    key: 'sv',
-    game: 'Pokémon Scarlet / Violet',
-    content: (openLightbox) => {
-      const svImages = [
-        'https://pub-583ae6cd5f8b4b58b0ee7053ea1d4b0b.r2.dev/assets/correct_img1_sv.png',
-        'https://pub-583ae6cd5f8b4b58b0ee7053ea1d4b0b.r2.dev/assets/correct_img2_sv.png',
-      ];
-      return (
-        <>
-          <p className="mb-3">
-            We require a different first image. Instead of the usual image of the encounter, we need
-            the <span className="text-white font-medium">first page of the summary</span> that contains
-            the TID/username as well as the shiny indicator and model.
-          </p>
-          <div className="flex gap-3">
-            <figure className="flex-1 rounded-lg overflow-hidden cursor-zoom-in" style={{ background: 'linear-gradient(160deg, #13151a 0%, #181a21 100%)' }} onClick={() => openLightbox(svImages, 0)}>
-              <img src={svImages[0]} alt="Summary screen" className="w-full object-contain" loading="lazy" />
-              <figcaption className="text-center text-gray-500 text-[9px] py-2 px-3">Correct image 1 for SV</figcaption>
-            </figure>
-            <figure className="flex-1 rounded-lg overflow-hidden cursor-zoom-in" style={{ background: 'linear-gradient(160deg, #13151a 0%, #181a21 100%)' }} onClick={() => openLightbox(svImages, 1)}>
-              <img src={svImages[1]} alt="Summary screen" className="w-full object-contain" loading="lazy" />
-              <figcaption className="text-center text-gray-500 text-[9px] py-2 px-3">Correct image 2 for SV</figcaption>
-            </figure>
-          </div>
-        </>
-      );
-    },
-  },
-  {
     key: 'lgpe',
     game: "Let's Go Pikachu / Eevee",
     content: () => <>Your Trainer ID and the date appear on the same screen, so this game asks for two screenshots instead of three: an Overworld Screenshot and a single TID/Date Proof.</>,

@@ -16,17 +16,23 @@ module.exports = function register(app) {
       if (!userId) return res.status(401).json({ error: 'Unauthorized' });
 
       const { type, title, description } = req.body;
-      if (!['suggestion', 'bug'].includes(type)) return res.status(400).json({ error: 'Invalid type' });
+      // 'legal' is the route the Terms and Privacy Policy both point at (copyright
+      // takedowns, and GDPR access/deletion requests). Those documents promise it
+      // exists, so it must stay accepted here.
+      if (!['suggestion', 'bug', 'legal'].includes(type)) return res.status(400).json({ error: 'Invalid type' });
       if (!title?.trim() || !description?.trim()) return res.status(400).json({ error: 'Title and description are required' });
       if (title.length > 120) return res.status(400).json({ error: 'Title too long' });
       if (description.length > 2000) return res.status(400).json({ error: 'Description too long' });
 
-      const { error } = await supabase.from('feedback').insert({
+      const row = {
         user_id: userId,
         type,
         title: title.trim(),
         description: description.trim(),
-      });
+      };
+      // 'legal' carries copyright takedowns and GDPR access/deletion requests, so
+      // feedback_type_check must keep allowing it (migration 20260904210000).
+      const { error } = await supabase.from('feedback').insert(row);
       if (error) throw error;
 
       res.json({ success: true });

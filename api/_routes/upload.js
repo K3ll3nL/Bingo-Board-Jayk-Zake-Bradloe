@@ -3,11 +3,14 @@
  * Registered from api/index.js — see api/API_INDEX.md for the full route map.
  */
 const {
+  assertRealImages,
   awardBadgesForTrigger,
   broadcastUpdate,
   getActiveMonthId,
   getAuthenticatedUserId,
   nowForMonth,
+  proofObjectKey,
+  safeContentType,
   supabase,
   upload,
   uploadRateLimit,
@@ -272,6 +275,11 @@ module.exports = function register(app) {
       // proofFieldsFor() in client/src/constants/games.js — the client enforces
       // the exact per-game count, the server accepts 2 or 3.
       const file3 = req.files?.file3?.[0];
+
+      // Content check, not just the client-declared mimetype multer filtered on.
+      // Runs before anything reaches the public bucket.
+      try { assertRealImages([file, file2, file3]); }
+      catch (e) { return res.status(400).json({ error: e.message, unsupportedFileType: true }); }
       // link may arrive as a single string or a string[] when multiple are submitted
       const rawLink = req.body.link;
       const proofLinks = Array.isArray(rawLink)
@@ -383,7 +391,7 @@ module.exports = function register(app) {
           });
           
           // Upload first file (Proof of Shiny)
-          const fileName1 = `approval/${userId}-${pokemon_id}-${Date.now()}-shiny-${file.originalname}`;
+          const fileName1 = proofObjectKey(file, 'shiny');
           
           console.log('Uploading file 1 to R2:', fileName1);
           
@@ -391,14 +399,14 @@ module.exports = function register(app) {
             Bucket: R2_BUCKET_NAME,
             Key: fileName1,
             Body: file.buffer,
-            ContentType: file.mimetype,
+            ContentType: safeContentType(file),
           }));
           
           proofUrl = `${R2_BUCKET_URL}/${fileName1}`;
           console.log('Upload 1 successful:', proofUrl);
           
           // Upload second file (Proof of Date)
-          const fileName2 = `approval/${userId}-${pokemon_id}-${Date.now()}-date-${file2.originalname}`;
+          const fileName2 = proofObjectKey(file2, 'date');
           
           console.log('Uploading file 2 to R2:', fileName2);
           
@@ -406,19 +414,19 @@ module.exports = function register(app) {
             Bucket: R2_BUCKET_NAME,
             Key: fileName2,
             Body: file2.buffer,
-            ContentType: file2.mimetype,
+            ContentType: safeContentType(file2),
           }));
           
           proofUrl2 = `${R2_BUCKET_URL}/${fileName2}`;
           console.log('Upload 2 successful:', proofUrl2);
 
           if (file3) {
-            const fileName3 = `approval/${userId}-${pokemon_id}-${Date.now()}-p3-${file3.originalname}`;
+            const fileName3 = proofObjectKey(file3, 'p3');
             await s3Client.send(new PutObjectCommand({
               Bucket: R2_BUCKET_NAME,
               Key: fileName3,
               Body: file3.buffer,
-              ContentType: file3.mimetype,
+              ContentType: safeContentType(file3),
             }));
             proofUrlMain3 = `${R2_BUCKET_URL}/${fileName3}`;
             console.log('Upload 3 successful:', proofUrlMain3);
@@ -500,6 +508,11 @@ module.exports = function register(app) {
       const file       = req.files?.file?.[0];
       const file2      = req.files?.file2?.[0];
       const file3      = req.files?.file3?.[0];
+
+      // Content check, not just the client-declared mimetype multer filtered on.
+      // Runs before anything reaches the public bucket.
+      try { assertRealImages([file, file2, file3]); }
+      catch (e) { return res.status(400).json({ error: e.message, unsupportedFileType: true }); }
       const rawLink    = req.body.link;
       const proofLinks = Array.isArray(rawLink)
         ? rawLink.map(u => u?.trim()).filter(Boolean)
@@ -566,15 +579,15 @@ module.exports = function register(app) {
             credentials: { accessKeyId: process.env.R2_ACCESS_KEY_ID, secretAccessKey: process.env.R2_SECRET_ACCESS_KEY },
           });
           const ts = Date.now();
-          const key1 = `approval/${userId}-${pokemon_id}-${ts}-hist-shiny-${file.originalname}`;
-          const key2 = `approval/${userId}-${pokemon_id}-${ts}-hist-date-${file2.originalname}`;
-          await s3Client.send(new PutObjectCommand({ Bucket: process.env.R2_BUCKET_NAME || 'shiny-sprites', Key: key1, Body: file.buffer, ContentType: file.mimetype }));
+          const key1 = proofObjectKey(file, 'hist-shiny');
+          const key2 = proofObjectKey(file2, 'hist-date');
+          await s3Client.send(new PutObjectCommand({ Bucket: process.env.R2_BUCKET_NAME || 'shiny-sprites', Key: key1, Body: file.buffer, ContentType: safeContentType(file) }));
           proofUrl = `${process.env.R2_BUCKET_URL}/${key1}`;
-          await s3Client.send(new PutObjectCommand({ Bucket: process.env.R2_BUCKET_NAME || 'shiny-sprites', Key: key2, Body: file2.buffer, ContentType: file2.mimetype }));
+          await s3Client.send(new PutObjectCommand({ Bucket: process.env.R2_BUCKET_NAME || 'shiny-sprites', Key: key2, Body: file2.buffer, ContentType: safeContentType(file2) }));
           proofUrl2 = `${process.env.R2_BUCKET_URL}/${key2}`;
           if (file3) {
-            const key3 = `approval/${userId}-${pokemon_id}-${ts}-hist-p3-${file3.originalname}`;
-            await s3Client.send(new PutObjectCommand({ Bucket: process.env.R2_BUCKET_NAME || 'shiny-sprites', Key: key3, Body: file3.buffer, ContentType: file3.mimetype }));
+            const key3 = proofObjectKey(file3, 'hist-p3');
+            await s3Client.send(new PutObjectCommand({ Bucket: process.env.R2_BUCKET_NAME || 'shiny-sprites', Key: key3, Body: file3.buffer, ContentType: safeContentType(file3) }));
             proofUrlMain3 = `${process.env.R2_BUCKET_URL}/${key3}`;
           }
         } catch (r2Error) {
