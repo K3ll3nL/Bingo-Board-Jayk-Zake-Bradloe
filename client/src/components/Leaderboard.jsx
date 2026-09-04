@@ -76,8 +76,8 @@ const StatValue = ({ points, pokemonCount, hovered }) => {
   );
 };
 
-const Leaderboard = () => {
-  const { leaderboardVersion } = useAuth();
+const Leaderboard = ({ pinSelf = false }) => {
+  const { leaderboardVersion, user: authUser } = useAuth();
   const [leaderboard, setLeaderboard] = useState([]);
   const [liveMap, setLiveMap] = useState({}); // twitch login → true, from /api/leaderboard/live
   const [loading, setLoading] = useState(true);
@@ -257,7 +257,9 @@ const Leaderboard = () => {
     return (
       <div className="w-full h-full flex flex-col animate-pulse relative">
         {error && <ReconnectingPill label="Reconnecting to leaderboard…" />}
-        <div className="flex items-center justify-center gap-1 mb-2">
+        {/* gap-2 + wrap: at gap-1 the four tabs bunched into a cramped clump
+          in the middle of a wide panel. */}
+      <div className="flex flex-wrap items-center justify-center gap-2 mb-2.5">
           {MODES.map((mode, i) => (
             <div key={mode} className={`px-3 py-1.5 rounded-lg text-sm font-medium ${i === 0 ? 'bg-purple-600/40' : 'bg-gray-700/40'}`} style={{ minWidth: 60 }}>&nbsp;</div>
           ))}
@@ -267,7 +269,7 @@ const Leaderboard = () => {
           {Array.from({ length: 8 }).map((_, i) => (
             <div key={i} className="p-2 flex items-center justify-between border-b border-gray-700/50">
               <div className="flex items-center gap-3">
-                <div className="w-8 h-8 rounded-full bg-gray-700/60" />
+                <div className="w-12 h-8 rounded-full bg-gray-700/60" />
                 <div>
                   <div className="h-3.5 rounded bg-gray-700/60 mb-1.5" style={{ width: 80 + (i % 3) * 30 }} />
                   <div className="h-2.5 rounded bg-gray-700/40" style={{ width: 50 + (i % 2) * 20 }} />
@@ -292,7 +294,9 @@ const Leaderboard = () => {
     <div className="w-full h-full flex flex-col relative">
       {error && <ReconnectingPill label="Reconnecting…" />}
       {/* Mode tabs */}
-      <div className="flex items-center justify-center gap-1 mb-2">
+      {/* gap-2 + wrap: at gap-1 the four tabs bunched into a cramped clump
+          in the middle of a wide panel. */}
+      <div className="flex flex-wrap items-center justify-center gap-2 mb-2.5">
         {MODES.map((mode, i) => (
           <button
             key={mode}
@@ -340,7 +344,13 @@ const Leaderboard = () => {
             No players yet
           </div>
         ) : (
-          <div className={`divide-y overflow-y-auto flex-1 transition-opacity duration-150 ${refreshing ? 'opacity-50' : 'opacity-100'}`} style={{ borderColor: '#404040' }}>
+          // Scrollbar hidden, scrolling kept: the 8px gutter stopped every row
+          // short of the panel edge while the sticky self-row's ring hugged it,
+          // which is what made the inset read as misaligned.
+          <div
+            className={`divide-y overflow-y-auto flex-1 transition-opacity duration-150 no-scrollbar ${refreshing ? 'opacity-50' : 'opacity-100'}`}
+            style={{ borderColor: '#404040', scrollbarWidth: 'none', msOverflowStyle: 'none' }}
+          >
             {leaderboard.map((user, index) => {
               const position = user.rank ?? (index + 1);
               const medal = getMedalEmoji(position);
@@ -393,7 +403,15 @@ const Leaderboard = () => {
                   ref={el => { rowRefs.current[user.user_id] = el; }}
                   onMouseEnter={CAN_HOVER ? () => setHoveredId(user.user_id) : undefined}
                   onMouseLeave={CAN_HOVER ? () => setHoveredId(null) : undefined}
-                  className="relative p-2 flex items-center justify-between transition-colors cursor-pointer hover:bg-white/5"
+                  className={`relative p-2 flex items-center justify-between transition-colors cursor-pointer hover:bg-white/5 ${
+                    pinSelf && authUser && user.user_id === authUser.id ? 'sticky top-0 bottom-0 z-10' : ''
+                  }`}
+                  style={pinSelf && authUser && user.user_id === authUser.id ? {
+                    // A sticky row needs an opaque ground or the rows it covers
+                    // show through it.
+                    background: 'linear-gradient(160deg, #241f3a 0%, #1b1a26 100%)',
+                    boxShadow: 'inset 0 0 0 1px rgba(167,139,250,0.45)',
+                  } : undefined}
                 >
                   {/* Stretched link overlay: makes the whole row a real anchor (open-in-new-tab, right-click) while keeping nested links like Twitch clickable via higher z-index */}
                   <Link

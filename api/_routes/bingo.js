@@ -3,6 +3,8 @@
  * Registered from api/index.js — see api/API_INDEX.md for the full route map.
  */
 const {
+  buildWatchOut,
+  WATCH_TYPES,
   getActiveMonth,
   getAuthenticatedUserId,
   supabase,
@@ -29,7 +31,8 @@ module.exports = function register(app) {
       const [
         { data: entries },
         { data: approvals },
-        { data: bingoAchievements }
+        { data: bingoAchievements },
+        monthEntries,
       ] = await Promise.all([
         userId
           ? supabase.from('entries').select('pokemon_id, restricted_submission, historical').eq('user_id', userId).eq('month_id', ACTIVE_MONTH_ID)
@@ -37,7 +40,26 @@ module.exports = function register(app) {
         userId
           ? supabase.from('approvals').select('pokemon_id, restricted_submission').eq('user_id', userId)
           : Promise.resolve({ data: [] }),
-        supabase.from('bingo_achievements').select('bingo_type, users!bingo_achievements_user_id_fkey(display_name)').eq('month_id', ACTIVE_MONTH_ID),
+        supabase.from('bingo_achievements').select('bingo_type, users!bingo_achievements_user_id_fkey(display_name, avatar_url)').eq('month_id', ACTIVE_MONTH_ID),
+        // Every hunter's catches this month, so an OPEN bounty can name who is
+        // closest to taking it. Paged: participants x 24 passes PostgREST's
+        // 1000-row default well before the community is large.
+        (async () => {
+          const rows = [];
+          const PAGE = 1000;
+          for (let from = 0; ; from += PAGE) {
+            const { data, error } = await supabase
+              .from('entries')
+              .select('user_id, pokemon_id, restricted_submission')
+              .eq('month_id', ACTIVE_MONTH_ID)
+              .eq('historical', false)
+              .range(from, from + PAGE - 1);
+            if (error || !data || data.length === 0) break;
+            rows.push(...data);
+            if (data.length < PAGE) break;
+          }
+          return rows;
+        })(),
       ]);
 
       const completedPokemonIds = new Set((entries || []).map(e => e.pokemon_id));
@@ -142,8 +164,67 @@ module.exports = function register(app) {
         };
       }
       
+      // ── Bounties: who holds each, and for the open ones, who is closest ─────
+      const positionByPokemon = {};
+      Object.entries(poolByPosition).forEach(([pos, pool]) => {
+        if (pool?.pokemon_id) positionByPokemon[pool.pokemon_id] = Number(pos);
+      });
+
+      const claimedStandard = new Set(
+        (bingoAchievements || []).map(a => a.bingo_type).filter(t => !t.endsWith('_restricted'))
+      );
+      const claimedRestricted = new Set(
+        (bingoAchievements || [])
+          .filter(a => a.bingo_type.endsWith('_restricted'))
+          .map(a => a.bingo_type.replace('_restricted', ''))
+      );
+
+      const allEntries = monthEntries || [];
+      const restrictedEntries = allEntries.filter(e => e.restricted_submission);
+      const watchStandard = buildWatchOut(allEntries, positionByPokemon, claimedStandard);
+      const watchRestricted = buildWatchOut(restrictedEntries, positionByPokemon, claimedRestricted);
+
+      // One lookup for every hunter named as a contender.
+      const contenderIds = [...new Set(
+        [...watchStandard, ...watchRestricted].flatMap(w => w.contenders.map(c => c.user_id))
+      )];
+      const { data: contenderUsers } = contenderIds.length
+        ? await supabase.from('users').select('id, display_name, avatar_url').in('id', contenderIds)
+        : { data: [] };
+      const userById = Object.fromEntries((contenderUsers || []).map(u => [u.id, u]));
+
+      const holderFor = (type) => {
+        const row = (bingoAchievements || []).find(a => a.bingo_type === type);
+        if (!row?.users) return null;
+        return { display_name: row.users.display_name, avatar_url: row.users.avatar_url || null };
+      };
+
+      const CONTENDER_CAP = 3;
+      const buildBounty = (type, suffix, watch) => {
+        const holder = holderFor(suffix ? `${type}_restricted` : type);
+        if (holder) return { holder, remaining: null, contenders: [] };
+        const race = watch.find(w => w.type === type);
+        return {
+          holder: null,
+          remaining: race ? race.remaining : null,
+          contenders: race
+            ? race.contenders.slice(0, CONTENDER_CAP).map(c => ({
+                display_name: userById[c.user_id]?.display_name || 'Unknown',
+                avatar_url: userById[c.user_id]?.avatar_url || null,
+              }))
+            : [],
+        };
+      };
+
+      const bounties = {};
+      WATCH_TYPES.forEach(t => {
+        bounties[t] = buildBounty(t, false, watchStandard);
+        bounties[`${t}_restricted`] = buildBounty(t, true, watchRestricted);
+      });
+
       const responseData = {
         month: monthData.month_year_display,
+        bounties,
         start_date: monthData.start_date,
         end_date: monthData.end_date,
         board: board,

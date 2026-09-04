@@ -3,12 +3,48 @@ import restrictedIcon from '../Icons/restricted-icon.png';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../services/supabaseClient';
-import { ALLOWED_GAMES } from '../constants/games';
+import { ALLOWED_GAMES, proofFieldsFor } from '../constants/games';
 import PageBackground from './PageBackground';
+
+// Single source of the proof-upload dropzone. It was duplicated four times
+// (two fields x two forms), which is why the two forms had already drifted
+// apart on ids and handlers.
+const ProofDropzone = ({ id, label, optional, file, onPick, disabled }) => (
+  <div>
+    <label className="block text-xs font-medium text-gray-300 mb-2">
+      {label}{' '}
+      {optional
+        ? <span className="text-gray-500">(optional)</span>
+        : <span className="text-red-400">*</span>}
+    </label>
+    <input
+      type="file"
+      onChange={(e) => { if (e.target.files[0]) onPick(e.target.files[0]); }}
+      accept="image/*,video/*"
+      className="hidden"
+      id={id}
+      disabled={disabled}
+    />
+    <label htmlFor={id} className="block w-full p-4 border-2 border-dashed rounded-lg text-center cursor-pointer transition-colors border-gray-600 bg-gray-700 hover:border-purple-500">
+      {file ? (
+        <div className="text-white">
+          <svg className="w-6 h-6 mx-auto mb-2 text-green-400" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" /></svg>
+          <p className="text-xs truncate">{file.name}</p>
+        </div>
+      ) : (
+        <div className="text-gray-400">
+          <svg className="w-6 h-6 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" /></svg>
+          <p className="text-xs">Upload image</p>
+        </div>
+      )}
+    </label>
+  </div>
+);
 import PageHeader from './PageHeader';
 import PokemonImage from './PokemonImage';
 import { buildPokemonImageUrl } from '../utils/pokemonImageUtils';
 import { parseApiError } from '../services/api';
+import { GRADIENT, BORDER, TEXT, ACCENT, SEMANTIC, BRAND } from '../constants/theme';
 
 const getAuthHeader = async () => {
   if (import.meta.env.DEV &&
@@ -33,6 +69,7 @@ const HistoricalUploadSection = () => {
   const [mediaUrls, setMediaUrls] = useState(['']);
   const [mediaFile, setMediaFile] = useState(null);
   const [mediaFile2, setMediaFile2] = useState(null);
+  const [mediaFile3, setMediaFile3] = useState(null);
   const [sortBy, setSortBy] = useState('dex');
   const [isRestricted, setIsRestricted] = useState(false);
   const [showTooltip, setShowTooltip] = useState(false);
@@ -52,6 +89,7 @@ const HistoricalUploadSection = () => {
   const [caughtInDifferentGame, setCaughtInDifferentGame] = useState(false);
   const [caughtInGame, setCaughtInGame] = useState('');
   const [caughtInGameOpen, setCaughtInGameOpen] = useState(false);
+  const [caughtGameSearch, setCaughtGameSearch] = useState('');
   const [evolutionFile, setEvolutionFile] = useState(null);
   const [evolutionSummaryFile, setEvolutionSummaryFile] = useState(null);
   const [extraFiles, setExtraFiles] = useState([]);
@@ -102,6 +140,10 @@ const HistoricalUploadSection = () => {
 
   // Game-specific proof config (from games.js)
   const shinyLabel   = selectedGameObj?.shiny_label ?? 'Proof of Shiny';
+  const proofFields  = proofFieldsFor(game);
+  const proofFiles   = [mediaFile, mediaFile2, mediaFile3];
+  const missingProof = proofFields.some((_, i) => !proofFiles[i]);
+  const setProofFileAt = (i) => [setMediaFile, setMediaFile2, setMediaFile3][i];
   const noImageProof = !!selectedGameObj?.no_image_proof;
 
   const isLockedRestricted = restrictedEnabled && !!selectedPokeData?.has_standard_entry;
@@ -157,6 +199,12 @@ const HistoricalUploadSection = () => {
   const searchedGames = gameQuery
     ? filteredGames.filter(g => g.label.toLowerCase().includes(gameQuery))
     : filteredGames;
+  // Evolved-game dropdown searches the full list: the game you evolved in is
+  // not constrained by the filters applied to the catch game.
+  const caughtGameQuery = caughtGameSearch.trim().toLowerCase();
+  const searchedCaughtGames = caughtGameQuery
+    ? ALLOWED_GAMES.filter(g => g.label.toLowerCase().includes(caughtGameQuery))
+    : ALLOWED_GAMES;
 
   useEffect(() => {
     if (isLockedRestricted && !isRestricted) {
@@ -205,14 +253,15 @@ const HistoricalUploadSection = () => {
     }
     const validLinks = mediaUrls.filter(u => u.trim());
     if (isRestricted && validLinks.length === 0) { setError('Restricted submissions require a VOD or video link.'); return; }
-    if (!isRestricted && validLinks.length === 0 && (!mediaFile || !mediaFile2)) {
-      setError('Please provide either both proof images or a video link');
+    if (!isRestricted && validLinks.length === 0 && missingProof) {
+      setError(`Please provide all ${proofFields.length} proof images or a video link`);
       return;
     }
 
     const MAX_FILE_SIZE = 4 * 1024 * 1024;
     if (mediaFile  && mediaFile.size  > MAX_FILE_SIZE) { setError(`Proof of Shiny is too large (${(mediaFile.size  / 1048576).toFixed(1)}MB). Compress to under 4MB.`); return; }
-    if (mediaFile2 && mediaFile2.size > MAX_FILE_SIZE) { setError(`Proof of Date is too large (${(mediaFile2.size / 1048576).toFixed(1)}MB). Compress to under 4MB.`); return; }
+    if (mediaFile3 && mediaFile3.size > MAX_FILE_SIZE) { setError(`${proofFields[2]?.label ?? 'Third image'} is too large (${(mediaFile3.size / 1048576).toFixed(1)}MB). Compress to under 4MB.`); return; }
+    if (mediaFile2 && mediaFile2.size > MAX_FILE_SIZE) { setError(`${proofFields[1]?.label ?? 'Second image'} is too large (${(mediaFile2.size / 1048576).toFixed(1)}MB). Compress to under 4MB.`); return; }
     if (mediaFile && mediaFile2 && (mediaFile.size + mediaFile2.size) > MAX_FILE_SIZE) { setError(`Combined images are too large. Compress both to under 4MB total.`); return; }
 
     // Vercel rejects any serverless request body over 4.5MB TOTAL before Express
@@ -239,6 +288,7 @@ const HistoricalUploadSection = () => {
       validLinks.forEach(u => formData.append('link', u));
       if (mediaFile)  formData.append('file', mediaFile);
       if (mediaFile2) formData.append('file2', mediaFile2);
+      if (mediaFile3) formData.append('file3', mediaFile3);
       if (caughtInDifferentGame && caughtInGame)         formData.append('caught_in_game', caughtInGame);
       if (caughtInDifferentGame && evolutionFile)        formData.append('evolutionFile', evolutionFile);
       if (caughtInDifferentGame && evolutionSummaryFile) formData.append('evolutionSummaryFile', evolutionSummaryFile);
@@ -478,16 +528,19 @@ const HistoricalUploadSection = () => {
         {!caughtInDifferentGame ? (
           <button
             type="button"
+            style={{
+              color: ACCENT.base
+            }}
             onClick={() => { setCaughtInDifferentGame(true); if (game && !caughtInGame) setCaughtInGame(game); }}
             disabled={submitting}
             className="mt-2 text-xs text-gray-500 hover:text-gray-400 transition-colors"
           >
-            Evolved from an earlier stage?
+            Evolved in a different game?
           </button>
         ) : (
           <div className="mt-3 pt-3 border-t border-gray-700">
             <div className="flex items-center justify-between mb-3">
-              <span className="text-xs font-medium text-gray-400">Evolved from an earlier stage</span>
+              <span className="text-xs font-medium text-gray-400">Evolved game</span>
               <button
                 type="button"
                 onClick={() => { setCaughtInDifferentGame(false); setCaughtInGame(''); setEvolutionFile(null); setEvolutionSummaryFile(null); }}
@@ -507,7 +560,7 @@ const HistoricalUploadSection = () => {
                 {caughtInGame ? (
                   <div className="flex items-center gap-3 min-w-0">
                     {(() => { const g = ALLOWED_GAMES.find(g => g.label === caughtInGame); return g ? (
-                      <div className="flex items-center gap-1 flex-shrink-0" style={{ width: '88px' }}>
+                      <div className="flex items-center gap-1 flex-shrink-0" style={{ width: '88px', justifyContent: (g.img_urls?.length ?? 0) === 1 ? 'center' : 'flex-start' }}>
                         {(g.img_urls ?? []).slice(0, 2).map((url, i) => (
                           <div key={i} className="flex items-center justify-center flex-shrink-0" style={{ width: '42px', height: '24px' }}>
                             <img src={url} alt="" className="object-contain" style={{ maxHeight: '24px', maxWidth: '42px' }} />
@@ -518,16 +571,42 @@ const HistoricalUploadSection = () => {
                     <span className="text-sm truncate">{caughtInGame}</span>
                   </div>
                 ) : <span className="text-gray-400">Select a game...</span>}
-                <svg className={`w-5 h-5 flex-shrink-0 ml-2 transition-transform ${caughtInGameOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                </svg>
+                <div className="flex items-center gap-1 flex-shrink-0 ml-2">
+                  {caughtInGame && (
+                    <span
+                      role="button"
+                      onClick={(e) => { e.stopPropagation(); setCaughtInGame(''); }}
+                      className="p-1 text-gray-400 hover:text-white transition-colors cursor-pointer"
+                    >
+                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </span>
+                  )}
+                  <svg className={`w-5 h-5 transition-transform ${caughtInGameOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                  </svg>
+                </div>
               </button>
               {caughtInGameOpen && (
                 <div className="absolute z-20 w-full mt-1 bg-gray-700 border border-gray-600 rounded-lg shadow-lg max-h-72 overflow-y-auto">
-                  {ALLOWED_GAMES.map(g => (
-                    <button key={g.key} type="button" onClick={() => { setCaughtInGame(g.label); setCaughtInGameOpen(false); }}
+                  <div className="sticky top-0 z-10 bg-gray-700 p-2 border-b border-gray-600">
+                    <input
+                      type="text"
+                      autoFocus
+                      value={caughtGameSearch}
+                      onChange={(e) => setCaughtGameSearch(e.target.value)}
+                      placeholder="Search games..."
+                      className="w-full p-2 bg-gray-800 text-white text-sm rounded border border-gray-600 focus:border-purple-500 focus:outline-none"
+                    />
+                  </div>
+                  {searchedCaughtGames.length === 0 && (
+                    <div className="p-4 text-center text-gray-400 text-sm">No games found</div>
+                  )}
+                  {searchedCaughtGames.map(g => (
+                    <button key={g.key} type="button" onClick={() => { setCaughtInGame(g.label); setCaughtInGameOpen(false); setCaughtGameSearch(''); }}
                       className={`w-full px-4 py-3 flex items-center gap-4 hover:bg-gray-600 transition-colors text-left ${caughtInGame === g.label ? 'bg-gray-600' : ''}`}>
-                      <div className="flex items-center gap-1 flex-shrink-0" style={{ width: '88px' }}>
+                      <div className="flex items-center gap-1 flex-shrink-0" style={{ width: '88px', justifyContent: (g.img_urls?.length ?? 0) === 1 ? 'center' : 'flex-start' }}>
                         {(g.img_urls ?? []).slice(0, 2).map((url, i) => (
                           <div key={i} className="flex items-center justify-center flex-shrink-0" style={{ width: '42px', height: '28px' }}>
                             <img src={url} alt="" className="object-contain" style={{ maxHeight: '28px', maxWidth: '42px' }} />
@@ -699,40 +778,22 @@ const HistoricalUploadSection = () => {
         )}
       </div>
 
-      {/* Proof uploads */}
-      <div className={`grid grid-cols-2 gap-3 mb-4 transition-opacity duration-200 ${noImageProof ? 'opacity-40 pointer-events-none select-none' : ''}`}>
-        <div>
-          <label className="block text-xs font-medium text-gray-300 mb-2">
-            {isRestricted || noImageProof
-              ? <>{shinyLabel} <span className="text-gray-500">(optional)</span></>
-              : <>{shinyLabel} <span className="text-red-400">*</span></>
-            }
-          </label>
-          <input type="file" onChange={(e) => { if (e.target.files[0]) setMediaFile(e.target.files[0]); }} accept="image/*,video/*" className="hidden" id="hist-file-1" disabled={submitting} />
-          <label htmlFor="hist-file-1" className="block w-full p-4 border-2 border-dashed rounded-lg text-center cursor-pointer transition-colors border-gray-600 bg-gray-700 hover:border-purple-500">
-            {mediaFile ? (
-              <div className="text-white"><svg className="w-6 h-6 mx-auto mb-2 text-green-400" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" /></svg><p className="text-xs truncate">{mediaFile.name}</p></div>
-            ) : (
-              <div className="text-gray-400"><svg className="w-6 h-6 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" /></svg><p className="text-xs">Upload image</p></div>
-            )}
-          </label>
-        </div>
-        <div>
-          <label className="block text-xs font-medium text-gray-300 mb-2">
-            {isRestricted || noImageProof
-              ? <>Proof of Date <span className="text-gray-500">(optional)</span></>
-              : <>Proof of Date <span className="text-red-400">*</span></>
-            }
-          </label>
-          <input type="file" onChange={(e) => { if (e.target.files[0]) setMediaFile2(e.target.files[0]); }} accept="image/*,video/*" className="hidden" id="hist-file-2" disabled={submitting} />
-          <label htmlFor="hist-file-2" className="block w-full p-4 border-2 border-dashed rounded-lg text-center cursor-pointer transition-colors border-gray-600 bg-gray-700 hover:border-purple-500">
-            {mediaFile2 ? (
-              <div className="text-white"><svg className="w-6 h-6 mx-auto mb-2 text-green-400" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" /></svg><p className="text-xs truncate">{mediaFile2.name}</p></div>
-            ) : (
-              <div className="text-gray-400"><svg className="w-6 h-6 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" /></svg><p className="text-xs">Upload image</p></div>
-            )}
-          </label>
-        </div>
+      {/* Proof uploads — fields come from proofFieldsFor(game): three shots for
+          most games, two for Let's Go where TID and date share a screen, none for
+          Gen 1-3 (no in-game screenshots). Driven by config so adding a game never
+          means editing this markup. */}
+      <div className={`grid gap-3 mb-4 transition-opacity duration-200 ${proofFields.length >= 3 ? 'grid-cols-2 sm:grid-cols-3' : 'grid-cols-2'} ${noImageProof ? 'opacity-40 pointer-events-none select-none' : ''}`}>
+        {proofFields.map((field, idx) => (
+          <ProofDropzone
+            key={field.id}
+            id={`hist-file-${field.id}`}
+            label={idx === 0 && selectedGameObj?.shiny_label ? selectedGameObj.shiny_label : field.label}
+            optional={isRestricted || noImageProof}
+            file={proofFiles[idx]}
+            onPick={setProofFileAt(idx)}
+            disabled={submitting}
+          />
+        ))}
       </div>
 
       {/* Additional images */}
@@ -813,7 +874,7 @@ const HistoricalUploadSection = () => {
           !selectedPokemon ||
           !game.trim() ||
           (isRestricted && activeChecklist.length > 0 && !activeChecklist.every(item => !!checkedItems[item.id])) ||
-          (isRestricted || noImageProof ? !mediaUrls.some(u => u.trim()) : (!mediaUrls.some(u => u.trim()) && (!mediaFile || !mediaFile2)))
+          (isRestricted || noImageProof ? !mediaUrls.some(u => u.trim()) : (!mediaUrls.some(u => u.trim()) && missingProof))
         }
         className="w-full py-3 bg-blue-500 text-white rounded-lg font-medium hover:bg-blue-600 disabled:bg-gray-600 disabled:cursor-not-allowed transition-colors"
       >
@@ -841,6 +902,7 @@ const Upload = () => {
   const [mediaUrls, setMediaUrls] = useState(['']);
   const [mediaFile, setMediaFile] = useState(null);
   const [mediaFile2, setMediaFile2] = useState(null);
+  const [mediaFile3, setMediaFile3] = useState(null);
   const [sortBy, setSortBy] = useState('dex');
   const [loading, setLoading] = useState(true);
   const [isRestricted, setIsRestricted] = useState(false);
@@ -861,6 +923,7 @@ const Upload = () => {
   const [caughtInDifferentGame, setCaughtInDifferentGame] = useState(false);
   const [caughtInGame, setCaughtInGame] = useState('');
   const [caughtInGameOpen, setCaughtInGameOpen] = useState(false);
+  const [caughtGameSearch, setCaughtGameSearch] = useState('');
   const [evolutionFile, setEvolutionFile] = useState(null);
   const [evolutionSummaryFile, setEvolutionSummaryFile] = useState(null);
   const [extraFiles, setExtraFiles] = useState([]);
@@ -906,10 +969,11 @@ const Upload = () => {
     const handleClickOutside = (e) => {
       if (dropdownOpen && !e.target.closest('.pokemon-dropdown')) setDropdownOpen(false);
       if (gameDropdownOpen && !e.target.closest('.game-dropdown')) setGameDropdownOpen(false);
+      if (caughtInGameOpen && !e.target.closest('.caught-game-dropdown')) setCaughtInGameOpen(false);
     };
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [dropdownOpen, gameDropdownOpen]);
+  }, [dropdownOpen, gameDropdownOpen, caughtInGameOpen]);
 
   const loadAvailablePokemon = async () => {
     try {
@@ -957,6 +1021,10 @@ const Upload = () => {
 
   // Game-specific proof config (from games.js)
   const shinyLabel       = selectedGameObj?.shiny_label ?? 'Proof of Shiny';
+  const proofFields      = proofFieldsFor(game);
+  const proofFiles       = [mediaFile, mediaFile2, mediaFile3];
+  const missingProof     = proofFields.some((_, i) => !proofFiles[i]);
+  const setProofFileAt   = (i) => [setMediaFile, setMediaFile2, setMediaFile3][i];
   const noImageProof     = !!selectedGameObj?.no_image_proof;
   const activeChecklist  = selectedGameObj?.restricted_checklist ?? [];
 
@@ -1012,6 +1080,12 @@ const Upload = () => {
   const searchedGames = gameQuery
     ? filteredGames.filter(g => g.label.toLowerCase().includes(gameQuery))
     : filteredGames;
+  // Evolved-game dropdown searches the full list: the game you evolved in is
+  // not constrained by the filters applied to the catch game.
+  const caughtGameQuery = caughtGameSearch.trim().toLowerCase();
+  const searchedCaughtGames = caughtGameQuery
+    ? ALLOWED_GAMES.filter(g => g.label.toLowerCase().includes(caughtGameQuery))
+    : ALLOWED_GAMES;
 
   // ── Restricted button availability ──────────────────────────────────────────
   let isRestrictedAvailable;
@@ -1086,15 +1160,16 @@ const Upload = () => {
     }
     const validLinks = mediaUrls.filter(u => u.trim());
     if (isRestricted && validLinks.length === 0) { setError('Restricted submissions require a VOD or video link.'); return; }
-    if (!isRestricted && validLinks.length === 0 && (!mediaFile || !mediaFile2)) { setError('Please provide either both proof images or a video link'); return; }
+    if (!isRestricted && validLinks.length === 0 && missingProof) { setError(`Please provide all ${proofFields.length} proof images or a video link`); return; }
 
     const MAX_FILE_SIZE = 4 * 1024 * 1024;
     if (mediaFile && mediaFile.size > MAX_FILE_SIZE) {
       setError(`Proof of Shiny is too large (${(mediaFile.size / 1048576).toFixed(1)}MB). Compress to under 4MB.`);
       return;
     }
+    if (mediaFile3 && mediaFile3.size > MAX_FILE_SIZE) { setError(`${proofFields[2]?.label ?? 'Third image'} is too large (${(mediaFile3.size / 1048576).toFixed(1)}MB). Compress to under 4MB.`); return; }
     if (mediaFile2 && mediaFile2.size > MAX_FILE_SIZE) {
-      setError(`Proof of Date is too large (${(mediaFile2.size / 1048576).toFixed(1)}MB). Compress to under 4MB.`);
+      setError(`${proofFields[1]?.label ?? 'Second image'} is too large (${(mediaFile2.size / 1048576).toFixed(1)}MB). Compress to under 4MB.`);
       return;
     }
     if (mediaFile && mediaFile2 && (mediaFile.size + mediaFile2.size) > MAX_FILE_SIZE) {
@@ -1128,6 +1203,7 @@ const Upload = () => {
       validLinks.forEach(u => formData.append('link', u));
       if (mediaFile)  formData.append('file', mediaFile);
       if (mediaFile2) formData.append('file2', mediaFile2);
+      if (mediaFile3) formData.append('file3', mediaFile3);
       if (caughtInDifferentGame && caughtInGame)         formData.append('caught_in_game', caughtInGame);
       if (caughtInDifferentGame && evolutionFile)        formData.append('evolutionFile', evolutionFile);
       if (caughtInDifferentGame && evolutionSummaryFile) formData.append('evolutionSummaryFile', evolutionSummaryFile);
@@ -1341,7 +1417,7 @@ const Upload = () => {
               {/* Game Selection */}
               <div className="mb-4 sm:mb-6">
                 <label className="block text-sm font-medium text-gray-200 mb-2">
-                  Game Hunted In <span className="text-red-400">*</span>
+                  Game Submitting In <span className="text-red-400">*</span>
                 </label>
                 <div className="relative game-dropdown">
                   <button
@@ -1433,16 +1509,19 @@ const Upload = () => {
                 {!caughtInDifferentGame ? (
                   <button
                     type="button"
+                    style={{
+                      color: ACCENT.base
+                    }}
                     onClick={() => { setCaughtInDifferentGame(true); if (game && !caughtInGame) setCaughtInGame(game); }}
                     disabled={submitting}
                     className="mt-2 text-xs text-gray-500 hover:text-gray-400 transition-colors"
                   >
-                    Evolved from an earlier stage?
+                    Evolved in a different game?
                   </button>
                 ) : (
                   <div className="mt-3 pt-3 border-t border-gray-700">
                     <div className="flex items-center justify-between mb-3">
-                      <span className="text-xs font-medium text-gray-400">Evolved from an earlier stage</span>
+                      <span className="text-xs font-medium text-gray-400">Evolved game</span>
                       <button
                         type="button"
                         onClick={() => { setCaughtInDifferentGame(false); setCaughtInGame(''); setEvolutionFile(null); setEvolutionSummaryFile(null); }}
@@ -1462,7 +1541,7 @@ const Upload = () => {
                         {caughtInGame ? (
                           <div className="flex items-center gap-3 min-w-0">
                             {(() => { const g = ALLOWED_GAMES.find(g => g.label === caughtInGame); return g ? (
-                              <div className="flex items-center gap-1 flex-shrink-0" style={{ width: '88px' }}>
+                              <div className="flex items-center gap-1 flex-shrink-0" style={{ width: '88px', justifyContent: (g.img_urls?.length ?? 0) === 1 ? 'center' : 'flex-start' }}>
                                 {(g.img_urls ?? []).slice(0, 2).map((url, i) => (
                                   <div key={i} className="flex items-center justify-center flex-shrink-0" style={{ width: '42px', height: '24px' }}>
                                     <img src={url} alt="" className="object-contain" style={{ maxHeight: '24px', maxWidth: '42px' }} />
@@ -1473,16 +1552,42 @@ const Upload = () => {
                             <span className="text-sm truncate">{caughtInGame}</span>
                           </div>
                         ) : <span className="text-gray-400">Select a game...</span>}
-                        <svg className={`w-5 h-5 flex-shrink-0 ml-2 transition-transform ${caughtInGameOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                        </svg>
+                        <div className="flex items-center gap-1 flex-shrink-0 ml-2">
+                          {caughtInGame && (
+                            <span
+                              role="button"
+                              onClick={(e) => { e.stopPropagation(); setCaughtInGame(''); }}
+                              className="p-1 text-gray-400 hover:text-white transition-colors cursor-pointer"
+                            >
+                              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
+                              </svg>
+                            </span>
+                          )}
+                          <svg className={`w-5 h-5 transition-transform ${caughtInGameOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                          </svg>
+                        </div>
                       </button>
                       {caughtInGameOpen && (
                         <div className="absolute z-20 w-full mt-1 bg-gray-700 border border-gray-600 rounded-lg shadow-lg max-h-72 overflow-y-auto">
-                          {ALLOWED_GAMES.map(g => (
-                            <button key={g.key} type="button" onClick={() => { setCaughtInGame(g.label); setCaughtInGameOpen(false); }}
+                          <div className="sticky top-0 z-10 bg-gray-700 p-2 border-b border-gray-600">
+                            <input
+                              type="text"
+                              autoFocus
+                              value={caughtGameSearch}
+                              onChange={(e) => setCaughtGameSearch(e.target.value)}
+                              placeholder="Search games..."
+                              className="w-full p-2 bg-gray-800 text-white text-sm rounded border border-gray-600 focus:border-purple-500 focus:outline-none"
+                            />
+                          </div>
+                          {searchedCaughtGames.length === 0 && (
+                            <div className="p-4 text-center text-gray-400 text-sm">No games found</div>
+                          )}
+                          {searchedCaughtGames.map(g => (
+                            <button key={g.key} type="button" onClick={() => { setCaughtInGame(g.label); setCaughtInGameOpen(false); setCaughtGameSearch(''); }}
                               className={`w-full px-4 py-3 flex items-center gap-4 hover:bg-gray-600 transition-colors text-left ${caughtInGame === g.label ? 'bg-gray-600' : ''}`}>
-                              <div className="flex items-center gap-1 flex-shrink-0" style={{ width: '88px' }}>
+                              <div className="flex items-center gap-1 flex-shrink-0" style={{ width: '88px', justifyContent: (g.img_urls?.length ?? 0) === 1 ? 'center' : 'flex-start' }}>
                                 {(g.img_urls ?? []).slice(0, 2).map((url, i) => (
                                   <div key={i} className="flex items-center justify-center flex-shrink-0" style={{ width: '42px', height: '28px' }}>
                                     <img src={url} alt="" className="object-contain" style={{ maxHeight: '28px', maxWidth: '42px' }} />
@@ -1627,7 +1732,10 @@ const Upload = () => {
                   </div>
                 ))}
                 <button
-                  type="button"
+                  type="button"                    
+                  style={{
+                      color: ACCENT.base
+                    }}
                   onClick={() => setMediaUrls(prev => [...prev, ''])}
                   disabled={submitting}
                   className="text-xs text-purple-400 hover:text-purple-300 transition-colors mt-1"
@@ -1657,60 +1765,22 @@ const Upload = () => {
 
               {/* Image Uploads */}
               <div className={`transition-opacity duration-200 ${noImageProof ? 'opacity-40 pointer-events-none select-none' : ''}`}>
-                <div className="grid grid-cols-2 gap-3 mb-4">
-                  <div>
-                    <label className="block text-xs font-medium text-gray-300 mb-2">
-                      {isRestricted || noImageProof
-                        ? <>{shinyLabel} <span className="text-gray-500">(optional)</span></>
-                        : <>{shinyLabel} <span className="text-red-400">*</span></>
-                      }
-                    </label>
-                    <input type="file" onChange={handleFileChange} accept="image/*,video/*" className="hidden" id="file-upload-1" disabled={submitting} />
-                    <label htmlFor="file-upload-1" className="block w-full p-4 border-2 border-dashed rounded-lg text-center cursor-pointer transition-colors border-gray-600 bg-gray-700 hover:border-purple-500">
-                      {mediaFile ? (
-                        <div className="text-white">
-                          <svg className="w-6 h-6 mx-auto mb-2 text-green-400" fill="currentColor" viewBox="0 0 20 20">
-                            <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                          </svg>
-                          <p className="text-xs truncate">{mediaFile.name}</p>
-                        </div>
-                      ) : (
-                        <div className="text-gray-400">
-                          <svg className="w-6 h-6 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
-                          </svg>
-                          <p className="text-xs">Upload image</p>
-                        </div>
-                      )}
-                    </label>
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-medium text-gray-300 mb-2">
-                      {isRestricted || noImageProof
-                        ? <>Proof of Date <span className="text-gray-500">(optional)</span></>
-                        : <>Proof of Date <span className="text-red-400">*</span></>
-                      }
-                    </label>
-                    <input type="file" onChange={handleFile2Change} accept="image/*,video/*" className="hidden" id="file-upload-2" disabled={submitting} />
-                    <label htmlFor="file-upload-2" className="block w-full p-4 border-2 border-dashed rounded-lg text-center cursor-pointer transition-colors border-gray-600 bg-gray-700 hover:border-purple-500">
-                      {mediaFile2 ? (
-                        <div className="text-white">
-                          <svg className="w-6 h-6 mx-auto mb-2 text-green-400" fill="currentColor" viewBox="0 0 20 20">
-                            <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                          </svg>
-                          <p className="text-xs truncate">{mediaFile2.name}</p>
-                        </div>
-                      ) : (
-                        <div className="text-gray-400">
-                          <svg className="w-6 h-6 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
-                          </svg>
-                          <p className="text-xs">Upload image</p>
-                        </div>
-                      )}
-                    </label>
-                  </div>
+                {/* Proof uploads — fields come from proofFieldsFor(game): three shots for
+                    most games, two for Let's Go where TID and date share a screen, none for
+                    Gen 1-3 (no in-game screenshots). Driven by config so adding a game never
+                    means editing this markup. */}
+                <div className={`grid gap-3 mb-4 transition-opacity duration-200 ${proofFields.length >= 3 ? 'grid-cols-2 sm:grid-cols-3' : 'grid-cols-2'} ${noImageProof ? 'opacity-40 pointer-events-none select-none' : ''}`}>
+                  {proofFields.map((field, idx) => (
+                    <ProofDropzone
+                      key={field.id}
+                      id={`file-upload-${field.id}`}
+                      label={idx === 0 && selectedGameObj?.shiny_label ? selectedGameObj.shiny_label : field.label}
+                      optional={isRestricted || noImageProof}
+                      file={proofFiles[idx]}
+                      onPick={setProofFileAt(idx)}
+                      disabled={submitting}
+                    />
+                  ))}
                 </div>
               </div>
 
@@ -1793,7 +1863,7 @@ const Upload = () => {
                   !selectedPokemon ||
                   !game.trim() ||
                   (isRestricted && activeChecklist.length > 0 && !activeChecklist.every(item => !!checkedItems[item.id])) ||
-                  (isRestricted || noImageProof ? !mediaUrls.some(u => u.trim()) : (!mediaUrls.some(u => u.trim()) && (!mediaFile || !mediaFile2)))
+                  (isRestricted || noImageProof ? !mediaUrls.some(u => u.trim()) : (!mediaUrls.some(u => u.trim()) && missingProof))
                 }
                 className="w-full py-3 bg-purple-500 text-white rounded-lg font-medium hover:bg-purple-600 disabled:bg-gray-600 disabled:cursor-not-allowed transition-colors"
               >

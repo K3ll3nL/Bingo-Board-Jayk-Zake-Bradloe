@@ -3,6 +3,7 @@
  * Registered from api/index.js — see api/API_INDEX.md for the full route map.
  */
 const {
+  buildWatchOut,
   GAME_LABELS,
   POKEMON_IMAGE_FIELDS,
   fetchTierSubmissions,
@@ -10,6 +11,8 @@ const {
   getAuthenticatedUserId,
   resolveStatsMonth,
   supabase,
+  WATCH_SHAPES,
+  WATCH_TYPES,
 } = require('../_lib/core');
 
 // ── "Watch out!" shapes ──────────────────────────────────────────────────────
@@ -17,24 +20,6 @@ const {
 // mirrors the board built in routes/bingo.js and the achievement checks inside
 // the approve_submission RPC (supabase/migrations/…_remote_schema.sql). The X
 // shape there requires BOTH diagonals, so it is one shape (their union), not two.
-const WATCH_SHAPES = {
-  row: [
-    [1, 2, 3, 4, 5], [6, 7, 8, 9, 10], [11, 12, 13, 14, 15],
-    [16, 17, 18, 19, 20], [21, 22, 23, 24, 25],
-  ],
-  column: [
-    [1, 6, 11, 16, 21], [2, 7, 12, 17, 22], [3, 8, 13, 18, 23],
-    [4, 9, 14, 19, 24], [5, 10, 15, 20, 25],
-  ],
-  x: [[1, 7, 13, 19, 25, 5, 9, 17, 21]],
-  blackout: [Array.from({ length: 25 }, (_, i) => i + 1)],
-};
-// Order is "easiest first" and doubles as the tie-break when two achievement
-// types are the same number of catches away (Kellen's call): a row that is 2
-// away leads over an X that is 2 away, because it is the likelier next claim.
-const WATCH_TYPES = ['row', 'column', 'x', 'blackout'];
-// Types are claimed once per month by the first player to complete them, so a
-// claimed type is out of reach for everyone else and drops off the panel.
 const claimKey = (type, mode) => (mode === 'restricted' ? `${type}_restricted` : type);
 
 // `entries.game` stores the display label ("Pokémon Emerald"), not the
@@ -67,46 +52,6 @@ const selectAllRows = async (build) => {
 // Least number of submissions any still-eligible player needs to claim each
 // achievement type, listing every tied player (Kellen's spec: no arbitrary pick).
 // One bulk fetch + JS tally, following buildGameStats in lib/core.js.
-const buildWatchOut = (subset, positionByPokemon, claimed) => {
-  const filledByUser = new Map();
-  subset.forEach(e => {
-    let filled = filledByUser.get(e.user_id);
-    if (!filled) { filled = new Set([13]); filledByUser.set(e.user_id, filled); }
-    const pos = positionByPokemon[e.pokemon_id];
-    if (pos) filled.add(pos);
-  });
-
-  const out = [];
-  WATCH_TYPES.forEach(type => {
-    if (claimed.has(type)) return;
-    const shapes = WATCH_SHAPES[type];
-    let best = Infinity;
-    let contenders = [];
-    filledByUser.forEach((filled, userId) => {
-      let userBest = Infinity;
-      let positions = [];
-      shapes.forEach((cells, idx) => {
-        const remaining = cells.reduce((n, p) => n + (filled.has(p) ? 0 : 1), 0);
-        if (remaining < userBest) { userBest = remaining; positions = [idx + 1]; }
-        else if (remaining === userBest) positions.push(idx + 1);
-      });
-      if (userBest < 1 || userBest === Infinity) return; // already complete / unclaimable
-      if (userBest < best) { best = userBest; contenders = []; }
-      if (userBest === best) contenders.push({ user_id: userId, positions });
-    });
-    if (!contenders.length) return;
-    out.push({
-      type,
-      remaining: best,
-      // row/column carry a 1-based index; x and blackout have no position.
-      positioned: type === 'row' || type === 'column',
-      contenders,
-    });
-  });
-  // The page renders only out[0]. Array.sort is stable, so equal `remaining`
-  // preserves the easiest-first WATCH_TYPES order established above.
-  return out.sort((a, b) => a.remaining - b.remaining);
-};
 
 // ── Tier upsets ──────────────────────────────────────────────────────────────
 // Cross the community tier list against what actually got caught. Each pool mon
@@ -300,19 +245,53 @@ const buildViewerTierFields = async (monthId, userId, poolIds) => {
   };
 };
 
+// Strip the per-viewer tier_list fields so a payload is safe to SHARE. Both
+// caches below need this: leaking one viewer's viewer_submitted/viewer_ranked
+// to everyone else is the one way either cache can return a wrong answer.
+const depersonalize = (payload) => ({
+  ...payload,
+  tier_list: {
+    ...payload.tier_list,
+    viewer_submitted: false, viewer_ranked: 0,
+    restricted_viewer_submitted: false, restricted_viewer_ranked: 0,
+  },
+});
+
+// ── Live-month stats memo ───────────────────────────────────────────────────
+// The CURRENT month cannot use month_stats_cache: its entries change all day,
+// so a persisted row would go stale with nothing to invalidate it. But it is
+// also the expensive case that actually matters — the closed-month cache only
+// serves the month <select>, while the live month renders on the HOME PAGE for
+// every visitor. Uncached, each of those loads runs 9 parallel queries
+// (including a full scan of every entry in the month) and ~800 lines of
+// in-process aggregation, and holds all of it in memory at once.
+//
+// A short TTL fixes that without an invalidation problem. This is a stats
+// dashboard, not a scoreboard anyone acts on: showing numbers up to TTL_MS old
+// is indistinguishable from showing them live, and a fresh catch appears on the
+// next tick regardless.
+//
+// Scoped per-process deliberately. On Vercel each warm instance keeps its own
+// copy, so the worst case is one recompute per instance per TTL rather than one
+// per request — and unlike a shared cache there is nothing to invalidate, no
+// extra round trip on the hit path, and no cross-request state beyond a single
+// depersonalized object. Kept local to this module (never exported) because a
+// destructured require would capture a stale snapshot of a reassigned `let`.
+const LIVE_STATS_TTL_MS = 90 * 1000;
+let liveStats = null; // { monthId, payload, at }
+
+const readLiveStats = (monthId) => {
+  if (!liveStats || liveStats.monthId !== monthId) return null;
+  if (Date.now() - liveStats.at > LIVE_STATS_TTL_MS) return null;
+  return liveStats.payload;
+};
+
 // Exported so the period-end cron (internal.js) can precompute a just-closed
 // month's stats immediately, off the request path entirely.
 const cacheMonthStats = async (monthId, payload) => {
   // Never persist one viewer's personal tier_list fields into the shared
   // cache row — every future reader gets these recomputed fresh instead.
-  const cacheable = {
-    ...payload,
-    tier_list: {
-      ...payload.tier_list,
-      viewer_submitted: false, viewer_ranked: 0,
-      restricted_viewer_submitted: false, restricted_viewer_ranked: 0,
-    },
-  };
+  const cacheable = depersonalize(payload);
   const { error } = await supabase
     .from('month_stats_cache')
     .upsert({ month_id: monthId, payload: cacheable, computed_at: new Date().toISOString() });
@@ -347,7 +326,7 @@ module.exports = function register(app) {
       // one cheap per-viewer personalization pass for the tier_list fields.
       if (!isCurrentMonth) {
         const { data: cached, error: cacheReadError } = await supabase
-          .from('month_stats_cache').select('payload').eq('month_id', monthId).maybeSingle();
+          .from('month_stats_cache').select('payload, computed_at').eq('month_id', monthId).maybeSingle();
         if (cacheReadError) console.error('month_stats_cache read failed, falling back to live compute:', cacheReadError.message);
         if (cached) {
           console.log(`stats/month cache HIT month_id=${monthId} computed_at=${cached.computed_at}`);
@@ -360,6 +339,16 @@ module.exports = function register(app) {
         }
         console.log(`stats/month cache MISS month_id=${monthId} — computing live and populating cache`);
       } else {
+        // Live month: serve the memo if it is still inside its TTL, re-running
+        // only the cheap per-viewer tier_list pass. Same personalization split
+        // as the closed-month path above.
+        const memo = readLiveStats(monthId);
+        if (memo) {
+          console.log(`stats/month live memo HIT month_id=${monthId} age=${Date.now() - liveStats.at}ms`);
+          const poolIds = await fetchPoolIds(monthId);
+          const viewerFields = await buildViewerTierFields(monthId, userId, poolIds);
+          return res.json({ ...memo, tier_list: { ...memo.tier_list, ...viewerFields } });
+        }
         console.log(`stats/month live compute (current month) month_id=${monthId}`);
       }
 
@@ -1190,6 +1179,10 @@ module.exports = function register(app) {
         cacheMonthStats(monthId, payload)
           .then(() => console.log(`stats/month cache POPULATED month_id=${monthId}`))
           .catch(() => {});
+      } else {
+        // Store depersonalized, so the next reader inside the TTL cannot
+        // inherit this viewer's tier_list state.
+        liveStats = { monthId, payload: depersonalize(payload), at: Date.now() };
       }
 
       res.json(payload);

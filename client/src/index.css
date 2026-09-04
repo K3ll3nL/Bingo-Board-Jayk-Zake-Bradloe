@@ -110,3 +110,6 @@ a {
 .animate-jeopardy-shake {
   animation: jeopardy-conflict-shake 0.4s ease-in-out;
 }
+/* Hide the scrollbar without disabling scrolling. Used by the leaderboard list,
+   where an 8px gutter left every row short of the panel edge. */
+.no-scrollbar::-webkit-scrollbar { display: none; }

@@ -1,6 +1,6 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { useNavigate, useParams, Link } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams, Link } from 'react-router-dom';
 import PokemonModal from './PokemonModal';
 import PokemonImage from './PokemonImage';
 import BadgeCase from './BadgeCase';
@@ -772,7 +772,30 @@ const Profile = () => {
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [tab, setTab] = useState('boards');
+  // Tab lives in the URL (?tab=badges) so it can be linked to directly -- the
+  // home page's Case link is the reason this exists. An unknown or absent value
+  // falls back to boards, which is what a bare /profile should show.
+  const [searchParams, setSearchParams] = useSearchParams();
+  const urlTab = searchParams.get('tab');
+  const [tab, setTabState] = useState(
+    () => (TABS.some(t => t.id === urlTab) ? urlTab : 'boards'));
+
+  // replace, not push, so the tab strip does not fill up the back button.
+  const setTab = useCallback((id) => {
+    setTabState(id);
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev);
+      if (id === 'boards') next.delete('tab'); else next.set('tab', id);
+      return next;
+    }, { replace: true });
+  }, [setSearchParams]);
+
+  // Follow the URL when it changes underneath us (back/forward, or a second
+  // click on a ?tab= link while already on the page).
+  useEffect(() => {
+    const t = TABS.some(x => x.id === urlTab) ? urlTab : 'boards';
+    setTabState(prev => (prev === t ? prev : t));
+  }, [urlTab]);
   const [selectedPokemon, setSelectedPokemon] = useState(null);
   const [editingSocials, setEditingSocials] = useState(false);
   const [socialForm, setSocialForm] = useState({ twitch_url: '', youtube_url: '', shinydex_url: '' });

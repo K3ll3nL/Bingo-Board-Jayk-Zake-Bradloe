@@ -6,6 +6,8 @@ const {
   POKEMON_IMAGE_FIELDS,
   getActiveMonth,
   getAuthenticatedUserId,
+  getDexTotals,
+  getUserStats,
   refreshAvatarFromProvider,
   supabase,
 } = require('../_lib/core');
@@ -19,28 +21,34 @@ module.exports = function register(app) {
       console.log('Fetching profile for user:', userId);
       
       // Fetch all independent data in parallel
+      // Four queries that used to live here -- the entries count, every entry
+      // pokemon_id, every bingo_achievement, and all ~1080 shiny-available
+      // pokemon_master rows -- are now one cached row plus per-process dex
+      // denominators. See getUserStats / getDexTotals in _lib/core.js.
       const [
         { data: userData, error: userError },
-        { count: totalShinies, error: shiniesError },
         { data: monthlyPoints, error: monthlyError },
         { data: allMonthlyPoints, error: rankError },
-        { data: allBingos },
-        { data: allEntries },
-        { data: allPokemonData },
+        stats,
+        dex,
       ] = await Promise.all([
         supabase.from('users').select('username, display_name, avatar_url, created_at, twitch_url, youtube_url, shinydex_url').eq('id', userId).single(),
-        supabase.from('entries').select('*', { count: 'exact', head: true }).eq('user_id', userId),
         supabase.from('user_monthly_points').select('points, month_id, bingo_months!inner(month_year_display)').eq('user_id', userId).order('month_id', { ascending: true }),
         supabase.from('user_monthly_points').select('user_id, month_id, points, last_updated, bingo_months!inner(month_year_display)'),
-        supabase.from('bingo_achievements').select('bingo_type').eq('user_id', userId),
-        supabase.from('entries').select('pokemon_id').eq('user_id', userId),
-        supabase.from('pokemon_master').select('id, type1, type2, generation').eq('shiny_available', true),
+        getUserStats(userId),
+        getDexTotals(),
       ]);
 
       if (userError) throw userError;
-      if (shiniesError) throw shiniesError;
       if (monthlyError) throw monthlyError;
       if (rankError) throw rankError;
+
+      // A user with no activity has no user_stats row -- the triggers fire on
+      // entries/achievements/points, not on signup. Zeros are the correct
+      // profile for that account, so an absent row is not an error.
+      const st = stats || {};
+      const totalShinies = st.total_entries ?? 0;
+      const bingoRaw = st.bingo_raw || {};
 
       // If avatar_url is missing, try to recover it from the user's Discord identity
       if (userData && !userData.avatar_url) {
@@ -81,45 +89,38 @@ module.exports = function register(app) {
         }
       });
 
-      // Count bingo achievements from the single query
-      const bingos = allBingos || [];
-      const totalRows = bingos.filter(b => b.bingo_type === 'row').length;
-      const totalColumns = bingos.filter(b => b.bingo_type === 'column').length;
+      // Bingo counts are RAW per exact type here -- this is the profile display
+      // breakdown, which distinguishes standard / restricted / personal. It is
+      // deliberately NOT the distinct (month, base) rule the badge ladder uses:
+      // the profile reports awards received, not physical lines completed.
+      const nb = (k) => Number(bingoRaw[k] ?? 0);
+      const totalRows = nb('row');
+      const totalColumns = nb('column');
       const totalBingos = totalRows + totalColumns;
-      const totalXs = bingos.filter(b => b.bingo_type === 'x').length;
-      const totalBlackouts = bingos.filter(b => b.bingo_type === 'blackout').length;
-      const totalPersonalBlackouts = bingos.filter(b => b.bingo_type === 'personal_blackout').length;
-      const restrictedRows = bingos.filter(b => b.bingo_type === 'row_restricted').length;
-      const restrictedColumns = bingos.filter(b => b.bingo_type === 'column_restricted').length;
+      const totalXs = nb('x');
+      const totalBlackouts = nb('blackout');
+      const totalPersonalBlackouts = nb('personal_blackout');
+      const restrictedRows = nb('row_restricted');
+      const restrictedColumns = nb('column_restricted');
       const restrictedBingos = restrictedRows + restrictedColumns;
-      const restrictedXs = bingos.filter(b => b.bingo_type === 'x_restricted').length;
-      const restrictedBlackouts = bingos.filter(b => b.bingo_type === 'blackout_restricted').length;
-      const restrictedPersonalBlackouts = bingos.filter(b => b.bingo_type === 'personal_blackout_restricted').length;
+      const restrictedXs = nb('x_restricted');
+      const restrictedBlackouts = nb('blackout_restricted');
+      const restrictedPersonalBlackouts = nb('personal_blackout_restricted');
 
-      const totalPokemon = allPokemonData ? allPokemonData.length : 0;
-      const totalCaught = allEntries ? new Set(allEntries.map(e => e.pokemon_id)).size : 0;
+      const totalPokemon = dex.totalPokemon;
+      const totalCaught = st.total_approved ?? 0;
 
-      // Dex breakdown by type and generation
-      const caughtIdSet = new Set(allEntries ? allEntries.map(e => e.pokemon_id) : []);
-      const typeTotal = {}, typeCaughtMap = {};
-      const genTotal = {}, genCaughtMap = {};
-      (allPokemonData || []).forEach(p => {
-        const isCaught = caughtIdSet.has(p.id);
-        [p.type1, p.type2].filter(Boolean).forEach(t => {
-          const type = t.charAt(0).toUpperCase() + t.slice(1);
-          typeTotal[type] = (typeTotal[type] || 0) + 1;
-          if (isCaught) typeCaughtMap[type] = (typeCaughtMap[type] || 0) + 1;
-        });
-        if (p.generation != null) {
-          genTotal[p.generation] = (genTotal[p.generation] || 0) + 1;
-          if (isCaught) genCaughtMap[p.generation] = (genCaughtMap[p.generation] || 0) + 1;
-        }
-      });
-      const dexByType = Object.keys(typeTotal).sort().map(type => ({
-        type, total: typeTotal[type], caught: typeCaughtMap[type] || 0
-      }));
-      const dexByGen = Object.keys(genTotal).map(Number).sort((a, b) => a - b).map(gen => ({
-        gen, total: genTotal[gen], caught: genCaughtMap[gen] || 0
+      // Dex breakdown: denominators from the shared dex cache, numerators from
+      // this cached row. Both are keyed lower-case; the display label is
+      // capitalized here rather than in storage.
+      const cap = (t) => t.charAt(0).toUpperCase() + t.slice(1);
+      const typeApproved = st.type_approved || {};
+      const genApproved = st.gen_approved || {};
+      const dexByType = Object.keys(dex.typeTotal)
+        .map(t => ({ type: cap(t), total: dex.typeTotal[t], caught: Number(typeApproved[t] ?? 0) }))
+        .sort((a, b) => a.type.localeCompare(b.type));
+      const dexByGen = Object.keys(dex.genTotal).map(Number).sort((a, b) => a - b).map(gen => ({
+        gen, total: dex.genTotal[gen], caught: Number(genApproved[gen] ?? 0)
       }));
 
       // Format monthly data for graphs

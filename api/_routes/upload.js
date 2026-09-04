@@ -249,7 +249,7 @@ module.exports = function register(app) {
     }
   });
 
-  app.post('/api/upload/submission', uploadRateLimit, upload.fields([{ name: 'file', maxCount: 1 }, { name: 'file2', maxCount: 1 }, { name: 'evolutionFile', maxCount: 1 }, { name: 'evolutionSummaryFile', maxCount: 1 }, { name: 'extraFile', maxCount: 6 }]), async (req, res) => {
+  app.post('/api/upload/submission', uploadRateLimit, upload.fields([{ name: 'file', maxCount: 1 }, { name: 'file2', maxCount: 1 }, { name: 'file3', maxCount: 1 }, { name: 'evolutionFile', maxCount: 1 }, { name: 'evolutionSummaryFile', maxCount: 1 }, { name: 'extraFile', maxCount: 6 }]), async (req, res) => {
     try {
       console.log('Request body:', req.body);
       console.log('Request files:', req.files);
@@ -267,6 +267,11 @@ module.exports = function register(app) {
       const note = req.body.note?.trim() || null;
       const file = req.files?.file?.[0];
       const file2 = req.files?.file2?.[0];
+      // Third main proof shot. Most games ask for Overworld / TID / Date; Let's
+      // Go asks for two because TID and date share a screen. See
+      // proofFieldsFor() in client/src/constants/games.js — the client enforces
+      // the exact per-game count, the server accepts 2 or 3.
+      const file3 = req.files?.file3?.[0];
       // link may arrive as a single string or a string[] when multiple are submitted
       const rawLink = req.body.link;
       const proofLinks = Array.isArray(rawLink)
@@ -337,6 +342,8 @@ module.exports = function register(app) {
       
       let proofUrl = null;
       let proofUrl2 = null;
+      // Named `Main3` to avoid colliding with proofUrl3, which is evolution proof.
+      let proofUrlMain3 = null;
       // proof_link: array of video links (required for restricted, optional for normal)
       const proofLink = proofLinks.length > 0 ? proofLinks : null;
 
@@ -404,6 +411,18 @@ module.exports = function register(app) {
           
           proofUrl2 = `${R2_BUCKET_URL}/${fileName2}`;
           console.log('Upload 2 successful:', proofUrl2);
+
+          if (file3) {
+            const fileName3 = `approval/${userId}-${pokemon_id}-${Date.now()}-p3-${file3.originalname}`;
+            await s3Client.send(new PutObjectCommand({
+              Bucket: R2_BUCKET_NAME,
+              Key: fileName3,
+              Body: file3.buffer,
+              ContentType: file3.mimetype,
+            }));
+            proofUrlMain3 = `${R2_BUCKET_URL}/${fileName3}`;
+            console.log('Upload 3 successful:', proofUrlMain3);
+          }
         } catch (r2Error) {
           console.error('R2 upload error:', r2Error);
           return res.status(500).json({ 
@@ -431,6 +450,9 @@ module.exports = function register(app) {
           month_id: activeMonth.id,
           proof_url: proofUrl,
           proof_url2: proofUrl2,
+          // Ordered main proof shots. proof_url/proof_url2 stay populated for
+          // the rollout; readers should prefer proof_urls.
+          proof_urls: [proofUrl, proofUrl2, proofUrlMain3].filter(Boolean),
           proof_url3: proofUrl3,
           proof_url4: proofUrl4,
           extra_images: extraImageUrls,
@@ -464,7 +486,7 @@ module.exports = function register(app) {
 
   // Historical submission — queues a past-month catch for mod review.
   // No points are awarded on approval; board state is not affected.
-  app.post('/api/upload/historical-submission', uploadRateLimit, upload.fields([{ name: 'file', maxCount: 1 }, { name: 'file2', maxCount: 1 }, { name: 'evolutionFile', maxCount: 1 }, { name: 'evolutionSummaryFile', maxCount: 1 }, { name: 'extraFile', maxCount: 6 }]), async (req, res) => {
+  app.post('/api/upload/historical-submission', uploadRateLimit, upload.fields([{ name: 'file', maxCount: 1 }, { name: 'file2', maxCount: 1 }, { name: 'file3', maxCount: 1 }, { name: 'evolutionFile', maxCount: 1 }, { name: 'evolutionSummaryFile', maxCount: 1 }, { name: 'extraFile', maxCount: 6 }]), async (req, res) => {
     try {
       const userId = await getAuthenticatedUserId(req);
       if (!userId) return res.status(401).json({ error: 'Authentication required' });
@@ -477,6 +499,7 @@ module.exports = function register(app) {
       const note          = req.body.note?.trim() || null;
       const file       = req.files?.file?.[0];
       const file2      = req.files?.file2?.[0];
+      const file3      = req.files?.file3?.[0];
       const rawLink    = req.body.link;
       const proofLinks = Array.isArray(rawLink)
         ? rawLink.map(u => u?.trim()).filter(Boolean)
@@ -532,6 +555,8 @@ module.exports = function register(app) {
       // Upload images to R2 (same as regular submission)
       let proofUrl = null;
       let proofUrl2 = null;
+      // Named `Main3` to avoid colliding with proofUrl3, which is evolution proof.
+      let proofUrlMain3 = null;
       if (file && file2) {
         try {
           const { S3Client, PutObjectCommand } = require('@aws-sdk/client-s3');
@@ -547,6 +572,11 @@ module.exports = function register(app) {
           proofUrl = `${process.env.R2_BUCKET_URL}/${key1}`;
           await s3Client.send(new PutObjectCommand({ Bucket: process.env.R2_BUCKET_NAME || 'shiny-sprites', Key: key2, Body: file2.buffer, ContentType: file2.mimetype }));
           proofUrl2 = `${process.env.R2_BUCKET_URL}/${key2}`;
+          if (file3) {
+            const key3 = `approval/${userId}-${pokemon_id}-${ts}-hist-p3-${file3.originalname}`;
+            await s3Client.send(new PutObjectCommand({ Bucket: process.env.R2_BUCKET_NAME || 'shiny-sprites', Key: key3, Body: file3.buffer, ContentType: file3.mimetype }));
+            proofUrlMain3 = `${process.env.R2_BUCKET_URL}/${key3}`;
+          }
         } catch (r2Error) {
           return res.status(500).json({ error: 'File upload failed', details: r2Error.message });
         }
@@ -569,6 +599,9 @@ module.exports = function register(app) {
           month_id,
           proof_url: proofUrl,
           proof_url2: proofUrl2,
+          // Ordered main proof shots. proof_url/proof_url2 stay populated for
+          // the rollout; readers should prefer proof_urls.
+          proof_urls: [proofUrl, proofUrl2, proofUrlMain3].filter(Boolean),
           proof_url3: proofUrl3,
           proof_url4: proofUrl4,
           extra_images: extraImageUrls,

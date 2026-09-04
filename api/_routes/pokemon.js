@@ -92,10 +92,22 @@ module.exports = function register(app) {
       }));
       
       const caughtCount = pokemon.filter(p => p.caught).length;
-      
+      // Pokemon that have actually turned up on a board. The full dex is the
+      // wrong denominator for this site — you cannot submit what has never been
+      // in a pool.
+      const appearedCount = pokemon.filter(p => p.in_pool || p.in_current_pool).length;
+
+      // `?counts=1` skips the ~1000-object array. The home page's Pokedex teaser
+      // needs three integers, not the whole dex, and it runs on the busiest
+      // route in the site.
+      if (req.query.counts === '1') {
+        return res.json({ caughtCount, appearedCount, totalCount: pokemon.length });
+      }
+
       res.json({
         pokemon,
         caughtCount,
+        appearedCount,
         totalCount: pokemon.length
       });
     } catch (error) {

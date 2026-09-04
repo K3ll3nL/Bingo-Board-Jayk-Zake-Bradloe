@@ -4,6 +4,7 @@
  */
 const {
   TOS_VERSION,
+  getActiveMonthId,
   getAuthenticatedUserId,
   isModerator,
   refreshAvatarFromProvider,
@@ -199,6 +200,53 @@ module.exports = function register(app) {
     } catch (error) {
       console.error('Error updating display name:', error);
       res.status(500).json({ error: 'Failed to update display name', details: error.message });
+    }
+  });
+
+  // GET /api/user/pace — the viewer's points per month, for the home page's
+  // pace sparkline. Deliberately tiny: one query on user_monthly_points joined
+  // to month labels. The profile endpoint carries this too, but it costs seven
+  // queries and two near-full-table scans, which is far too much for one row on
+  // the busiest route in the site.
+  app.get('/api/user/pace', async (req, res) => {
+    try {
+      const userId = await getAuthenticatedUserId(req);
+      if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+
+      const [{ data: rows }, activeMonthId] = await Promise.all([
+        supabase
+          .from('user_monthly_points')
+          .select('month_id, points, bingo_months!inner(month_year_display, start_date)')
+          .eq('user_id', userId),
+        getActiveMonthId(userId),
+      ]);
+
+      const months = (rows || [])
+        .map(r => ({
+          month_id: r.month_id,
+          label: r.bingo_months?.month_year_display ?? null,
+          start_date: r.bingo_months?.start_date ?? null,
+          points: r.points ?? 0,
+        }))
+        .filter(m => m.start_date)
+        .sort((a, b) => String(a.start_date).localeCompare(String(b.start_date)));
+
+      const current = months.find(m => m.month_id === activeMonthId) || null;
+      const past = months.filter(m => m.month_id !== activeMonthId);
+      const average = past.length
+        ? past.reduce((n, m) => n + m.points, 0) / past.length
+        : null;
+
+      res.set('Cache-Control', 'no-store');
+      res.json({
+        months: months.map(({ start_date, ...m }) => m),
+        current,
+        average,
+        best: past.length ? Math.max(...past.map(m => m.points)) : null,
+      });
+    } catch (error) {
+      console.error('Error computing pace:', error);
+      res.status(500).json({ error: 'Failed to compute pace' });
     }
   });
 

@@ -156,6 +156,11 @@ const EXCEPTIONS = [
     },
   },
   {
+    key: 'lgpe',
+    game: "Let's Go Pikachu / Eevee",
+    content: () => <>Your Trainer ID and the date appear on the same screen, so this game asks for two screenshots instead of three: an Overworld Screenshot and a single TID/Date Proof.</>,
+  },
+  {
     key: 'gen1-3',
     game: 'Generations I–III',
     content: () => <>Because these games do not store a date of capture, a video submission is required instead of screenshots.</>,
@@ -421,7 +426,7 @@ const About = () => {
           headerBg="rgba(96,165,250,0.08)"
         >
           <p className="text-gray-400 text-sm leading-relaxed mb-4">
-            Each submission requires a minimum of two screenshots as proof of capture:
+            Each submission requires three screenshots as proof of capture:
           </p>
 
           {/* Required screenshots */}
@@ -430,7 +435,7 @@ const About = () => {
               <span className="flex-shrink-0 w-6 h-6 rounded-full text-white text-xs font-bold flex items-center justify-center" style={{ backgroundColor: '#3b82f6' }}>1</span>
               <div className="flex flex-col sm:flex-row gap-4 sm:items-center w-full">
                 <div className="flex-1">
-                <p className="text-white font-medium text-sm mb-1">Encounter screenshot</p>
+                <p className="text-white font-medium text-sm mb-1">Overworld Screenshot</p>
                 <p className="text-gray-400 text-sm leading-relaxed">
                   The first image must be of the initial encounter — the egg hatch screen, in-battle
                   view, Dynamax Adventure results page, etc.
@@ -453,9 +458,9 @@ const About = () => {
               <span className="flex-shrink-0 w-6 h-6 rounded-full text-white text-xs font-bold flex items-center justify-center" style={{ backgroundColor: '#3b82f6' }}>2</span>
               <div className="flex flex-col sm:flex-row gap-4 sm:items-center w-full">
                 <div className="flex-1">
-                <p className="text-white font-medium text-sm mb-1">Date screenshot</p>
+                <p className="text-white font-medium text-sm mb-1">TID Proof</p>
                 <p className="text-gray-400 text-sm leading-relaxed">
-                  A screenshot showing the in-game or system date on which the Pokémon was caught.
+                  A screenshot showing your Trainer ID, so the catch can be tied to your account.
                 </p>
                 </div>
                 <figure className="sm:flex-shrink-0 rounded-lg overflow-hidden cursor-zoom-in" style={{ background: 'linear-gradient(160deg, #13151a 0%, #181a21 100%)', width: '170px', maxWidth: '100%' }} onClick={() => setLightboxImage('https://pub-583ae6cd5f8b4b58b0ee7053ea1d4b0b.r2.dev/assets/correct_img2.png')}>
@@ -469,6 +474,15 @@ const About = () => {
                     Date proof screen
                   </figcaption>
                 </figure>
+              </div>
+            </div>
+            <div className="border-t border-gray-600 flex gap-4 items-center px-4 py-3.5" style={{ backgroundColor: 'rgba(13,15,20,0.6)' }}>
+              <span className="flex-shrink-0 w-6 h-6 rounded-full text-white text-xs font-bold flex items-center justify-center" style={{ backgroundColor: '#3b82f6' }}>3</span>
+              <div className="flex-1">
+                <p className="text-white font-medium text-sm mb-1">Date Proof</p>
+                <p className="text-gray-400 text-sm leading-relaxed">
+                  A screenshot showing the in-game or system date on which the Pokémon was caught.
+                </p>
               </div>
             </div>
           </div>

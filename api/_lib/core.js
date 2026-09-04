@@ -749,6 +749,151 @@ async function resolveStatsMonth(req, userId, fields = 'id, month_year_display, 
 // disappear, and after the migration the first request re-probes on cold start.
 // The cache is a module-local `let` and is deliberately NOT exported (a
 // destructured require would capture a stale snapshot — see CLAUDE.md).
+// ── user_stats cache readers ─────────────────────────────────────────────────
+// `user_stats` is maintained by AFTER triggers (see
+// supabase/migrations/20260903120000_user_stats_cache.sql), so a read is always
+// current as of the last committed write. These helpers exist so callers stop
+// re-deriving the same aggregates from `entries` + `pokemon_master` on every
+// request.
+//
+// DELIBERATELY NOT used by awardBadgesForTrigger. That path decides whether a
+// badge is granted, runs at most once per approval, and is the one place where
+// paying for a live query is worth it -- a cache miss there would silently grant
+// or withhold a badge. Read paths use the cache; the write path does not.
+async function getUserStats(userId) {
+  if (!userId) return null;
+  const { data, error } = await supabase
+    .from('user_stats').select('*').eq('user_id', userId).maybeSingle();
+  if (error) {
+    console.error('getUserStats failed:', error.message);
+    return null;
+  }
+  return data || null;
+}
+
+// Global dex denominators: how many shiny-available pokemon exist per type and
+// per generation, plus the overall total. These are the SAME for every user, so
+// re-fetching all ~1080 pokemon_master rows per request was the largest single
+// cost in both the profile and badge-progress paths. Memoized per process; on
+// Vercel that means one fetch per warm instance instead of one per request.
+//
+// Invalidation is deliberate: the pool only changes when pokemon_master is
+// edited, which is an admin action, not a user one. A cold start picks it up.
+let dexTotalsCache = null; // { typeTotal, genTotal, totalPokemon, expiresAt }
+const DEX_TOTALS_TTL = 10 * 60_000;
+
+async function getDexTotals() {
+  if (dexTotalsCache && dexTotalsCache.expiresAt > Date.now()) return dexTotalsCache;
+
+  const { data } = await supabase
+    .from('pokemon_master')
+    .select('id, type1, type2, generation, collection_ids')
+    .eq('shiny_available', true);
+
+  const typeTotal = {};
+  const genTotal = {};
+  const collectionTotal = {};
+  for (const p of (data || [])) {
+    for (const slug of (p.collection_ids || [])) {
+      collectionTotal[slug] = (collectionTotal[slug] || 0) + 1;
+    }
+    // Lower-cased keys, matching user_stats.type_approved. Callers that display
+    // these (the profile) capitalize at render time.
+    for (const t of [p.type1, p.type2]) {
+      if (t) typeTotal[t.toLowerCase()] = (typeTotal[t.toLowerCase()] || 0) + 1;
+    }
+    if (p.generation != null) genTotal[p.generation] = (genTotal[p.generation] || 0) + 1;
+  }
+
+  dexTotalsCache = {
+    typeTotal,
+    genTotal,
+    collectionTotal,
+    totalPokemon: (data || []).length,
+    expiresAt: Date.now() + DEX_TOTALS_TTL,
+  };
+  return dexTotalsCache;
+}
+
+// ── Shiny pokemon roster ────────────────────────────────────────────────────
+// The board builder and jeopardy both need "every shiny-available pokemon",
+// and between them they were re-reading pokemon_master eight times: four full
+// row scans (1024 rows, ~600 KB) plus a count-per-game fan-out that fired 22
+// head queries per slug column -- 45 round trips on a single board-builder
+// load, for data that changes a few times a year.
+//
+// One memo of the full roster replaces all of it. Every one of those reads is a
+// filter or a count over this same row set, so they become JS operations with
+// no query at all.
+//
+// INVALIDATION: unlike dexTotalsCache above, this does not rely on TTL alone.
+// There is exactly one writer -- PATCH /api/admin/pokemon/:id/game-slugs, the
+// Game Manager -- and it owns all three fields anything here filters on
+// (game_slugs, restricted_game_slugs, shiny_available). It calls
+// bustShinyPokemon() on success, so a mod's edit shows up on the next request
+// rather than whenever a timer happens to lapse.
+//
+// The TTL is therefore NOT the invalidation strategy; it is the bound on how
+// long OTHER warm Vercel instances can keep serving a pre-edit copy, since the
+// bust only clears the instance that handled the PATCH. Ten minutes is well
+// inside "nobody notices" for data edited a few times a year.
+const SHINY_POKEMON_TTL = 10 * 60_000;
+const SHINY_POKEMON_COLUMNS = [
+  'id', 'name', 'national_dex_id', 'display_name', 'family_id',
+  'genderless', 'custom_gender_code', 'has_gender_difference',
+  'has_major_gender_difference', 'form_id', 'forms_count',
+  'game_slugs', 'restricted_game_slugs',
+  'legendary', 'baby', 'ultra_beast', 'paradox', 'starter', 'fossil',
+  'regional_alt', 'pseudo_legendary', 'pla',
+].join(', ');
+
+let shinyPokemonCache = null;   // { rows, expiresAt }
+let shinyPokemonInFlight = null;
+
+// Returns every shiny_available row, FROZEN. Callers filter and map freely
+// (both are non-mutating), but must never write to a row -- these objects are
+// shared by every request this instance serves until the memo expires, so a
+// mutation would corrupt them for everyone. Freezing makes that a loud failure
+// in strict mode instead of a silent one.
+async function getShinyPokemon() {
+  if (shinyPokemonCache && shinyPokemonCache.expiresAt > Date.now()) {
+    return shinyPokemonCache.rows;
+  }
+  // Share one in-flight fetch, so a cold start under concurrent load does not
+  // pull 600 KB once per request. Same pattern as getActiveMonth.
+  if (shinyPokemonInFlight) return shinyPokemonInFlight;
+
+  shinyPokemonInFlight = (async () => {
+    try {
+      const { data, error } = await supabase
+        .from('pokemon_master')
+        .select(SHINY_POKEMON_COLUMNS)
+        .eq('shiny_available', true);
+      if (error) throw error;
+      const rows = (data || []).map(Object.freeze);
+      shinyPokemonCache = { rows, expiresAt: Date.now() + SHINY_POKEMON_TTL };
+      return rows;
+    } finally {
+      shinyPokemonInFlight = null;
+    }
+  })();
+  return shinyPokemonInFlight;
+}
+
+// Called by the Game Manager's PATCH handler after a successful write.
+function bustShinyPokemon() {
+  shinyPokemonCache = null;
+}
+
+// Count rows whose `column` (game_slugs or restricted_game_slugs) contains
+// `slug`. Replaces a per-game `count: 'exact', head: true` query -- there are
+// 22 slugs and two columns, so this removed 44 round trips from one endpoint.
+function countShinyByGameSlug(rows, column, slug) {
+  let n = 0;
+  for (const p of rows) if ((p[column] || []).includes(slug)) n++;
+  return n;
+}
+
 let tierListSchemaCache = null; // { mode: boolean }
 
 async function getTierListSchema() {
@@ -1571,11 +1716,83 @@ async function computeBadgeRarity() {
   return { percentByBadge, totalUsers: totalUsers || 0 };
 }
 
+// ── Bingo shapes and the race for an unclaimed bounty ────────────────────────
+// Shared by /api/stats/month (the Watch Out! panel) and /api/bingo/board (the
+// home page's bounty contenders). Board positions are 1..25 with a free space
+// at 13; the X shape needs BOTH diagonals, so it is one shape, their union.
+const WATCH_SHAPES = {
+  row: [
+    [1, 2, 3, 4, 5], [6, 7, 8, 9, 10], [11, 12, 13, 14, 15],
+    [16, 17, 18, 19, 20], [21, 22, 23, 24, 25],
+  ],
+  column: [
+    [1, 6, 11, 16, 21], [2, 7, 12, 17, 22], [3, 8, 13, 18, 23],
+    [4, 9, 14, 19, 24], [5, 10, 15, 20, 25],
+  ],
+  x: [[1, 7, 13, 19, 25, 5, 9, 17, 21]],
+  blackout: [Array.from({ length: 25 }, (_, i) => i + 1)],
+};
+// Order is "easiest first" and doubles as the tie-break when two achievement
+// types are the same number of catches away (Kellen's call): a row that is 2
+// away leads over an X that is 2 away, because it is the likelier next claim.
+const WATCH_TYPES = ['row', 'column', 'x', 'blackout'];
+// Types are claimed once per month by the first player to complete them, so a
+// claimed type is out of reach for everyone else and drops off the panel.
+const buildWatchOut = (subset, positionByPokemon, claimed) => {
+  const filledByUser = new Map();
+  subset.forEach(e => {
+    let filled = filledByUser.get(e.user_id);
+    if (!filled) { filled = new Set([13]); filledByUser.set(e.user_id, filled); }
+    const pos = positionByPokemon[e.pokemon_id];
+    if (pos) filled.add(pos);
+  });
+
+  const out = [];
+  WATCH_TYPES.forEach(type => {
+    if (claimed.has(type)) return;
+    const shapes = WATCH_SHAPES[type];
+    let best = Infinity;
+    let contenders = [];
+    filledByUser.forEach((filled, userId) => {
+      let userBest = Infinity;
+      let positions = [];
+      shapes.forEach((cells, idx) => {
+        const remaining = cells.reduce((n, p) => n + (filled.has(p) ? 0 : 1), 0);
+        if (remaining < userBest) { userBest = remaining; positions = [idx + 1]; }
+        else if (remaining === userBest) positions.push(idx + 1);
+      });
+      if (userBest < 1 || userBest === Infinity) return; // already complete / unclaimable
+      if (userBest < best) { best = userBest; contenders = []; }
+      if (userBest === best) contenders.push({ user_id: userId, positions });
+    });
+    if (!contenders.length) return;
+    out.push({
+      type,
+      remaining: best,
+      // row/column carry a 1-based index; x and blackout have no position.
+      positioned: type === 'row' || type === 'column',
+      contenders,
+    });
+  });
+  // The page renders only out[0]. Array.sort is stable, so equal `remaining`
+  // preserves the easiest-first WATCH_TYPES order established above.
+  return out.sort((a, b) => a.remaining - b.remaining);
+};
+
+
 // Flabébé's flower color is stored as a form index on the shared "Flabébé" row.
 const FLABEBE_FORM_INDEX = { Red: 0, Yellow: 1, Orange: 2, Blue: 3, White: 4 };
 
 module.exports = {
+  getShinyPokemon,
+  bustShinyPokemon,
+  countShinyByGameSlug,
+  getUserStats,
+  getDexTotals,
   API_KEY_CACHE_TTL,
+  WATCH_SHAPES,
+  WATCH_TYPES,
+  buildWatchOut,
   DEV_USER_ID,
   FLABEBE_FORM_INDEX,
   GAME_LABELS,

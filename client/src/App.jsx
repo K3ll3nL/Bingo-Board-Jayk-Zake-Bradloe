@@ -8,7 +8,6 @@ import Leaderboard from './components/Leaderboard';
 import AuthCallback from './components/AuthCallback';
 import Profile from './components/Profile';
 import Pokedex from './components/Pokedex';
-import TwitchAmbassadors from './components/TwitchAmbassadors';
 import Upload from './components/Upload';
 import Approvals from './components/Approvals';
 import BoardBuilder from './components/BoardBuilder';
@@ -33,8 +32,7 @@ import BannerManagerModal from './components/BannerManagerModal';
 import MonthStats from './components/MonthStats';
 import TierList from './components/TierList';
 import HomeHighlights from './components/HomeHighlights';
-import HomeV2 from './components/HomeV2';
-import HomeV3 from './components/HomeV3';
+import Home from './components/Home';
 import ShinyTools from './components/ShinyTools';
 import SVSandwichCalculator from './components/tools/SVSandwichCalculator';
 import BDSPRadar from './components/tools/BDSPRadar';
@@ -609,11 +607,10 @@ const AppLayout = () => {
       <footer className="mt-12 border-t border-hairline py-6 text-center text-xs text-muted">
         <div className="max-w-7xl mx-auto px-4">
           <div className="flex flex-wrap justify-center gap-x-6 gap-y-2 mb-4 text-sm">
-            <Link to="/" className="hover:text-body transition-colors">Home</Link>
-            <Link to="/pokedex" className="hover:text-body transition-colors">Pokédex</Link>
             <Link to="/about" className="hover:text-body transition-colors">How to Play</Link>
-            {/* Same yellow as the header and drawer — it used to be yellow-600
-                here, which is what made one link read as three colours. */}
+            <Link to="/stats" className="hover:text-body transition-colors">Month Stats</Link>
+            <Link to="/tier-list" className="hover:text-body transition-colors">Tier List</Link>
+            <Link to="/pokedex" className="hover:text-body transition-colors">Pokédex</Link>
             <Link to="/tools" className="text-warn hover:text-yellow-200 transition-colors">Shiny Tools</Link>
           </div>
           <div className="flex flex-wrap justify-center gap-x-5 gap-y-1">
@@ -628,56 +625,6 @@ const AppLayout = () => {
       <FeedbackModal isOpen={feedbackOpen} onClose={() => setFeedbackOpen(false)} />
       <BannerManagerModal isOpen={bannerManagerOpen} onClose={() => setBannerManagerOpen(false)} />
     </div>
-  );
-};
-
-// Home page content only (no header — AppLayout provides it).
-//
-// `?layout=v2` renders the redesigned returning-hunter dashboard (HomeV2.jsx)
-// instead of this one. The flag is read per-render from the live location, so
-// toggling it in the address bar switches layouts without a reload, and the
-// default path is byte-for-byte the layout that shipped.
-const HomePage = () => {
-  const layout = new URLSearchParams(useLocation().search).get('layout');
-  if (layout === 'v3') return <HomeV3 />;
-  if (layout === 'v2') return <HomeV2 />;
-  return <HomeV1 />;
-};
-
-const HomeV1 = () => {
-  const { user } = useAuth();
-  return (
-    /* One vertical scale for the whole home page: `space-y-6` (24px) between
-       every top-level block, matching the Board/Leaderboard grid's own gutter.
-       The ad-hoc `mb-4`s that used to stack 16/16/24/32px are gone — see
-       docs/LAYOUT_AUDIT.md Priority 3. */
-    <main className="max-w-7xl mx-auto px-4 py-5 space-y-6">
-      {!user && (!import.meta.env.DEV || sessionStorage.getItem('realauth') === '1') && (
-        <Link to="/login" className="block rounded-xl p-4 text-center cursor-pointer border border-accent/40" style={{ background: GRADIENT.card }}>
-          <p className="text-accent text-sm">
-            👋 Sign in or create an account to track your own Pokémon progress!
-          </p>
-        </Link>
-      )}
-      {/* Every promo/announcement is a `banners` row now, including the tier-list
-          prompt (condition = 'tier_list_incomplete'). See BannerBar.jsx. */}
-      <BannerBar />
-
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="rounded-xl shadow-xl p-6 border border-hairline lg:min-h-[720px]" style={{ background: GRADIENT.card }}>
-          <BingoBoard />
-        </div>
-        <div className="relative rounded-xl shadow-xl overflow-hidden border border-hairline min-h-[480px] lg:min-h-[720px]" style={{ background: GRADIENT.card }}>
-          <div className="absolute inset-0 p-6 flex flex-col">
-            <Leaderboard />
-          </div>
-        </div>
-      </div>
-
-      <HomeHighlights />
-
-      <TwitchAmbassadors />
-    </main>
   );
 };
 
@@ -753,7 +700,7 @@ function App() {
 
           {/* Routes with the shared header */}
           <Route element={<AppLayout />}>
-            <Route path="/" element={<HomePage />} />
+            <Route path="/" element={<Home />} />
             <Route path="/profile/:userId" element={<Profile />} />
             <Route path="/profile" element={<Profile />} />
             <Route path="/pokedex" element={<Pokedex />} />
@@ -787,7 +734,7 @@ function App() {
             <Route path="/tools/:toolId" element={<ShinyTools />} />
             <Route path="/privacy" element={<PrivacyPolicy />} />
             <Route path="/terms" element={<TermsOfService />} />
-            <Route path="*" element={<HomePage />} />
+            <Route path="*" element={<Home />} />
           </Route>
         </Routes>
         </ConsentGate>

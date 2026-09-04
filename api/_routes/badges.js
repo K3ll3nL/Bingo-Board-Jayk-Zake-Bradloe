@@ -6,6 +6,8 @@ const {
   computeBadgeRarity,
   getActiveMonth,
   getAuthenticatedUserId,
+  getDexTotals,
+  getUserStats,
   isModerator,
   supabase,
   upload,
@@ -31,11 +33,9 @@ const PROGRESS_SOURCES = {
     const types = (!b.check_qualifier || b.check_qualifier === 'any')
       ? ['row', 'column', 'x', 'blackout']
       : String(b.check_qualifier).split(',').map(t => t.trim()).filter(Boolean);
-    // strictBingoCounts, NOT ctx.bingoTypeCounts. The shared context builder
-    // folds `row_restricted` into `row`, which counts one line twice: finishing
-    // a row with all-restricted entries writes both rows. Held badges across
-    // the lines/x/blackout families all match the UNFOLDED totals, so the
-    // unfolded count is the one the product actually means.
+    // Both this and ctx.bingoTypeCounts are now DISTINCT (month_id, base_type)
+    // and agree; strictBingoCounts is used because this handler already has the
+    // rows in hand and would otherwise re-query for them.
     const current = types.reduce((n, t) => n + (ctx.strictBingoCounts?.[t] ?? 0), 0);
     return { current, target: b.check_value, unit: 'bounties' };
   },
@@ -102,14 +102,6 @@ module.exports = function register(app) {
         .order('id', { ascending: true });
 
       if (error) throw error;
-
-      // Exact types only — a `_restricted` row is the same line as the standard
-      // row it also satisfies, so it must not add a second count.
-      const strictBingoCounts = { row: 0, column: 0, x: 0, blackout: 0 };
-      for (const a of (myBingos || [])) {
-        if (a.bingo_type in strictBingoCounts) strictBingoCounts[a.bingo_type]++;
-      }
-      ctx.strictBingoCounts = strictBingoCounts;
 
       const { percentByBadge } = await computeBadgeRarity();
 
@@ -216,14 +208,6 @@ module.exports = function register(app) {
 
       if (error) throw error;
 
-      // Exact types only — a `_restricted` row is the same line as the standard
-      // row it also satisfies, so it must not add a second count.
-      const strictBingoCounts = { row: 0, column: 0, x: 0, blackout: 0 };
-      for (const a of (myBingos || [])) {
-        if (a.bingo_type in strictBingoCounts) strictBingoCounts[a.bingo_type]++;
-      }
-      ctx.strictBingoCounts = strictBingoCounts;
-
       const { percentByBadge } = await computeBadgeRarity();
 
       // Flag which of these badges the *viewer* has personally earned, so the
@@ -287,14 +271,6 @@ module.exports = function register(app) {
         .not('slot', 'is', null)
         .order('slot', { ascending: true });
       if (error) throw error;
-
-      // Exact types only — a `_restricted` row is the same line as the standard
-      // row it also satisfies, so it must not add a second count.
-      const strictBingoCounts = { row: 0, column: 0, x: 0, blackout: 0 };
-      for (const a of (myBingos || [])) {
-        if (a.bingo_type in strictBingoCounts) strictBingoCounts[a.bingo_type]++;
-      }
-      ctx.strictBingoCounts = strictBingoCounts;
 
       const { percentByBadge } = await computeBadgeRarity();
 
@@ -555,7 +531,7 @@ module.exports = function register(app) {
           ? supabase.from('monthly_pokemon_pool').select('pokemon_id').eq('month_id', monthRow.id)
           : Promise.resolve({ data: [] }),
         supabase.from('entries').select('pokemon_id').eq('user_id', userId),
-        supabase.from('bingo_achievements').select('bingo_type').eq('user_id', userId),
+        supabase.from('bingo_achievements').select('month_id, bingo_type').eq('user_id', userId),
       ]);
 
       // This month's board, and what the hunter already has, so a badge can be
@@ -588,18 +564,65 @@ module.exports = function register(app) {
 
       if (candidates.length === 0) return res.json({ badges: [] });
 
-      // Run only the builders these candidates need.
-      const needed = [...new Set(candidates.map(b => BUILDER_FOR_CHECK[b.check_type]).filter(Boolean))];
-      const built = await Promise.all(
-        needed.map(name => contextBuilders[name](userId, supabase).catch(() => ({})))
-      );
-      const ctx = Object.assign({}, ...built);
+      // Context comes from the user_stats cache plus the memoized global dex
+      // denominators, NOT from contextBuilders. The builders re-fetch every entry
+      // the hunter has (joined to pokemon_master) plus all ~1080 shiny-available
+      // pokemon_master rows plus collection_game_filter, on every single request
+      // -- and this endpoint runs on the home page for every logged-in visitor.
+      // The cached row is one indexed read; the denominators are per-process.
+      //
+      // account_age is the one builder kept live: it reads a single users row,
+      // is not derivable from entries, and only runs when an account_age badge is
+      // actually a candidate.
+      const [stats, dex] = await Promise.all([getUserStats(userId), getDexTotals()]);
 
-      // Exact types only — a `_restricted` row is the same line as the standard
-      // row it also satisfies, so it must not add a second count.
+      // No cached row yet (brand-new account, or a restore that skipped the
+      // backfill). Fall back to the builders rather than showing a hunter an
+      // empty ladder built from zeros.
+      let ctx;
+      if (!stats) {
+        const needed = [...new Set(candidates.map(b => BUILDER_FOR_CHECK[b.check_type]).filter(Boolean))];
+        const built = await Promise.all(
+          needed.map(name => contextBuilders[name](userId, supabase).catch(() => ({})))
+        );
+        ctx = Object.assign({}, ...built);
+      } else {
+        const collectionProgress = {};
+        for (const [slug, total] of Object.entries(dex.collectionTotal || {})) {
+          collectionProgress[slug] = { total, caught: Number(stats.collections?.[slug] ?? 0) };
+        }
+        ctx = {
+          totalSubmissions:   stats.total_submissions,
+          totalApproved:      stats.total_approved,
+          totalRejected:      stats.total_rejected,
+          restrictedApproved: stats.restricted_approved,
+          activeMonths:       stats.active_months,
+          typeApproved: stats.type_approved || {},
+          typeTotal:    dex.typeTotal,
+          genApproved:  stats.gen_approved || {},
+          genTotal:     dex.genTotal,
+          collectionProgress,
+        };
+      }
+
+      if (candidates.some(b => b.check_type === 'account_age_months')) {
+        Object.assign(ctx, await contextBuilders.account_age(userId, supabase).catch(() => ({})));
+      }
+
+      // DISTINCT (month_id, base_type). This must stay identical to
+      // contextBuilders.bingo_achievement in _badgeRegistry.js — if the ladder
+      // and the award engine count differently, the bar either shows progress
+      // toward a badge already granted or hides one about to be. See the long
+      // comment on that builder for why neither folding nor exact-type is right.
       const strictBingoCounts = { row: 0, column: 0, x: 0, blackout: 0 };
+      const seenBingo = new Set();
       for (const a of (myBingos || [])) {
-        if (a.bingo_type in strictBingoCounts) strictBingoCounts[a.bingo_type]++;
+        const base = a.bingo_type.replace('_restricted', '');
+        if (!(base in strictBingoCounts)) continue;
+        const key = `${a.month_id}:${base}`;
+        if (seenBingo.has(key)) continue;
+        seenBingo.add(key);
+        strictBingoCounts[base]++;
       }
       ctx.strictBingoCounts = strictBingoCounts;
 
@@ -623,7 +646,11 @@ module.exports = function register(app) {
             Number(o.check_value) < Number(b.check_value)
           )
           .map(o => Number(o.check_value))
-          .filter(v => v <= current);
+          // STRICTLY below, not `<=`. A ladder with a rung at every integer
+          // (lines/x/blackout are 1,2,3,4,5,...) would otherwise put the floor
+          // exactly ON your count, making every bar 0% and filtering the whole
+          // family out. Sparse ladders (10/25/50) are unaffected.
+          .filter(v => v < current);
         return below.length ? Math.max(...below) : 0;
       };
 
@@ -665,7 +692,10 @@ module.exports = function register(app) {
         // guarantees every row rendered has a bar with something in it: a
         // hunter sitting exactly on the previous rung reads 0% and is dropped.
         .filter(b => b.pct > 0)
-        .sort((a, b) =>  (b.pct - a.pct)) || (a.remaining - b.remaining);
+        // Fullest bar first: sorting by `remaining` put a 2-away badge with an
+        // empty bar above a 3-away badge sitting at 94%, so the bars read out of
+        // order down the column. Ties fall back to fewest remaining.
+        .sort((a, b) => (b.pct - a.pct) || (a.remaining - b.remaining));
 
       // One rung per family. Families are ladders, so the next rung is the only
       // one that is actually next — showing X IV and X V together is one carrot

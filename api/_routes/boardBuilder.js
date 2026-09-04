@@ -5,8 +5,10 @@
 const {
   broadcastUpdate,
   calculateCategoryThresholds,
+  countShinyByGameSlug,
   generateNewPoolForMonth,
   getAuthenticatedUserId,
+  getShinyPokemon,
   isModerator,
   nowForMonth,
   pickRandomPokemonForPosition,
@@ -181,12 +183,7 @@ module.exports = function register(app) {
 
       if (!existingPool || existingPool.length === 0) {
         // Pull every shiny-available pokemon (including family_id for exclusion logic)
-        const { data: allPokemon, error: pkErr } = await supabase
-          .from('pokemon_master')
-          .select('id, name, national_dex_id, family_id, genderless, custom_gender_code, has_gender_difference, has_major_gender_difference, form_id, forms_count')
-          .eq('shiny_available', true);
-
-        if (pkErr) return res.status(500).json({ error: 'Failed to fetch pokemon', details: pkErr.message });
+        const allPokemon = await getShinyPokemon();
 
         // Count how many months each pokemon has appeared in (excluding this one)
         const { data: history } = await supabase
@@ -337,32 +334,26 @@ module.exports = function register(app) {
 
       // Only count shiny-available pokemon in the dex denominator — non-shiny mons
       // can never appear on a board, so including them inflates the "expected" dex share.
-      const { count: dexTotal } = await supabase
-        .from('pokemon_master')
-        .select('*', { count: 'exact', head: true })
-        .eq('shiny_available', true);
+      // Both the dex denominator and every per-game dex count come off the one
+      // cached roster. This used to be 1 + (22 games x 2 slug columns) = 45
+      // count queries on a single page load; it is now zero.
+      const shinyRoster = await getShinyPokemon();
+      const dexTotal = shinyRoster.length;
 
       // Build { gameKey: { boardCount, dexCount } } for a given slug map + column.
-      const buildGameStats = async (slugMap, slugColumn) => {
+      const buildGameStats = (slugMap, slugColumn) => {
         const boardCounts = {};
         tiles.forEach(t => {
           const pid = t.pokemon?.id || t.pokemon_id;
           if (!pid) return;
           (slugMap[pid] || []).forEach(g => { boardCounts[g] = (boardCounts[g] || 0) + 1; });
         });
-        const keys = Object.keys(boardCounts);
-        const dexCounts = await Promise.all(
-          keys.map(g =>
-            supabase
-              .from('pokemon_master')
-              .select('*', { count: 'exact', head: true })
-              .eq('shiny_available', true)
-              .contains(slugColumn, [g])
-          )
-        );
         const stats = {};
-        keys.forEach((g, i) => {
-          stats[g] = { boardCount: boardCounts[g], dexCount: dexCounts[i].count || 0 };
+        Object.keys(boardCounts).forEach(g => {
+          stats[g] = {
+            boardCount: boardCounts[g],
+            dexCount: countShinyByGameSlug(shinyRoster, slugColumn, g),
+          };
         });
         return stats;
       };
@@ -551,10 +542,7 @@ module.exports = function register(app) {
       const numUnlocked = unlockedPositions.length;
 
       // Pre-calculate category counts for locked Pokemon to pass to generation
-      const { data: allPokemonForLocked } = await supabase
-        .from('pokemon_master')
-        .select('id, legendary, baby, ultra_beast, paradox, starter, fossil, regional_alt, pseudo_legendary, pla')
-        .eq('shiny_available', true);
+      const allPokemonForLocked = await getShinyPokemon();
 
       const categories = ['legendary', 'baby', 'ultra_beast', 'paradox', 'starter', 'fossil', 'regional_alt', 'pseudo_legendary', 'pla'];
       const lockedCategoryCounts = {};

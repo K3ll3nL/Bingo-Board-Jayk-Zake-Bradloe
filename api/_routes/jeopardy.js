@@ -3,15 +3,16 @@
  * Registered from api/index.js — see api/API_INDEX.md for the full route map.
  */
 const {
-  SHALPHA_GAMES,
   broadcastUpdate,
   crypto,
   enrichUsersWithTwitchPfp,
   generateJeopardyPool,
   getAuthenticatedUserId,
+  getShinyPokemon,
   hydrateJeopardyClaims,
-  isModerator,
   hydrateJeopardyTiles,
+  isModerator,
+  SHALPHA_GAMES,
   shuffleArray,
   supabase,
 } = require('../_lib/core');
@@ -415,12 +416,12 @@ module.exports = function register(app) {
       const currentTile = (pool || []).find(p => p.position === position);
       const otherIds = new Set((pool || []).filter(p => p.position !== position).map(r => r.pokemon_id));
 
-      let pkQuery = supabase
-        .from('pokemon_master')
-        .select('id, name, national_dex_id, display_name, family_id, genderless, custom_gender_code, has_gender_difference, has_major_gender_difference, form_id, forms_count')
-        .eq('shiny_available', true);
-      if (board.game) pkQuery = pkQuery.contains('game_slugs', [board.game]);
-      const { data: allPokemon } = await pkQuery;
+      // Roster comes from the shared memo; the game filter that used to be a
+      // `.contains()` on the query is the same predicate applied in JS.
+      const roster = await getShinyPokemon();
+      const allPokemon = board.game
+        ? roster.filter(p => (p.game_slugs || []).includes(board.game))
+        : roster;
 
       const available = (allPokemon || []).filter(p => !otherIds.has(p.id));
       if (available.length === 0) return res.status(400).json({ error: 'No pokemon available for reroll' });
@@ -451,12 +452,12 @@ module.exports = function register(app) {
       const unlocked = (pool || []).filter(p => !p.locked);
       if (unlocked.length === 0) return res.status(400).json({ error: 'Every tile is locked' });
 
-      let pkQuery = supabase
-        .from('pokemon_master')
-        .select('id, name, national_dex_id, display_name, family_id, genderless, custom_gender_code, has_gender_difference, has_major_gender_difference, form_id, forms_count')
-        .eq('shiny_available', true);
-      if (board.game) pkQuery = pkQuery.contains('game_slugs', [board.game]);
-      const { data: allPokemon } = await pkQuery;
+      // Roster comes from the shared memo; the game filter that used to be a
+      // `.contains()` on the query is the same predicate applied in JS.
+      const roster = await getShinyPokemon();
+      const allPokemon = board.game
+        ? roster.filter(p => (p.game_slugs || []).includes(board.game))
+        : roster;
 
       const lockedIds = new Set(locked.map(p => p.pokemon_id));
       const pool_ = shuffleArray((allPokemon || []).filter(p => !lockedIds.has(p.id)));

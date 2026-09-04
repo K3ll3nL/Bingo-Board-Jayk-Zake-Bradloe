@@ -77,6 +77,19 @@ export const parseApiError = async (response, fallbacks = {}) => {
 
 export const api = {
   // Bingo Board endpoints
+  // Counts only — deliberately not the full dex payload. See /api/pokedex.
+  getPokedexCounts: async () => {
+    const res = await fetch('/api/pokedex?counts=1', { headers: await getAuthHeaders() });
+    if (!res.ok) throw new Error('Failed to load pokedex counts');
+    return res.json();
+  },
+
+  getMonthPace: async () => {
+    const res = await fetch('/api/user/pace', { headers: await getAuthHeaders() });
+    if (!res.ok) throw new Error('Failed to load pace');
+    return res.json();
+  },
+
   getBadgeProgress: async (limit = 4) => {
     const res = await fetch(`/api/badges/progress?limit=${limit}`, { headers: await getAuthHeaders() });
     if (!res.ok) throw new Error('Failed to load badge progress');

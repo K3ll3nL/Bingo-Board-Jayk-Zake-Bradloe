@@ -14,12 +14,47 @@
 //                    e.g. "Overworld Screenshot" for games without a shiny flash
 //   no_image_proof — (optional) if true, image upload fields are greyed out and
 //                    disabled; use for games with no in-game screenshot capability
+//   proof_fields   — (optional) overrides DEFAULT_PROOF_FIELDS for this game.
+//                    Use proofFieldsFor(key) rather than reading this directly;
+//                    it applies the default and the no_image_proof rule.
 //   manager_order  — sort key used ONLY by PokemonGameManager (higher = newer, shown
 //                    first). Gaps of 10 leave room to slot re-releases in between
 //                    without renumbering. Every other surface uses array order.
 // ─────────────────────────────────────────────────────────────────────────────
 
 const R2_BASE = 'https://pub-583ae6cd5f8b4b58b0ee7053ea1d4b0b.r2.dev/assets/games';
+
+// ── Proof fields ──────────────────────────────────────────────────────────────
+// Every submission carries an ordered set of proof images. `id` is stable and is
+// what the API stores alongside the URL — never renumber or rename one after
+// launch, or historical submissions lose the meaning of their own images.
+//
+// Most games need three separate shots. Let's Go Pikachu/Eevee shows the trainer
+// ID and the date on the same screen, so it takes two.
+export const DEFAULT_PROOF_FIELDS = [
+  { id: 'overworld', label: 'Overworld Screenshot', required: true },
+  { id: 'tid',       label: 'TID Proof',            required: true },
+  { id: 'date',      label: 'Date Proof',           required: true },
+];
+
+export const LGPE_PROOF_FIELDS = [
+  { id: 'overworld', label: 'Overworld Screenshot', required: true },
+  { id: 'tid_date',  label: 'TID/Date Proof',       required: true },
+];
+
+// The one place that resolves which fields a game asks for. Games flagged
+// `no_image_proof` (Gen 1-3 — no in-game screenshot capability) ask for none,
+// which is what the About page's Gen 1-3 disclaimer explains.
+export const proofFieldsFor = (gameKeyOrLabel) => {
+  // Accepts either. The upload form stores the game LABEL in state (that is what
+  // the API persists), while other callers hold the key — matching only on key
+  // silently fell through to the default, which is how Let's Go ended up asking
+  // for three images.
+  const game = ALLOWED_GAMES.find(g => g.key === gameKeyOrLabel || g.label === gameKeyOrLabel);
+  if (!game) return DEFAULT_PROOF_FIELDS;
+  if (game.no_image_proof) return [];
+  return game.proof_fields || DEFAULT_PROOF_FIELDS;
+};
 
 export const ALLOWED_GAMES = [
   {
@@ -74,6 +109,8 @@ export const ALLOWED_GAMES = [
     key: 'lets_go_pikachu_eevee',
     label: 'Pokémon Lets Go Pikachu / Eevee',
     img_urls: [`${R2_BASE}/lets_go_pikachu.png`, `${R2_BASE}/lets_go_eevee.png`],
+    // TID and date share one screen in LGPE, so two shots cover what three do elsewhere.
+    proof_fields: LGPE_PROOF_FIELDS,
     restricted_checklist: [
       { id: 'lgpe_chain_limit', label: 'My shiny charm chain is not above 11' },
     ],

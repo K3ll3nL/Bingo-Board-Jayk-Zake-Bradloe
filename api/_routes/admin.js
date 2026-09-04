@@ -4,6 +4,7 @@
  */
 const {
   broadcastUpdate,
+  bustShinyPokemon,
   getAuthenticatedUserId,
   isModerator,
   supabase,
@@ -625,6 +626,13 @@ module.exports = function register(app) {
       if (error) {
         throw error;
       }
+
+      // This is the ONLY writer of game_slugs / restricted_game_slugs /
+      // shiny_available, which is exactly what core's shiny roster memo filters
+      // on — so busting here is what lets that memo be correct on write rather
+      // than merely correct eventually. Must stay next to the update: if
+      // another endpoint ever starts writing these columns, it needs this too.
+      bustShinyPokemon();
 
       // Real-time fan-out to other mods on the Game Manager. editor_id lets the
       // sender's own client ignore its own echo so it can't stomp on in-flight typing.

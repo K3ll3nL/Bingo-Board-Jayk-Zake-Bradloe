@@ -89,11 +89,30 @@ module.exports = function register(app) {
   // vercel.json: { "crons": [{ "path": "/api/internal/period-end", "schedule": "0 4 * * *" }] }
   // Vercel sets x-vercel-cron-signature; we verify WEBHOOK_SECRET as a fallback
   // for manual triggers and local testing.
-  app.post('/api/internal/period-end', async (req, res) => {
-    if (req.headers['x-webhook-secret'] !== process.env.WEBHOOK_SECRET &&
-        req.headers['authorization'] !== `Bearer ${process.env.CRON_SECRET}`) {
+  // Registered for BOTH methods. Vercel Cron invokes the path with GET; this was
+  // POST-only, so the scheduled job never ran in production — no image purge, no
+  // date_award badges, no month/season/year-end processing, no countdown banner.
+  // POST is kept for manual triggers and local testing.
+  const periodEnd = async (req, res) => {
+    const bySecret = req.headers['x-webhook-secret'] === process.env.WEBHOOK_SECRET;
+    const byCron   = process.env.CRON_SECRET &&
+                     req.headers['authorization'] === `Bearer ${process.env.CRON_SECRET}`;
+    if (!bySecret && !byCron) {
+      // Say WHY, so a misconfigured secret is visible in the logs instead of
+      // failing silently for months.
+      console.warn('period-end: unauthorized', {
+        hasWebhookHeader: !!req.headers['x-webhook-secret'],
+        hasAuthHeader: !!req.headers['authorization'],
+        vercelCronHeader: !!req.headers['x-vercel-cron-signature'],
+        cronSecretConfigured: !!process.env.CRON_SECRET,
+      });
       return res.status(401).end();
     }
+
+    // `?dryRun=1` reports what WOULD be purged and skips every delete. Use this
+    // for the first run after the fix — two months of expired images have
+    // accumulated while the job was unreachable.
+    const dryRun = req.query?.dryRun === '1' || req.query?.dry_run === '1';
 
     try {
       const todayUTC     = new Date();
@@ -148,11 +167,21 @@ module.exports = function register(app) {
 
         if (expiredHistory?.length) {
           const urlsToPurge = expiredHistory.flatMap(h => [h.proof_url, h.proof_url2].filter(Boolean));
-          await deleteR2Images(urlsToPurge);
+          console.log(`period-end: ${dryRun ? '[dry run] would purge' : 'purging'} ${urlsToPurge.length} image(s) across ${expiredHistory.length} approval_history row(s)`);
+          if (!dryRun) await deleteR2Images(urlsToPurge);
           const ids = expiredHistory.map(h => h.id);
-          await supabase.from('approval_history').update({ proof_url: null, proof_url2: null }).in('id', ids);
+          if (!dryRun) {
+            // `proof_urls` is cleared alongside the legacy pair so the array can
+            // never outlive the files it points at. Safe before the array is
+            // populated (no-op) and safe after (the real clear), which is what
+            // lets the migration land independently of the rest of the rollout.
+            await supabase
+              .from('approval_history')
+              .update({ proof_url: null, proof_url2: null, proof_urls: [] })
+              .in('id', ids);
+          }
           results.purgedHistory = expiredHistory.length;
-          console.log(`period-end: purged images for ${expiredHistory.length} approval_history records`);
+          console.log(`period-end: ${dryRun ? '[dry run] no rows cleared for' : 'purged images for'} ${expiredHistory.length} approval_history records`);
         }
       } catch (purgeErr) {
         console.error('Failed to purge approval_history images (non-fatal):', purgeErr.message);
@@ -202,6 +231,10 @@ module.exports = function register(app) {
       console.error('period-end error:', err);
       res.status(500).json({ error: err.message });
     }
-  });
+  };
+
+  // GET is what Vercel Cron actually sends; POST stays for manual runs.
+  app.get('/api/internal/period-end', periodEnd);
+  app.post('/api/internal/period-end', periodEnd);
 
 };

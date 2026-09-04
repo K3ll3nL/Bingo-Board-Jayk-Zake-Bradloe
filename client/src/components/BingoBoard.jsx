@@ -8,7 +8,7 @@ import ReconnectingPill from './ReconnectingPill';
 
 // Optionally CONTROLLED. Passing `data` (the /api/bingo/board payload, or null
 // while it's in flight) makes the parent the owner of the fetch and this
-// component a pure renderer — HomeV2 needs the same payload for its status band,
+// component a pure renderer — Home needs the same payload for its own panels,
 // and /api/bingo/board is `Cache-Control: no-store`, so an uncontrolled second
 // instance would cost a real duplicate serverless invocation on every home load.
 // Omitting `data` keeps the original self-fetching behaviour byte-for-byte.
@@ -129,7 +129,7 @@ const BingoBoard = ({ data, error: errorProp = null, hideTitle = false, hideAchi
       <BingoGrid board={vBoard} onCellClick={setSelectedPokemon} large />
 
       {/* Bingo Achievements — hidden when the parent renders its own bounty
-          strip instead (HomeV3's RacesStrip). */}
+          strip instead (Home's Bounties panel). */}
       {!hideAchievements && (<>
         <div className="mt-4 grid grid-cols-2 md:grid-cols-4 gap-3">
           {[

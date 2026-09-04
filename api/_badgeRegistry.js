@@ -185,22 +185,45 @@ const contextBuilders = {
   },
 
   // Fired via Supabase webhook on INSERT into bingo_achievements.
-  // Restricted variants (row_restricted, etc.) are folded into their base type
-  // so check_qualifier uses plain names: 'row', 'column', 'x', 'blackout'.
+  // check_qualifier uses plain names: 'row', 'column', 'x', 'blackout'.
+  //
+  // COUNTED AS DISTINCT (month_id, base_type) — not a raw row count, and not a
+  // count of exact bingo_type. Both of the simpler rules are wrong, in opposite
+  // directions, and each is wrong for real users on production data:
+  //
+  //   • Folding `_restricted` into the base and counting ROWS double-counts.
+  //     approve_submission evaluates the standard board and the restricted board
+  //     separately, so ONE all-restricted line writes both `row` and
+  //     `row_restricted`. That is how a hunter with 4 lines was awarded line_5.
+  //
+  //   • Counting only the exact base type undercounts. The RPC awards the base
+  //     type community-first (`NOT 'row' = ANY(claimed_by_anyone)`), so a hunter
+  //     who completes a restricted line in a month where someone else already
+  //     claimed `row` receives ONLY `row_restricted`. Ignoring those loses lines
+  //     they genuinely completed.
+  //
+  // Distinct (month, base) is right for both: the guard makes each of `row` and
+  // `row_restricted` awardable at most once per month, so a same-month pair is
+  // one physical line, while a lone `row_restricted` still counts as one.
   async bingo_achievement(userId, supabase) {
     const { data } = await supabase
       .from('bingo_achievements')
-      .select('bingo_type')
+      .select('month_id, bingo_type')
       .eq('user_id', userId);
 
     const typeCounts = { row: 0, column: 0, x: 0, blackout: 0 };
+    const seen = new Set();
     for (const a of (data || [])) {
       const base = a.bingo_type.replace('_restricted', '');
-      if (base in typeCounts) typeCounts[base]++;
+      if (!(base in typeCounts)) continue;
+      const key = `${a.month_id}:${base}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      typeCounts[base]++;
     }
     return {
       bingoTypeCounts: typeCounts,
-      bingoTotalCount: (data || []).length,
+      bingoTotalCount: seen.size,
     };
   },
 };
