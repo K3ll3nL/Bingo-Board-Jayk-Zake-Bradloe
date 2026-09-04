@@ -257,13 +257,13 @@ const Leaderboard = ({ pinSelf = false }) => {
     return (
       <div className="w-full h-full flex flex-col animate-pulse relative">
         {error && <ReconnectingPill label="Reconnecting to leaderboard…" />}
-        {/* gap-2 + wrap: at gap-1 the four tabs bunched into a cramped clump
-          in the middle of a wide panel. */}
-      <div className="flex flex-wrap items-center justify-center gap-2 mb-2.5">
+        {/* Mirrors the real tab row's 4-across / 2x2 behaviour so the skeleton
+            does not change shape when data lands. See .lb-tabs in index.css. */}
+        <div className="lb-tabs-wrap mb-2.5"><div className="lb-tabs">
           {MODES.map((mode, i) => (
-            <div key={mode} className={`px-3 py-1.5 rounded-lg text-sm font-medium ${i === 0 ? 'bg-purple-600/40' : 'bg-gray-700/40'}`} style={{ minWidth: 60 }}>&nbsp;</div>
+            <div key={mode} className={`px-3 py-1.5 rounded-lg text-sm font-medium text-center ${i === 0 ? 'bg-purple-600/40' : 'bg-gray-700/40'}`} style={{ minWidth: 60 }}>&nbsp;</div>
           ))}
-        </div>
+        </div></div>
         <div className="mb-3 h-6" />
         <div className="rounded-lg overflow-hidden flex-1" style={{ background: '#0d0f14' }}>
           {Array.from({ length: 8 }).map((_, i) => (
@@ -293,20 +293,20 @@ const Leaderboard = ({ pinSelf = false }) => {
   return (
     <div className="w-full h-full flex flex-col relative">
       {error && <ReconnectingPill label="Reconnecting…" />}
-      {/* Mode tabs */}
-      {/* gap-2 + wrap: at gap-1 the four tabs bunched into a cramped clump
-          in the middle of a wide panel. */}
-      <div className="flex flex-wrap items-center justify-center gap-2 mb-2.5">
+      {/* Mode tabs — 4-across when the panel is wide enough, a 2x2 block when
+          not. Container query, because the width that matters is the rail's,
+          not the viewport's. See .lb-tabs in index.css. */}
+      <div className="lb-tabs-wrap mb-2.5"><div className="lb-tabs">
         {MODES.map((mode, i) => (
           <button
             key={mode}
             onClick={() => { setModeIndex(i); setPeriodIdx(0); }}
-            className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${i === modeIndex ? 'bg-purple-600 text-white' : 'text-gray-400 hover:text-white hover:bg-gray-700'}`}
+            className={`px-3 py-1.5 rounded-lg text-sm font-medium text-center whitespace-nowrap transition-colors ${i === modeIndex ? 'bg-purple-600 text-white' : 'text-gray-400 hover:text-white hover:bg-gray-700'}`}
           >
             {MODE_LABELS[mode]}
           </button>
         ))}
-      </div>
+      </div></div>
 
       {/* Period navigator — only for non-alltime modes */}
       {viewMode !== 'alltime' && (

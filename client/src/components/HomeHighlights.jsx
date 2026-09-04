@@ -53,13 +53,18 @@ const TeaserShell = ({ to, label, labelClass = 'text-muted', compact = false, ch
   </Link>
 );
 
+// `flex-wrap`, and the unit is NOT truncated. The figure is `shrink-0`, so when
+// the card gets narrow the unit is what gives — and truncating it rendered
+// "79 / 192 se…" in the Pokédex card at 4-across. Wrapping the unit onto its own
+// line keeps the word intact; the grid equalises card heights anyway, so the
+// extra line costs nothing visually.
 const Figure = ({ value, unit, muted }) => (
-  <div className="flex items-baseline gap-1.5 min-w-0">
+  <div className="flex flex-wrap items-baseline gap-x-1.5 min-w-0">
     <span className="text-xl font-bold text-white leading-none tabular-nums shrink-0">
       {value}
       {muted != null && <span className="text-muted font-normal">{muted}</span>}
     </span>
-    <span className="text-xs text-muted truncate">{unit}</span>
+    <span className="text-xs text-muted">{unit}</span>
   </div>
 );
 
@@ -194,8 +199,26 @@ const ToolsTeaser = ({ compact }) => (
 // `gap-6` matches the Board/Leaderboard grid directly above it, so the three
 // teasers read as related to each other rather than to the panel above.
 // Vertical spacing is the parent's job (LAYOUT_AUDIT priority 3).
+// Column count is decided by THIS GRID'S width, not the viewport.
+//
+// Four cards (with Pokédex) are a 2x2 block by default and go 4-across only
+// once the grid itself is at least 580px wide — see `.hl-grid` in index.css,
+// which is a container query. It used to be `lg:grid-cols-4`, a viewport
+// breakpoint governing a grid whose width comes from the home page's left
+// column track; that track is ~540px at a 1024 viewport and caps at ~740px, so
+// the viewport told you almost nothing about whether four columns would fit.
+//
+// 580 is measured — it is where a SECOND card starts to break. At 580 the cards
+// are 136px and the only casualty is the word "seen" spilling 7px; at 570
+// "hardest hunt" joins it, and at 500 the titles themselves wrap. That maps to
+// about a 1124px viewport, which is what stops 1150-1200 sitting as a mostly
+// empty 2x2. See the table in index.css.
+//
+// The 2x2 also makes the home page's left column taller, and the rail stretches
+// to match — that is what lengthens the leaderboard at narrower desktop widths.
+// Without the Pokédex card there are three, and 3-across fits comfortably.
 const HomeHighlights = ({ includePokedex = false, compact = false, className = 'gap-6' }) => (
-  <div className={`grid grid-cols-1 sm:grid-cols-2 ${includePokedex ? 'lg:grid-cols-4' : 'sm:grid-cols-3'} ${className}`}>
+  <div className={`grid grid-cols-1 ${includePokedex ? 'sm:grid-cols-2 hl-grid' : 'sm:grid-cols-3'} ${className}`}>
     <MonthStatsTeaser compact={compact} />
     <TierListTeaser compact={compact} />
     {includePokedex && <PokedexTeaser compact={compact} />}

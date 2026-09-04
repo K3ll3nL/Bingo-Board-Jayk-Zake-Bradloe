@@ -363,7 +363,7 @@ const AppLayout = () => {
   const hamburger = (
     <button
       onClick={() => setDrawerOpen(true)}
-      className="relative sm:hidden p-2 text-muted hover:text-strong hover:bg-edge rounded-lg transition-colors"
+      className="relative min-[930px]:hidden p-2 text-muted hover:text-strong hover:bg-edge rounded-lg transition-colors"
       aria-label="Open menu"
     >
       <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -379,7 +379,7 @@ const AppLayout = () => {
     <div className="min-h-screen bg-surface">
       {/* ── Slide-out drawer (mobile) ── */}
       {drawerOpen && (
-        <div className="fixed inset-0 z-[60] sm:hidden">
+        <div className="fixed inset-0 z-[60] min-[930px]:hidden">
           {/* Backdrop */}
           <div className="absolute inset-0 bg-black/60" onClick={() => setDrawerOpen(false)} />
           {/* Panel */}
@@ -527,7 +527,15 @@ const AppLayout = () => {
               {/* Same rule as the drawer: neutral at rest, accent when active.
                   The active state is net-new here — the header used to signal
                   the current route not at all. */}
-              <nav className="hidden sm:flex items-center gap-0.5 ml-6">
+              {/* Desktop nav appears at 930px, NOT sm (640). The full header —
+                  logo, five nav links, and the icon cluster — needs 823px of
+                  natural width, so between 640 and 930 it used to render
+                  anyway: nav links wrapped onto two and three lines and the
+                  icon cluster pushed 53px past the right edge, giving the whole
+                  page a horizontal scrollbar. Below 930 the hamburger drawer
+                  handles it. 930 matches the home page's layout breakpoint, so
+                  "desktop" means one width across the site. */}
+              <nav className="hidden min-[930px]:flex items-center gap-0.5 ml-6">
                 {[
                   { label: 'How to Play', path: '/about' },
                   { label: 'Month Stats', path: '/stats' },
@@ -546,10 +554,10 @@ const AppLayout = () => {
                 ))}
               </nav>
               <div className="flex items-center gap-1 ml-auto">
-                <div className="hidden sm:flex items-center gap-1">
+                <div className="hidden min-[930px]:flex items-center gap-1">
                   {actionButtons}
                 </div>
-                <div className="hidden sm:block">{userMenu}</div>
+                <div className="hidden min-[930px]:block">{userMenu}</div>
                 {hamburger}
               </div>
             </div>
@@ -582,17 +590,17 @@ const AppLayout = () => {
               </div>
               <div className="flex items-center gap-1 shrink-0">
                 {pageMeta.completion && (
-                  <div className="text-right mr-2 hidden sm:block">
+                  <div className="text-right mr-2 hidden min-[930px]:block">
                     <div className="text-xs text-muted">Caught</div>
                     <div className="text-lg font-bold text-accent">
                       {pageMeta.completion.caught} / {pageMeta.completion.total}
                     </div>
                   </div>
                 )}
-                <div className="hidden sm:flex items-center gap-1">
+                <div className="hidden min-[930px]:flex items-center gap-1">
                   {actionButtons}
                 </div>
-                <div className="hidden sm:block">{userMenu}</div>
+                <div className="hidden min-[930px]:block">{userMenu}</div>
                 {hamburger}
               </div>
             </div>

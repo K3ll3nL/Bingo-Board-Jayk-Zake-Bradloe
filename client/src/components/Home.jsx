@@ -502,7 +502,7 @@ const Home = () => {
   const showPrompt = rows !== null && !d.me;
 
   return (
-    <main className="px-4 sm:px-6 xl:px-8 py-5 space-y-5">
+    <main className="px-4 sm:px-6 min-[930px]:px-8 py-5 space-y-5">
       <BannerBar />
 
       {/* Mobile only. On desktop this card sits at the top of the rail, level
@@ -512,20 +512,64 @@ const Home = () => {
           Rendered twice with complementary visibility because CSS order cannot
           lift a child out of the aside. */}
       {showPrompt && (
-        <div className="xl:hidden">
+        <div className="min-[930px]:hidden">
           <FirstCatchPrompt show />
         </div>
       )}
 
-      {/* Width goes to the BOARD, not the rail. Letting the rail take the
+      {/* Breakpoint is 930px, NOT Tailwind's xl (1280). The target is a browser
+          snapped to half of a 1920px monitor — by far the most common desktop
+          width, and the way people actually watch a stream beside this page.
+          That window is 960px, and its VIEWPORT is ~943 once the scrollbar is
+          taken out, so the boundary has to sit below that with slop to spare;
+          930 leaves ~13px. At xl it missed by a few pixels and dropped to one
+          column, which is what this fixes.
+
+          BOTH tracks have a real floor, and that is load-bearing. With the board
+          on `minmax(0,...)` it had no floor at all, so at 960 the rail took its
+          FULL 520px maximum and the board was left with 348 — measured, not
+          theorised. A minmax max is a target the track grows into, so the only
+          thing stopping the rail is the other track's minimum.
+
+          The rail floor is 360px because that is where the mode tabs
+          (Monthly/Season/Year/All Time) stop fitting on one line — at 344 they
+          wrap to two. So 360 is measured from the content, not picked.
+
+          The board floor is 480, not 500, and that ceiling is set by the
+          breakpoint itself: at a 930px viewport the content box is 930 - 64
+          (px-8) = 866, leaving 846 for tracks after the 20px gap. 480 + 360 =
+          840 fits with 6px to spare; 500 + 360 = 860 did NOT, and the grid
+          overflowed its own container by 17px across the whole 930-946 band.
+          If either floor changes, re-check it against 846.
+
+          Resulting split, measured in a browser:
+             935px viewport -> board 480, rail 360   (fits; was overflowing)
+             960px viewport -> board 498, rail 378
+            1600px viewport -> board 740, rail 480   (was board 700, rail 520)
+
+          Every `min-[930px]:` in this file is part of that one decision,
+          including the `min-[930px]:hidden` above — FirstCatchPrompt renders
+          twice with complementary visibility, so if the two ever disagree it
+          shows up twice.
+
+          Width goes to the BOARD, not the rail. Letting the rail take the
           leftover looked right at 1440 and broke at 2400: a ~600px leaderboard
           stretched every row into a gulf between the name and its points, and
           the tab cluster floated stranded in the middle. The rail is capped at
           a width its content actually reads well at; the board column takes the
           rest and the board grows into it, up to its own cap. */}
-      <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,760px)_minmax(400px,520px)] gap-5 xl:items-stretch mx-auto w-full" style={{ maxWidth: 1240 }}>
+      <div className="grid grid-cols-1 min-[930px]:grid-cols-[minmax(480px,760px)_minmax(360px,480px)] gap-5 min-[930px]:items-stretch mx-auto w-full" style={{ maxWidth: 1240 }}>
         {/* The board, and the bounties directly beneath it. */}
-        <div className="min-w-0 space-y-5">
+        {/* Below 930 this column becomes `display: contents`, so the board,
+            bounties and highlights become direct children of the one-column
+            grid rather than a nested stack. That is what lets HomeHighlights
+            take `order-last` and sit BELOW the rail (leaderboard + streamers)
+            on mobile, while staying in this column above the rail's fold on
+            desktop. Spacing switches from space-y-5 to the grid's own gap-5 at
+            the same point, or the two would stack and double it.
+            Safe because Panel already carries `min-w-0` — see The min-w-0 Rule
+            in DESIGN.md; promoted grid items would otherwise blow out. */}
+        <div className="min-w-0 max-[929px]:contents min-[930px]:space-y-5">
           <Panel className="p-4 sm:p-6 overflow-hidden">
             <BingoBoard
               data={boardData}
@@ -539,7 +583,12 @@ const Home = () => {
               destinations visible at once, each carrying a live figure rather
               than just a name. Reuses the existing teaser row, which already
               fetches real month-stats and tier-list data. */}
-          <HomeHighlights includePokedex compact className="gap-3" />
+          {/* The wrapper exists to be a query container: the highlights grid
+              switches 2x2 -> 4x1 on its OWN width, which comes from the left
+              column track, not the viewport. See .hl-grid in index.css. */}
+          <div className="hl-wrap min-w-0 max-[929px]:order-last">
+            <HomeHighlights includePokedex compact className="gap-3" />
+          </div>
         </div>
 
         {/* Fills to the height of the board + bounties column: the leaderboard
@@ -558,13 +607,13 @@ const Home = () => {
             the rail fills it exactly, and the leaderboard's flex-1 takes
             whatever is left over. Add a row to any rail card and the
             leaderboard simply gets shorter. */}
-        <div className="min-w-0 w-full xl:relative">
-        <aside className="min-w-0 w-full grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-1 xl:flex xl:flex-col gap-5 items-start xl:items-stretch xl:absolute xl:inset-0 xl:overflow-hidden">
+        <div className="min-w-0 w-full min-[930px]:relative">
+        <aside className="min-w-0 w-full grid grid-cols-1 sm:grid-cols-2 min-[930px]:grid-cols-1 min-[930px]:flex min-[930px]:flex-col gap-5 items-start min-[930px]:items-stretch min-[930px]:absolute min-[930px]:inset-0 min-[930px]:overflow-hidden">
           {/* Rendered only when it has content: an empty wrapper is still a
               flex child, and the rail's gap-5 was offsetting every panel by
               20px against the board column. */}
           {showPrompt && (
-            <div className="hidden xl:block">
+            <div className="hidden min-[930px]:block">
               <FirstCatchPrompt show />
             </div>
           )}
@@ -572,10 +621,10 @@ const Home = () => {
               sat beside the tall leaderboard and Streamers was stranded alone
               on a second row. Stacking ladder + streamers in column one against
               a row-spanning leaderboard balances the two columns.
-              `xl:contents` dissolves these wrappers at xl so the panels are
+              `min-[930px]:contents` dissolves these wrappers at xl so the panels are
               direct flex children of the rail again and the leaderboard's
               flex-1 still resolves. */}
-          <div className="sm:col-start-1 sm:row-start-1 xl:contents"><BadgeLadder /></div>
+          <div className="sm:col-start-1 sm:row-start-1 min-[930px]:contents"><BadgeLadder /></div>
           {/* The cap is load-bearing, not cosmetic. A flex child's natural
               content height still feeds grid row sizing, so without max-h a
               24-row All Time list grew this panel to 1785px, stretched the grid
@@ -583,12 +632,12 @@ const Home = () => {
               huge gap under the board. min-h-0 lets it shrink; max-h stops it
               driving the row. 520px is sized from the column it sits beside:
               board ~810 + bounties ~200 + gap, minus the rail's fixed cards. */}
-          <div className="sm:col-start-2 sm:row-start-1 sm:row-span-2 min-w-0 xl:contents">
-          <Panel className="p-4 h-[440px] xl:h-auto xl:flex-1 xl:min-h-0 flex flex-col overflow-hidden">
+          <div className="sm:col-start-2 sm:row-start-1 sm:row-span-2 min-w-0 min-[930px]:contents">
+          <Panel className="p-4 h-[440px] min-[930px]:h-auto min-[930px]:flex-1 min-[930px]:min-h-0 flex flex-col overflow-hidden">
             <Leaderboard pinSelf />
           </Panel>
           </div>
-          <div className="sm:col-start-1 sm:row-start-2 xl:contents"><LiveNow /></div>
+          <div className="sm:col-start-1 sm:row-start-2 min-[930px]:contents"><LiveNow /></div>
         </aside>
         </div>
       </div>

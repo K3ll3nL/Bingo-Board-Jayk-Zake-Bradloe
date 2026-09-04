@@ -113,3 +113,63 @@ a {
 /* Hide the scrollbar without disabling scrolling. Used by the leaderboard list,
    where an 8px gutter left every row short of the panel edge. */
 .no-scrollbar::-webkit-scrollbar { display: none; }
+
+/* ── Leaderboard mode tabs ──────────────────────────────────────────────────
+   Monthly / Season / Year / All Time sit on one line when the panel is wide
+   enough, and fall to a 2x2 block when it is not. Plain `flex-wrap` gave 3+1,
+   with "All Time" stranded alone on the second row, which reads as a bug
+   rather than a layout.
+
+   This is a CONTAINER query, not a media query, and it has to be: the tab row's
+   available width comes from the rail track, which varies independently of the
+   viewport (rail is ~286px at a 640 viewport, 364px at 960, 480px at 1600). A
+   viewport breakpoint cannot see that.
+
+   325px is the panel's inner width where the four tabs stop fitting — measured,
+   not guessed: at a 360px rail they fit on one line, at 344px they wrap. */
+.lb-tabs-wrap { container-type: inline-size; }
+
+/* Query container for .hl-grid below. */
+.hl-wrap { container-type: inline-size; }
+
+.lb-tabs {
+  display: grid;
+  grid-auto-flow: column;   /* natural widths, as the old flex row had */
+  justify-content: center;
+  gap: 0.5rem;
+}
+
+@container (max-width: 325px) {
+  .lb-tabs {
+    grid-auto-flow: row;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+/* ── Home highlights: 2x2 or 4x1 ────────────────────────────────────────────
+   Four teaser cards sit as a 2x2 block, and go 4-across only when this grid is
+   wide enough to carry it. Container query, not a media query: the grid's width
+   comes from the home page's left column track (~540px at a 1024 viewport,
+   capped at ~740px), so the viewport is a poor proxy for it — which is exactly
+   what the old `lg:grid-cols-4` got wrong.
+
+   580px is measured, and it is the point where a SECOND card starts to break:
+
+     container   card    what breaks
+     600px       141px   "seen" (Pokedex) by 2px
+     580px       136px   "seen" by 7px          <- threshold
+     570px       134px   "seen" by 10px AND "hardest hunt" by 2px
+     560px       131px   two cards, worse
+     500px       116px   card titles themselves wrap
+
+   580 maps to roughly a 1124px viewport, which is what puts the 4-across layout
+   back in reach at 1150-1200 where the 2x2 was mostly empty space. Below it the
+   2x2 reads better anyway. The residual 7px on "seen" is the known cost; fix
+   that text and this could go lower. */
+@container (min-width: 580px) {
+  /* `.hl-wrap .hl-grid` deliberately, not `.hl-grid`. Tailwind's
+     `sm:grid-cols-2` is also a single class, so at equal specificity it wins on
+     source order and the container query silently does nothing — which is
+     exactly what happened first time round. Two classes settles it. */
+  .hl-wrap .hl-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+}
