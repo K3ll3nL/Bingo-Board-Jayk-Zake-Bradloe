@@ -540,25 +540,42 @@ module.exports = function register(app) {
       const caughtIds = new Set((myEntries || []).map(r => r.pokemon_id));
 
       const { data: poolMons } = poolIds.length
-        ? await supabase.from('pokemon_master').select('id, collection_ids').in('id', poolIds)
+        ? await supabase.from('pokemon_master').select('id, collection_ids, type1, type2, generation').in('id', poolIds)
         : { data: [] };
 
-      // Collections with at least one member on this month's board that the
-      // hunter has NOT already caught. Any collection badge outside this set is
-      // un-progressable this month and must not be dangled.
-      const liveCollections = new Set();
+      // How many mons on this month's board the hunter has NOT already caught,
+      // per collection / type / generation. A badge needing more catches than
+      // the board can supply is un-completable this month and must not be
+      // dangled — "11 more poison" with one poison on the board is not a carrot.
+      const liveCollections = new Map();
+      const liveTypes = new Map();
+      const liveGens = new Map();
+      const bump = (m, k) => m.set(k, (m.get(k) || 0) + 1);
       for (const mon of (poolMons || [])) {
         if (caughtIds.has(mon.id)) continue;
-        for (const slug of (mon.collection_ids || [])) liveCollections.add(slug);
+        for (const slug of new Set(mon.collection_ids || [])) bump(liveCollections, slug);
+        const types = new Set([mon.type1, mon.type2].filter(Boolean).map(t => String(t).toLowerCase()));
+        for (const t of types) bump(liveTypes, t);
+        if (mon.generation != null) bump(liveGens, Number(mon.generation));
       }
+      const availableOnBoard = (b) => {
+        switch (b.check_type) {
+          case 'collection_complete':   return liveCollections.get(String(b.check_qualifier)) || 0;
+          case 'type_percentage':       return liveTypes.get(String(b.check_qualifier).toLowerCase()) || 0;
+          case 'generation_percentage': return liveGens.get(Number(b.check_qualifier)) || 0;
+          default:                      return Infinity;
+        }
+      };
+      const badgeById = new Map((badges || []).map(b => [b.id, b]));
 
       const earned = new Set((earnedRows || []).map(r => r.badge_id));
       const candidates = (badges || []).filter(b => {
         if (earned.has(b.id) || b.is_secret) return false;
         if (!PROGRESS_SOURCES[b.check_type]) return false;
         if (!Number.isFinite(Number(b.check_value ?? NaN))) return false;
-        // Nothing on this month's board can advance this collection.
-        if (b.check_type === 'collection_complete' && !liveCollections.has(String(b.check_qualifier))) return false;
+        // Nothing on this month's board can advance it (the full "enough to
+        // finish" check runs after scoring, once `remaining` is known).
+        if (availableOnBoard(b) === 0) return false;
         return true;
       });
 
@@ -687,6 +704,8 @@ module.exports = function register(app) {
         // unearned badge at remaining === 0 means THIS endpoint counted wrong,
         // not that an award is pending. Hide it rather than show a false carrot.
         .filter(b => b.remaining > 0)
+        // Not enough uncaught mons of this collection/type/gen on the board.
+        .filter(b => b.remaining <= availableOnBoard(badgeById.get(b.id)))
         // Zero progress toward THIS rung is not a carrot — it is a list of
         // things you have not begun. Filtering on pct (not raw count) also
         // guarantees every row rendered has a bar with something in it: a
