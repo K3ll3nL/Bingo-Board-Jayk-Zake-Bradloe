@@ -5,10 +5,47 @@ import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../services/supabaseClient';
 import { ALLOWED_GAMES, proofFieldsFor } from '../constants/games';
 import PageBackground from './PageBackground';
+import PageHeader from './PageHeader';
+import PokemonImage from './PokemonImage';
+import { buildPokemonImageUrl } from '../utils/pokemonImageUtils';
+import { parseApiError } from '../services/api';
+import { GRADIENT, BORDER, TEXT, ACCENT, SEMANTIC, BRAND } from '../constants/theme';
 
-// Single source of the proof-upload dropzone. It was duplicated four times
-// (two fields x two forms), which is why the two forms had already drifted
-// apart on ids and handlers.
+// ── Proof images ─────────────────────────────────────────────────────────────
+// Multipart field names the API reads for proof slots 1-3, in slot order.
+const PROOF_FILE_KEYS = ['file', 'file2', 'file3'];
+const MAX_FILE_SIZE = 4 * 1024 * 1024;
+const toMB = (bytes) => (bytes / 1048576).toFixed(1);
+
+// Proof-image state for one upload form. Slots come from the game's
+// proof_fields (games.js); rendering, validation, clearing and sending all go
+// through here so the two forms can't drift apart.
+const useProofSlots = (game) => {
+  const fields = proofFieldsFor(game);
+  const [picked, setPicked] = useState([]);
+  // Only the slots this game asks for: a file picked under a previously
+  // selected game with more slots is ignored, never sent.
+  const files = fields.map((_, i) => picked[i] ?? null);
+  return {
+    fields,
+    files,
+    missing: files.some(f => !f),
+    setFileAt: (i) => (file) => setPicked(prev => { const next = [...prev]; next[i] = file; return next; }),
+    clear: () => setPicked([]),
+    // First per-file size problem, named the way the form names the slot.
+    sizeError: () => {
+      const i = files.findIndex(f => f && f.size > MAX_FILE_SIZE);
+      return i === -1 ? null : `${fields[i].label} is too large (${toMB(files[i].size)}MB). Compress to under 4MB.`;
+    },
+    appendTo: (formData) => {
+      files.forEach((f, i) => { if (f) formData.append(PROOF_FILE_KEYS[i], f); });
+      // Lines up with the slots so approvals name each shot as this form did.
+      formData.append('proof_labels', JSON.stringify(fields.map(f => f.label)));
+    },
+  };
+};
+
+// One proof-upload dropzone.
 const ProofDropzone = ({ id, label, optional, file, onPick, disabled }) => (
   <div>
     <label className="block text-xs font-medium text-gray-300 mb-2">
@@ -40,11 +77,27 @@ const ProofDropzone = ({ id, label, optional, file, onPick, disabled }) => (
     </label>
   </div>
 );
-import PageHeader from './PageHeader';
-import PokemonImage from './PokemonImage';
-import { buildPokemonImageUrl } from '../utils/pokemonImageUtils';
-import { parseApiError } from '../services/api';
-import { GRADIENT, BORDER, TEXT, ACCENT, SEMANTIC, BRAND } from '../constants/theme';
+
+// The proof dropzone grid. Games with no image proof (Gen 1-3) have no slots,
+// so it renders nothing.
+const ProofSlots = ({ slots, idPrefix, optional, disabled }) => {
+  if (!slots.fields.length) return null;
+  return (
+    <div className={`grid gap-3 mb-4 ${slots.fields.length >= 3 ? 'grid-cols-2 sm:grid-cols-3' : 'grid-cols-2'}`}>
+      {slots.fields.map((field, i) => (
+        <ProofDropzone
+          key={field.id}
+          id={`${idPrefix}-${field.id}`}
+          label={field.label}
+          optional={optional}
+          file={slots.files[i]}
+          onPick={slots.setFileAt(i)}
+          disabled={disabled}
+        />
+      ))}
+    </div>
+  );
+};
 
 const getAuthHeader = async () => {
   if (import.meta.env.DEV &&
@@ -67,9 +120,6 @@ const HistoricalUploadSection = () => {
   const [pokemonSearch, setPokemonSearch] = useState('');
   const [gameSearch, setGameSearch] = useState('');
   const [mediaUrls, setMediaUrls] = useState(['']);
-  const [mediaFile, setMediaFile] = useState(null);
-  const [mediaFile2, setMediaFile2] = useState(null);
-  const [mediaFile3, setMediaFile3] = useState(null);
   const [sortBy, setSortBy] = useState('dex');
   const [isRestricted, setIsRestricted] = useState(false);
   const [showTooltip, setShowTooltip] = useState(false);
@@ -139,11 +189,7 @@ const HistoricalUploadSection = () => {
   const selectedGameKey  = selectedGameObj?.key ?? null;
 
   // Game-specific proof config (from games.js)
-  const shinyLabel   = selectedGameObj?.shiny_label ?? 'Proof of Shiny';
-  const proofFields  = proofFieldsFor(game);
-  const proofFiles   = [mediaFile, mediaFile2, mediaFile3];
-  const missingProof = proofFields.some((_, i) => !proofFiles[i]);
-  const setProofFileAt = (i) => [setMediaFile, setMediaFile2, setMediaFile3][i];
+  const proof = useProofSlots(game);
   const noImageProof = !!selectedGameObj?.no_image_proof;
 
   const isLockedRestricted = restrictedEnabled && !!selectedPokeData?.has_standard_entry;
@@ -209,8 +255,7 @@ const HistoricalUploadSection = () => {
   useEffect(() => {
     if (isLockedRestricted && !isRestricted) {
       setIsRestricted(true);
-      setMediaFile(null);
-      setMediaFile2(null);
+      proof.clear();
     }
     clearTimeout(lockedTooltipTimer.current);
     if (isLockedRestricted) {
@@ -253,23 +298,20 @@ const HistoricalUploadSection = () => {
     }
     const validLinks = mediaUrls.filter(u => u.trim());
     if (isRestricted && validLinks.length === 0) { setError('Restricted submissions require a VOD or video link.'); return; }
-    if (!isRestricted && validLinks.length === 0 && missingProof) {
-      setError(`Please provide all ${proofFields.length} proof images or a video link`);
+    if (!isRestricted && validLinks.length === 0 && proof.missing) {
+      setError(`Please provide all ${proof.fields.length} proof images or a video link`);
       return;
     }
 
-    const MAX_FILE_SIZE = 4 * 1024 * 1024;
-    if (mediaFile  && mediaFile.size  > MAX_FILE_SIZE) { setError(`Proof of Shiny is too large (${(mediaFile.size  / 1048576).toFixed(1)}MB). Compress to under 4MB.`); return; }
-    if (mediaFile3 && mediaFile3.size > MAX_FILE_SIZE) { setError(`${proofFields[2]?.label ?? 'Third image'} is too large (${(mediaFile3.size / 1048576).toFixed(1)}MB). Compress to under 4MB.`); return; }
-    if (mediaFile2 && mediaFile2.size > MAX_FILE_SIZE) { setError(`${proofFields[1]?.label ?? 'Second image'} is too large (${(mediaFile2.size / 1048576).toFixed(1)}MB). Compress to under 4MB.`); return; }
-    if (mediaFile && mediaFile2 && (mediaFile.size + mediaFile2.size) > MAX_FILE_SIZE) { setError(`Combined images are too large. Compress both to under 4MB total.`); return; }
+    const sizeError = proof.sizeError();
+    if (sizeError) { setError(sizeError); return; }
 
     // Vercel rejects any serverless request body over 4.5MB TOTAL before Express
     // runs, so multer's per-file guard can't catch it — sum every file we're
     // about to send (mirror the append conditions below) and stop with a clear
     // message instead of a cryptic parse error on the platform's non-JSON 413.
     const MAX_TOTAL_SIZE = 4.4 * 1024 * 1024;
-    const attachedFiles = [mediaFile, mediaFile2, ...extraFiles.filter(Boolean)];
+    const attachedFiles = [...proof.files, ...extraFiles.filter(Boolean)];
     if (caughtInDifferentGame) attachedFiles.push(evolutionFile, evolutionSummaryFile);
     const totalFileSize = attachedFiles.filter(Boolean).reduce((sum, f) => sum + f.size, 0);
     if (totalFileSize > MAX_TOTAL_SIZE) {
@@ -286,9 +328,7 @@ const HistoricalUploadSection = () => {
       formData.append('game', game.trim());
       formData.append('month_id', String(selectedPokeData.month_id));
       validLinks.forEach(u => formData.append('link', u));
-      if (mediaFile)  formData.append('file', mediaFile);
-      if (mediaFile2) formData.append('file2', mediaFile2);
-      if (mediaFile3) formData.append('file3', mediaFile3);
+      proof.appendTo(formData);
       if (caughtInDifferentGame && caughtInGame)         formData.append('caught_in_game', caughtInGame);
       if (caughtInDifferentGame && evolutionFile)        formData.append('evolutionFile', evolutionFile);
       if (caughtInDifferentGame && evolutionSummaryFile) formData.append('evolutionSummaryFile', evolutionSummaryFile);
@@ -309,8 +349,7 @@ const HistoricalUploadSection = () => {
       setSelectedPokemon('');
       setGame('');
       setMediaUrls(['']);
-      setMediaFile(null);
-      setMediaFile2(null);
+      proof.clear();
       setNote('');
       setTimeout(() => { setSuccess(false); loadPokemon(); }, 3000);
     } catch (err) {
@@ -678,8 +717,7 @@ const HistoricalUploadSection = () => {
                   const next = !isRestricted;
                   setIsRestricted(next);
                   if (next) {
-                    setMediaFile(null);
-                    setMediaFile2(null);
+                    proof.clear();
                   }
                 }}
                 className={`h-[34px] flex items-center gap-1.5 px-3 rounded-lg border transition-colors ${
@@ -778,23 +816,7 @@ const HistoricalUploadSection = () => {
         )}
       </div>
 
-      {/* Proof uploads — fields come from proofFieldsFor(game): three shots for
-          most games, two for Let's Go where TID and date share a screen, none for
-          Gen 1-3 (no in-game screenshots). Driven by config so adding a game never
-          means editing this markup. */}
-      <div className={`grid gap-3 mb-4 transition-opacity duration-200 ${proofFields.length >= 3 ? 'grid-cols-2 sm:grid-cols-3' : 'grid-cols-2'} ${noImageProof ? 'opacity-40 pointer-events-none select-none' : ''}`}>
-        {proofFields.map((field, idx) => (
-          <ProofDropzone
-            key={field.id}
-            id={`hist-file-${field.id}`}
-            label={idx === 0 && selectedGameObj?.shiny_label ? selectedGameObj.shiny_label : field.label}
-            optional={isRestricted || noImageProof}
-            file={proofFiles[idx]}
-            onPick={setProofFileAt(idx)}
-            disabled={submitting}
-          />
-        ))}
-      </div>
+      <ProofSlots slots={proof} idPrefix="hist-file" optional={isRestricted} disabled={submitting} />
 
       {/* Additional images */}
       <div className="mb-4">
@@ -874,7 +896,7 @@ const HistoricalUploadSection = () => {
           !selectedPokemon ||
           !game.trim() ||
           (isRestricted && activeChecklist.length > 0 && !activeChecklist.every(item => !!checkedItems[item.id])) ||
-          (isRestricted || noImageProof ? !mediaUrls.some(u => u.trim()) : (!mediaUrls.some(u => u.trim()) && missingProof))
+          (isRestricted || noImageProof ? !mediaUrls.some(u => u.trim()) : (!mediaUrls.some(u => u.trim()) && proof.missing))
         }
         className="w-full py-3 bg-blue-500 text-white rounded-lg font-medium hover:bg-blue-600 disabled:bg-gray-600 disabled:cursor-not-allowed transition-colors"
       >
@@ -900,9 +922,6 @@ const Upload = () => {
   const [pokemonSearch, setPokemonSearch] = useState('');
   const [gameSearch, setGameSearch] = useState('');
   const [mediaUrls, setMediaUrls] = useState(['']);
-  const [mediaFile, setMediaFile] = useState(null);
-  const [mediaFile2, setMediaFile2] = useState(null);
-  const [mediaFile3, setMediaFile3] = useState(null);
   const [sortBy, setSortBy] = useState('dex');
   const [loading, setLoading] = useState(true);
   const [isRestricted, setIsRestricted] = useState(false);
@@ -1006,8 +1025,6 @@ const Upload = () => {
     }
   };
 
-  const handleFileChange  = (e) => { if (e.target.files[0]) setMediaFile(e.target.files[0]); };
-  const handleFile2Change = (e) => { if (e.target.files[0]) setMediaFile2(e.target.files[0]); };
 
   // ── Derived values ──────────────────────────────────────────────────────────
 
@@ -1020,11 +1037,7 @@ const Upload = () => {
   const selectedGameKey = selectedGameObj?.key ?? null;
 
   // Game-specific proof config (from games.js)
-  const shinyLabel       = selectedGameObj?.shiny_label ?? 'Proof of Shiny';
-  const proofFields      = proofFieldsFor(game);
-  const proofFiles       = [mediaFile, mediaFile2, mediaFile3];
-  const missingProof     = proofFields.some((_, i) => !proofFiles[i]);
-  const setProofFileAt   = (i) => [setMediaFile, setMediaFile2, setMediaFile3][i];
+  const proof = useProofSlots(game);
   const noImageProof     = !!selectedGameObj?.no_image_proof;
   const activeChecklist  = selectedGameObj?.restricted_checklist ?? [];
 
@@ -1106,8 +1119,7 @@ const Upload = () => {
   useEffect(() => {
     if (isLockedRestricted && !isRestricted) {
       setIsRestricted(true);
-      setMediaFile(null);
-      setMediaFile2(null);
+      proof.clear();
       clearTimeout(lockedTooltipTimer.current);
       setShowLockedTooltip(true);
       lockedTooltipTimer.current = setTimeout(() => setShowLockedTooltip(false), 3000);
@@ -1160,22 +1172,10 @@ const Upload = () => {
     }
     const validLinks = mediaUrls.filter(u => u.trim());
     if (isRestricted && validLinks.length === 0) { setError('Restricted submissions require a VOD or video link.'); return; }
-    if (!isRestricted && validLinks.length === 0 && missingProof) { setError(`Please provide all ${proofFields.length} proof images or a video link`); return; }
+    if (!isRestricted && validLinks.length === 0 && proof.missing) { setError(`Please provide all ${proof.fields.length} proof images or a video link`); return; }
 
-    const MAX_FILE_SIZE = 4 * 1024 * 1024;
-    if (mediaFile && mediaFile.size > MAX_FILE_SIZE) {
-      setError(`Proof of Shiny is too large (${(mediaFile.size / 1048576).toFixed(1)}MB). Compress to under 4MB.`);
-      return;
-    }
-    if (mediaFile3 && mediaFile3.size > MAX_FILE_SIZE) { setError(`${proofFields[2]?.label ?? 'Third image'} is too large (${(mediaFile3.size / 1048576).toFixed(1)}MB). Compress to under 4MB.`); return; }
-    if (mediaFile2 && mediaFile2.size > MAX_FILE_SIZE) {
-      setError(`${proofFields[1]?.label ?? 'Second image'} is too large (${(mediaFile2.size / 1048576).toFixed(1)}MB). Compress to under 4MB.`);
-      return;
-    }
-    if (mediaFile && mediaFile2 && (mediaFile.size + mediaFile2.size) > MAX_FILE_SIZE) {
-      setError(`Combined images are too large (${((mediaFile.size + mediaFile2.size) / 1048576).toFixed(1)}MB). Compress both to under 4MB total.`);
-      return;
-    }
+    const sizeError = proof.sizeError();
+    if (sizeError) { setError(sizeError); return; }
 
     // Vercel rejects any serverless request whose body exceeds 4.5MB TOTAL,
     // before Express runs — so multer's per-file guard can't catch it and the
@@ -1183,7 +1183,7 @@ const Upload = () => {
     // Sum every file we're about to send (mirror the append conditions below)
     // and stop here with a clear message instead.
     const MAX_TOTAL_SIZE = 4.4 * 1024 * 1024;
-    const attachedFiles = [mediaFile, mediaFile2, ...extraFiles.filter(Boolean)];
+    const attachedFiles = [...proof.files, ...extraFiles.filter(Boolean)];
     if (caughtInDifferentGame) attachedFiles.push(evolutionFile, evolutionSummaryFile);
     const totalFileSize = attachedFiles.filter(Boolean).reduce((sum, f) => sum + f.size, 0);
     if (totalFileSize > MAX_TOTAL_SIZE) {
@@ -1201,9 +1201,7 @@ const Upload = () => {
       formData.append('game', game.trim());
 
       validLinks.forEach(u => formData.append('link', u));
-      if (mediaFile)  formData.append('file', mediaFile);
-      if (mediaFile2) formData.append('file2', mediaFile2);
-      if (mediaFile3) formData.append('file3', mediaFile3);
+      proof.appendTo(formData);
       if (caughtInDifferentGame && caughtInGame)         formData.append('caught_in_game', caughtInGame);
       if (caughtInDifferentGame && evolutionFile)        formData.append('evolutionFile', evolutionFile);
       if (caughtInDifferentGame && evolutionSummaryFile) formData.append('evolutionSummaryFile', evolutionSummaryFile);
@@ -1226,8 +1224,7 @@ const Upload = () => {
       setSelectedPokemon('');
       setGame('');
       setMediaUrls(['']);
-      setMediaFile(null);
-      setMediaFile2(null);
+      proof.clear();
       setNote('');
       setIsRestricted(false);
       setRestrictedAvailablePokemon(null);
@@ -1660,8 +1657,7 @@ const Upload = () => {
                           const next = !isRestricted;
                           setIsRestricted(next);
                           if (next) {
-                            setMediaFile(null);
-                            setMediaFile2(null);
+                            proof.clear();
                           }
                         }}
                         className={`h-[34px] flex items-center gap-1.5 px-3 rounded-lg border transition-colors ${
@@ -1763,26 +1759,7 @@ const Upload = () => {
                 )}
               </div>
 
-              {/* Image Uploads */}
-              <div className={`transition-opacity duration-200 ${noImageProof ? 'opacity-40 pointer-events-none select-none' : ''}`}>
-                {/* Proof uploads — fields come from proofFieldsFor(game): three shots for
-                    most games, two for Let's Go where TID and date share a screen, none for
-                    Gen 1-3 (no in-game screenshots). Driven by config so adding a game never
-                    means editing this markup. */}
-                <div className={`grid gap-3 mb-4 transition-opacity duration-200 ${proofFields.length >= 3 ? 'grid-cols-2 sm:grid-cols-3' : 'grid-cols-2'} ${noImageProof ? 'opacity-40 pointer-events-none select-none' : ''}`}>
-                  {proofFields.map((field, idx) => (
-                    <ProofDropzone
-                      key={field.id}
-                      id={`file-upload-${field.id}`}
-                      label={idx === 0 && selectedGameObj?.shiny_label ? selectedGameObj.shiny_label : field.label}
-                      optional={isRestricted || noImageProof}
-                      file={proofFiles[idx]}
-                      onPick={setProofFileAt(idx)}
-                      disabled={submitting}
-                    />
-                  ))}
-                </div>
-              </div>
+              <ProofSlots slots={proof} idPrefix="file-upload" optional={isRestricted} disabled={submitting} />
 
               {/* Additional Images */}
               <div className="mb-4">
@@ -1863,7 +1840,7 @@ const Upload = () => {
                   !selectedPokemon ||
                   !game.trim() ||
                   (isRestricted && activeChecklist.length > 0 && !activeChecklist.every(item => !!checkedItems[item.id])) ||
-                  (isRestricted || noImageProof ? !mediaUrls.some(u => u.trim()) : (!mediaUrls.some(u => u.trim()) && missingProof))
+                  (isRestricted || noImageProof ? !mediaUrls.some(u => u.trim()) : (!mediaUrls.some(u => u.trim()) && proof.missing))
                 }
                 className="w-full py-3 bg-purple-500 text-white rounded-lg font-medium hover:bg-purple-600 disabled:bg-gray-600 disabled:cursor-not-allowed transition-colors"
               >

@@ -17,6 +17,23 @@ const {
   uploadSupplementalProof,
 } = require('../_lib/core');
 
+// Pairs the main proof shots (slots file/file2/file3) with the labels the upload
+// form showed for each slot, then drops empty slots from both together so the
+// arrays stay index-aligned. `rawLabels` is client-sent display text, so it is
+// trimmed and capped; a missing or malformed list (older cached bundles) just
+// yields null labels and the Approvals tab falls back to the game's config.
+const mainProofShots = (urls, rawLabels) => {
+  let labels = [];
+  try {
+    const parsed = JSON.parse(rawLabels ?? '[]');
+    if (Array.isArray(parsed)) labels = parsed;
+  } catch { /* fall through with no labels */ }
+  const shots = urls
+    .map((url, i) => ({ url, label: typeof labels[i] === 'string' ? labels[i].trim().slice(0, 60) || null : null }))
+    .filter(s => s.url);
+  return { proof_urls: shots.map(s => s.url), proof_labels: shots.map(s => s.label) };
+};
+
 module.exports = function register(app) {
 
   // Get available Pokemon for upload (active months, not yet caught)
@@ -459,8 +476,8 @@ module.exports = function register(app) {
           proof_url: proofUrl,
           proof_url2: proofUrl2,
           // Ordered main proof shots. proof_url/proof_url2 stay populated for
-          // the rollout; readers should prefer proof_urls.
-          proof_urls: [proofUrl, proofUrl2, proofUrlMain3].filter(Boolean),
+          // the rollout; readers should prefer proof_urls + proof_labels.
+          ...mainProofShots([proofUrl, proofUrl2, proofUrlMain3], req.body.proof_labels),
           proof_url3: proofUrl3,
           proof_url4: proofUrl4,
           extra_images: extraImageUrls,
@@ -613,8 +630,8 @@ module.exports = function register(app) {
           proof_url: proofUrl,
           proof_url2: proofUrl2,
           // Ordered main proof shots. proof_url/proof_url2 stay populated for
-          // the rollout; readers should prefer proof_urls.
-          proof_urls: [proofUrl, proofUrl2, proofUrlMain3].filter(Boolean),
+          // the rollout; readers should prefer proof_urls + proof_labels.
+          ...mainProofShots([proofUrl, proofUrl2, proofUrlMain3], req.body.proof_labels),
           proof_url3: proofUrl3,
           proof_url4: proofUrl4,
           extra_images: extraImageUrls,

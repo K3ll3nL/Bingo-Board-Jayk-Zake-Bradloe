@@ -10,13 +10,13 @@
 //   label          — display name shown to users
 //   img_urls       — array of logo URLs from R2, up to 3 (for games with multiple
 //                    version logos). Single-version games use a 1-item array.
-//   shiny_label    — (optional) replaces "Proof of Shiny" label on the upload form
-//                    e.g. "Overworld Screenshot" for games without a shiny flash
 //   no_image_proof — (optional) if true, image upload fields are greyed out and
 //                    disabled; use for games with no in-game screenshot capability
-//   proof_fields   — (optional) overrides DEFAULT_PROOF_FIELDS for this game.
-//                    Use proofFieldsFor(key) rather than reading this directly;
-//                    it applies the default and the no_image_proof rule.
+//   proof_fields   — ordered proof shots the upload form asks for, at most 3.
+//                    Each label is saved alongside its image
+//                    (approvals.proof_labels), so renaming one only affects new
+//                    submissions. Read through proofFieldsFor(), which applies
+//                    the no_image_proof rule.
 //   manager_order  — sort key used ONLY by PokemonGameManager (higher = newer, shown
 //                    first). Gaps of 10 leave room to slot re-releases in between
 //                    without renumbering. Every other surface uses array order.
@@ -24,22 +24,12 @@
 
 const R2_BASE = 'https://pub-583ae6cd5f8b4b58b0ee7053ea1d4b0b.r2.dev/assets/games';
 
-// ── Proof fields ──────────────────────────────────────────────────────────────
-// Every submission carries an ordered set of proof images. `id` is stable and is
-// what the API stores alongside the URL — never renumber or rename one after
-// launch, or historical submissions lose the meaning of their own images.
-//
-// Most games need three separate shots. Let's Go Pikachu/Eevee shows the trainer
-// ID and the date on the same screen, so it takes two.
-export const DEFAULT_PROOF_FIELDS = [
+// Shown on the upload form before a game is picked. Once one is, its own
+// proof_fields take over.
+const UNSELECTED_PROOF_FIELDS = [
   { id: 'overworld', label: 'Overworld Screenshot', required: true },
   { id: 'tid',       label: 'TID Proof',            required: true },
   { id: 'date',      label: 'Date Proof',           required: true },
-];
-
-export const LGPE_PROOF_FIELDS = [
-  { id: 'overworld', label: 'Overworld Screenshot', required: true },
-  { id: 'tid_date',  label: 'TID/Date Proof',       required: true },
 ];
 
 // The one place that resolves which fields a game asks for. Games flagged
@@ -51,9 +41,9 @@ export const proofFieldsFor = (gameKeyOrLabel) => {
   // silently fell through to the default, which is how Let's Go ended up asking
   // for three images.
   const game = ALLOWED_GAMES.find(g => g.key === gameKeyOrLabel || g.label === gameKeyOrLabel);
-  if (!game) return DEFAULT_PROOF_FIELDS;
+  if (!game) return UNSELECTED_PROOF_FIELDS;
   if (game.no_image_proof) return [];
-  return game.proof_fields || DEFAULT_PROOF_FIELDS;
+  return game.proof_fields ?? [];
 };
 
 export const ALLOWED_GAMES = [
@@ -68,7 +58,11 @@ export const ALLOWED_GAMES = [
     key: 'legends_za',
     label: 'Pokémon Legends: Z-A',
     img_urls: [`${R2_BASE}/legends_za.png`],
-    shiny_label: 'Overworld Screenshot',
+    proof_fields: [
+      { id: 'overworld', label: 'Overworld Screenshot', required: true },
+      { id: 'tid',       label: 'TID Proof',            required: true },
+      { id: 'date',      label: 'Date Proof',           required: true },
+    ],
     restricted_checklist: [
       { id: 'lza_no_shiny_charm',  label: 'Proof I do not have shiny charm' },
       { id: 'lza_no_hyperspace',   label: 'I am not catching this shiny in hyperspace' },
@@ -80,6 +74,11 @@ export const ALLOWED_GAMES = [
     key: 'scarlet_violet',
     label: 'Pokémon Scarlet / Violet',
     img_urls: [`${R2_BASE}/scarlet.png`, `${R2_BASE}/violet.png`],
+    proof_fields: [
+      { id: 'overworld', label: 'Overworld Screenshot', required: true },
+      { id: 'tid',       label: 'TID Proof',            required: true },
+      { id: 'date',      label: 'Date Proof',           required: true },
+    ],
     restricted_checklist: [
       { id: 'sv_no_shiny_charm', label: 'Proof I do not have shiny charm' },
       { id: 'sv_no_sandwich',    label: 'Proof that I was not using a sparkling power sandwich' },
@@ -91,18 +90,33 @@ export const ALLOWED_GAMES = [
     key: 'legends_arceus',
     label: 'Pokémon Legends: Arceus',
     img_urls: [`${R2_BASE}/legends_arceus.png`],
+    proof_fields: [
+      { id: 'overworld', label: 'Overworld Screenshot', required: true },
+      { id: 'tid',       label: 'TID Proof',            required: true },
+      { id: 'date',      label: 'Date Proof',           required: true },
+    ],
     manager_order: 200,
   },
   {
     key: 'brilliant_diamond_shining_pearl',
     label: 'Pokémon Brilliant Diamond / Shining Pearl',
     img_urls: [`${R2_BASE}/brilliant_diamond.png`, `${R2_BASE}/shining_pearl.png`],
+    proof_fields: [
+      { id: 'overworld', label: 'In-Battle Screenshot', required: true },
+      { id: 'tid',       label: 'TID Proof',            required: true },
+      { id: 'date',      label: 'Date Proof',           required: true },
+    ],
     manager_order: 190,
   },
   {
     key: 'sword_shield',
     label: 'Pokémon Sword / Shield',
     img_urls: [`${R2_BASE}/sword.png`, `${R2_BASE}/shield.png`],
+    proof_fields: [
+      { id: 'overworld', label: 'In-Battle Screenshot', required: true },
+      { id: 'tid',       label: 'TID Proof',            required: true },
+      { id: 'date',      label: 'Date Proof',           required: true },
+    ],
     manager_order: 180,
   },
   {
@@ -110,7 +124,10 @@ export const ALLOWED_GAMES = [
     label: 'Pokémon Lets Go Pikachu / Eevee',
     img_urls: [`${R2_BASE}/lets_go_pikachu.png`, `${R2_BASE}/lets_go_eevee.png`],
     // TID and date share one screen in LGPE, so two shots cover what three do elsewhere.
-    proof_fields: LGPE_PROOF_FIELDS,
+    proof_fields: [
+      { id: 'overworld', label: 'In-Battle Screenshot', required: true },
+      { id: 'tid_date',  label: 'TID/Date Proof',       required: true },
+    ],
     restricted_checklist: [
       { id: 'lgpe_chain_limit', label: 'My shiny charm chain is not above 11' },
     ],
@@ -120,6 +137,11 @@ export const ALLOWED_GAMES = [
     key: 'ultra_sun_ultra_moon',
     label: 'Pokémon Ultra Sun / Ultra Moon',
     img_urls: [`${R2_BASE}/ultra_sun.png`, `${R2_BASE}/ultra_moon.png`],
+    proof_fields: [
+      { id: 'overworld', label: 'In-Battle Screenshot', required: true },
+      { id: 'tid',       label: 'TID Proof',            required: true },
+      { id: 'date',      label: 'Date Proof',           required: true },
+    ],
     restricted_checklist: [
       { id: 'usum_no_uwr', label: 'Proof that I was not in ultra warp ride' },
     ],
@@ -129,12 +151,22 @@ export const ALLOWED_GAMES = [
     key: 'sun_moon',
     label: 'Pokémon Sun / Moon',
     img_urls: [`${R2_BASE}/sun.png`, `${R2_BASE}/moon.png`],
+    proof_fields: [
+      { id: 'overworld', label: 'In-Battle Screenshot', required: true },
+      { id: 'tid',       label: 'TID Proof',            required: true },
+      { id: 'date',      label: 'Date Proof',           required: true },
+    ],
     manager_order: 150,
   },
   {
     key: 'omega_ruby_alpha_sapphire',
     label: 'Pokémon Omega Ruby / Alpha Sapphire',
     img_urls: [`${R2_BASE}/omega_ruby.png`, `${R2_BASE}/alpha_sapphire.png`],
+    proof_fields: [
+      { id: 'overworld', label: 'In-Battle Screenshot', required: true },
+      { id: 'tid',       label: 'TID Proof',            required: true },
+      { id: 'date',      label: 'Date Proof',           required: true },
+    ],
     restricted_checklist: [
       { id: 'oras_no_fishing', label: 'A shiny that was not caught while fishing' },
     ],
@@ -144,6 +176,11 @@ export const ALLOWED_GAMES = [
     key: 'x_y',
     label: 'Pokémon X / Y',
     img_urls: [`${R2_BASE}/x.png`, `${R2_BASE}/y.png`],
+    proof_fields: [
+      { id: 'overworld', label: 'In-Battle Screenshot', required: true },
+      { id: 'tid',       label: 'TID Proof',            required: true },
+      { id: 'date',      label: 'Date Proof',           required: true },
+    ],
     restricted_checklist: [
       { id: 'xy_no_fishing', label: 'A shiny that was not caught while fishing' },
     ],
@@ -153,30 +190,55 @@ export const ALLOWED_GAMES = [
     key: 'black2_white2',
     label: 'Pokémon Black 2 / White 2',
     img_urls: [`${R2_BASE}/black2.png`, `${R2_BASE}/white2.png`],
+    proof_fields: [
+      { id: 'overworld', label: 'In-Battle Screenshot', required: true },
+      { id: 'tid',       label: 'TID Proof',            required: true },
+      { id: 'date',      label: 'Date Proof',           required: true },
+    ],
     manager_order: 120,
   },
   {
     key: 'black_white',
     label: 'Pokémon Black / White',
     img_urls: [`${R2_BASE}/black.png`, `${R2_BASE}/white.png`],
+    proof_fields: [
+      { id: 'overworld', label: 'In-Battle Screenshot', required: true },
+      { id: 'tid',       label: 'TID Proof',            required: true },
+      { id: 'date',      label: 'Date Proof',           required: true },
+    ],
     manager_order: 110,
   },
   {
     key: 'heartgold_soulsilver',
     label: 'Pokémon HeartGold / SoulSilver',
     img_urls: [`${R2_BASE}/heartgold.png`, `${R2_BASE}/soulsilver.png`],
+    proof_fields: [
+      { id: 'overworld', label: 'In-Battle Screenshot', required: true },
+      { id: 'tid',       label: 'TID Proof',            required: true },
+      { id: 'date',      label: 'Date Proof',           required: true },
+    ],
     manager_order: 100,
   },
   {
     key: 'platinum',
     label: 'Pokémon Platinum',
     img_urls: [`${R2_BASE}/platinum.png`],
+    proof_fields: [
+      { id: 'overworld', label: 'In-Battle Screenshot', required: true },
+      { id: 'tid',       label: 'TID Proof',            required: true },
+      { id: 'date',      label: 'Date Proof',           required: true },
+    ],
     manager_order: 90,
   },
   {
     key: 'diamond_pearl',
     label: 'Pokémon Diamond / Pearl',
     img_urls: [`${R2_BASE}/diamond.png`, `${R2_BASE}/pearl.png`],
+    proof_fields: [
+      { id: 'overworld', label: 'In-Battle Screenshot', required: true },
+      { id: 'tid',       label: 'TID Proof',            required: true },
+      { id: 'date',      label: 'Date Proof',           required: true },
+    ],
     manager_order: 80,
   },
   {

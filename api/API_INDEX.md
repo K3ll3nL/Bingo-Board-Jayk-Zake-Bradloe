@@ -72,9 +72,9 @@
 | Method | Path | Auth | Location | Notes |
 |---|---|---|---|---|
 | POST | `/api/approvals/:id/approve` | auth+mod | `api/_routes/approvals.js:49` | Approve a submission |
-| POST | `/api/approvals/:id/reject` | auth | `api/_routes/approvals.js:261` | Reject a submission |
-| GET | `/api/approvals/history` | auth | `api/_routes/approvals.js:543` | GET /api/approvals/history?page=1&limit=20 — moderator auth required Returns processed approval records (from approval_history table). |
-| GET | `/api/approvals/pending` | auth | `api/_routes/approvals.js:434` | Get pending approvals (moderators only) |
+| POST | `/api/approvals/:id/reject` | auth | `api/_routes/approvals.js:263` | Reject a submission |
+| GET | `/api/approvals/history` | auth | `api/_routes/approvals.js:550` | GET /api/approvals/history?page=1&limit=20 — moderator auth required Returns processed approval records (from approval_history table). |
+| GET | `/api/approvals/pending` | auth | `api/_routes/approvals.js:438` | Get pending approvals (moderators only) |
 
 ## /badge-families
 
@@ -308,31 +308,31 @@
 
 | Method | Path | Auth | Location | Notes |
 |---|---|---|---|---|
-| GET | `/api/upload/available-pokemon` | auth | `api/_routes/upload.js:23` | Get available Pokemon for upload (active months, not yet caught) |
+| GET | `/api/upload/available-pokemon` | auth | `api/_routes/upload.js:40` | Get available Pokemon for upload (active months, not yet caught) |
 
 ## /upload/available-pokemon-historical
 
 | Method | Path | Auth | Location | Notes |
 |---|---|---|---|---|
-| GET | `/api/upload/available-pokemon-historical` | auth | `api/_routes/upload.js:156` | Get available Pokemon for historical upload (past months only) Excludes: pokemon in the current month's pool, pokemon where user has a restricted entry, and pok |
+| GET | `/api/upload/available-pokemon-historical` | auth | `api/_routes/upload.js:173` | Get available Pokemon for historical upload (past months only) Excludes: pokemon in the current month's pool, pokemon where user has a restricted entry, and pok |
 
 ## /upload/available-pokemon-restricted
 
 | Method | Path | Auth | Location | Notes |
 |---|---|---|---|---|
-| GET | `/api/upload/available-pokemon-restricted` | auth | `api/_routes/upload.js:92` | Get available Pokemon for restricted upload (active month pool, excluding already restricted-submitted) |
+| GET | `/api/upload/available-pokemon-restricted` | auth | `api/_routes/upload.js:109` | Get available Pokemon for restricted upload (active month pool, excluding already restricted-submitted) |
 
 ## /upload/historical-submission
 
 | Method | Path | Auth | Location | Notes |
 |---|---|---|---|---|
-| POST | `/api/upload/historical-submission` | auth | `api/_routes/upload.js:497` | Historical submission — queues a past-month catch for mod review. No points are awarded on approval; board state is not affected. |
+| POST | `/api/upload/historical-submission` | auth | `api/_routes/upload.js:514` | Historical submission — queues a past-month catch for mod review. No points are awarded on approval; board state is not affected. |
 
 ## /upload/submission
 
 | Method | Path | Auth | Location | Notes |
 |---|---|---|---|---|
-| POST | `/api/upload/submission` | auth | `api/_routes/upload.js:255` |  |
+| POST | `/api/upload/submission` | auth | `api/_routes/upload.js:272` |  |
 
 ## /user/accept-tos
 
@@ -451,6 +451,7 @@
 | `isModerator` | `api/_lib/core.js:774` | Whether a user is a moderator, cached for MODERATOR_CACHE_TTL. Replaces the inline `select from moderators where id = userId` check duplicated across route modu |
 | `isRealImage` | `api/_lib/core.js:79` |  |
 | `loadPool` | `api/_routes/tierList.js:36` | Pool ids for a month, plus the display records the client needs for PokemonImage. POKEMON_IMAGE_FIELDS is mandatory here — without the gender/form columns gende |
+| `mainProofShots` | `api/_routes/upload.js:25` | Pairs the main proof shots (slots file/file2/file3) with the labels the upload form showed for each slot, then drops empty slots from both together so the array |
 | `modalTierByMon` | `api/_routes/stats.js:77` |  |
 | `nowForMonth` | `api/_lib/core.js:190` |  |
 | `parseMode` | `api/_routes/tierList.js:28` |  |

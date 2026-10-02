@@ -78,7 +78,7 @@ module.exports = function register(app) {
       // Get approval details including image URLs BEFORE deleting the record
       const { data: approval, error: approvalFetchError } = await supabase
         .from('approvals')
-        .select('user_id, pokemon_id, proof_url, proof_url2, proof_urls, proof_link, game, historical, month_id, restricted_submission, created_at')
+        .select('user_id, pokemon_id, proof_url, proof_url2, proof_urls, proof_labels, proof_link, game, historical, month_id, restricted_submission, created_at')
         .eq('id', id)
         .single();
 
@@ -142,6 +142,7 @@ module.exports = function register(app) {
             proof_url: approval.proof_url,
             proof_url2: approval.proof_url2,
             proof_urls: approval.proof_urls || [approval.proof_url, approval.proof_url2].filter(Boolean),
+            proof_labels: approval.proof_labels ?? [],
             proof_link: approval.proof_link,
             had_images: !!(approval.proof_url || approval.proof_url2 || (approval.proof_urls || []).length),
             status: historicalStatus,
@@ -239,6 +240,7 @@ module.exports = function register(app) {
           proof_url: approval.proof_url,
           proof_url2: approval.proof_url2,
           proof_urls: approval.proof_urls || [approval.proof_url, approval.proof_url2].filter(Boolean),
+          proof_labels: approval.proof_labels ?? [],
           proof_link: approval.proof_link,
           had_images: !!(approval.proof_url || approval.proof_url2 || (approval.proof_urls || []).length),
           status: approvalStatus || 'accepted',
@@ -283,7 +285,7 @@ module.exports = function register(app) {
       // Get approval details including image URLs BEFORE deleting the record
       const { data: approval, error: approvalFetchError } = await supabase
         .from('approvals')
-        .select('user_id, pokemon_id, proof_url, proof_url2, proof_urls, proof_link, game, historical, month_id, restricted_submission, created_at')
+        .select('user_id, pokemon_id, proof_url, proof_url2, proof_urls, proof_labels, proof_link, game, historical, month_id, restricted_submission, created_at')
         .eq('id', id)
         .single();
 
@@ -341,6 +343,7 @@ module.exports = function register(app) {
             proof_url: approval.proof_url,
             proof_url2: approval.proof_url2,
             proof_urls: approval.proof_urls || [approval.proof_url, approval.proof_url2].filter(Boolean),
+            proof_labels: approval.proof_labels ?? [],
             proof_link: approval.proof_link,
             had_images: !!(approval.proof_url || approval.proof_url2 || (approval.proof_urls || []).length),
             status: historicalNotifStatus,
@@ -412,6 +415,7 @@ module.exports = function register(app) {
           proof_url: approval.proof_url,
           proof_url2: approval.proof_url2,
           proof_urls: approval.proof_urls || [approval.proof_url, approval.proof_url2].filter(Boolean),
+          proof_labels: approval.proof_labels ?? [],
           proof_link: approval.proof_link,
           had_images: !!(approval.proof_url || approval.proof_url2 || (approval.proof_urls || []).length),
           status: rpcStatus,
@@ -466,6 +470,7 @@ module.exports = function register(app) {
           proof_url,
           proof_url2,
           proof_urls,
+          proof_labels,
           proof_url3,
           proof_url4,
           extra_images,
@@ -513,6 +518,8 @@ module.exports = function register(app) {
         created_at: approval.created_at,
         proof_url: approval.proof_url,
         proof_url2: approval.proof_url2,
+        proof_urls: approval.proof_urls ?? [],
+        proof_labels: approval.proof_labels ?? [],
         proof_url3: approval.proof_url3,
         proof_url4: approval.proof_url4,
         extra_images: approval.extra_images ?? null,
@@ -553,7 +560,7 @@ module.exports = function register(app) {
 
       const { data: history, error } = await supabase
         .from('approval_history')
-        .select('id, user_id, pokemon_id, month_id, game, historical, restricted_submission, proof_url, proof_url2, proof_urls, proof_link, had_images, status, moderator_id, created_at, processed_at')
+        .select('id, user_id, pokemon_id, month_id, game, historical, restricted_submission, proof_url, proof_url2, proof_urls, proof_labels, proof_link, had_images, status, moderator_id, created_at, processed_at')
         .order('processed_at', { ascending: false })
         .range(offset, offset + limit - 1);
 

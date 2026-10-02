@@ -5,7 +5,7 @@ import { useNavigate } from 'react-router-dom';
 import { supabase } from '../services/supabaseClient';
 import PageBackground from './PageBackground';
 import PageHeader from './PageHeader';
-import { ALLOWED_GAMES } from '../constants/games';
+import { ALLOWED_GAMES, proofFieldsFor } from '../constants/games';
 import PokemonImage from './PokemonImage';
 
 const getAuthHeader = async () => {
@@ -99,8 +99,17 @@ const isEmbeddableLink = (url) => isVideoUrl(url) || !!parseEmbed(url);
 const buildMedia = (a) => {
   const items = [];
   const push = (url, label) => { if (url) items.push({ url, label, kind: isVideoUrl(url) ? 'video' : 'image' }); };
-  push(a.proof_url, 'Proof of Shiny');
-  push(a.proof_url2, 'Proof of Date');
+  // proof_labels[i] is the label proof_urls[i] was uploaded under. Rows from
+  // before labels were saved fall back to the game's current upload config.
+  // proof_urls is compacted, so a skipped optional slot would shift later shots;
+  // proof_url/proof_url2 are still positional, so they pin slots 1-2 and slot 3
+  // is whatever proof_urls adds.
+  const fields = proofFieldsFor(a.game);
+  const urls = a.proof_urls ?? [];
+  const slots = [a.proof_url, a.proof_url2];
+  urls.forEach(url => { if (!slots.includes(url)) slots.push(url); });
+  const fallback = new Map(slots.map((url, i) => [url, fields[i]?.label || `Proof ${i + 1}`]));
+  (urls.length ? urls : slots).forEach((url, i) => push(url, a.proof_labels?.[i] || fallback.get(url)));
   push(a.proof_url3, 'Evolution');
   push(a.proof_url4, 'Evolved Summary');
   (a.extra_images ?? []).forEach((url, i) => push(url, `Extra ${i + 1}`));
@@ -872,7 +881,7 @@ const Approvals = () => {
                             {rMedia.map((item, i) => (
                               <MediaThumb key={i} item={item} size="sm" onClick={() => openLightbox(rMedia, i)} />
                             ))}
-                            {!record.proof_url && !record.proof_url2 && record.had_images && (
+                            {!record.proof_urls?.length && !record.proof_url && !record.proof_url2 && record.had_images && (
                               <span className="text-xs text-gray-500 italic self-center">Images purged</span>
                             )}
                             {rLinks.map((link, i) => (
