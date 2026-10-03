@@ -132,18 +132,25 @@ const RuleTile = ({ step, on, behind, nudge, onToggle }) => {
   );
 };
 
-// First example image in `step.examples` that actually loads; null once all fail.
+// url → true (loaded) / false (missing), so switching back to a game resolves
+// instantly instead of replaying the skeleton.
+const exampleSeen = new Map();
+
+// First example image in `step.examples` that actually loads. state is
+// 'loading' until that's known, then 'ready' (src loaded) or 'missing'.
 const useExample = (examples) => {
-  const [failed, setFailed] = useState(0);
-  const list = examples ?? [];
-  useEffect(() => { setFailed(0); }, [list.join('|')]); // eslint-disable-line react-hooks/exhaustive-deps
-  return [list[failed] ?? null, () => setFailed(f => f + 1)];
+  const [, bump] = useState(0);
+  const src = (examples ?? []).find(u => exampleSeen.get(u) !== false) ?? null;
+  const state = !src ? 'missing' : exampleSeen.get(src) ? 'ready' : 'loading';
+  const settle = (ok) => () => { exampleSeen.set(src, ok); bump(n => n + 1); };
+  return { src, state, onLoad: settle(true), onError: settle(false) };
 };
 
 // A screenshot frame: what the shot looks like, which mon is in it, and its
 // place in the upload order.
 const ShotTile = ({ step, on, behind, nudge, onToggle, onZoom }) => {
-  const [example, onMiss] = useExample(step.examples);
+  const { src, state, onLoad, onError } = useExample(step.examples);
+  const example = state === 'ready' ? src : null;
   const [ref, onAnimationEnd] = useNudge(nudge);
   const ring = step.irreversible ? CORAL : null;
   return (
@@ -155,23 +162,27 @@ const ShotTile = ({ step, on, behind, nudge, onToggle, onZoom }) => {
       }}>
       <div className="relative w-full aspect-[16/10] rounded-md overflow-hidden flex items-center justify-center"
         style={{ background: `radial-gradient(circle at 50% 60%, ${SURFACE.cardAlt}, ${SURFACE.inset})` }}>
-        {example ? (
-          <img key={example} src={example} alt="" draggable={false} loading="lazy" onError={onMiss}
-            className={`absolute inset-0 w-full h-full object-cover ${on ? 'opacity-40' : 'opacity-90'}`} />
+        {/* Until the example settles, the frame is a skeleton: no art, no
+            corner badges — so nothing appears in one place and then jumps. */}
+        {state === 'loading' && <div className="absolute inset-0 animate-pulse" style={{ background: SURFACE.cardAlt }} />}
+        {src && state !== 'missing' ? (
+          <img key={src} src={src} alt="" draggable={false} loading="lazy" onLoad={onLoad} onError={onError}
+            className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-300 ${
+              state !== 'ready' ? 'opacity-0' : on ? 'opacity-40' : 'opacity-90'}`} />
         ) : step.evolve ? (
-          <div className={`flex items-center gap-1 ${on ? 'opacity-40' : ''}`}>
+          <div className={`prep-fade-in flex items-center gap-1 ${on ? 'opacity-40' : ''}`}>
             <Sprite mon={step.evolve[0]} className="w-12 h-12" />
             <Glyph name="arrow" className="w-4 h-4" style={{ color: ACCENT.base }} />
             <Sprite mon={step.evolve[1]} className="w-12 h-12" />
           </div>
         ) : (
-          <div className={`flex items-center gap-2 ${on ? 'opacity-40' : ''}`}>
+          <div className={`prep-fade-in flex items-center gap-2 ${on ? 'opacity-40' : ''}`}>
             <Sprite mon={step.mon} className="w-14 h-14" />
             {step.glyph && <Glyph name={step.glyph} className="w-7 h-7" style={{ color: TEXT.muted }} />}
           </div>
         )}
         {example && step.mon && (
-          <span className="absolute bottom-1 left-1 w-9 h-9 rounded-md flex items-center justify-center"
+          <span className="prep-fade-in absolute bottom-1 left-1 w-9 h-9 rounded-md flex items-center justify-center"
             style={{ background: 'rgba(13,15,20,0.85)' }}>
             <Sprite mon={step.mon} className="w-8 h-8" />
           </span>
@@ -180,8 +191,8 @@ const ShotTile = ({ step, on, behind, nudge, onToggle, onZoom }) => {
           style={{ background: step.irreversible ? CORAL : 'rgba(13,15,20,0.85)', color: step.irreversible ? SURFACE.page : undefined }}>
           {step.n}
         </span>
-        {step.video && !example && !step.proves?.length && (
-          <span className="absolute bottom-1 right-1 w-6 h-6 rounded-md flex items-center justify-center"
+        {step.video && state === 'missing' && !step.proves?.length && (
+          <span className="prep-fade-in absolute bottom-1 right-1 w-6 h-6 rounded-md flex items-center justify-center"
             style={{ background: 'rgba(13,15,20,0.85)', color: CORAL }}>
             <Glyph name="video" className="w-4 h-4" />
           </span>
@@ -190,7 +201,7 @@ const ShotTile = ({ step, on, behind, nudge, onToggle, onZoom }) => {
           <span role="button" tabIndex={0} aria-label="Example"
             onClick={(e) => { e.stopPropagation(); onZoom(example); }}
             onKeyDown={(e) => { if (e.key === 'Enter') { e.stopPropagation(); onZoom(example); } }}
-            className="absolute bottom-1 right-1 w-7 h-7 rounded-md flex items-center justify-center text-strong cursor-zoom-in hover:brightness-125"
+            className="prep-fade-in absolute bottom-1 right-1 w-7 h-7 rounded-md flex items-center justify-center text-strong cursor-zoom-in hover:brightness-125"
             style={{ background: 'rgba(13,15,20,0.85)' }}>
             <Glyph name="zoom" className="w-4 h-4" />
           </span>

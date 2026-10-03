@@ -128,6 +128,11 @@ a {
     50% { box-shadow: inset 0 0 0 2px #fbbf24, 0 0 18px 2px rgba(251,191,36,0.55); }
   }
 }
+/* Hunt Prep shot frames: art that replaces the loading skeleton fades in
+   rather than popping. Opacity only — never moves. */
+@keyframes prep-fade-in { from { opacity: 0; } }
+.prep-fade-in { animation: prep-fade-in 0.3s ease-out; }
+@media (prefers-reduced-motion: reduce) { .prep-fade-in { animation: none; } }
 /* Hide the scrollbar without disabling scrolling. Used by the leaderboard list,
    where an 8px gutter left every row short of the panel edge. */
 .no-scrollbar::-webkit-scrollbar { display: none; }
