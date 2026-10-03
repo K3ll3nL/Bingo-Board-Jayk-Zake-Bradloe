@@ -1,16 +1,105 @@
 /**
- * pokemon routes (3).
+ * pokemon routes (4).
  * Registered from api/index.js — see api/API_INDEX.md for the full route map.
  */
 const {
+  getActiveMonth,
   getActiveMonthId,
   getAuthenticatedUserId,
+  getShinyPokemon,
   isModerator,
   nowForMonth,
   supabase,
 } = require('../_lib/core');
 
+// Columns the Hunt Prep page needs per mon: PokemonImage fields, game
+// eligibility, and rule_exemptions (Restricted rules that don't apply to this
+// mon, set on the Game Manager). All present on the getShinyPokemon() memo rows.
+const PREP_FIELDS = [
+  'id', 'name', 'display_name', 'national_dex_id', 'genderless',
+  'has_gender_difference', 'has_major_gender_difference', 'custom_gender_code',
+  'forms_count', 'form_id', 'game_slugs', 'restricted_game_slugs',
+];
+
+// Earlier stages of `row`, earliest first, by walking evolves_from_id (set per
+// row on the Game Manager). Stops at a parent outside the shiny roster, and at
+// a cycle, so a bad edit can't hang the request.
+const preEvoChain = (row, byId) => {
+  const chain = [];
+  const seen = new Set([row.id]);
+  let cur = byId.get(row.evolves_from_id);
+  while (cur && !seen.has(cur.id)) {
+    seen.add(cur.id);
+    chain.unshift(cur);
+    cur = byId.get(cur.evolves_from_id);
+  }
+  return chain;
+};
+const toPrepRow = (p) => {
+  const out = {};
+  for (const k of PREP_FIELDS) out[k] = p[k] ?? null;
+  out.game_slugs = p.game_slugs || [];
+  out.restricted_game_slugs = p.restricted_game_slugs || [];
+  out.rule_exemptions = p.rule_exemptions || [];
+  return out;
+};
+
 module.exports = function register(app) {
+
+  // GET /api/prep?pokemon=<id> — public data for the Hunt Prep page: the
+  // active month window, this month's board (in board position order), and
+  // the requested mon with its earlier stages (pre_evos). Reads the roster memo, so
+  // the only DB hits are the (cached) active month and the pool.
+  app.get('/api/prep', async (req, res) => {
+    try {
+      let month;
+      try {
+        month = await getActiveMonth();
+      } catch (err) {
+        if (err.transient) return res.status(503).json({ error: 'Temporarily unavailable' });
+        throw err;
+      }
+
+      const roster = await getShinyPokemon();
+      const byId = new Map(roster.map(p => [p.id, p]));
+
+      let pool = [];
+      if (month) {
+        const { data: poolRows, error: poolError } = await supabase
+          .from('monthly_pokemon_pool')
+          .select('position, pokemon_id')
+          .eq('month_id', month.id)
+          .order('position', { ascending: true });
+        if (poolError) throw poolError;
+        // position is the board cell (1–25, 13 is the free space), so the
+        // client can lay the picker out as the board itself.
+        pool = (poolRows || [])
+          .filter(r => byId.has(r.pokemon_id))
+          .map(r => ({ ...toPrepRow(byId.get(r.pokemon_id)), position: r.position }));
+      }
+
+      let pokemon = null;
+      const wanted = Number(req.query.pokemon);
+      const row = Number.isFinite(wanted) ? byId.get(wanted) : null;
+      if (row) {
+        pokemon = { ...toPrepRow(row), pre_evos: preEvoChain(row, byId).map(toPrepRow) };
+      }
+
+      res.json({
+        month: month ? {
+          id: month.id,
+          label: month.month_year_display,
+          start_date: month.start_date,
+          end_date: month.end_date,
+        } : null,
+        pool,
+        pokemon,
+      });
+    } catch (err) {
+      console.error('Error loading hunt prep:', err);
+      res.status(500).json({ error: 'Failed to load hunt prep' });
+    }
+  });
 
   // Get user's Pokedex (all pokemon with caught status)
   app.get('/api/pokedex', async (req, res) => {

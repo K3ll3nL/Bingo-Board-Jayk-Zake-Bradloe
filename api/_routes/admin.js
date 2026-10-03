@@ -580,7 +580,7 @@ module.exports = function register(app) {
 
       const { data, error } = await supabase
         .from('pokemon_master')
-        .select('id, national_dex_id, name, game_slugs, restricted_game_slugs, shiny_available, forms_count, form_id, custom_gender_code, genderless, has_gender_difference, has_major_gender_difference, legendary, baby, ultra_beast, paradox, starter, fossil, regional_alt, pseudo_legendary, pla')
+        .select('id, national_dex_id, name, game_slugs, restricted_game_slugs, shiny_available, forms_count, form_id, custom_gender_code, genderless, has_gender_difference, has_major_gender_difference, legendary, baby, ultra_beast, paradox, starter, fossil, regional_alt, pseudo_legendary, pla, family_id, evolves_from_id, rule_exemptions')
         .order('national_dex_id', { ascending: true })
         .order('form_id', { ascending: true });
 
@@ -595,7 +595,7 @@ module.exports = function register(app) {
   app.patch('/api/admin/pokemon/:id/game-slugs', async (req, res) => {
     try {
       const { id } = req.params;
-      const { game_slugs, restricted_game_slugs, shiny_available, forms_count, legendary, baby, ultra_beast, paradox, starter, fossil, regional_alt, pseudo_legendary, pla, editor_id } = req.body;
+      const { game_slugs, restricted_game_slugs, shiny_available, forms_count, legendary, baby, ultra_beast, paradox, starter, fossil, regional_alt, pseudo_legendary, pla, family_id, evolves_from_id, rule_exemptions, editor_id } = req.body;
 
       const userId = await getAuthenticatedUserId(req);
       if (!userId) return res.status(401).json({ error: 'Authentication required' });
@@ -617,6 +617,14 @@ module.exports = function register(app) {
       if (typeof regional_alt === 'boolean') updates.regional_alt = regional_alt;
       if (typeof pseudo_legendary === 'boolean') updates.pseudo_legendary = pseudo_legendary;
       if (typeof pla === 'boolean') updates.pla = pla;
+      // Properties panel: family, evolution parent row (NULL = first stage) and
+      // Restricted rule exceptions. All feed Hunt Prep / board builder through
+      // the roster memo, busted below.
+      if (family_id === null) updates.family_id = null;
+      else if (Number.isInteger(family_id) && family_id >= 0) updates.family_id = family_id;
+      if (evolves_from_id === null) updates.evolves_from_id = null;
+      else if (Number.isInteger(evolves_from_id) && evolves_from_id !== Number(id)) updates.evolves_from_id = evolves_from_id;
+      if (Array.isArray(rule_exemptions)) updates.rule_exemptions = rule_exemptions.filter(r => typeof r === 'string' && r.length <= 64);
 
       const { error } = await supabase
         .from('pokemon_master')
@@ -628,8 +636,8 @@ module.exports = function register(app) {
       }
 
       // This is the ONLY writer of game_slugs / restricted_game_slugs /
-      // shiny_available, which is exactly what core's shiny roster memo filters
-      // on — so busting here is what lets that memo be correct on write rather
+      // shiny_available / family_id / evolves_from_id / rule_exemptions, which core's shiny
+      // roster memo filters on or serves — so busting here is what lets that memo be correct on write rather
       // than merely correct eventually. Must stay next to the update: if
       // another endpoint ever starts writing these columns, it needs this too.
       bustShinyPokemon();

@@ -928,6 +928,7 @@ const SHINY_POKEMON_COLUMNS = [
   'game_slugs', 'restricted_game_slugs',
   'legendary', 'baby', 'ultra_beast', 'paradox', 'starter', 'fossil',
   'regional_alt', 'pseudo_legendary', 'pla',
+  'evolves_from_id', 'rule_exemptions',
 ].join(', ');
 
 let shinyPokemonCache = null;   // { rows, expiresAt }

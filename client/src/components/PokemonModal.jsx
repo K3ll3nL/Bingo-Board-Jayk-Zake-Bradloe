@@ -235,21 +235,31 @@ const PokemonModal = ({ pokemon, onClose, monthId = null }) => {
         </div>
 
         {/* Footer buttons — always pinned */}
-        <div className="flex-shrink-0 grid grid-cols-2 gap-px border-t border-white/[0.07]">
+        <div className="flex-shrink-0 grid grid-cols-3 gap-px border-t border-white/[0.07]">
           <a
             href={`https://bulbapedia.bulbagarden.net/wiki/${pokemon.pokemon_name}_(Pok%C3%A9mon)#Game_locations`}
             target="_blank"
             rel="noopener noreferrer"
-            className="p-4 bg-transparent hover:bg-white/[0.04] text-white text-center font-medium transition-colors flex items-center justify-center gap-2"
+            className="px-2 py-3 sm:p-4 bg-transparent hover:bg-white/[0.04] text-white text-sm sm:text-base leading-tight text-center font-medium transition-colors flex flex-col sm:flex-row items-center justify-center gap-1.5 sm:gap-2"
           >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
             </svg>
             Bulbapedia
           </a>
+          <Link
+            to={`/prep?pokemon=${pokemon.pokemon_id}`}
+            onClick={onClose}
+            className="px-2 py-3 sm:p-4 bg-transparent hover:bg-white/[0.04] text-white text-sm sm:text-base leading-tight text-center font-medium transition-colors flex flex-col sm:flex-row items-center justify-center gap-1.5 sm:gap-2"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+            </svg>
+            Prep
+          </Link>
           {isDisabled ? (
             <button
-              className={`p-4 text-center font-medium transition-colors flex items-center justify-center gap-2 ${submitBtnClass}`}
+              className={`px-2 py-3 sm:p-4 text-sm sm:text-base leading-tight text-center font-medium transition-colors flex flex-col sm:flex-row items-center justify-center gap-1.5 sm:gap-2 ${submitBtnClass}`}
               disabled
             >
               {isStandardDone && !isRestrictedDone ? (
@@ -265,7 +275,7 @@ const PokemonModal = ({ pokemon, onClose, monthId = null }) => {
             <Link
               to={monthId ? `/upload?pokemon=${pokemon.pokemon_id}&historical=true` : `/upload?pokemon=${pokemon.pokemon_id}`}
               onClick={onClose}
-              className={`p-4 text-center font-medium transition-colors flex items-center justify-center gap-2 ${submitBtnClass}`}
+              className={`px-2 py-3 sm:p-4 text-sm sm:text-base leading-tight text-center font-medium transition-colors flex flex-col sm:flex-row items-center justify-center gap-1.5 sm:gap-2 ${submitBtnClass}`}
             >
               {isStandardDone && !isRestrictedDone ? (
                 <img src={restrictedIconSrc} alt="" className="w-5 h-5 object-contain" />

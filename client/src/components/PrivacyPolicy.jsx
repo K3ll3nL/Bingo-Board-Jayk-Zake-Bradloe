@@ -181,7 +181,7 @@ export default function PrivacyPolicy() {
         <p>
           We use your browser's local storage to keep you signed in (via Supabase authentication tokens) and
           to remember small preferences on your own device - which banners you have dismissed, which items you
-          have ticked off on the Restricted Challenge checklist, and which Pokémon you have marked as owned in
+          have ticked off on the Restricted Challenge checklist and the Hunt Prep page, and which Pokémon you have marked as owned in
           the Gen 2 breeding tool.
         </p>
         <p>

@@ -113,7 +113,7 @@ export const ALLOWED_GAMES = [
     label: 'Pokémon Sword / Shield',
     img_urls: [`${R2_BASE}/sword.png`, `${R2_BASE}/shield.png`],
     proof_fields: [
-      { id: 'overworld', label: 'In-Battle Screenshot', required: true },
+      { id: 'in_battle', label: 'In-Battle Screenshot', required: true },
       { id: 'tid',       label: 'TID Proof',            required: true },
       { id: 'date',      label: 'Date Proof',           required: true },
     ],

@@ -99,6 +99,16 @@ const ProofSlots = ({ slots, idPrefix, optional, disabled }) => {
   );
 };
 
+// Hunt Prep (/prep) links here with ?game=<key>&restricted=1 alongside
+// ?pokemon. Each is applied only when this form would accept it for that mon,
+// otherwise ignored, so the link can never put the form in an invalid state.
+const applyPrepParams = (params, poke, setGame, setIsRestricted) => {
+  const g = ALLOWED_GAMES.find(x => x.key === params.get('game'));
+  if (!poke || !g || !(poke.game_slugs ?? []).includes(g.key)) return;
+  setGame(g.label);
+  if (params.get('restricted') === '1' && (poke.restricted_game_slugs ?? []).includes(g.key)) setIsRestricted(true);
+};
+
 const getAuthHeader = async () => {
   if (import.meta.env.DEV &&
       (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')) {
@@ -157,6 +167,7 @@ const HistoricalUploadSection = () => {
     const pokemonId = params.get('pokemon');
     if (pokemonId && pokemon?.length > 0) {
       setSelectedPokemon(pokemonId);
+      applyPrepParams(params, pokemon.find(p => p.id === parseInt(pokemonId)), setGame, setIsRestricted);
     }
   }, [pokemon]);
 
@@ -981,6 +992,7 @@ const Upload = () => {
     const pokemonId = params.get('pokemon');
     if (pokemonId && availablePokemon.length > 0) {
       setSelectedPokemon(pokemonId);
+      applyPrepParams(params, availablePokemon.find(p => p.id === parseInt(pokemonId)), setGame, setIsRestricted);
     }
   }, [availablePokemon]);
 

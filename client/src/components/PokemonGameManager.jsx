@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { createPortal } from 'react-dom';
 import { supabase } from '../services/supabaseClient';
 import { ALLOWED_GAMES, GAMES_BY_MANAGER_ORDER } from '../constants/games';
+import { EXEMPTIBLE_RULES } from '../constants/huntPrep';
 import PokemonImage from './PokemonImage';
 import PageBackground from './PageBackground';
 import PageHeader from './PageHeader';
@@ -33,15 +34,15 @@ const C = {
 const COLUMN_DEFS = [
   { id: 'slugs',       label: 'Slug Columns',  dot: '#a855f7', widths: ['200px', '200px'] },
   { id: 'shiny',       label: 'Shiny',          dot: '#facc15', width: '90px'  },
-  { id: 'forms',       label: 'Forms',          dot: '#60a5fa', width: '72px'  },
-  { id: 'categories', label: 'Categories',     dot: '#34d399', width: '90px'  },
+  { id: 'properties',  label: 'Properties',     dot: '#f472b6', width: '190px' },
   { id: 'copy_paste',  label: 'Copy / Paste',   dot: null,      width: '72px'  },
 ];
 
-const DEFAULT_VISIBLE = new Set(COLUMN_DEFS.map(c => c.id));
+const ALL_COLUMNS = new Set(COLUMN_DEFS.map(c => c.id));
+const DEFAULT_VISIBLE = ALL_COLUMNS;
 
 const buildGrid = (visible) => {
-  const cols = ['32px', '52px', '1fr']; // checkbox, sprite, name
+  const cols = ['32px', '52px', 'minmax(150px,1fr)']; // checkbox, sprite, name (minmax: a long name must not shift its row)
   for (const def of COLUMN_DEFS) {
     if (!visible.has(def.id)) continue;
     if (def.widths) cols.push(...def.widths);
@@ -136,7 +137,7 @@ const ColumnsDropdown = ({ visible, setVisible }) => {
         })}
       </div>
       <div className="px-3 py-2 border-t flex gap-3" style={{ borderColor: C.border }}>
-        <button type="button" onClick={() => setVisible(DEFAULT_VISIBLE)}
+        <button type="button" onClick={() => setVisible(ALL_COLUMNS)}
           className="text-xs text-purple-400 hover:text-purple-300 transition-colors">Show all</button>
       </div>
     </div>
@@ -252,7 +253,7 @@ const SlugDropdown = ({ pokemonId, field, value, onChange, matchValue, reversed 
   );
 };
 
-// ── Category Dropdown ──────────────────────────────────────────────────────────
+// ── Categories (edited in the Properties card) ────────────────────────────────
 const CATEGORIES = [
   { key: 'legendary',       label: 'Legendary' },
   { key: 'baby',            label: 'Baby' },
@@ -265,39 +266,282 @@ const CATEGORIES = [
   { key: 'pla',             label: 'PLA' },
 ];
 
-const CategoryDropdown = ({ pokemonId, data, onChange }) => {
-  const { btnRef, panelRef, open, style, toggle } = usePortalDropdown();
-  const activeCount = CATEGORIES.filter(c => data[c.key]).length;
+// ── Properties ─────────────────────────────────────────────────────────────────
+// Per-mon data that Hunt Prep and the board builder read from pokemon_master:
+// forms_count, categories, family_id, evolution links (evolves_from_id, both directions)
+// and the Restricted rules the mon ignores (rule_exemptions). One cell, one card.
+const PINK  = '#f472b6';
+const AMBER = '#fbbf24';
+const MINT  = '#34d399';
+const BLUE  = '#60a5fa';
 
-  const panel = (
-    <div ref={panelRef} style={{ ...style, width: 200, maxHeight: 400, background: 'linear-gradient(160deg, #13151a 0%, #181a21 100%)', borderColor: C.border }}
+const SectionHead = ({ color, label, right }) => (
+  <div className="flex items-center justify-between gap-2 mb-2">
+    <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest text-gray-500">
+      <span className="w-2 h-2 rounded-full" style={{ background: color }} />
+      {label}
+    </div>
+    {right}
+  </div>
+);
+
+const MonTile = ({ mon, on, color, onPick, title }) => (
+  <button type="button" onClick={onPick} title={title ?? (mon ? `${mon.name} #${mon.national_dex_id}` : 'None')}
+    className="min-w-0 flex flex-col items-center gap-0.5 p-1 rounded-lg border transition-colors hover:bg-white/[0.05]"
+    style={{ borderColor: on ? `${color}b3` : 'transparent', background: on ? `${color}1f` : 'transparent' }}>
+    {mon
+      ? <PokemonImage pokemon={mon} className="w-10 h-10" disableCycling />
+      : <span className="w-10 h-10 rounded-full border border-dashed flex items-center justify-center text-gray-500"
+          style={{ borderColor: 'rgba(255,255,255,0.2)' }}>✕</span>}
+    <span className={`text-[10px] leading-tight truncate w-full text-center ${on ? 'text-white' : 'text-gray-500'}`}>
+      {mon ? mon.name : 'None'}
+    </span>
+  </button>
+);
+
+const Arrow = ({ className = 'w-4 h-4' }) => (
+  <svg className={`${className} flex-shrink-0`} style={{ color: PINK }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 12h14m-6-6l6 6-6 6" />
+  </svg>
+);
+
+const EmptySlot = () => (
+  <span className="w-10 h-10 rounded-full border border-dashed flex-shrink-0" style={{ borderColor: 'rgba(255,255,255,0.15)' }} />
+);
+
+const Switch = ({ on }) => (
+  <span className="relative w-8 h-[18px] rounded-full flex-shrink-0 transition-colors"
+    style={{ background: on ? AMBER : 'rgba(255,255,255,0.12)' }}>
+    <span className={`absolute top-[2px] left-[2px] w-[14px] h-[14px] rounded-full bg-white shadow transition-transform ${on ? 'translate-x-[14px]' : ''}`} />
+  </span>
+);
+
+const NO_KIDS = [];
+const Mini = ({ mon }) => mon
+  ? <PokemonImage pokemon={mon} className="w-7 h-7" disableCycling />
+  : <span className="w-5 h-5 mx-1 rounded-full border border-dashed flex-shrink-0" style={{ borderColor: 'rgba(255,255,255,0.15)' }} />;
+
+const PropertiesCell = ({ p, data, rosterById, childrenOf, familyOf, onForms, onCategory, onFamily, onParent, onExemptions }) => {
+  const { btnRef, panelRef, open, style, toggle } = usePortalDropdown();
+  const parent = data.evolves_from_id != null ? rosterById.get(data.evolves_from_id) : null;
+  const exemptions = data.rule_exemptions ?? [];
+  const catCount = CATEGORIES.filter(c => data[c.key]).length;
+  const forms = data.forms_count ?? 1;
+
+  // Everything below is only needed while the card is open.
+  const view = useMemo(() => {
+    if (!open) return null;
+    const family = familyOf(p.family_id);
+    const others = family.filter(m => m.id !== p.id);
+    // Ancestors / descendants within the roster, so a pick can never make a cycle.
+    const ancestors = new Set();
+    for (let cur = rosterById.get(p.evolves_from_id); cur && !ancestors.has(cur.id) && cur.id !== p.id; cur = rosterById.get(cur.evolves_from_id)) ancestors.add(cur.id);
+    const descendants = new Set();
+    const queue = [p.id];
+    while (queue.length) {
+      const id = queue.shift();
+      for (const m of family) if (m.evolves_from_id === id && !descendants.has(m.id) && m.id !== p.id) { descendants.add(m.id); queue.push(m.id); }
+    }
+    let maxFamily = 0;
+    for (const m of rosterById.values()) if (m.family_id > maxFamily) maxFamily = m.family_id;
+    return {
+      family,
+      fromOptions: others.filter(m => !descendants.has(m.id)),
+      toOptions: others.filter(m => !ancestors.has(m.id)),
+      children: others.filter(m => m.evolves_from_id === p.id),
+      maxFamily,
+    };
+  }, [open, p, rosterById, familyOf]);
+
+  const width = Math.min(400, window.innerWidth - 16);
+  const room = (() => {
+    if (!open || !btnRef.current) return 600;
+    const r = btnRef.current.getBoundingClientRect();
+    return Math.max(240, (style.bottom != null ? r.top : window.innerHeight - r.bottom) - 12);
+  })();
+
+  const setFamily = (fid) => onFamily(p.id, fid);
+  const toggleRule = (id) => onExemptions(p.id, exemptions.includes(id) ? exemptions.filter(r => r !== id) : [...exemptions, id]);
+
+  const panel = view && (
+    <div ref={panelRef} style={{ ...style, width, maxHeight: room, background: C.header, borderColor: C.border }}
       className="rounded-xl border overflow-y-auto shadow-2xl">
-      <div className="p-2 space-y-0.5">
-        {CATEGORIES.map(cat => (
-          <label key={cat.key}
-            className="flex items-center gap-3 px-3 py-2 rounded-lg cursor-pointer select-none transition-colors hover:bg-white/[0.04]">
-            <input type="checkbox" checked={data[cat.key] ?? false}
-              onChange={() => onChange(cat.key, !data[cat.key])}
-              className="w-3.5 h-3.5 rounded accent-emerald-500 flex-shrink-0" />
-            <span className="text-sm text-gray-300">{cat.label}</span>
-          </label>
-        ))}
+
+      {/* Identity */}
+      <div className="flex items-center gap-3 px-4 py-3 border-b sticky top-0 z-10" style={{ borderColor: C.border, background: '#13151a' }}>
+        <PokemonImage pokemon={{ ...p, forms_count: forms }} className="w-10 h-10" />
+        <div className="min-w-0 flex-1">
+          <div className="text-sm font-semibold text-white truncate">{p.name}</div>
+          <div className="text-[11px]" style={{ color: 'rgba(255,255,255,0.3)' }}>#{String(p.national_dex_id).padStart(4, '0')}</div>
+        </div>
+        {/* Forms: the sprite beside it cycles through them live */}
+        <div className="flex items-center gap-1.5 flex-shrink-0">
+          <span className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest text-gray-500">
+            <span className="w-2 h-2 rounded-full" style={{ background: BLUE }} />Forms
+          </span>
+          <div className="flex items-center rounded-lg border overflow-hidden" style={{ borderColor: C.border, background: C.input }}>
+            <button type="button" onClick={() => onForms(p.id, Math.max(1, forms - 1))} disabled={forms <= 1}
+              className="w-7 h-7 text-gray-400 hover:text-white hover:bg-white/[0.06] disabled:opacity-30 disabled:hover:bg-transparent transition-colors">−</button>
+            <span className="w-7 text-center text-sm text-white tabular-nums">{forms}</span>
+            <button type="button" onClick={() => onForms(p.id, forms + 1)}
+              className="w-7 h-7 text-gray-400 hover:text-white hover:bg-white/[0.06] transition-colors">+</button>
+          </div>
+        </div>
+      </div>
+
+      {/* Categories */}
+      <div className="px-4 py-3 border-b" style={{ borderColor: C.border }}>
+        <SectionHead color={MINT} label="Categories" />
+        <div className="flex flex-wrap gap-1.5">
+          {CATEGORIES.map(cat => {
+            const on = !!data[cat.key];
+            return (
+              <button type="button" key={cat.key} onClick={() => onCategory(p.id, cat.key, !on)}
+                className={`h-7 px-2.5 rounded-full border text-xs font-medium transition-colors ${on ? 'text-emerald-200' : 'text-gray-500 hover:text-gray-300 hover:bg-white/[0.04]'}`}
+                style={{ borderColor: on ? 'rgba(52,211,153,0.55)' : C.border, background: on ? 'rgba(52,211,153,0.15)' : 'transparent' }}>
+                {cat.label}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Family */}
+      <div className="px-4 py-3 border-b" style={{ borderColor: C.border }}>
+        <SectionHead color="#a78bfa" label="Family" right={
+          <div className="flex items-center gap-1.5">
+            <div className="flex items-center rounded-lg border overflow-hidden" style={{ borderColor: C.border, background: C.input }}>
+              <button type="button" onClick={() => setFamily(Math.max(0, (p.family_id ?? 1) - 1))}
+                className="w-7 h-7 text-gray-400 hover:text-white hover:bg-white/[0.06] transition-colors">−</button>
+              <input type="number" min="0" value={p.family_id ?? ''} placeholder="-"
+                onChange={e => { const n = parseInt(e.target.value, 10); setFamily(Number.isInteger(n) && n >= 0 ? n : null); }}
+                className="w-14 h-7 bg-transparent text-center text-sm text-white focus:outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none" />
+              <button type="button" onClick={() => setFamily((p.family_id ?? 0) + 1)}
+                className="w-7 h-7 text-gray-400 hover:text-white hover:bg-white/[0.06] transition-colors">+</button>
+            </div>
+            <button type="button" onClick={() => setFamily(view.maxFamily + 1)} title={`New family #${view.maxFamily + 1}`}
+              className="h-7 px-2 rounded-lg border text-xs text-violet-300 hover:text-white hover:bg-violet-500/20 transition-colors"
+              style={{ borderColor: 'rgba(167,139,250,0.35)' }}>New</button>
+          </div>
+        } />
+        <div className="flex flex-wrap gap-1">
+          {(view.family.length ? view.family : [p]).map(m => (
+            <span key={m.id} title={m.name} className="rounded-lg p-0.5"
+              style={{ background: m.id === p.id ? 'rgba(167,139,250,0.18)' : 'transparent', outline: m.id === p.id ? '1px solid rgba(167,139,250,0.6)' : 'none' }}>
+              <PokemonImage pokemon={m} className="w-9 h-9" disableCycling />
+            </span>
+          ))}
+        </div>
+      </div>
+
+      {/* Evolution */}
+      <div className="px-4 py-3 border-b" style={{ borderColor: C.border }}>
+        <SectionHead color={PINK} label="Evolution" />
+        {/* Chain at a glance: parent → this → children */}
+        <div className="flex items-center justify-center gap-2 mb-3 py-2 rounded-lg" style={{ background: 'rgba(244,114,182,0.06)' }}>
+          {parent ? <PokemonImage pokemon={parent} className="w-10 h-10" disableCycling /> : <EmptySlot />}
+          <Arrow />
+          <span className="rounded-full p-1" style={{ outline: `2px solid ${PINK}` }}>
+            <PokemonImage pokemon={p} className="w-11 h-11" disableCycling />
+          </span>
+          <Arrow />
+          {view.children.length
+            ? <div className="flex -space-x-2">{view.children.map(c => <PokemonImage key={c.id} pokemon={c} className="w-10 h-10" disableCycling />)}</div>
+            : <EmptySlot />}
+        </div>
+
+        <div className="text-[10px] font-semibold uppercase tracking-wider text-gray-500 mb-1 flex items-center gap-1">
+          From <Arrow className="w-3 h-3" />
+        </div>
+        <div className="grid grid-cols-5 gap-1 mb-2">
+          <MonTile mon={null} on={data.evolves_from_id == null} color={PINK} title="First stage"
+            onPick={() => onParent(p.id, null)} />
+          {view.fromOptions.map(m => (
+            <MonTile key={m.id} mon={m} on={m.id === data.evolves_from_id} color={PINK}
+              onPick={() => onParent(p.id, m.id === data.evolves_from_id ? null : m.id)} />
+          ))}
+        </div>
+
+        <div className="text-[10px] font-semibold uppercase tracking-wider text-gray-500 mb-1 flex items-center gap-1">
+          <Arrow className="w-3 h-3" /> To
+        </div>
+        {view.toOptions.length ? (
+          <div className="grid grid-cols-5 gap-1">
+            {view.toOptions.map(m => {
+              const on = m.evolves_from_id === p.id;
+              return <MonTile key={m.id} mon={m} on={on} color={PINK} onPick={() => onParent(m.id, on ? null : p.id)} />;
+            })}
+          </div>
+        ) : (
+          <div className="text-xs text-gray-600 py-2">-</div>
+        )}
+      </div>
+
+      {/* Ignores */}
+      <div className="px-4 py-3">
+        <SectionHead color={AMBER} label="Ignores" right={exemptions.length > 0 && (
+          <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full" style={{ background: 'rgba(251,191,36,0.15)', color: AMBER }}>{exemptions.length}</span>
+        )} />
+        <div className="space-y-0.5">
+          {EXEMPTIBLE_RULES.map(rule => {
+            const on = exemptions.includes(rule.id);
+            return (
+              <button type="button" key={rule.id} onClick={() => toggleRule(rule.id)}
+                className="w-full flex items-center gap-3 px-2 py-1.5 rounded-lg transition-colors hover:bg-white/[0.04] text-left"
+                style={{ background: on ? 'rgba(251,191,36,0.08)' : undefined }}>
+                <span className="flex items-center justify-center flex-shrink-0" style={{ width: 44, height: 22 }}>
+                  {rule.game?.img_urls?.[0]
+                    ? <img src={rule.game.img_urls[0]} alt={rule.game.label} title={rule.game.label} className="object-contain" style={{ maxHeight: 22, maxWidth: 44 }} />
+                    : <span className="text-[10px] font-bold uppercase tracking-wider text-gray-500">All</span>}
+                </span>
+                <span className={`flex-1 min-w-0 truncate text-sm ${on ? 'text-amber-300 line-through decoration-amber-400/70' : 'text-gray-300'}`}>
+                  {rule.short}
+                </span>
+                <Switch on={on} />
+              </button>
+            );
+          })}
+        </div>
       </div>
     </div>
   );
 
+  // Collapsed: the same parent → this → children chain as the card, in
+  // miniature. The pink dot is this row; dashed ends are "none".
+  const kids = childrenOf.get(p.id) ?? NO_KIDS;
   return (
     <div className="relative">
-      <button ref={btnRef} type="button" onClick={() => toggle(200)}
-        className="flex items-center justify-between gap-2 w-full px-3 py-1.5 rounded-lg border text-sm transition-colors"
-        style={{ background: C.input, borderColor: activeCount > 0 ? 'rgba(52,211,153,0.3)' : C.border }}>
-        <span style={{ color: activeCount > 0 ? '#34d399' : 'rgba(255,255,255,0.25)' }}>
-          {activeCount > 0 ? activeCount : '-'}
+      <button ref={btnRef} type="button" onClick={() => toggle(width)}
+        title={[parent && `From ${parent.name}`, kids.length && `To ${kids.map(k => k.name).join(', ')}`].filter(Boolean).join(' · ') || undefined}
+        className="flex items-center justify-between gap-1 w-full h-9 px-1.5 rounded-lg border transition-colors hover:bg-white/[0.03]"
+        style={{ background: C.input, borderColor: open ? 'rgba(244,114,182,0.5)' : C.border }}>
+        <span className="flex items-center gap-0.5 min-w-0">
+          <Mini mon={parent} />
+          <Arrow className={`w-3 h-3 ${parent ? '' : 'opacity-30'}`} />
+          <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: PINK, boxShadow: '0 0 0 3px rgba(244,114,182,0.2)' }} />
+          <Arrow className={`w-3 h-3 ${kids.length ? '' : 'opacity-30'}`} />
+          <Mini mon={kids[0]} />
+          {kids.length > 1 && <span className="text-[10px] text-gray-400">+{kids.length - 1}</span>}
         </span>
-        <svg className={`w-3.5 h-3.5 flex-shrink-0 transition-transform text-gray-600 ${open ? 'rotate-180' : ''}`}
-          fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-        </svg>
+        <span className="flex items-center gap-1 flex-shrink-0">
+          {forms > 1 && (
+            <span title={`${forms} forms`}
+              className="text-[11px] font-bold px-1.5 py-0.5 rounded-full" style={{ background: 'rgba(96,165,250,0.15)', color: BLUE }}>
+              {forms}
+            </span>
+          )}
+          {catCount > 0 && (
+            <span title={CATEGORIES.filter(c => data[c.key]).map(c => c.label).join(', ')}
+              className="text-[11px] font-bold px-1.5 py-0.5 rounded-full" style={{ background: 'rgba(52,211,153,0.15)', color: MINT }}>
+              {catCount}
+            </span>
+          )}
+          {exemptions.length > 0 && (
+            <span className="text-[11px] font-bold px-1.5 py-0.5 rounded-full" style={{ background: 'rgba(251,191,36,0.15)', color: AMBER }}>
+              {exemptions.length}
+            </span>
+          )}
+        </span>
       </button>
       {open && createPortal(panel, document.body)}
     </div>
@@ -329,8 +573,8 @@ const SaveIndicator = ({ status }) => {
 const PokemonRow = React.memo(({
   p, i, data, status, isSelected,
   visible, toggleSelected, handleSlugChange, handleShinyToggle,
-  handleFormsCountChange, handleCategoryToggle,
-  clipboard, setClipboard, reversed, grid,
+  handleFormsCountChange, handleCategoryToggle, handleFamily, handleEvolvesFrom, handleExemptions,
+  rosterById, childrenOf, familyOf, clipboard, setClipboard, reversed, grid,
 }) => (
   <div
     className="grid gap-3 items-center px-4 py-2.5 transition-colors"
@@ -352,13 +596,13 @@ const PokemonRow = React.memo(({
     <PokemonImage pokemon={{ ...p, forms_count: data.forms_count }} className="w-11 h-11" />
 
     {/* Name */}
-    <div>
+    <div className="min-w-0">
       <a
         href={`https://bulbapedia.bulbagarden.net/wiki/${encodeURIComponent(p.name.replace(/^(Alolan|Galarian|Hisuian|Paldean) /, ''))}_(Pok%C3%A9mon)#Game_locations`}
         target="_blank"
         rel="noopener noreferrer"
         title="Open on Bulbapedia"
-        className="text-white text-sm font-medium leading-tight hover:text-purple-300 hover:underline transition-colors"
+        className="block truncate text-white text-sm font-medium leading-tight hover:text-purple-300 hover:underline transition-colors"
       >
         {p.name}
       </a>
@@ -384,18 +628,9 @@ const PokemonRow = React.memo(({
         </div>
       </label>
     )}
-    {visible.has('forms') && (
-      <input type="number" min="1" value={data.forms_count}
-        onChange={e => handleFormsCountChange(p.id, e.target.value)}
-        className="w-full px-2 py-1 rounded-lg text-white text-sm text-center focus:outline-none transition-colors"
-        style={{ background: C.input, border: `1px solid ${C.border}` }}
-        onFocus={e => e.target.style.borderColor = 'rgba(147,51,234,0.6)'}
-        onBlur={e => e.target.style.borderColor = C.border}
-      />
-    )}
-    {visible.has('categories') && (
-      <CategoryDropdown pokemonId={p.id} data={data}
-        onChange={(category, value) => handleCategoryToggle(p.id, category, value)} />
+    {visible.has('properties') && (
+      <PropertiesCell p={p} data={data} rosterById={rosterById} childrenOf={childrenOf} familyOf={familyOf}
+        onForms={handleFormsCountChange} onCategory={handleCategoryToggle} onFamily={handleFamily} onParent={handleEvolvesFrom} onExemptions={handleExemptions} />
     )}
     {visible.has('copy_paste') && (
       <div className="flex items-center gap-1">
@@ -433,7 +668,8 @@ const PokemonRow = React.memo(({
   prev.clipboard?.fromId === next.clipboard?.fromId &&
   prev.i === next.i &&
   prev.visible === next.visible &&
-  prev.grid === next.grid
+  prev.grid === next.grid &&
+  prev.rosterById === next.rosterById
 );
 
 PokemonRow.displayName = 'PokemonRow';
@@ -464,6 +700,25 @@ const PokemonGameManager = () => {
 
   const grid = useMemo(() => buildGrid(visible), [visible]);
 
+  // Lookups for the Properties card. family_id and evolves_from_id edits are
+  // mirrored into `pokemon` (syncRoster) so these stay live while editing.
+  const rosterById = useMemo(() => new Map(pokemon.map(p => [p.id, p])), [pokemon]);
+  const childrenOf = useMemo(() => {
+    const m = new Map();
+    for (const p of pokemon) if (p.evolves_from_id != null) {
+      if (!m.has(p.evolves_from_id)) m.set(p.evolves_from_id, []);
+      m.get(p.evolves_from_id).push(p);
+    }
+    return m;
+  }, [pokemon]);
+  const familyOf = useCallback((fid) => (fid == null ? [] : pokemon.filter(m => m.family_id === fid)), [pokemon]);
+  const ROSTER_FIELDS = ['family_id', 'evolves_from_id'];
+  const syncRoster = (ids, field, value) => {
+    if (!ROSTER_FIELDS.includes(field)) return;
+    const set = new Set(ids);
+    setPokemon(prev => prev.map(p => (set.has(p.id) && !(field === 'evolves_from_id' && p.id === value)) ? { ...p, [field]: value } : p));
+  };
+
   // ── Load ───────────────────────────────────────────────────────────────────
   useEffect(() => {
     (async () => {
@@ -490,6 +745,9 @@ const PokemonGameManager = () => {
             regional_alt:         p.regional_alt ?? false,
             pseudo_legendary:     p.pseudo_legendary ?? false,
             pla:                  p.pla ?? false,
+            family_id:            p.family_id ?? null,
+            evolves_from_id:      p.evolves_from_id ?? null,
+            rule_exemptions:      p.rule_exemptions ?? [],
           };
         }
         setLocalData(init);
@@ -557,6 +815,25 @@ const PokemonGameManager = () => {
     selected.has(pokemonId) ? applyToSelected(pokemonId, category, value, oldValue) : scheduleSave(pokemonId);
   };
 
+  // Scalar roster field: bulk-applies when the row is selected.
+  const setRosterField = (pokemonId, field, value) => {
+    if (selected.has(pokemonId)) {
+      applyToSelected(pokemonId, field, value);
+    } else {
+      setLocalData(prev => ({ ...prev, [pokemonId]: { ...prev[pokemonId], [field]: value } }));
+      syncRoster([pokemonId], field, value);
+      scheduleSave(pokemonId);
+    }
+  };
+  const handleFamily = (pokemonId, familyId) => setRosterField(pokemonId, 'family_id', familyId);
+  const handleEvolvesFrom = (pokemonId, parentId) => setRosterField(pokemonId, 'evolves_from_id', parentId);
+
+  const handleExemptions = (pokemonId, newValue) => {
+    const oldValue = localData[pokemonId]?.rule_exemptions ?? [];
+    setLocalData(prev => ({ ...prev, [pokemonId]: { ...prev[pokemonId], rule_exemptions: newValue } }));
+    selected.has(pokemonId) ? applyToSelected(pokemonId, 'rule_exemptions', newValue, oldValue) : scheduleSave(pokemonId);
+  };
+
   // ── Bulk selection ─────────────────────────────────────────────────────────
   const toggleSelected = (pokemonId) => {
     selectedRef.current.has(pokemonId) ? selectedRef.current.delete(pokemonId) : selectedRef.current.add(pokemonId);
@@ -576,7 +853,8 @@ const PokemonGameManager = () => {
   const applyToSelected = (pokemonId, field, newValue, oldValue) => {
     if (!selectedRef.current.has(pokemonId) || selectedRef.current.size === 0) return;
     const ids = Array.from(selectedRef.current);
-    const isSlug = field === 'game_slugs' || field === 'restricted_game_slugs';
+    // Array fields merge the diff into each selected row rather than overwrite it.
+    const isSlug = Array.isArray(newValue);
 
     setLocalData(prev => {
       const next = { ...prev };
@@ -590,10 +868,14 @@ const PokemonGameManager = () => {
           next[id] = { ...(next[id] ?? {}), [field]: cur };
         }
       } else {
-        for (const id of ids) next[id] = { ...(next[id] ?? {}), [field]: newValue };
+        for (const id of ids) {
+          if (field === 'evolves_from_id' && id === newValue) continue; // never its own parent
+          next[id] = { ...(next[id] ?? {}), [field]: newValue };
+        }
       }
       return next;
     });
+    if (!isSlug) syncRoster(ids, field, newValue);
     for (const id of ids) scheduleSave(id);
   };
 
@@ -644,7 +926,7 @@ const PokemonGameManager = () => {
       <PageHeader title="Pokémon Game Manager" badge="mod" />
 
       <div className="flex-1 overflow-hidden px-6 pb-6 pt-4">
-        <div className="max-w-6xl mx-auto h-full flex flex-col">
+        <div className="max-w-7xl mx-auto h-full flex flex-col">
 
           {/* Toolbar */}
           <div className="mb-4 flex items-center gap-3 flex-wrap">
@@ -707,7 +989,7 @@ const PokemonGameManager = () => {
           <div className="flex-1 overflow-y-auto rounded-xl border" style={{ borderColor: C.border, background: C.card }}>
 
             {/* Column headers */}
-            <div className="grid gap-3 px-4 py-3 text-[10px] font-bold text-gray-500 uppercase tracking-widest border-b sticky top-0 z-10 rounded-t-xl"
+            <div className="grid gap-3 px-4 py-3 text-[10px] font-bold text-gray-500 uppercase tracking-widest whitespace-nowrap border-b sticky top-0 z-10 rounded-t-xl"
               style={{ gridTemplateColumns: grid, background: C.header, borderColor: C.border }}>
               <div className="flex items-center justify-center">
                 <input type="checkbox"
@@ -735,16 +1017,10 @@ const PokemonGameManager = () => {
                   Shiny
                 </div>
               )}
-              {visible.has('forms') && (
+              {visible.has('properties') && (
                 <div className="flex items-center gap-1.5">
-                  <span className="w-2 h-2 rounded-full bg-blue-400 inline-block" />
-                  Forms
-                </div>
-              )}
-              {visible.has('categories') && (
-                <div className="flex items-center gap-1.5">
-                  <span className="w-2 h-2 rounded-full bg-emerald-400 inline-block" />
-                  Categories
+                  <span className="w-2 h-2 rounded-full bg-pink-400 inline-block" />
+                  Properties
                 </div>
               )}
               {visible.has('copy_paste') && <div />}
@@ -766,7 +1042,8 @@ const PokemonGameManager = () => {
               const data = localData[p.id] ?? {
                 game_slugs: [], restricted_game_slugs: [], shiny_available: false, forms_count: 1,
                 legendary: false, baby: false, ultra_beast: false, paradox: false,
-                starter: false, fossil: false, regional_alt: false, pseudo_legendary: false, pla: false
+                starter: false, fossil: false, regional_alt: false, pseudo_legendary: false, pla: false,
+                family_id: null, evolves_from_id: null, rule_exemptions: [],
               };
               return (
                 <PokemonRow
@@ -780,6 +1057,12 @@ const PokemonGameManager = () => {
                   handleShinyToggle={handleShinyToggle}
                   handleFormsCountChange={handleFormsCountChange}
                   handleCategoryToggle={handleCategoryToggle}
+                  handleFamily={handleFamily}
+                  handleEvolvesFrom={handleEvolvesFrom}
+                  handleExemptions={handleExemptions}
+                  rosterById={rosterById}
+                  childrenOf={childrenOf}
+                  familyOf={familyOf}
                   clipboard={clipboard}
                   setClipboard={setClipboard}
                   reversed={reversed}
