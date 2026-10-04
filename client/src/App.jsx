@@ -2,6 +2,7 @@ import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Outlet, Navigate, Link, useNavigate, useLocation } from 'react-router-dom';
 import { AuthProvider, useAuth, supabase } from './contexts/AuthContext';
 import { PageTitleContext } from './contexts/PageTitleContext';
+import { onQueueChanged, onLocalQueueDelta } from './services/approvalsQueue';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import BingoBoard from './components/BingoBoard';
 import Leaderboard from './components/Leaderboard';
@@ -113,23 +114,25 @@ const AppLayout = () => {
   React.useEffect(() => {
     if (!isModerator) { setPendingApprovals(0); return; }
     let cancelled = false;
+    let seq = 0;
     const loadPending = async () => {
+      const mine = ++seq;
       try {
         const headers = await getAuthHeaders();
         const res = await fetch('/api/approvals/pending?count=true', { headers });
-        const data = res.ok ? await res.json() : { pending: 0, historical: 0 };
+        if (!res.ok) return;
+        const data = await res.json();
         const count = (data.pending || 0) + (data.historical || 0);
-        if (!cancelled) setPendingApprovals(count);
+        // Broadcasts can arrive in bursts; only the newest response may win.
+        if (!cancelled && mine === seq) setPendingApprovals(count);
       } catch { /* ignore */ }
     };
     loadPending();
-    // Subscribe to the queue-changed topic the API actually broadcasts to
-    // ('approvals-updates') so the badge count stays live without a refresh.
-    const channel = supabase
-      .channel('approvals-updates')
-      .on('broadcast', { event: 'queue-changed' }, loadPending)
-      .subscribe();
-    return () => { cancelled = true; supabase.removeChannel(channel); };
+    // Shared subscription — see services/approvalsQueue.js for why this must not
+    // open its own 'approvals-updates' channel.
+    const offRemote = onQueueChanged(loadPending);
+    const offLocal = onLocalQueueDelta(d => setPendingApprovals(c => Math.max(0, c + d)));
+    return () => { cancelled = true; offRemote(); offLocal(); };
   }, [isModerator]);
 
   // Close drawer on route change

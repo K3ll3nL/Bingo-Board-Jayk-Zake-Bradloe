@@ -6,6 +6,7 @@ const {
   approvalsInProgress,
   awardBadgesForTrigger,
   broadcastNotificationToasts,
+  broadcastQueueChanged,
   broadcastUpdate,
   getAuthenticatedUserId,
   isModerator,
@@ -129,7 +130,7 @@ module.exports = function register(app) {
         res.json({ success: true });
 
         Promise.all([
-          broadcastUpdate('approvals-updates', 'queue-changed', {}),
+          broadcastQueueChanged(),
           broadcastNotificationToasts(approval.user_id),
           awardBadgesForTrigger(approval.user_id, 'approved'),
           supabase.from('approval_history').insert({
@@ -227,7 +228,7 @@ module.exports = function register(app) {
         broadcastUpdate('board-updates', 'board-changed', { userId: approval.user_id }),
         // Coalesced: only refreshes clients once the pending queue is empty.
         broadcastLeaderboardIfQueueEmpty(),
-        broadcastUpdate('approvals-updates', 'queue-changed', {}),
+        broadcastQueueChanged(),
         broadcastNotificationToasts(approval.user_id),
         awardBadgesForTrigger(approval.user_id, 'approved', { monthId: approval.month_id }),
         supabase.from('approval_history').insert({
@@ -330,7 +331,7 @@ module.exports = function register(app) {
         }
 
         Promise.all([
-          broadcastUpdate('approvals-updates', 'queue-changed', {}),
+          broadcastQueueChanged(),
           broadcastNotificationToasts(approval.user_id),
           awardBadgesForTrigger(approval.user_id, 'rejected'),
           supabase.from('approval_history').insert({
@@ -399,7 +400,7 @@ module.exports = function register(app) {
       // Notify connected clients (fire-and-forget)
       Promise.all([
         broadcastUpdate('board-updates', 'board-changed', { userId: approval.user_id }),
-        broadcastUpdate('approvals-updates', 'queue-changed', {}),
+        broadcastQueueChanged(),
         // A reject can be the action that empties the queue — flush any coalesced
         // approvals so their points reach clients (harmless no-op if still pending).
         broadcastLeaderboardIfQueueEmpty(),

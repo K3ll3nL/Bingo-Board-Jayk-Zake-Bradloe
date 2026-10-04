@@ -1,8 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import restrictedIcon from '../Icons/restricted-icon.png';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../services/supabaseClient';
+import { onQueueChanged, emitLocalQueueDelta, resyncQueue } from '../services/approvalsQueue';
 import PageBackground from './PageBackground';
 import PageHeader from './PageHeader';
 import { ALLOWED_GAMES, proofFieldsFor } from '../constants/games';
@@ -227,21 +228,27 @@ const Approvals = () => {
     if (isModerator && !historicalLoaded) loadHistoricalApprovals();
   }, [isModerator, historicalLoaded]);
 
-  // Live queue updates — reload whichever tab is active
+  // Live queue updates. Both lists refresh — the historical tab's chip shows a count
+  // even while the Approvals tab is open. Goes through the shared subscription in
+  // services/approvalsQueue.js; opening our own 'approvals-updates' channel here used
+  // to kill the header badge's subscription whenever this page cleaned up.
   useEffect(() => {
     if (!isModerator) return;
-    const channel = supabase
-      .channel('approvals-updates')
-      .on('broadcast', { event: 'queue-changed' }, () => {
-        if (activeTab === 'historical') loadHistoricalApprovals();
-        else if (activeTab === 'approvals') loadApprovals();
-      })
-      .subscribe();
-    return () => supabase.removeChannel(channel);
-  }, [isModerator, activeTab]);
+    return onQueueChanged(() => {
+      loadApprovals();
+      loadHistoricalApprovals();
+    });
+  }, [isModerator]);
 
+  // Rows a mod has just acted on. They are removed from the list immediately, and a
+  // refetch that lands before the server finishes must not bring them back.
+  const inFlight = useRef(new Set());
+  const approvalsSeq = useRef(0);
+  const historicalSeq = useRef(0);
+  const withoutInFlight = (rows) => rows.filter(a => !inFlight.current.has(a.id));
 
   const loadApprovals = async () => {
+    const mine = ++approvalsSeq.current;
     try {
       setLoading(true);
       const response = await fetch('/api/approvals/pending', {
@@ -249,7 +256,9 @@ const Approvals = () => {
       });
       if (!response.ok) throw new Error('Failed to load approvals');
       const data = await response.json();
-      setApprovals(data);
+      // A burst of broadcasts fires overlapping refetches; only the newest may win.
+      if (mine !== approvalsSeq.current) return;
+      setApprovals(withoutInFlight(data));
       setApprovalsLoaded(true);
     } catch (err) {
       console.error('Error loading approvals:', err);
@@ -259,6 +268,7 @@ const Approvals = () => {
   };
 
   const loadHistoricalApprovals = async () => {
+    const mine = ++historicalSeq.current;
     try {
       setHistoricalLoading(true);
       const response = await fetch('/api/approvals/pending?historical=true', {
@@ -266,7 +276,8 @@ const Approvals = () => {
       });
       if (!response.ok) throw new Error('Failed to load historical approvals');
       const data = await response.json();
-      setHistoricalApprovals(data);
+      if (mine !== historicalSeq.current) return;
+      setHistoricalApprovals(withoutInFlight(data));
       setHistoricalLoaded(true);
     } catch (err) {
       console.error('Error loading historical approvals:', err);
@@ -310,159 +321,83 @@ const Approvals = () => {
     setActionNotes({ ...actionNotes, [approvalId]: note });
   };
 
-  const removeApproval = (approvalId) => {
-    setApprovals(prev => prev.filter(a => a.id !== approvalId));
-    setExpandedPanel(null);
-    setActionNotes(prev => { const n = { ...prev }; delete n[approvalId]; return n; });
-  };
+  // Optimistic: the row leaves the list and the header badge drops the moment the
+  // button is pressed. The approve route awaits several DB writes before it
+  // responds, so waiting on it made every action feel laggy. On failure the row
+  // goes back where it was and everything resyncs from the server (which also
+  // covers "another mod already handled this one").
+  const runAction = async (approvalId, historical, label, request) => {
+    if (inFlight.current.has(approvalId)) return;
+    const list = historical ? historicalApprovals : approvals;
+    const setList = historical ? setHistoricalApprovals : setApprovals;
+    const index = list.findIndex(a => a.id === approvalId);
+    const row = list[index];
 
-  const removeHistoricalApproval = (approvalId) => {
-    setHistoricalApprovals(prev => prev.filter(a => a.id !== approvalId));
+    inFlight.current.add(approvalId);
+    setList(prev => prev.filter(a => a.id !== approvalId));
     setExpandedPanel(null);
-    setActionNotes(prev => { const n = { ...prev }; delete n[approvalId]; return n; });
-  };
+    emitLocalQueueDelta(-1);
 
-  const handleHistoricalApprove = async (approvalId) => {
     try {
-      const response = await fetch(`/api/approvals/${approvalId}/approve`, {
-        method: 'POST',
-        headers: { 'Authorization': await getAuthHeader(), 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: 'accepted_historical' })
-      });
+      const response = await request();
       if (!response.ok) {
         const err = await response.json().catch(() => ({}));
-        throw new Error(err.error || 'Approval failed');
+        throw new Error(err.error || `${label} failed`);
       }
-      removeHistoricalApproval(approvalId);
+      setActionNotes(prev => { const n = { ...prev }; delete n[approvalId]; return n; });
     } catch (error) {
-      console.error('Error approving historical:', error);
-      alert('Failed to approve: ' + error.message);
+      if (row) {
+        setList(prev => prev.some(a => a.id === approvalId)
+          ? prev
+          : [...prev.slice(0, index), row, ...prev.slice(index)]);
+      }
+      console.error(`Error on ${label}:`, error);
+      alert(`Failed to ${label}: ` + error.message);
+      inFlight.current.delete(approvalId);
+      // Restores the header badge, and drops the row again if it is truly gone.
+      resyncQueue();
+      return;
     }
+    // Success is confirmed by the server's own queue-changed broadcast.
+    inFlight.current.delete(approvalId);
   };
 
-  const handleHistoricalRestrictedAction = async (approvalId, action) => {
+  const postAction = (approvalId, verb, body) => async () => fetch(`/api/approvals/${approvalId}/${verb}`, {
+    method: 'POST',
+    headers: { 'Authorization': await getAuthHeader(), 'Content-Type': 'application/json' },
+    body: JSON.stringify(body)
+  });
+
+  // Restricted rows: upgrade / downgrade approve with a modified status, anything
+  // else is a reject status ('rejected', 'rejected_restricted_ban').
+  const restrictedRequest = (approvalId, action, historical) => {
     const message = actionNotes[approvalId] || '';
-    try {
-      let response;
-      if (action === 'upgrade') {
-        response = await fetch(`/api/approvals/${approvalId}/approve`, {
-          method: 'POST',
-          headers: { 'Authorization': await getAuthHeader(), 'Content-Type': 'application/json' },
-          body: JSON.stringify({ status: 'accepted_upgraded_historical', message })
-        });
-      } else if (action === 'downgrade') {
-        response = await fetch(`/api/approvals/${approvalId}/approve`, {
-          method: 'POST',
-          headers: { 'Authorization': await getAuthHeader(), 'Content-Type': 'application/json' },
-          body: JSON.stringify({ status: 'accepted_downgraded_historical', message })
-        });
-      } else {
-        response = await fetch(`/api/approvals/${approvalId}/reject`, {
-          method: 'POST',
-          headers: { 'Authorization': await getAuthHeader(), 'Content-Type': 'application/json' },
-          body: JSON.stringify({ message, status: action })
-        });
-      }
-      if (!response.ok) {
-        const err = await response.json().catch(() => ({}));
-        throw new Error(err.error || 'Action failed');
-      }
-      removeHistoricalApproval(approvalId);
-    } catch (error) {
-      console.error(`Error on historical ${action}:`, error);
-      alert(`Failed to ${action}: ` + error.message);
-    }
+    const suffix = historical ? '_historical' : '';
+    if (action === 'upgrade') return postAction(approvalId, 'approve', { status: `accepted_upgraded${suffix}`, message });
+    if (action === 'downgrade') return postAction(approvalId, 'approve', { status: `accepted_downgraded${suffix}`, message });
+    return postAction(approvalId, 'reject', { message, status: action });
   };
 
-  const handleHistoricalReject = async (approvalId) => {
-    try {
-      const response = await fetch(`/api/approvals/${approvalId}/reject`, {
-        method: 'POST',
-        headers: { 'Authorization': await getAuthHeader(), 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: actionNotes[approvalId] || '', status: 'rejected' })
-      });
-      if (!response.ok) {
-        const err = await response.json().catch(() => ({}));
-        throw new Error(err.error || 'Rejection failed');
-      }
-      removeHistoricalApproval(approvalId);
-    } catch (error) {
-      console.error('Error rejecting historical:', error);
-      alert('Failed to reject: ' + error.message);
-    }
-  };
+  const handleHistoricalApprove = (approvalId) =>
+    runAction(approvalId, true, 'approve', postAction(approvalId, 'approve', { status: 'accepted_historical' }));
 
-  const handleApprove = async (approvalId) => {
+  const handleHistoricalRestrictedAction = (approvalId, action) =>
+    runAction(approvalId, true, action, restrictedRequest(approvalId, action, true));
+
+  const handleHistoricalReject = (approvalId) =>
+    runAction(approvalId, true, 'reject', postAction(approvalId, 'reject', { message: actionNotes[approvalId] || '', status: 'rejected' }));
+
+  const handleApprove = (approvalId) => {
     const approval = approvals.find(a => a.id === approvalId);
     const status = approval?.restricted_submission ? 'accepted_restricted' : 'accepted';
-    try {
-      const response = await fetch(`/api/approvals/${approvalId}/approve`, {
-        method: 'POST',
-        headers: { 'Authorization': await getAuthHeader(), 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status })
-      });
-      if (!response.ok) {
-        const err = await response.json().catch(() => ({}));
-        throw new Error(err.error || 'Approval failed');
-      }
-      removeApproval(approvalId);
-    } catch (error) {
-      console.error('Error approving:', error);
-      alert('Failed to approve submission: ' + error.message);
-    }
+    return runAction(approvalId, false, 'approve', postAction(approvalId, 'approve', { status }));
   };
 
-  const handleReject = async (approvalId) => {
-    try {
-      const response = await fetch(`/api/approvals/${approvalId}/reject`, {
-        method: 'POST',
-        headers: { 'Authorization': await getAuthHeader(), 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: actionNotes[approvalId] || '', status: 'rejected' })
-      });
-      if (!response.ok) {
-        const err = await response.json().catch(() => ({}));
-        throw new Error(err.error || 'Rejection failed');
-      }
-      removeApproval(approvalId);
-    } catch (error) {
-      console.error('Error rejecting:', error);
-      alert('Failed to reject submission: ' + error.message);
-    }
-  };
+  const handleReject = (approvalId) =>
+    runAction(approvalId, false, 'reject', postAction(approvalId, 'reject', { message: actionNotes[approvalId] || '', status: 'rejected' }));
 
-  const handleRestrictedAction = async (approvalId, action) => {
-    const message = actionNotes[approvalId] || '';
-    try {
-      let response;
-      if (action === 'upgrade') {
-        response = await fetch(`/api/approvals/${approvalId}/approve`, {
-          method: 'POST',
-          headers: { 'Authorization': await getAuthHeader(), 'Content-Type': 'application/json' },
-          body: JSON.stringify({ status: 'accepted_upgraded', message })
-        });
-      } else if (action === 'downgrade') {
-        response = await fetch(`/api/approvals/${approvalId}/approve`, {
-          method: 'POST',
-          headers: { 'Authorization': await getAuthHeader(), 'Content-Type': 'application/json' },
-          body: JSON.stringify({ status: 'accepted_downgraded', message })
-        });
-      } else {
-        response = await fetch(`/api/approvals/${approvalId}/reject`, {
-          method: 'POST',
-          headers: { 'Authorization': await getAuthHeader(), 'Content-Type': 'application/json' },
-          body: JSON.stringify({ message, status: action })
-        });
-      }
-      if (!response.ok) {
-        const err = await response.json().catch(() => ({}));
-        throw new Error(err.error || 'Action failed');
-      }
-      removeApproval(approvalId);
-    } catch (error) {
-      console.error(`Error on ${action}:`, error);
-      alert(`Failed to ${action}: ` + error.message);
-    }
-  };
+  const handleRestrictedAction = (approvalId, action) =>
+    runAction(approvalId, false, action, restrictedRequest(approvalId, action, false));
 
   if (!user || isModerator !== true) {
     return (
@@ -796,7 +731,7 @@ const Approvals = () => {
           {/* Historical Tab */}
           {activeTab === 'historical' && (
             <div className="rounded-xl border" style={{ background: 'linear-gradient(160deg, #13151a 0%, #181a21 100%)', borderColor: 'rgba(255,255,255,0.07)' }}>
-              {historicalLoading ? (
+              {historicalLoading && !historicalLoaded ? (
                 <div className="text-center text-gray-400 py-8">Loading historical approvals...</div>
               ) : historicalApprovals.length === 0 ? (
                 <div className="text-center text-gray-400 py-8">No pending historical approvals</div>

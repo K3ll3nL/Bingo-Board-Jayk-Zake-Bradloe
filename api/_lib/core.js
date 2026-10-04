@@ -227,7 +227,7 @@ const leaderboardCache = new Map(); // mode → { data, expiresAt }
 const LEADERBOARD_CACHE_TTL = 60_000;
 
 // Supabase Realtime Broadcast helper — fire-and-forget, no WebSocket needed
-const broadcastUpdate = async (channel, event, payload = {}) => {
+const postBroadcast = async (messages, label) => {
   try {
     const res = await fetch(`${process.env.SUPABASE_URL}/realtime/v1/api/broadcast`, {
       method: 'POST',
@@ -236,15 +236,27 @@ const broadcastUpdate = async (channel, event, payload = {}) => {
         'Authorization': `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`,
         'apikey': process.env.SUPABASE_SERVICE_ROLE_KEY
       },
-      body: JSON.stringify({
-        messages: [{ topic: channel, event, payload }]
-      })
+      body: JSON.stringify({ messages })
     });
-    if (!res.ok) console.error(`Broadcast ${event} failed: ${res.status}`);
+    if (!res.ok) console.error(`Broadcast ${label} failed: ${res.status}`);
   } catch (err) {
     console.error('Broadcast failed (non-fatal):', err.message);
   }
 };
+
+const broadcastUpdate = (channel, event, payload = {}) =>
+  postBroadcast([{ topic: channel, event, payload }], event);
+
+// The approvals queue changed (submission in, approval/rejection out).
+// - 'mod-approvals' is PRIVATE: only moderators can join it (RLS policy on
+//   realtime.messages, migration 20261004120000). The header badge and Approvals
+//   page listen here.
+// - 'approvals-updates' is PUBLIC and exists only for the OBS approvals overlay,
+//   which has an API key, not a Supabase session. Keep its payload empty.
+const broadcastQueueChanged = () => postBroadcast([
+  { topic: 'mod-approvals', event: 'queue-changed', payload: {}, private: true },
+  { topic: 'approvals-updates', event: 'queue-changed', payload: {} },
+], 'queue-changed');
 
 // Fetch, enrich, and broadcast fresh unnotified notifications to a user's toast feed.
 // Also fires to 'award-announcements' if any notification is an award (for other users' toasts).
@@ -1917,6 +1929,7 @@ module.exports = {
   awardBadgesForTrigger,
   broadcastNotificationToasts,
   broadcastSSE,
+  broadcastQueueChanged,
   broadcastUpdate,
   buildCheckFromDB,
   bulkAwardBadge,

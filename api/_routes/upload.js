@@ -5,6 +5,7 @@
 const {
   assertRealImages,
   awardBadgesForTrigger,
+  broadcastQueueChanged,
   broadcastUpdate,
   getActiveMonthId,
   getAuthenticatedUserId,
@@ -500,7 +501,7 @@ module.exports = function register(app) {
       // Notify board (user's pending tile), mod queue, and check badge eligibility
       Promise.all([
         broadcastUpdate('board-updates', 'board-changed', { userId }),
-        broadcastUpdate('approvals-updates', 'queue-changed', {}),
+        broadcastQueueChanged(),
         awardBadgesForTrigger(userId, 'submission'),
       ]).catch(err => console.error('Post-submission broadcast failed (non-fatal):', err.message));
     } catch (error) {
@@ -650,7 +651,7 @@ module.exports = function register(app) {
       res.json({ success: true, approval });
 
       Promise.all([
-        broadcastUpdate('approvals-updates', 'queue-changed', {}),
+        broadcastQueueChanged(),
         awardBadgesForTrigger(userId, 'submission'),
       ]).catch(err => console.error('Post-historical-submission broadcast failed:', err.message));
     } catch (error) {
