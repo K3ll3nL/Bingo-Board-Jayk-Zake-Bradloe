@@ -264,18 +264,31 @@ const Leaderboard = ({ pinSelf = false }) => {
             <div key={mode} className={`px-3 py-1.5 rounded-lg text-sm font-medium text-center ${i === 0 ? 'bg-lagoon-600/40' : 'bg-gray-700/40'}`} style={{ minWidth: 60 }}>&nbsp;</div>
           ))}
         </div></div>
-        <div className="mb-3 h-6" />
-        <div className="rounded-lg overflow-hidden flex-1" style={{ background: '#0d0f14' }}>
+        {/* Period navigator: one text-sm line (20px). */}
+        <div className="mb-3 h-5 flex items-center justify-center">
+          <div className="h-3.5 w-28 rounded bg-gray-700/40" />
+        </div>
+        {/* Rows mirror the real ones box for box: 32px rank, a 24px name line
+            over the 28px badge row, and a 56x28 points stat — 68px per row. */}
+        <div className="rounded-lg overflow-hidden flex-1 divide-y" style={{ background: '#0d0f14', borderColor: '#404040' }}>
           {Array.from({ length: 8 }).map((_, i) => (
-            <div key={i} className="p-2 flex items-center justify-between border-b border-gray-700/50">
+            <div key={i} className="p-2 flex items-center justify-between" style={{ borderColor: '#404040' }}>
               <div className="flex items-center gap-3">
-                <div className="w-12 h-8 rounded-full bg-gray-700/60" />
+                <div className="w-8 h-8 rounded-full bg-gray-700/60" />
                 <div>
-                  <div className="h-3.5 rounded bg-gray-700/60 mb-1.5" style={{ width: 80 + (i % 3) * 30 }} />
-                  <div className="h-2.5 rounded bg-gray-700/40" style={{ width: 50 + (i % 2) * 20 }} />
+                  <div className="h-6 flex items-center">
+                    <div className="h-4 rounded bg-gray-700/60" style={{ width: 80 + (i % 3) * 30 }} />
+                  </div>
+                  <div className="flex items-center gap-1 min-h-[28px]">
+                    {Array.from({ length: 3 - (i % 3) }).map((_, j) => (
+                      <div key={j} className="w-7 h-7 rounded bg-gray-700/40" />
+                    ))}
+                  </div>
                 </div>
               </div>
-              <div className="h-5 w-12 rounded bg-gray-700/60" />
+              <div className="h-7 w-14 flex items-center">
+                <div className="h-5 w-full rounded bg-gray-700/60" />
+              </div>
             </div>
           ))}
         </div>
