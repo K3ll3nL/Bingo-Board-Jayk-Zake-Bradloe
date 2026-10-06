@@ -9,11 +9,11 @@ import {
   analyzePosition, isEdgePatch,
 } from '../../data/xyRadarData';
 
-const ACCENT = '#a78bfa';
-const ACCENT_BG = 'rgba(167,139,250,0.12)';
-const ACCENT_BORDER = 'rgba(167,139,250,0.3)';
+const ACCENT = '#12bfce';
+const ACCENT_BG = 'rgba(18,191,206,0.12)';
+const ACCENT_BORDER = 'rgba(18,191,206,0.3)';
 const CARD_STYLE = {
-  background: 'linear-gradient(160deg, #1a1c23 0%, #1f2128 100%)',
+  background: '#1a1c23',
   border: '1px solid rgba(255,255,255,0.07)',
 };
 
@@ -127,7 +127,7 @@ function StaticTileMap({ mapData }) {
               {isBoth ? (
                 <>
                   <div style={{ position: 'absolute', inset: 0, background: 'rgba(251,191,36,0.75)', clipPath: 'polygon(0% 0%, calc(100% - 3px) 0%, 0% calc(100% - 3px))' }} />
-                  <div style={{ position: 'absolute', inset: 0, background: 'rgba(167,139,250,0.75)', clipPath: 'polygon(3px 100%, 100% 3px, 100% 100%)' }} />
+                  <div style={{ position: 'absolute', inset: 0, background: 'rgba(18,191,206,0.75)', clipPath: 'polygon(3px 100%, 100% 3px, 100% 100%)' }} />
                   <svg style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', pointerEvents: 'none' }}>
                     <line x1="0" y1={tileSize} x2={tileSize} y2="0" stroke="rgba(0,0,0,0.5)" strokeWidth="1" />
                   </svg>
@@ -135,7 +135,7 @@ function StaticTileMap({ mapData }) {
               ) : isChain ? (
                 <div style={{ position: 'absolute', inset: 0, background: 'rgba(251,191,36,0.75)' }} />
               ) : isShiny ? (
-                <div style={{ position: 'absolute', inset: 0, background: 'rgba(167,139,250,0.75)' }} />
+                <div style={{ position: 'absolute', inset: 0, background: 'rgba(18,191,206,0.75)' }} />
               ) : null}
             </div>
           );
@@ -378,7 +378,7 @@ function RouteAccordionRow({ route, isExpanded, mapData, mapLoading, onToggle, o
             {/* Left: Pokémon */}
             <div className="flex-1 min-w-0 space-y-3">
               <div>
-                <p className="text-[10px] font-bold uppercase tracking-widest text-gray-500 mb-1.5">Available Pokémon</p>
+                <p className="text-[10px] font-bold text-gray-500 mb-1.5">Available Pokémon</p>
                 <div className="flex flex-wrap gap-1">
                   {route.pokemon.map(p => (
                     <PokemonChip key={p} name={p} pokemon={pokemonLookup[p]} />
@@ -542,7 +542,7 @@ function InteractiveSidebar({ route, hoverStats, playerSet }) {
   return (
     <div className="space-y-4">
       <div className="rounded-xl p-4" style={CARD_STYLE}>
-        <p className="text-[10px] font-bold uppercase tracking-widest text-gray-500 mb-2">Available Pokémon</p>
+        <p className="text-[10px] font-bold text-gray-500 mb-2">Available Pokémon</p>
         <div className="flex flex-wrap gap-1">
           {route.pokemon.map(p => (
             <PokemonChip key={p} name={p} pokemon={pokemonLookup[p]} />
@@ -559,12 +559,12 @@ function InteractiveSidebar({ route, hoverStats, playerSet }) {
       {/* Hover stats - only shown in interactive mode once player is placed */}
       {playerSet && (
         <div className="rounded-xl p-4 transition-all" style={hoverStats
-          ? { background: 'linear-gradient(160deg, #161820 0%, #1b1d25 100%)', border: `1px solid ${ACCENT_BORDER}` }
+          ? { background: '#161820', border: `1px solid ${ACCENT_BORDER}` }
           : CARD_STYLE}>
           {hoverStats ? (
             <>
               <div className="flex items-center gap-2 mb-3">
-                <span className="text-[10px] font-bold uppercase tracking-widest" style={{ color: ACCENT }}>Tile Analysis</span>
+                <span className="text-[10px] font-bold" style={{ color: ACCENT }}>Tile Analysis</span>
                 {hoverStats.isEdge && (
                   <span className="text-[9px] font-bold px-1.5 py-0.5 rounded" style={{ background: 'rgba(251,191,36,0.15)', color: '#fbbf24', border: '1px solid rgba(251,191,36,0.3)' }}>⚠ Edge Patch</span>
                 )}
@@ -572,7 +572,7 @@ function InteractiveSidebar({ route, hoverStats, playerSet }) {
               <div className="text-[11px] text-gray-400 mb-1">{ZONE_LABELS[hoverStats.zone] ?? 'Outside Zone 4'}</div>
               {hoverStats.zone > 0 && hoverStats.zone <= 4 ? (
                 <>
-                  <p className="text-[10px] text-gray-600 mt-3 mb-1.5 uppercase font-bold tracking-wider">If you enter this patch:</p>
+                  <p className="text-[10px] text-gray-600 mt-3 mb-1.5 font-bold">If you enter this patch:</p>
                   <div className="space-y-1.5">
                     <div className="flex justify-between">
                       <span className="text-[11px] text-gray-400">Zones (A·B·C·D)</span>
@@ -641,27 +641,27 @@ function MobileStatsBar({ hoverStats }) {
   }
   const sl = safeLabel(hoverStats.chainBreak);
   return (
-    <div className="rounded-xl px-4 py-3" style={{ background: 'linear-gradient(160deg, #161820 0%, #1b1d25 100%)', border: `1px solid ${ACCENT_BORDER}` }}>
+    <div className="rounded-xl px-4 py-3" style={{ background: '#161820', border: `1px solid ${ACCENT_BORDER}` }}>
       <div className="flex items-center justify-between gap-2">
         <div className="text-center flex-1">
-          <p className="text-[9px] text-gray-500 uppercase font-bold tracking-wider mb-0.5">Zone</p>
+          <p className="text-[9px] text-gray-500 font-bold mb-0.5">Zone</p>
           <p className="text-xs font-bold text-white">{ZONE_SHORT[hoverStats.zone]}</p>
         </div>
         <div className="w-px h-7 bg-gray-800 shrink-0" />
         <div className="text-center flex-1">
-          <p className="text-[9px] text-gray-500 uppercase font-bold tracking-wider mb-0.5">Ideal</p>
+          <p className="text-[9px] text-gray-500 font-bold mb-0.5">Ideal</p>
           <p className="text-xs font-bold tabular-nums" style={{ color: hoverStats.idealPct > 30 ? '#4ade80' : hoverStats.idealPct > 10 ? '#fbbf24' : '#f87171' }}>
             {fmtPct(hoverStats.idealPct)}
           </p>
         </div>
         <div className="w-px h-7 bg-gray-800 shrink-0" />
         <div className="text-center flex-1">
-          <p className="text-[9px] text-gray-500 uppercase font-bold tracking-wider mb-0.5">Shiny @40</p>
+          <p className="text-[9px] text-gray-500 font-bold mb-0.5">Shiny @40</p>
           <p className="text-xs font-bold tabular-nums" style={{ color: ACCENT }}>{fmtOdds(hoverStats.shinyOdds)}</p>
         </div>
         <div className="w-px h-7 bg-gray-800 shrink-0" />
         <div className="text-center flex-1">
-          <p className="text-[9px] text-gray-500 uppercase font-bold tracking-wider mb-0.5">Safety</p>
+          <p className="text-[9px] text-gray-500 font-bold mb-0.5">Safety</p>
           <p className="text-xs font-bold" style={{ color: sl.color }}>{sl.text}</p>
         </div>
         {hoverStats.isEdge && (

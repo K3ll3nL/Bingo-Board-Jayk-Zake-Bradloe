@@ -55,19 +55,19 @@ const AuthCallback = () => {
         {error ? (
           <div
             className="rounded-2xl p-8 border max-w-sm mx-4"
-            style={{ background: 'linear-gradient(160deg, #13151a 0%, #181a21 100%)', borderColor: 'rgba(255,255,255,0.07)' }}
+            style={{ background: '#13151a', borderColor: 'rgba(255,255,255,0.07)' }}
           >
             <p className="text-red-400 mb-5">{error}</p>
             <Link
               to="/"
-              className="inline-block px-5 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition-colors font-medium"
+              className="inline-block px-5 py-2 bg-lagoon-600 hover:bg-lagoon-700 text-white rounded-lg transition-colors font-medium"
             >
               Go back
             </Link>
           </div>
         ) : (
           <>
-            <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-purple-500 mx-auto mb-4"></div>
+            <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-lagoon-500 mx-auto mb-4"></div>
             <p className="text-gray-400">Signing you in...</p>
           </>
         )}

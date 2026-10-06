@@ -57,7 +57,7 @@ function GameUtilization({ gameStats, restrictedGameStats, boardMonTotal, dexTot
           <button
             type="button"
             onClick={() => setMode('standard')}
-            className={`px-2 py-0.5 text-[10px] font-medium transition-colors ${mode === 'standard' ? 'bg-purple-500 text-white' : 'bg-gray-800 text-gray-300 hover:text-white'}`}
+            className={`px-2 py-0.5 text-[10px] font-medium transition-colors ${mode === 'standard' ? 'bg-lagoon-500 text-white' : 'bg-gray-800 text-gray-300 hover:text-white'}`}
           >
             Standard
           </button>
@@ -591,7 +591,7 @@ export default function BoardBuilder() {
         <div className="text-center max-w-2xl w-full px-4">
           <div className="text-red-400 text-lg mb-2 font-semibold">Board Builder Error</div>
           <pre className="text-left text-red-300 text-xs mb-6 font-mono bg-gray-900 rounded p-4 overflow-auto max-h-96 whitespace-pre-wrap">{error}</pre>
-          <button onClick={loadBoard} className="text-purple-400 hover:text-purple-300 text-sm mr-6">
+          <button onClick={loadBoard} className="text-lagoon-400 hover:text-lagoon-300 text-sm mr-6">
             Retry
           </button>
           <Link to="/" className="text-gray-400 hover:text-gray-300 text-sm">
@@ -621,7 +621,7 @@ export default function BoardBuilder() {
       <div className="max-w-2xl mx-auto px-4 pt-6 pb-8">
         {/* Month title */}
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-2xl font-bold text-purple-400">{nextMonth?.month_year_display}</h2>
+          <h2 className="text-2xl font-bold text-lagoon-400">{nextMonth?.month_year_display}</h2>
           <div className="flex gap-2">
             {lockedPositions.some(locked => locked) && (
               <button
@@ -635,7 +635,7 @@ export default function BoardBuilder() {
             <button
               onClick={handleRefreshAll}
               disabled={refreshingAll}
-              className="px-3 py-1 text-sm bg-purple-700 hover:bg-purple-600 disabled:bg-gray-600 text-white rounded transition-colors"
+              className="px-3 py-1 text-sm bg-lagoon-700 hover:bg-lagoon-600 disabled:bg-gray-600 text-white rounded transition-colors"
               title="Reroll all 24 slots"
             >
               {refreshingAll ? '⟳ Refreshing...' : '⟳ Refresh All'}
@@ -692,7 +692,7 @@ export default function BoardBuilder() {
                   'group aspect-square relative flex flex-col items-center justify-center rounded-lg border-2 overflow-hidden select-none transition-all duration-150',
                   tile?.is_second_round ? 'border-orange-400 bg-orange-900/50 shadow-[0_0_8px_2px_rgba(251,146,60,0.5)]' : 'border-gray-500 bg-black/30',
                   isDragging ? 'opacity-40 scale-95' : '',
-                  isOver    ? 'border-purple-400 scale-105' : '',
+                  isOver    ? 'border-lagoon-400 scale-105' : '',
                   isLocked ? 'cursor-not-allowed opacity-75' : 'cursor-grab active:cursor-grabbing',
                 ].join(' ')}
               >
@@ -754,7 +754,7 @@ export default function BoardBuilder() {
                     <button
                       onClick={e => handleReroll(e, pos)}
                       disabled={rerolling.has(pos)}
-                      className="absolute top-0.5 right-0.5 bg-black/70 hover:bg-purple-700 rounded p-0.5 opacity-0 group-hover:opacity-100 transition-opacity z-10"
+                      className="absolute top-0.5 right-0.5 bg-black/70 hover:bg-lagoon-700 rounded p-0.5 opacity-0 group-hover:opacity-100 transition-opacity z-10"
                       title="Reroll"
                       style={{ display: rerolling.has(pos) ? 'flex' : undefined }}
                     >
@@ -795,7 +795,7 @@ export default function BoardBuilder() {
               {Object.entries(categoryStats).map(([category, stats]) => (
                 <div key={category} className="flex justify-between items-center">
                   <span className="text-gray-300 capitalize">{category}</span>
-                  <span className="text-purple-300 font-semibold">{stats.avg}</span>
+                  <span className="text-lagoon-300 font-semibold">{stats.avg}</span>
                 </div>
               ))}
             </div>

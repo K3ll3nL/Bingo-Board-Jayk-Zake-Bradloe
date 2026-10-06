@@ -157,15 +157,15 @@
 
 | Method | Path | Auth | Location | Notes |
 |---|---|---|---|---|
-| GET | `/api/jeopardy` | auth | `api/_routes/jeopardy.js:119` | GET /api/jeopardy — list every open (non-completed) lobby. Auth required, NOT mod-gated. Public lobbies are visible to everyone; private lobbies (visibility='pr |
-| GET | `/api/jeopardy/:code` | auth | `api/_routes/jeopardy.js:181` | GET /api/jeopardy/:code — fetch one lobby's full state by connection code. Auth required, NOT mod-gated: this is how a preview/join screen works before you've j |
-| POST | `/api/jeopardy/:code/finish-timed` | auth | `api/_routes/jeopardy.js:286` | POST /api/jeopardy/:code/finish-timed — any viewer's countdown hitting zero calls this opportunistically. Server re-validates ends_at itself (idempotent — a lob |
-| POST | `/api/jeopardy/:code/join` | auth | `api/_routes/jeopardy.js:334` | POST /api/jeopardy/:code/join — join this lobby's roster. |
-| DELETE | `/api/jeopardy/:code/members/:userId` | auth | `api/_routes/jeopardy.js:304` | DELETE /api/jeopardy/:code/members/:userId — host kicks a member out of the lobby. |
-| PUT | `/api/jeopardy/:code/permissions` | auth | `api/_routes/jeopardy.js:218` | PUT /api/jeopardy/:code/permissions — host grants/revokes another member's edit access. Host-only; the host's own row can't be revoked this way. |
-| PUT | `/api/jeopardy/:code/transfer-host` | auth | `api/_routes/jeopardy.js:252` | PUT /api/jeopardy/:code/transfer-host — host hands hosting to another member. Covers a host stepping away mid-lobby without leaving it stuck: the new host gets  |
-| POST | `/api/jeopardy/claim` | auth | `api/_routes/jeopardy.js:579` | POST /api/jeopardy/claim — mods, or anyone who has joined this lobby's roster |
-| DELETE | `/api/jeopardy/claim` | auth | `api/_routes/jeopardy.js:645` | DELETE /api/jeopardy/claim — unclaim a square (mods, or anyone in the roster) |
+| GET | `/api/jeopardy` | auth | `api/_routes/jeopardy.js:142` | GET /api/jeopardy — list every open (non-completed) lobby. Auth required, NOT mod-gated. Public lobbies are visible to everyone; private lobbies (visibility='pr |
+| GET | `/api/jeopardy/:code` | auth | `api/_routes/jeopardy.js:218` | GET /api/jeopardy/:code — fetch one lobby's full state by connection code. Auth required, NOT mod-gated: this is how a preview/join screen works before you've j |
+| POST | `/api/jeopardy/:code/finish-timed` | auth | `api/_routes/jeopardy.js:323` | POST /api/jeopardy/:code/finish-timed — any viewer's countdown hitting zero calls this opportunistically. Server re-validates ends_at itself (idempotent — a lob |
+| POST | `/api/jeopardy/:code/join` | auth | `api/_routes/jeopardy.js:371` | POST /api/jeopardy/:code/join — join this lobby's roster. |
+| DELETE | `/api/jeopardy/:code/members/:userId` | auth | `api/_routes/jeopardy.js:341` | DELETE /api/jeopardy/:code/members/:userId — host kicks a member out of the lobby. |
+| PUT | `/api/jeopardy/:code/permissions` | auth | `api/_routes/jeopardy.js:255` | PUT /api/jeopardy/:code/permissions — host grants/revokes another member's edit access. Host-only; the host's own row can't be revoked this way. |
+| PUT | `/api/jeopardy/:code/transfer-host` | auth | `api/_routes/jeopardy.js:289` | PUT /api/jeopardy/:code/transfer-host — host hands hosting to another member. Covers a host stepping away mid-lobby without leaving it stuck: the new host gets  |
+| POST | `/api/jeopardy/claim` | auth | `api/_routes/jeopardy.js:643` | POST /api/jeopardy/claim — mods, or anyone who has joined this lobby's roster |
+| DELETE | `/api/jeopardy/claim` | auth | `api/_routes/jeopardy.js:725` | DELETE /api/jeopardy/claim — undo a claim. A player can only undo their own; the host (referee for their lobby) and global moderators can undo anyone's. Undoing |
 
 ## /keys
 
@@ -206,14 +206,14 @@
 
 | Method | Path | Auth | Location | Notes |
 |---|---|---|---|---|
-| POST | `/api/mod/jeopardy` | auth | `api/_routes/jeopardy.js:357` | POST /api/mod/jeopardy — host a new lobby |
-| DELETE | `/api/mod/jeopardy` | auth | `api/_routes/jeopardy.js:669` | DELETE /api/mod/jeopardy — end/discard a lobby. Global-moderator-gated (not host-only) on purpose: it's the escape hatch for a lobby whose host walked away and  |
-| POST | `/api/mod/jeopardy/lock` | auth | `api/_routes/jeopardy.js:504` | POST /api/mod/jeopardy/lock |
-| POST | `/api/mod/jeopardy/reroll` | auth | `api/_routes/jeopardy.js:404` | POST /api/mod/jeopardy/reroll |
-| POST | `/api/mod/jeopardy/reroll-all` | auth | `api/_routes/jeopardy.js:439` | POST /api/mod/jeopardy/reroll-all — reroll every unlocked tile at once |
-| POST | `/api/mod/jeopardy/shuffle` | auth | `api/_routes/jeopardy.js:519` | POST /api/mod/jeopardy/shuffle |
-| POST | `/api/mod/jeopardy/start` | auth | `api/_routes/jeopardy.js:546` | POST /api/mod/jeopardy/start |
-| PUT | `/api/mod/jeopardy/swap` | auth | `api/_routes/jeopardy.js:481` | PUT /api/mod/jeopardy/swap |
+| POST | `/api/mod/jeopardy` | auth | `api/_routes/jeopardy.js:394` | POST /api/mod/jeopardy — host a new lobby |
+| DELETE | `/api/mod/jeopardy` | auth | `api/_routes/jeopardy.js:774` | DELETE /api/mod/jeopardy — end/discard a lobby. The host, or any global moderator — the moderator path is the escape hatch for a lobby whose host walked away an |
+| POST | `/api/mod/jeopardy/lock` | auth | `api/_routes/jeopardy.js:564` | POST /api/mod/jeopardy/lock |
+| POST | `/api/mod/jeopardy/reroll` | auth | `api/_routes/jeopardy.js:464` | POST /api/mod/jeopardy/reroll |
+| POST | `/api/mod/jeopardy/reroll-all` | auth | `api/_routes/jeopardy.js:499` | POST /api/mod/jeopardy/reroll-all — reroll every unlocked tile at once |
+| POST | `/api/mod/jeopardy/shuffle` | auth | `api/_routes/jeopardy.js:579` | POST /api/mod/jeopardy/shuffle |
+| POST | `/api/mod/jeopardy/start` | auth | `api/_routes/jeopardy.js:606` | POST /api/mod/jeopardy/start |
+| PUT | `/api/mod/jeopardy/swap` | auth | `api/_routes/jeopardy.js:541` | PUT /api/mod/jeopardy/swap |
 
 ## /notifications
 
@@ -432,6 +432,7 @@
 | `countShinyByGameSlug` | `api/_lib/core.js:987` | Count rows whose `column` (game_slugs or restricted_game_slugs) contains `slug`. Replaces a per-game `count: 'exact', head: true` query -- there are 22 slugs an |
 | `deleteR2Images` | `api/_lib/core.js:474` | ── R2 image deletion helper (fire-and-forget safe) ────────────────────────── Deletes one or more R2-hosted proof images. Never throws to the caller. |
 | `depersonalize` | `api/_routes/stats.js:251` | Strip the per-viewer tier_list fields so a payload is safe to SHARE. Both caches below need this: leaking one viewer's viewer_submitted/viewer_ranked to everyon |
+| `describeClaim` | `api/_routes/jeopardy.js:115` | Current state of one square, enriched for the client — the payload a 409 sends back so the loser's tile can show who actually holds it. |
 | `enrichMembers` | `api/_routes/jeopardy.js:33` |  |
 | `enrichUsersWithTwitchPfp` | `api/_lib/core.js:1614` |  |
 | `enrichWithBadgeSlots` | `api/_lib/core.js:797` | Batch-fetches badge slots 1–3 for a list of users and attaches them as badge_slots[] |

@@ -110,6 +110,29 @@ async function wasKicked(userId, boardId) {
   return !!board?.kicked_user_ids?.includes(userId);
 }
 
+// Current state of one square, enriched for the client — the payload a 409
+// sends back so the loser's tile can show who actually holds it.
+async function describeClaim(boardId, position) {
+  const { data: claim } = await supabase
+    .from('jeopardy_claims').select('position, claimed_by, claim_type, original_claimed_by, claimed_at')
+    .eq('board_id', boardId).eq('position', position).maybeSingle();
+  if (!claim) return null;
+  const ids = [claim.claimed_by, claim.original_claimed_by].filter(Boolean);
+  const { data: rawUsers } = await supabase.from('users').select('id, display_name, avatar_url, twitch_url').in('id', ids);
+  const users = Object.fromEntries((await enrichUsersWithTwitchPfp(rawUsers || [])).map(u => [u.id, u]));
+  return {
+    ...claim,
+    board_id: boardId,
+    claimer: users[claim.claimed_by] || null,
+    original_claimer: claim.original_claimed_by ? users[claim.original_claimed_by] || null : null,
+  };
+}
+
+// One open lobby per non-moderator host. Creation is open to every signed-in
+// user, and each lobby generates a pool and sits on the public list, so this
+// is the spam limit.
+const MAX_OPEN_LOBBIES_PER_HOST = 1;
+
 module.exports = function register(app) {
 
   // GET /api/jeopardy — list every open (non-completed) lobby. Auth required,
@@ -141,12 +164,10 @@ module.exports = function register(app) {
       for (const timedOut of timedOutBoards) await finalizeLobby(timedOut, { timedOut: true });
       const timedOutIds = new Set(timedOutBoards.map(b => b.id));
 
-      // Visibility is scoped to lobby membership, not moderator status — the
-      // Shiny Games hub is itself moderator-only, so every viewer here already
-      // passes an isModerator check; gating private lobbies on that would show
-      // every private lobby to every moderator regardless of the flag. A
-      // private lobby only shows up for the host/members who are already in it.
-      // Kicked users never see that lobby again either, public or private.
+      // Visibility is scoped to lobby membership, not moderator status — a
+      // private lobby only shows up for the host/members who are already in
+      // it, moderators included. Kicked users never see that lobby again
+      // either, public or private.
       const { data: memberRows } = await supabase.from('jeopardy_members').select('board_id').eq('user_id', userId);
       const memberBoardIds = new Set((memberRows || []).map(m => m.board_id));
       const visibleBoards = (boards || []).filter(b =>
@@ -154,21 +175,37 @@ module.exports = function register(app) {
         !b.kicked_user_ids?.includes(userId) && (b.visibility === 'public' || memberBoardIds.has(b.id))
       );
 
-      const lobbies = await Promise.all(visibleBoards.map(async board => {
-        const [{ count: memberCount }, { count: claimCount }, { data: viewerMemberRow }] = await Promise.all([
-          supabase.from('jeopardy_members').select('id', { count: 'exact', head: true }).eq('board_id', board.id),
-          supabase.from('jeopardy_claims').select('position', { count: 'exact', head: true }).eq('board_id', board.id),
-          supabase.from('jeopardy_members').select('id').eq('board_id', board.id).eq('user_id', userId).maybeSingle(),
-        ]);
-        const { data: hostRow } = await supabase.from('jeopardy_members').select('user_id').eq('board_id', board.id).eq('role', 'host').maybeSingle();
-        let host = null;
-        if (hostRow) {
-          const { data: hostUser } = await supabase.from('users').select('id, display_name, avatar_url, twitch_url').eq('id', hostRow.user_id).maybeSingle();
-          host = hostUser ? (await enrichUsersWithTwitchPfp([hostUser]))[0] : null;
-        }
+      // Three batched reads for the whole list instead of ~5 per lobby — the
+      // list is public now, so its cost scales with every open lobby.
+      const visibleIds = visibleBoards.map(b => b.id);
+      const [{ data: rosterRows }, { data: claimRows }] = visibleIds.length
+        ? await Promise.all([
+            supabase.from('jeopardy_members').select('board_id, user_id, role').in('board_id', visibleIds),
+            supabase.from('jeopardy_claims').select('board_id').in('board_id', visibleIds),
+          ])
+        : [{ data: [] }, { data: [] }];
+      const memberCounts = {}, claimCounts = {}, hostIdByBoard = {};
+      for (const m of rosterRows || []) {
+        memberCounts[m.board_id] = (memberCounts[m.board_id] || 0) + 1;
+        if (m.role === 'host') hostIdByBoard[m.board_id] = m.user_id;
+      }
+      for (const c of claimRows || []) claimCounts[c.board_id] = (claimCounts[c.board_id] || 0) + 1;
+      const hostIds = [...new Set(Object.values(hostIdByBoard))];
+      const { data: hostUsers } = hostIds.length
+        ? await supabase.from('users').select('id, display_name, avatar_url, twitch_url').in('id', hostIds)
+        : { data: [] };
+      const hostById = Object.fromEntries((await enrichUsersWithTwitchPfp(hostUsers || [])).map(u => [u.id, u]));
+
+      const lobbies = visibleBoards.map(board => {
         const { kicked_user_ids, ...publicBoard } = board;
-        return { ...publicBoard, memberCount: memberCount ?? 0, claimCount: claimCount ?? 0, host, viewerIsMember: !!viewerMemberRow };
-      }));
+        return {
+          ...publicBoard,
+          memberCount: memberCounts[board.id] ?? 0,
+          claimCount: claimCounts[board.id] ?? 0,
+          host: hostById[hostIdByBoard[board.id]] ?? null,
+          viewerIsMember: memberBoardIds.has(board.id),
+        };
+      });
 
       res.json({ lobbies });
     } catch (err) { res.status(500).json({ error: err.message }); }
@@ -358,8 +395,31 @@ module.exports = function register(app) {
     try {
       const userId = await getAuthenticatedUserId(req);
       if (!userId) return res.status(401).json({ error: 'Authentication required' });
-      const modRow = await isModerator(userId);
-      if (!modRow) return res.status(403).json({ error: 'Moderator access required' });
+
+      // Any signed-in user can host (the /api/mod/ path is historical).
+      // Non-moderators are capped at MAX_OPEN_LOBBIES_PER_HOST; lobbies that
+      // are already dead (stale building, expired timer) are swept first so
+      // they don't count against the host.
+      if (!(await isModerator(userId))) {
+        const { data: hostRows } = await supabase
+          .from('jeopardy_members').select('board_id').eq('user_id', userId).eq('role', 'host');
+        const hostedIds = (hostRows || []).map(r => r.board_id);
+        const { data: hosted } = hostedIds.length
+          ? await supabase.from('jeopardy_boards').select('*').in('id', hostedIds).neq('status', 'completed')
+          : { data: [] };
+        const now = Date.now();
+        const open = [];
+        for (const b of hosted || []) {
+          const stale = b.status === 'building' && (now - new Date(b.created_at).getTime()) > STALE_BUILDING_MS;
+          const expired = b.status === 'active' && b.ends_at && new Date(b.ends_at).getTime() <= now;
+          if (stale) await finalizeLobby(b);
+          else if (expired) await finalizeLobby(b, { timedOut: true });
+          else open.push(b);
+        }
+        if (open.length >= MAX_OPEN_LOBBIES_PER_HOST) {
+          return res.status(409).json({ error: "You're already hosting a lobby. End it before starting another.", code: open[0].code });
+        }
+      }
 
       const { game, row_points, shalpha_double_points, visibility, columns, timed_minutes } = req.body;
       if (!game) return res.status(400).json({ error: 'game required' });
@@ -547,16 +607,20 @@ module.exports = function register(app) {
     try {
       const userId = await getAuthenticatedUserId(req);
       if (!userId) return res.status(401).json({ error: 'Authentication required' });
-      const modRow = await isModerator(userId);
-      if (!modRow) return res.status(403).json({ error: 'Moderator access required' });
 
       const { boardId } = req.body;
       if (!boardId) return res.status(400).json({ error: 'boardId required' });
 
+      // Only this lobby's host starts it — global moderator status doesn't
+      // let you start someone else's game.
+      const { data: requesterRow } = await supabase
+        .from('jeopardy_members').select('role').eq('board_id', boardId).eq('user_id', userId).maybeSingle();
+      if (requesterRow?.role !== 'host') return res.status(403).json({ error: 'Only the host can start the game' });
+
       const { count: memberCount } = await supabase
         .from('jeopardy_members').select('id', { count: 'exact', head: true }).eq('board_id', boardId);
       if ((memberCount ?? 0) < MIN_PLAYERS_TO_START) {
-        return res.status(400).json({ error: `Need at least ${MIN_PLAYERS_TO_START} players in the lobby to start — share the code first.` });
+        return res.status(400).json({ error: `Need at least ${MIN_PLAYERS_TO_START} players in the lobby to start. Share the code first.` });
       }
 
       const { data: existingBoard } = await supabase.from('jeopardy_boards').select('timed_minutes').eq('id', boardId).maybeSingle();
@@ -585,10 +649,11 @@ module.exports = function register(app) {
       if (!boardId || position == null) return res.status(400).json({ error: 'boardId and position required' });
       if (!['standard', 'shalpha'].includes(claimType)) return res.status(400).json({ error: 'Invalid claimType' });
 
-      const modRow = await isModerator(userId);
+      // Claiming is roster-only — a global moderator who never joined this
+      // lobby is a spectator here like anyone else.
       const { data: memberRow } = await supabase
         .from('jeopardy_members').select('id').eq('board_id', boardId).eq('user_id', userId).maybeSingle();
-      if (!modRow && !memberRow) return res.status(403).json({ error: 'Join this game to claim a square' });
+      if (!memberRow) return res.status(403).json({ error: 'Join this game to claim a square' });
 
       const { data: board } = await supabase.from('jeopardy_boards').select('id, status, game').eq('id', boardId).maybeSingle();
       if (!board || board.status !== 'active') return res.status(400).json({ error: 'Lobby not active' });
@@ -596,33 +661,45 @@ module.exports = function register(app) {
         return res.status(400).json({ error: 'Shalpha only available for PLA/PLZA boards' });
       }
 
-      const { data: existing } = await supabase
-        .from('jeopardy_claims').select('claimed_by, claim_type')
-        .eq('board_id', boardId).eq('position', position).maybeSingle();
+      // Every write below is decided by the database, not by a prior read:
+      // an empty square is taken with a plain INSERT (the UNIQUE
+      // (board_id, position) constraint lets exactly one racer win), and a
+      // Shalpha steal is an UPDATE conditioned on the claim it read still
+      // being there. The old read-then-upsert let two simultaneous taps both
+      // see an empty square, both get a 200, and the later one silently
+      // overwrite the earlier.
+      const now = new Date().toISOString();
+      let claimData = null;
+      for (let attempt = 0; attempt < 2 && !claimData; attempt++) {
+        const { data: existing } = await supabase
+          .from('jeopardy_claims').select('claimed_by, claim_type')
+          .eq('board_id', boardId).eq('position', position).maybeSingle();
 
-      if (existing && claimType === 'standard') {
-        const { data: existingUser } = await supabase
-          .from('users').select('id, display_name, avatar_url, twitch_url').eq('id', existing.claimed_by).maybeSingle();
-        const existingClaimer = existingUser ? (await enrichUsersWithTwitchPfp([existingUser]))[0] : null;
-        return res.status(409).json({
-          error: 'Position already claimed',
-          claim: { position, claimed_by: existing.claimed_by, claim_type: existing.claim_type, claimer: existingClaimer },
-        });
+        if (!existing) {
+          const row = { board_id: boardId, position, claimed_by: userId, claim_type: claimType, original_claimed_by: null, claimed_at: now };
+          const { error: insertErr } = await supabase.from('jeopardy_claims').insert(row);
+          if (!insertErr) { claimData = row; break; }
+          if (insertErr.code !== '23505') return res.status(500).json({ error: insertErr.message });
+          continue; // someone took it between our read and insert — re-read and decide again
+        }
+
+        // Taken. Only a Shalpha can override, and only a standard claim.
+        if (claimType !== 'shalpha' || existing.claim_type !== 'standard') {
+          return res.status(409).json({ error: 'Position already claimed', claim: await describeClaim(boardId, position) });
+        }
+        const row = { board_id: boardId, position, claimed_by: userId, claim_type: 'shalpha', original_claimed_by: existing.claimed_by, claimed_at: now };
+        const { data: updated, error: updateErr } = await supabase
+          .from('jeopardy_claims')
+          .update({ claimed_by: userId, claim_type: 'shalpha', original_claimed_by: existing.claimed_by, claimed_at: now })
+          .eq('board_id', boardId).eq('position', position)
+          .eq('claimed_by', existing.claimed_by).eq('claim_type', 'standard')
+          .select('position');
+        if (updateErr) return res.status(500).json({ error: updateErr.message });
+        if (updated?.length) { claimData = row; break; }
+        // The claim we read changed under us (unclaimed, or another Shalpha won) — re-read once.
       }
-
-      const originalClaimedBy = existing ? existing.claimed_by : null;
-
-      const claimData = {
-        board_id: boardId, position,
-        claimed_by: userId,
-        claim_type: claimType,
-        original_claimed_by: originalClaimedBy,
-        claimed_at: new Date().toISOString(),
-      };
-
-      const { error: upsertErr } = await supabase
-        .from('jeopardy_claims').upsert(claimData, { onConflict: 'board_id,position' });
-      if (upsertErr) return res.status(500).json({ error: upsertErr.message });
+      if (!claimData) return res.status(409).json({ error: 'Position already claimed', claim: await describeClaim(boardId, position) });
+      const originalClaimedBy = claimData.original_claimed_by;
 
       const userIds = [userId];
       if (originalClaimedBy) userIds.push(originalClaimedBy);
@@ -641,7 +718,10 @@ module.exports = function register(app) {
     } catch (err) { res.status(500).json({ error: err.message }); }
   });
 
-  // DELETE /api/jeopardy/claim — unclaim a square (mods, or anyone in the roster)
+  // DELETE /api/jeopardy/claim — undo a claim. A player can only undo their
+  // own; the host (referee for their lobby) and global moderators can undo
+  // anyone's. Undoing a Shalpha steal hands the square back to the player it
+  // was stolen from rather than emptying it.
   app.delete('/api/jeopardy/claim', async (req, res) => {
     try {
       const userId = await getAuthenticatedUserId(req);
@@ -650,19 +730,44 @@ module.exports = function register(app) {
       const { boardId, position } = req.body;
       if (!boardId || position == null) return res.status(400).json({ error: 'boardId and position required' });
 
-      const modRow = await isModerator(userId);
-      const { data: memberRow } = await supabase
-        .from('jeopardy_members').select('id').eq('board_id', boardId).eq('user_id', userId).maybeSingle();
-      if (!modRow && !memberRow) return res.status(403).json({ error: 'Join this game to manage claims' });
+      const { data: board } = await supabase.from('jeopardy_boards').select('id, status').eq('id', boardId).maybeSingle();
+      if (!board || board.status !== 'active') return res.status(400).json({ error: 'Lobby not active' });
 
-      await supabase.from('jeopardy_claims').delete().eq('board_id', boardId).eq('position', position);
-      await broadcastUpdate(`jeopardy-updates-${boardId}`, 'tile-update', { type: 'unclaim', position });
-      res.json({ ok: true });
+      const { data: existing } = await supabase
+        .from('jeopardy_claims').select('claimed_by, claim_type, original_claimed_by')
+        .eq('board_id', boardId).eq('position', position).maybeSingle();
+      if (!existing) return res.json({ ok: true, claim: null }); // already empty
+
+      if (existing.claimed_by !== userId) {
+        const { data: memberRow } = await supabase
+          .from('jeopardy_members').select('role').eq('board_id', boardId).eq('user_id', userId).maybeSingle();
+        if (memberRow?.role !== 'host' && !(await isModerator(userId))) {
+          return res.status(403).json({ error: "You can only undo your own claims" });
+        }
+      }
+
+      // Conditioned on the row we read, so a claim that changed in the
+      // meantime (someone Shalpha'd it) isn't wiped by a stale undo.
+      const match = q => q.eq('board_id', boardId).eq('position', position).eq('claimed_by', existing.claimed_by).eq('claim_type', existing.claim_type);
+      let restored = null;
+      if (existing.claim_type === 'shalpha' && existing.original_claimed_by && existing.original_claimed_by !== existing.claimed_by) {
+        const { data: rows } = await match(supabase.from('jeopardy_claims')
+          .update({ claimed_by: existing.original_claimed_by, claim_type: 'standard', original_claimed_by: null }))
+          .select('position');
+        if (!rows?.length) return res.status(409).json({ error: 'That claim just changed', claim: await describeClaim(boardId, position) });
+        restored = await describeClaim(boardId, position);
+        await broadcastUpdate(`jeopardy-updates-${boardId}`, 'tile-update', { type: 'claim', claim: restored });
+      } else {
+        const { data: rows } = await match(supabase.from('jeopardy_claims').delete()).select('position');
+        if (!rows?.length) return res.status(409).json({ error: 'That claim just changed', claim: await describeClaim(boardId, position) });
+        await broadcastUpdate(`jeopardy-updates-${boardId}`, 'tile-update', { type: 'unclaim', position });
+      }
+      res.json({ ok: true, claim: restored });
     } catch (err) { res.status(500).json({ error: err.message }); }
   });
 
-  // DELETE /api/mod/jeopardy — end/discard a lobby. Global-moderator-gated
-  // (not host-only) on purpose: it's the escape hatch for a lobby whose host
+  // DELETE /api/mod/jeopardy — end/discard a lobby. The host, or any global
+  // moderator — the moderator path is the escape hatch for a lobby whose host
   // walked away and never transferred hosting to anyone else. Deletes the
   // board outright (pool/claims/members cascade via FK) and, if the game had
   // actually started, leaves a jeopardy_history row behind first.
@@ -670,14 +775,18 @@ module.exports = function register(app) {
     try {
       const userId = await getAuthenticatedUserId(req);
       if (!userId) return res.status(401).json({ error: 'Authentication required' });
-      const modRow = await isModerator(userId);
-      if (!modRow) return res.status(403).json({ error: 'Moderator access required' });
 
       const { boardId } = req.body;
       if (!boardId) return res.status(400).json({ error: 'boardId required' });
 
       const { data: board } = await supabase.from('jeopardy_boards').select('*').eq('id', boardId).maybeSingle();
       if (!board) return res.status(404).json({ error: 'Lobby not found' });
+
+      const { data: requesterRow } = await supabase
+        .from('jeopardy_members').select('role').eq('board_id', boardId).eq('user_id', userId).maybeSingle();
+      if (requesterRow?.role !== 'host' && !(await isModerator(userId))) {
+        return res.status(403).json({ error: 'Only the host can end this lobby' });
+      }
 
       await finalizeLobby(board);
       res.json({ ok: true });

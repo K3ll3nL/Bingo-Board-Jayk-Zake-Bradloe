@@ -27,7 +27,7 @@ const STATUS_CONFIG = {
   accepted_upgraded_historical:   { label: 'Accepted (Historical)', color: '#60a5fa', bg: 'rgba(96,165,250,0.1)',   border: 'rgba(96,165,250,0.3)'  },
   rejected:                       { label: 'Rejected',              color: '#f87171', bg: 'rgba(248,113,113,0.1)',  border: 'rgba(248,113,113,0.3)' },
   rejected_restricted_ban:        { label: 'Rejected',              color: '#f87171', bg: 'rgba(248,113,113,0.1)',  border: 'rgba(248,113,113,0.3)' },
-  award:                          { label: 'Achievement',           color: '#a855f7', bg: 'rgba(168,85,247,0.12)',  border: 'rgba(168,85,247,0.35)' },
+  award:                          { label: 'Achievement',           color: '#0ea3b0', bg: 'rgba(14,163,176,0.12)',  border: 'rgba(14,163,176,0.35)' },
   badge_earned:                   { label: 'Badge Earned',          color: '#e9c46a', bg: 'rgba(233,196,106,0.12)', border: 'rgba(233,196,106,0.35)'},
 };
 
@@ -85,11 +85,11 @@ const StatusPill = ({ cfg }) => (
 const Stat = ({ value, label, color }) => (
   <div className="flex flex-col items-center gap-0.5">
     <span className="text-xl font-bold" style={{ color }}>{value}</span>
-    <span className="text-xs text-gray-500 uppercase tracking-wide">{label}</span>
+    <span className="text-xs text-gray-500">{label}</span>
   </div>
 );
 
-const CARD_BG     = 'linear-gradient(160deg, #1a1c23 0%, #1f2128 100%)';
+const CARD_BG     = '#1a1c23';
 const CARD_BORDER = 'rgba(255,255,255,0.07)';
 
 const SubmissionHistory = () => {
@@ -158,7 +158,7 @@ const SubmissionHistory = () => {
               <Stat value={totalPokemon}      label="Submissions"   color="#e2e8f0" />
               <div className="relative"><div className="absolute left-0 inset-y-2" style={{ width: 1, background: 'rgba(255,255,255,0.07)' }} /><Stat value={totalAccepted}     label="Accepted"      color="#4ade80" /></div>
               <div className="relative"><div className="absolute left-0 inset-y-2" style={{ width: 1, background: 'rgba(255,255,255,0.07)' }} /><Stat value={totalBadges}       label="Badges"        color="#e9c46a" /></div>
-              <div className="relative"><div className="absolute left-0 inset-y-2" style={{ width: 1, background: 'rgba(255,255,255,0.07)' }} /><Stat value={totalAchievements} label="Achievements"  color="#a855f7" /></div>
+              <div className="relative"><div className="absolute left-0 inset-y-2" style={{ width: 1, background: 'rgba(255,255,255,0.07)' }} /><Stat value={totalAchievements} label="Achievements"  color="#0ea3b0" /></div>
             </div>
           </div>
         )}
@@ -175,7 +175,7 @@ const SubmissionHistory = () => {
                 onClick={() => setFilter(f)}
                 className="flex-1 py-1.5 rounded-xl text-sm font-medium transition-all duration-150"
                 style={filter === f
-                  ? { background: 'rgba(145,71,255,0.18)', color: '#c084fc', border: '1px solid rgba(145,71,255,0.35)' }
+                  ? { background: 'rgba(14,163,176,0.18)', color: '#12bfce', border: '1px solid rgba(14,163,176,0.35)' }
                   : { color: '#6b7280', border: '1px solid transparent' }
                 }
               >
@@ -188,7 +188,7 @@ const SubmissionHistory = () => {
         {/* ── Loading ──────────────────────────────────────────── */}
         {loading && (
           <div className="flex justify-center py-16">
-            <div className="w-8 h-8 border-2 border-purple-400 border-t-transparent rounded-full animate-spin" />
+            <div className="w-8 h-8 border-2 border-lagoon-400 border-t-transparent rounded-full animate-spin" />
           </div>
         )}
 
@@ -207,7 +207,7 @@ const SubmissionHistory = () => {
           <div key={month} className="space-y-2">
             {/* Month divider */}
             <div className="flex items-center gap-3 px-1">
-              <span className="text-xs font-semibold text-gray-500 uppercase tracking-widest whitespace-nowrap">{month}</span>
+              <span className="text-xs font-semibold text-gray-500 whitespace-nowrap">{month}</span>
               <div className="flex-1 h-px" style={{ background: 'rgba(255,255,255,0.06)' }} />
             </div>
 
@@ -223,7 +223,7 @@ const SubmissionHistory = () => {
                   className="rounded-xl shadow-lg border flex items-center gap-4 px-4 py-3"
                   style={{
                     background: isCelebration
-                      ? `linear-gradient(135deg, ${cfg.bg}, rgba(255,255,255,0.02))`
+                      ? cfg.bg
                       : CARD_BG,
                     borderColor: isCelebration ? cfg.border : CARD_BORDER,
                     borderLeft: `3px solid ${cfg.color}`,
@@ -240,7 +240,7 @@ const SubmissionHistory = () => {
                         </svg>
                       </div>
                     ) : isAward ? (
-                      <div className="w-12 h-12 rounded-full flex items-center justify-center" style={{ background: 'rgba(168,85,247,0.15)' }}>
+                      <div className="w-12 h-12 rounded-full flex items-center justify-center" style={{ background: 'rgba(14,163,176,0.15)' }}>
                         <AchievementIcon
                           type={normalizeBingoType(n.message).base}
                           restricted={normalizeBingoType(n.message).restricted}

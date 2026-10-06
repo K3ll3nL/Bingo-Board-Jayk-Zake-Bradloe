@@ -3,8 +3,8 @@ import PageHeader from './PageHeader';
 import PageBackground from './PageBackground';
 
 const Section = ({ title, children }) => (
-  <section className="rounded-xl shadow-xl overflow-hidden border border-gray-600" style={{ background: 'linear-gradient(160deg, #1a1c23 0%, #1f2128 100%)' }}>
-    <div className="px-6 py-4 border-b border-purple-500/30" style={{ backgroundColor: 'rgba(145,71,255,0.08)' }}>
+  <section className="rounded-xl shadow-xl overflow-hidden border border-gray-600" style={{ background: '#1a1c23' }}>
+    <div className="px-6 py-4 border-b border-lagoon-500/30" style={{ backgroundColor: 'rgba(14,163,176,0.08)' }}>
       <h2 className="text-base font-semibold text-white tracking-wide">{title}</h2>
     </div>
     <div className="px-6 py-5 text-sm text-gray-300 space-y-3 leading-relaxed">
@@ -122,35 +122,35 @@ export default function PrivacyPolicy() {
           <li>
             <span className="text-white font-medium">Supabase</span> - our database and authentication provider.
             Your account data and competition records are stored on Supabase-hosted PostgreSQL servers.
-            See <a href="https://supabase.com/privacy" target="_blank" rel="noopener noreferrer" className="text-purple-400 hover:underline">supabase.com/privacy</a>.
+            See <a href="https://supabase.com/privacy" target="_blank" rel="noopener noreferrer" className="text-lagoon-400 hover:underline">supabase.com/privacy</a>.
           </li>
           <li>
             <span className="text-white font-medium">Cloudflare R2</span> - proof images you upload are stored
             on Cloudflare R2 object storage.
-            See <a href="https://www.cloudflare.com/privacypolicy/" target="_blank" rel="noopener noreferrer" className="text-purple-400 hover:underline">cloudflare.com/privacypolicy</a>.
+            See <a href="https://www.cloudflare.com/privacypolicy/" target="_blank" rel="noopener noreferrer" className="text-lagoon-400 hover:underline">cloudflare.com/privacypolicy</a>.
           </li>
           <li>
             <span className="text-white font-medium">Discord</span> - one of the sign-in options.
-            See <a href="https://discord.com/privacy" target="_blank" rel="noopener noreferrer" className="text-purple-400 hover:underline">discord.com/privacy</a>.
+            See <a href="https://discord.com/privacy" target="_blank" rel="noopener noreferrer" className="text-lagoon-400 hover:underline">discord.com/privacy</a>.
           </li>
           <li>
             <span className="text-white font-medium">Google</span> - one of the sign-in options, used only if
             you choose to sign in or link with Google.
-            See <a href="https://policies.google.com/privacy" target="_blank" rel="noopener noreferrer" className="text-purple-400 hover:underline">policies.google.com/privacy</a>.
+            See <a href="https://policies.google.com/privacy" target="_blank" rel="noopener noreferrer" className="text-lagoon-400 hover:underline">policies.google.com/privacy</a>.
           </li>
           <li>
             <span className="text-white font-medium">Twitch</span> - one of the sign-in options, and we
             query the Twitch API to check live stream status for users who have provided a Twitch URL.
-            See <a href="https://www.twitch.tv/p/legal/privacy-notice/" target="_blank" rel="noopener noreferrer" className="text-purple-400 hover:underline">twitch.tv/p/legal/privacy-notice</a>.
+            See <a href="https://www.twitch.tv/p/legal/privacy-notice/" target="_blank" rel="noopener noreferrer" className="text-lagoon-400 hover:underline">twitch.tv/p/legal/privacy-notice</a>.
           </li>
           <li>
             <span className="text-white font-medium">Vercel Web Analytics</span> - cookieless page-view
             measurement, described above.
-            See <a href="https://vercel.com/docs/analytics/privacy-policy" target="_blank" rel="noopener noreferrer" className="text-purple-400 hover:underline">vercel.com/docs/analytics/privacy-policy</a>.
+            See <a href="https://vercel.com/docs/analytics/privacy-policy" target="_blank" rel="noopener noreferrer" className="text-lagoon-400 hover:underline">vercel.com/docs/analytics/privacy-policy</a>.
           </li>
           <li>
             <span className="text-white font-medium">Vercel</span> - our site and API are hosted on Vercel.
-            See <a href="https://vercel.com/legal/privacy-policy" target="_blank" rel="noopener noreferrer" className="text-purple-400 hover:underline">vercel.com/legal/privacy-policy</a>.
+            See <a href="https://vercel.com/legal/privacy-policy" target="_blank" rel="noopener noreferrer" className="text-lagoon-400 hover:underline">vercel.com/legal/privacy-policy</a>.
           </li>
         </ul>
       </Section>

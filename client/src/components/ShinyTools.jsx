@@ -162,7 +162,7 @@ export default function ShinyTools() {
                 className={`shrink-0 px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all duration-150 ${
                   isActive
                     ? cat === 'All'
-                      ? 'bg-purple-600 border-purple-500 text-white'
+                      ? 'bg-lagoon-600 border-lagoon-500 text-white'
                       : `border text-white`
                     : 'bg-transparent border-gray-600 text-gray-400 hover:border-gray-400 hover:text-white'
                 }`}
@@ -182,7 +182,7 @@ export default function ShinyTools() {
             return (
               <div key={gen}>
                 <div className="flex items-center gap-3 mb-3">
-                  <h2 className="text-xs font-bold uppercase tracking-widest text-purple-400">{gen}</h2>
+                  <h2 className="text-xs font-bold text-lagoon-400">{gen}</h2>
                   <div className="flex-1 h-px bg-gray-700" />
                   <span className="text-xs text-gray-600">{tools.filter(t => t.live).length}/{tools.length} live</span>
                 </div>
@@ -216,7 +216,7 @@ export default function ShinyTools() {
                               {tool.name}
                             </p>
                             {!tool.live && (
-                              <span className="shrink-0 text-[8px] sm:text-[9px] font-bold uppercase tracking-wider px-1 py-0.5 rounded-full bg-gray-700/80 text-gray-300 border border-gray-500">
+                              <span className="shrink-0 text-[8px] sm:text-[9px] font-bold px-1 py-0.5 rounded-full bg-gray-700/80 text-gray-300 border border-gray-500">
                                 Soon
                               </span>
                             )}
@@ -224,7 +224,7 @@ export default function ShinyTools() {
                           <p className={`hidden sm:block text-xs leading-snug ${tool.live ? 'text-gray-400' : 'text-gray-600'}`}>
                             {tool.description}
                           </p>
-                          <span className={`hidden sm:inline-block text-[10px] font-bold uppercase tracking-wider mt-2 px-1.5 py-0.5 rounded border ${c.tag}`}>
+                          <span className={`hidden sm:inline-block text-[10px] font-bold mt-2 px-1.5 py-0.5 rounded border ${c.tag}`}>
                             {tool.category}
                           </span>
                         </div>

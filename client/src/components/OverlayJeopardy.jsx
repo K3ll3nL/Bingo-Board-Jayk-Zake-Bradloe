@@ -96,7 +96,7 @@ export default function OverlayJeopardy() {
   if (!board) {
     return (
       <div style={fullPage}>
-        <div style={{ width: '5vmin', height: '5vmin', borderRadius: '50%', border: '0.5vmin solid #8b5cf6', borderTopColor: 'transparent', animation: 'spin 0.8s linear infinite' }} />
+        <div style={{ width: '5vmin', height: '5vmin', borderRadius: '50%', border: '0.5vmin solid #0ea3b0', borderTopColor: 'transparent', animation: 'spin 0.8s linear infinite' }} />
         <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
       </div>
     );
@@ -151,7 +151,7 @@ export default function OverlayJeopardy() {
               key={pos}
               style={{
                 position: 'relative',
-                background: 'linear-gradient(160deg, #1a1c23 0%, #1f2128 100%)',
+                background: '#1a1c23',
                 border: '1px solid rgba(255,255,255,0.1)',
                 borderRadius: '0.8vmin',
                 boxShadow: '0 0.2vmin 0.6vmin rgba(0,0,0,0.5)',

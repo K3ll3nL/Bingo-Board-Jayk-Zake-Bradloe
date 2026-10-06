@@ -3,7 +3,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useNavigate, useParams, useSearchParams, Link } from 'react-router-dom';
 import PokemonModal from './PokemonModal';
 import PokemonImage from './PokemonImage';
-import BadgeCase from './BadgeCase';
+import ProfileBadges from './ProfileBadges';
 import BingoGrid from './BingoGrid';
 import AchievementIcon from './AchievementIcon';
 import restrictedIcon from '../Icons/restricted-icon.png';
@@ -16,11 +16,11 @@ import { getAuthHeaders, api } from '../services/api';
 // Card gradient styles — avoids repeating the strings everywhere
 const CARD = {
   // Primary card (was #35373b)
-  bg: 'linear-gradient(160deg, #1a1c23 0%, #1f2128 100%)',
+  bg: '#1a1c23',
   // Nested / inner card (was #2a2c30)
-  inner: 'linear-gradient(160deg, #13151a 0%, #181a21 100%)',
+  inner: '#13151a',
   // Hero card
-  hero: 'linear-gradient(160deg, #1c1e27 0%, #22242e 100%)',
+  hero: '#1c1e27',
   border: 'rgba(255,255,255,0.07)',
   borderSubtle: 'rgba(255,255,255,0.04)',
 };
@@ -172,7 +172,7 @@ const StatisticsTab = ({ profile, accentColor, onPokemonClick }) => {
       }}>
       <div className="flex items-center gap-1.5 mb-3 sm:mb-4">
         {restricted && <img src={restrictedIcon} alt="" className="w-3.5 h-3.5 object-contain" />}
-        <p className="text-xs sm:text-sm font-semibold uppercase tracking-wide" style={{ color: restricted ? '#e07060' : 'rgba(255,255,255,0.35)' }}>{label}</p>
+        <p className="text-xs sm:text-sm font-semibold" style={{ color: restricted ? '#e07060' : 'rgba(255,255,255,0.35)' }}>{label}</p>
       </div>
       <div className="grid grid-cols-5 gap-2 flex-1">
         {items.map(({ type, count }) => (
@@ -209,7 +209,7 @@ const StatisticsTab = ({ profile, accentColor, onPokemonClick }) => {
 
       {/* Recent Catches */}
       <div className="rounded-xl p-4 border" style={{ background: CARD.bg, borderColor: CARD.border }}>
-        <p className="text-xs uppercase tracking-wider mb-3" style={{ color: 'rgba(255,255,255,0.3)' }}>Recent Catches</p>
+        <p className="text-xs mb-3" style={{ color: 'rgba(255,255,255,0.3)' }}>Recent Catches</p>
         {recentCatches.length === 0 ? (
           <div className="flex items-center justify-center h-20 text-gray-600 text-sm">No catches yet</div>
         ) : (
@@ -236,191 +236,8 @@ const StatisticsTab = ({ profile, accentColor, onPokemonClick }) => {
 
       {/* Points history */}
       <div className="rounded-xl p-4 border" style={{ background: CARD.bg, borderColor: CARD.border }}>
-        <p className="text-xs uppercase tracking-wider mb-3" style={{ color: 'rgba(255,255,255,0.3)' }}>Points History</p>
+        <p className="text-xs mb-3" style={{ color: 'rgba(255,255,255,0.3)' }}>Points History</p>
         <PointsChart data={monthlyData} accentColor={accentColor} />
-      </div>
-    </div>
-  );
-};
-
-// ── Badge cell with fixed-position hover tooltip ──────────────
-// Uses a fixed-position tooltip (not absolute) so it isn't clipped by the
-// cell's overflow-hidden or the surrounding card wrapper.
-const AllBadgeCell = ({ ub, isNew, onSeen, earned = true }) => {
-  const ref = useRef(null);
-  const [tipPos, setTipPos] = useState(null);
-
-  const handleEnter = () => {
-    if (!ref.current) return;
-    const rect = ref.current.getBoundingClientRect();
-    setTipPos({
-      x: Math.max(108, Math.min(rect.left + rect.width / 2, window.innerWidth - 108)),
-      y: rect.top,
-    });
-    if (isNew) onSeen?.(ub.badge_id);
-  };
-
-  return (
-    <div
-      ref={ref}
-      className="relative aspect-square rounded-lg overflow-hidden p-1"
-      style={{
-        background: CARD.inner,
-        border: isNew ? '1px solid rgba(250,204,21,0.7)' : `1px solid ${CARD.borderSubtle}`,
-        boxShadow: isNew ? '0 0 10px 1px rgba(250,204,21,0.55), inset 0 0 8px rgba(250,204,21,0.25)' : undefined,
-      }}
-      onMouseEnter={handleEnter}
-      onMouseLeave={() => setTipPos(null)}
-    >
-      {ub.badges?.image_url
-        ? <img src={ub.badges.image_url} alt={ub.badges.name} className="w-full h-full object-contain" draggable="false" onContextMenu={(e) => e.preventDefault()}
-            style={earned ? undefined : { filter: 'brightness(0)', opacity: 0.55 }} />
-        : <div className="w-full h-full rounded bg-gray-700/50" />}
-
-      {tipPos && (
-        <div
-          style={{
-            position: 'fixed',
-            left: tipPos.x,
-            top: tipPos.y - 6,
-            transform: 'translateX(-50%) translateY(-100%)',
-            zIndex: 9999,
-            maxWidth: 216,
-            pointerEvents: 'none',
-            backgroundColor: '#0d0e10',
-            border: '1px solid rgba(255,255,255,0.08)',
-          }}
-          className="px-2.5 py-2 rounded-lg text-xs shadow-xl"
-        >
-          <div className="font-semibold text-white leading-tight">{ub.badges?.name}</div>
-          {/* Earned badges show the description; unearned show only the hint. Never both. */}
-          {ub.badges?.viewer_earned
-            ? ub.badges?.description && <div className="text-gray-400 mt-0.5 leading-tight">{ub.badges.description}</div>
-            : ub.badges?.hint && <div className="text-yellow-400/80 mt-1 italic leading-tight">{ub.badges.hint}</div>}
-          {ub.badges?.earned_percent != null && (
-            <div className="text-gray-500 mt-1 leading-tight">Earned by {ub.badges.earned_percent}% of players</div>
-          )}
-          {ub.earned_at && (
-            <div className="text-gray-600 mt-1 text-[10px]">
-              {new Date(ub.earned_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
-            </div>
-          )}
-        </div>
-      )}
-    </div>
-  );
-};
-
-// ── Badges tab ────────────────────────────────────────────────
-const BadgesTab = ({ userId, isOwnProfile, accentColor, playAnimation, onAnimationPlayed, markBadgeSeen, seenBadgeIds }) => {
-  const [earnedBadges, setEarnedBadges] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [showAll, setShowAll] = useState(false);
-  const [allBadges, setAllBadges] = useState(null); // null = not yet fetched
-  const [allLoading, setAllLoading] = useState(false);
-
-  useEffect(() => {
-    // Send auth headers so the API can flag which badges the viewer earned
-    // (controls description-vs-hint in the tooltip).
-    getAuthHeaders()
-      .then(headers => fetch(`/api/users/${userId}/badges`, { headers }))
-      .then(r => r.json())
-      .then(badges => { setEarnedBadges(Array.isArray(badges) ? badges : []); setLoading(false); })
-      .catch(() => setLoading(false));
-  }, [userId]);
-
-  // Reset the "show all" view when switching profiles.
-  useEffect(() => { setShowAll(false); setAllBadges(null); }, [userId]);
-
-  // Lazy-fetch the full badge catalogue (with silhouettes for unearned) the
-  // first time the user flips to "Show all".
-  useEffect(() => {
-    if (!showAll || allBadges !== null) return;
-    setAllLoading(true);
-    getAuthHeaders()
-      .then(headers => Promise.all([
-        fetch(`/api/badges?userId=${userId}`, { headers }).then(r => r.json()),
-        fetch('/api/badge-families').then(r => r.json()),
-      ]))
-      .then(([badges, families]) => {
-        const order = {};
-        (families || []).forEach(f => { order[f.id] = f.display_order; });
-        // Match the picker: hide secret-unearned (API returns image_url: null).
-        const visible = (Array.isArray(badges) ? badges : []).filter(b => b.is_earned || (!b.is_secret && b.image_url));
-        visible.sort((a, b) => {
-          const fa = a.family ? (order[a.family] ?? 999) : 1000;
-          const fb = b.family ? (order[b.family] ?? 999) : 1000;
-          if (fa !== fb) return fa - fb;
-          return (a.family_order ?? 99) - (b.family_order ?? 99);
-        });
-        // Normalise to the AllBadgeCell `ub` shape.
-        setAllBadges(visible.map(b => ({
-          badge_id: b.id,
-          earned_at: null,
-          seen: true,
-          is_earned: b.is_earned,
-          badges: { ...b, viewer_earned: b.is_earned },
-        })));
-      })
-      .catch(() => setAllBadges([]))
-      .finally(() => setAllLoading(false));
-  }, [showAll, allBadges, userId]);
-
-  const sorted = [...earnedBadges].sort((a, b) => {
-    const ordA = a.badges?.badge_families?.display_order ?? 999;
-    const ordB = b.badges?.badge_families?.display_order ?? 999;
-    if (ordA !== ordB) return ordA - ordB;
-    return (a.badges?.family_order ?? 99) - (b.badges?.family_order ?? 99);
-  });
-
-  const busy = showAll ? (allLoading && allBadges === null) : loading;
-  const items = showAll ? (allBadges || []) : sorted;
-
-  return (
-    <div className="space-y-3">
-      <BadgeCase userId={userId} isOwnProfile={isOwnProfile} playAnimation={playAnimation} onPlayed={onAnimationPlayed} markBadgeSeen={markBadgeSeen} />
-
-      <div className="rounded-xl border overflow-hidden" style={{ background: CARD.bg, borderColor: CARD.border }}>
-        <div className="px-4 py-3 border-b flex items-center justify-between gap-3" style={{ borderColor: CARD.borderSubtle }}>
-          <p className="text-xs uppercase tracking-wider" style={{ color: 'rgba(255,255,255,0.3)' }}>All Badges</p>
-          <div className="flex items-center gap-3">
-            <span className="text-sm text-gray-400">{earnedBadges.length} earned</span>
-            <button
-              onClick={() => setShowAll(v => !v)}
-              className="text-xs px-2.5 py-1 rounded-lg transition-colors"
-              style={{
-                color: showAll ? accentColor : 'rgba(255,255,255,0.5)',
-                border: `1px solid ${showAll ? accentColor + '60' : CARD.border}`,
-                backgroundColor: showAll ? accentColor + '14' : 'transparent',
-              }}
-            >
-              {showAll ? 'Earned only' : 'Show all'}
-            </button>
-          </div>
-        </div>
-        {busy ? (
-          <div className="p-6 flex items-center justify-center">
-            <div className="w-6 h-6 rounded-full border-2 border-gray-700 border-t-purple-500 animate-spin" />
-          </div>
-        ) : items.length === 0 ? (
-          <div className="p-6 text-center text-gray-500 text-sm">
-            {showAll ? 'No badges available' : 'No badges earned yet'}
-          </div>
-        ) : (
-          <div className="p-3">
-            <div className="grid grid-cols-8 sm:grid-cols-10 lg:grid-cols-8 xl:grid-cols-10 gap-1.5">
-              {items.map(ub => (
-                <AllBadgeCell
-                  key={ub.badge_id}
-                  ub={ub}
-                  earned={showAll ? ub.is_earned : true}
-                  isNew={!showAll && isOwnProfile && ub.seen === false && !seenBadgeIds.has(ub.badge_id)}
-                  onSeen={markBadgeSeen}
-                />
-              ))}
-            </div>
-          </div>
-        )}
       </div>
     </div>
   );
@@ -440,7 +257,7 @@ const PokedexTab = ({ stats, accentColor }) => {
             <span className="text-2xl font-extrabold" style={{ color: accentColor }}>%</span>
           </div>
           <div className="flex-1 min-w-0">
-            <p className="text-xs uppercase tracking-wider mb-2" style={{ color: 'rgba(255,255,255,0.3)' }}>Overall Progress</p>
+            <p className="text-xs mb-2" style={{ color: 'rgba(255,255,255,0.3)' }}>Overall Progress</p>
             <div className="rounded-full h-3 mb-2" style={{ background: 'rgba(255,255,255,0.06)' }}>
               <div className="h-3 rounded-full transition-all" style={{ width: `${caughtPct}%`, backgroundColor: accentColor }} />
             </div>
@@ -451,7 +268,7 @@ const PokedexTab = ({ stats, accentColor }) => {
 
       {/* By Generation */}
       <div className="rounded-xl p-3 border" style={{ background: CARD.bg, borderColor: CARD.border }}>
-        <p className="text-xs uppercase tracking-wider mb-2" style={{ color: 'rgba(255,255,255,0.3)' }}>By Generation</p>
+        <p className="text-xs mb-2" style={{ color: 'rgba(255,255,255,0.3)' }}>By Generation</p>
         <div className="grid grid-cols-4 sm:grid-cols-5 gap-1.5">
           {(stats.dexByGen || []).map(({ gen, total, caught }) => {
             const pct = total > 0 ? Math.round((caught / total) * 100) : 0;
@@ -473,7 +290,7 @@ const PokedexTab = ({ stats, accentColor }) => {
 
       {/* By Type */}
       <div className="rounded-xl p-3 border" style={{ background: CARD.bg, borderColor: CARD.border }}>
-        <p className="text-xs uppercase tracking-wider mb-2" style={{ color: 'rgba(255,255,255,0.3)' }}>By Type</p>
+        <p className="text-xs mb-2" style={{ color: 'rgba(255,255,255,0.3)' }}>By Type</p>
         <div className="grid grid-cols-2 gap-x-6 gap-y-2.5">
           {(stats.dexByType || []).map(({ type, total, caught }) => {
             const pct = total > 0 ? Math.round((caught / total) * 100) : 0;
@@ -581,7 +398,7 @@ const BoardsTab = ({ userId, monthlyData, stats, onPokemonClick, accentColor }) 
   const rankColor = monthRank === 1 ? '#f59e0b' : monthRank === 2 ? '#94a3b8' : monthRank === 3 ? '#cd7f32' : 'white';
 
   const statLabel = text => (
-    <p className="text-[10px] uppercase tracking-wider mb-1" style={{ color: 'rgba(255,255,255,0.3)' }}>{text}</p>
+    <p className="text-[10px] mb-1" style={{ color: 'rgba(255,255,255,0.3)' }}>{text}</p>
   );
 
   return (
@@ -613,7 +430,7 @@ const BoardsTab = ({ userId, monthlyData, stats, onPokemonClick, accentColor }) 
         <div className="flex-1 min-w-0">
           {boardLoading ? (
             <div className="flex items-center justify-center py-16">
-              <div className="w-7 h-7 rounded-full border-2 border-gray-700 border-t-purple-500 animate-spin" />
+              <div className="w-7 h-7 rounded-full border-2 border-gray-700 border-t-lagoon-500 animate-spin" />
             </div>
           ) : hasData ? (
             <BingoGrid board={displayBoard} onCellClick={onPokemonClick} large />
@@ -663,10 +480,10 @@ const BoardsTab = ({ userId, monthlyData, stats, onPokemonClick, accentColor }) 
           {/* 3 — Restricted catches */}
           <div className="rounded-lg p-3 border flex flex-col"
             style={{
-              background: 'linear-gradient(160deg, #1a0a0a 0%, #1f0d0d 100%)',
+              background: '#1a0a0a',
               borderColor: 'rgba(120,21,10,0.4)',
             }}>
-            <p className="text-[10px] uppercase tracking-wider mb-1"
+            <p className="text-[10px] mb-1"
               style={{ color: 'rgba(224,112,96,0.6)'}}>
               Restricted
             </p>
@@ -698,10 +515,10 @@ const BoardsTab = ({ userId, monthlyData, stats, onPokemonClick, accentColor }) 
           {/* 5 — Historical */}
           <div className="rounded-lg p-3 border flex flex-col"
             style={{
-              background: historicalCells > 0 ? 'linear-gradient(160deg, #1a1508 0%, #1f1a0a 100%)' : CARD.inner,
+              background: historicalCells > 0 ? '#1a1508' : CARD.inner,
               borderColor: historicalCells > 0 ? 'rgba(251,191,36,0.2)' : CARD.borderSubtle,
             }}>
-            <p className="text-[10px] uppercase tracking-wider mb-1"
+            <p className="text-[10px] mb-1"
               style={{ color: historicalCells > 0 ? 'rgba(251,191,36,0.5)' : 'rgba(255,255,255,0.3)' }}>
               Historical
             </p>
@@ -994,7 +811,7 @@ const Profile = () => {
     </div>
   );
 
-  const accentColor = profile.user.hex_code || '#9147ff';
+  const accentColor = profile.user.hex_code || '#038691';
   const isOwnProfile = !paramUserId || user?.id === paramUserId;
   const { stats, monthlyData } = profile;
   const caughtPct = stats.totalPokemon > 0 ? Math.round((stats.totalCaught / stats.totalPokemon) * 100) : 0;
@@ -1056,7 +873,7 @@ const Profile = () => {
                   { label: 'Shinies', value: stats.totalShinies || 0 },
                 ].map(({ label, value }, i) => (
                   <div key={label} className={`text-center px-5 ${i > 0 ? 'border-l' : ''}`} style={{ borderColor: CARD.border }}>
-                    <div className="text-xs uppercase tracking-widest mb-0.5" style={{ color: 'rgba(255,255,255,0.35)' }}>{label}</div>
+                    <div className="text-xs mb-0.5" style={{ color: 'rgba(255,255,255,0.35)' }}>{label}</div>
                     <div className="text-2xl font-extrabold leading-none" style={{ color: accentColor }}>{value}</div>
                   </div>
                 ))}
@@ -1076,7 +893,7 @@ const Profile = () => {
               ].map(({ label, value }, i) => (
                 <div key={label} className={`text-center py-2 ${i % 3 !== 0 ? 'border-l' : ''} ${i >= 3 ? 'border-t' : ''}`}
                   style={{ borderColor: CARD.borderSubtle }}>
-                  <div className="text-[10px] uppercase tracking-widest mb-0.5" style={{ color: 'rgba(255,255,255,0.3)' }}>{label}</div>
+                  <div className="text-[10px] mb-0.5" style={{ color: 'rgba(255,255,255,0.3)' }}>{label}</div>
                   <div className="text-lg font-extrabold leading-none" style={{ color: accentColor }}>{value}</div>
                 </div>
               ))}
@@ -1189,7 +1006,7 @@ const Profile = () => {
                     { key: 'shinydex_url', label: 'Shinydex Handle', prefix: 'shinydex.com/', placeholder: 'yourname', color: '#eab308' },
                   ].map(({ key, label, prefix, placeholder, color }) => (
                     <div key={key}>
-                      <label className="text-[10px] uppercase tracking-wider mb-1 block" style={{ color }}>{label}</label>
+                      <label className="text-[10px] mb-1 block" style={{ color }}>{label}</label>
                       <div className="flex items-stretch rounded-lg overflow-hidden" style={{ border: `1px solid ${CARD.border}` }}>
                         <span className="flex items-center px-2 text-xs whitespace-nowrap select-none" style={{ background: CARD.inner, color: 'rgba(255,255,255,0.4)' }}>{prefix}</span>
                         <input
@@ -1221,7 +1038,7 @@ const Profile = () => {
         {isOwnProfile && tierListStatus && (
           <div className="lg:hidden mt-3 rounded-xl p-3 border flex items-center justify-between gap-3 min-w-0" style={{ background: CARD.bg, borderColor: CARD.border }}>
             <div className="min-w-0">
-              <div className="text-[10px] uppercase tracking-widest mb-0.5" style={{ color: 'rgba(255,255,255,0.35)' }}>Tier List — Active Month</div>
+              <div className="text-[10px] mb-0.5" style={{ color: 'rgba(255,255,255,0.35)' }}>Tier List: Active Month</div>
               <span className="text-lg font-extrabold leading-none" style={{ color: '#fbbf24' }}>{tierListStatus.ranked} / {tierListStatus.total}</span>
               <span className="text-xs text-gray-500 ml-1.5">ranked</span>
             </div>
@@ -1267,7 +1084,7 @@ const Profile = () => {
             {/* Tier List completion — own profile only (never shown on /profile/:userId for other users) */}
             {isOwnProfile && tierListStatus && (
               <div className="rounded-xl p-3 border" style={{ background: CARD.bg, borderColor: CARD.border }}>
-                <div className="text-[10px] uppercase tracking-widest mb-1.5" style={{ color: 'rgba(255,255,255,0.35)' }}>Tier List — Active Month</div>
+                <div className="text-[10px] mb-1.5" style={{ color: 'rgba(255,255,255,0.35)' }}>Tier List: Active Month</div>
                 <div className="flex items-baseline justify-between mb-2">
                   <span className="text-xl font-extrabold leading-none" style={{ color: '#fbbf24' }}>
                     {tierListStatus.ranked} / {tierListStatus.total}
@@ -1291,7 +1108,7 @@ const Profile = () => {
               <StatisticsTab profile={profile} accentColor={accentColor} onPokemonClick={setSelectedPokemon} />
             )}
             {tab === 'badges' && (
-              <BadgesTab
+              <ProfileBadges
                 userId={profileUserId}
                 isOwnProfile={isOwnProfile}
                 accentColor={accentColor}

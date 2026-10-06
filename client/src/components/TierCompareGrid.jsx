@@ -43,7 +43,7 @@ const TierRow = ({ tierKey, ids, poolById, compareAgainst }) => {
           style={{ backgroundColor: tierColor, color: '#0d0f14' }}>
           {TIER_LABELS[tierKey][0]}
         </div>
-        <span className="text-[9px] font-semibold uppercase tracking-wide text-center leading-tight"
+        <span className="text-[9px] font-semibold text-center leading-tight"
           style={{ color: tierColor }}>
           {TIER_LABELS[tierKey]}
         </span>

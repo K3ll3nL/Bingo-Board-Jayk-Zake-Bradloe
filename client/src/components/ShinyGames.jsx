@@ -6,6 +6,7 @@ import { ALLOWED_GAMES } from '../constants/games';
 import PageBackground from './PageBackground';
 import PageHeader from './PageHeader';
 import alphaIcon from '../Icons/alpha.png';
+import { formatDuration } from '../utils/formatDuration';
 
 const STATUS_LABEL = { building: 'Building', active: 'Live' };
 
@@ -53,7 +54,7 @@ export default function ShinyGames() {
       <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 xl:px-12 py-6 space-y-8">
         <div className="max-w-2xl space-y-3">
           <p className="text-sm text-muted leading-relaxed">
-            A home for competitive, community-run shiny hunting activities — short bursts players join
+            A home for competitive, community-run shiny hunting activities. Short bursts players join
             together instead of the month-long board. A host starts a lobby, shares its code, and once
             enough people join, everyone plays together in real time.
           </p>
@@ -64,7 +65,7 @@ export default function ShinyGames() {
         {/* ── Continue Playing ── */}
         {myLobbies.length > 0 && (
           <section>
-            <div className="text-[10px] font-bold uppercase tracking-wider text-muted mb-3">Continue Playing</div>
+            <div className="text-[10px] font-bold text-muted mb-3">Continue Playing</div>
             <div
               className="grid gap-3 sm:gap-4 max-w-4xl"
               style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))' }}
@@ -99,7 +100,7 @@ export default function ShinyGames() {
         {/* ── Open lobbies ── */}
         <section>
           <div className="flex items-center justify-between flex-wrap gap-2 mb-3">
-            <div className="text-[10px] font-bold uppercase tracking-wider text-muted">
+            <div className="text-[10px] font-bold text-muted">
               Open Lobbies {lobbies?.length ? `— ${lobbies.length}` : ''}
             </div>
             {lobbies !== undefined && lobbies.length > 0 && (
@@ -123,7 +124,7 @@ export default function ShinyGames() {
 
           {lobbies?.length === 0 && (
             <p className="text-xs text-faint">
-              {gameFilter ? 'No open lobbies for that game right now.' : 'Nothing running right now — host a game below to get one started.'}
+              {gameFilter ? 'No open lobbies for that game right now.' : 'Nothing running right now. Host a game below to get one started!'}
             </p>
           )}
 
@@ -145,23 +146,23 @@ export default function ShinyGames() {
                       <span
                         className={
                           lobby.status === 'active'
-                            ? 'shrink-0 flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-full bg-success-strong/20 text-success border border-success-strong/40'
-                            : 'shrink-0 text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-full bg-warn-strong/20 text-warn border border-warn-strong/40'
+                            ? 'shrink-0 flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-success-strong/20 text-success border border-success-strong/40'
+                            : 'shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-warn-strong/20 text-warn border border-warn-strong/40'
                         }
                       >
                         {lobby.status === 'active' && <span className="w-1.5 h-1.5 rounded-full bg-success animate-pulse" />}
                         {STATUS_LABEL[lobby.status] ?? lobby.status}
                       </span>
                       {lobby.viewerIsMember && (
-                        <span className="shrink-0 text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-full bg-accent-strong/20 text-accent border border-accent-strong/40">
+                        <span className="shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-accent-strong/20 text-accent border border-accent-strong/40">
                           Joined
                         </span>
                       )}
                       {lobby.visibility === 'private' && (
-                        <span className="shrink-0 text-[10px] font-bold uppercase tracking-wider text-faint">Private</span>
+                        <span className="shrink-0 text-[10px] font-bold text-faint">Private</span>
                       )}
                       {lobby.timed_minutes && (
-                        <span className="shrink-0 text-[10px] font-bold uppercase tracking-wider text-warn">⏱ {lobby.timed_minutes}m</span>
+                        <span className="shrink-0 text-[10px] font-bold text-warn">⏱ {formatDuration(lobby.timed_minutes)}</span>
                       )}
                     </div>
                     <p className="text-xs text-muted">
@@ -181,7 +182,7 @@ export default function ShinyGames() {
 
         {/* ── Host a game ── */}
         <section>
-          <div className="text-[10px] font-bold uppercase tracking-wider text-muted mb-3">Host a Game</div>
+          <div className="text-[10px] font-bold text-muted mb-3">Host a Game</div>
           <Link
             to="/games/host"
             className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-semibold bg-accent-strong/20 text-accent border border-accent-strong/40 hover:bg-accent-strong/30 transition-colors"
@@ -209,7 +210,7 @@ function ContinueCard({ lobby }) {
       <div className="min-w-0">
         <p className="text-sm font-semibold text-strong">Shiny Jeopardy · {gameLabel}</p>
         <p className="text-xs text-muted mt-0.5">
-          {isActive ? `Active — ${lobby.claimCount}/${(lobby.columns ?? 5) * 5} claimed` : 'Building — waiting to start'}
+          {isActive ? `Active: ${lobby.claimCount}/${(lobby.columns ?? 5) * 5} claimed` : 'Building: waiting to start'}
         </p>
       </div>
       <span className="shrink-0 text-sm font-semibold text-accent">Continue →</span>
@@ -236,9 +237,9 @@ function ExplainerAccordion({ open, setOpen }) {
       </button>
       {open && (
         <div className="px-4 pb-4 space-y-2 text-xs text-muted leading-relaxed border-t border-hairline pt-3">
-          <p><strong className="text-body">Lobby</strong> — a live instance of a game, hosted by one player and joined by others via a connection code. Once enough people join, the host starts it.</p>
-          <p><strong className="text-body">Connection code</strong> — a short code (like <span className="font-mono text-strong">K3PQXT</span>) that gets you straight into a specific lobby, whether you type it in or follow a shared link.</p>
-          <p><strong className="text-body">Team / Multiplayer / Solo</strong> — tags on each game describing how many people it needs to play.</p>
+          <p><strong className="text-body">Lobby</strong> - a live instance of a game, hosted by one player and joined by others via a connection code. Once enough people join, the host starts it.</p>
+          <p><strong className="text-body">Connection code</strong> - a short code (like <span className="font-mono text-strong">K3PQXT</span>) that gets you straight into a specific lobby, whether you type it in or follow a shared link.</p>
+          <p><strong className="text-body">Team / Multiplayer / Solo</strong> - tags on each game describing how many people it needs to play.</p>
         </div>
       )}
     </div>

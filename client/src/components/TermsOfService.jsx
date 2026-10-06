@@ -3,8 +3,8 @@ import PageHeader from './PageHeader';
 import PageBackground from './PageBackground';
 
 const Section = ({ title, children }) => (
-  <section className="rounded-xl shadow-xl overflow-hidden border border-gray-600" style={{ background: 'linear-gradient(160deg, #1a1c23 0%, #1f2128 100%)' }}>
-    <div className="px-6 py-4 border-b border-purple-500/30" style={{ backgroundColor: 'rgba(145,71,255,0.08)' }}>
+  <section className="rounded-xl shadow-xl overflow-hidden border border-gray-600" style={{ background: '#1a1c23' }}>
+    <div className="px-6 py-4 border-b border-lagoon-500/30" style={{ backgroundColor: 'rgba(14,163,176,0.08)' }}>
       <h2 className="text-base font-semibold text-white tracking-wide">{title}</h2>
     </div>
     <div className="px-6 py-5 text-sm text-gray-300 space-y-3 leading-relaxed">

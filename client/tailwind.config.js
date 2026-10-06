@@ -44,11 +44,11 @@ export default {
         muted: '#9ca3af',  // text-muted  — captions, eyebrows, metadata; the floor for text
         faint: '#6b7280',  // text-faint  — icon strokes, chevrons, disabled. NOT text.
 
-        // ── Accent. One family. `accent` is for text/icons (5.91:1 worst case),
-        // `accent-strong` is for fills only (3.80:1 — illegal as text).
+        // ── Accent. One family. `accent` is for text/icons (the one accent family),
+        // `accent-strong` is for fills only (fills only; bold white text on it).
         accent: {
-          DEFAULT: '#a78bfa',
-          strong: '#8b5cf6',
+          DEFAULT: '#12bfce',
+          strong: '#038691',
         },
 
         // ── Semantic. Base = text, `-strong` = fill. That split is what makes
@@ -65,9 +65,12 @@ export default {
         discord: '#5865f2',    // logo/fill only — 3.49:1
         restricted: '#78150a', // Restricted-challenge fill. Text on it: text-strong.
 
+        // Accent palette (custom OKLCH ramp, hue 205).
+        lagoon: { 50: '#e9fbfd', 100: '#cef3f8', 200: '#a0e7f0', 300: '#63d4e1', 400: '#12bfce', 500: '#0ea3b0', 600: '#038691', 700: '#036e77', 800: '#015860', 900: '#02464c' },
+
         // Deprecated aliases, kept so nothing breaks mid-migration.
         // Delete once DESIGN_TOKENS.md §6.4 has been applied everywhere.
-        primary: '#8b5cf6',
+        primary: '#038691',
         secondary: '#ec4899',
       },
     },
@@ -79,7 +82,7 @@ export default {
     'text-red-400',
     'text-amber-400',
     'text-pink-400',
-    'text-violet-400',
+    'text-lagoon-400',
     // BDSPRadar range slider accent
     'accent-indigo-500',
   ],

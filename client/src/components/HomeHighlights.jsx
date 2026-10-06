@@ -44,7 +44,7 @@ const TeaserShell = ({ to, label, labelClass = 'text-muted', compact = false, ch
     style={{ background: CARD.bg, borderColor: CARD.border, minHeight: compact ? undefined : 108 }}
   >
     <div className="flex items-center justify-between">
-      <span className={`text-[10px] font-bold uppercase tracking-widest ${labelClass}`}>{label}</span>
+      <span className={`text-xs font-semibold ${labelClass}`}>{label}</span>
       <svg className="w-3.5 h-3.5 text-faint" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
       </svg>

@@ -56,7 +56,7 @@ export default function GameHostPicker() {
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2 flex-wrap">
                   <p className="text-sm font-semibold text-strong">{type.name}</p>
-                  <span className="shrink-0 text-[10px] font-bold uppercase tracking-wider text-faint">{type.tags}</span>
+                  <span className="shrink-0 text-[10px] font-bold text-faint">{type.tags}</span>
                 </div>
                 <p className="text-xs text-muted leading-snug mt-0.5">{type.description}</p>
               </div>

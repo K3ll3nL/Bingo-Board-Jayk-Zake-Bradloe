@@ -33,7 +33,7 @@ module.exports = function register(app) {
       // This endpoint is now a no-op kept for backwards compatibility.
       res.json({
         success: true,
-        message: 'Cache is disabled — no-op',
+        message: 'Cache is disabled: no-op',
         itemsCleared: 0
       });
     } catch (error) {

@@ -6,6 +6,7 @@ import { ALLOWED_GAMES } from '../constants/games';
 import PageBackground from './PageBackground';
 import PageHeader from './PageHeader';
 import alphaIcon from '../Icons/alpha.png';
+import { formatDuration } from '../utils/formatDuration';
 
 const SHALPHA_GAMES = new Set(['legends_arceus', 'legends_za']);
 const DEFAULT_ROW_POINTS = [1, 1, 3, 3, 5];
@@ -31,6 +32,69 @@ function GameLogo({ game, height = 'h-8' }) {
           <img src={url} alt="" className="w-full h-full object-contain" draggable="false" />
         </div>
       ))}
+    </div>
+  );
+}
+
+// Timed games: the clock starts at ▶ Start, and the server finishes the
+// lobby when it runs out. Server clamps to 1–480 minutes.
+const DURATION_PRESETS = [30, 60, 120, 240];
+const DURATION_STEP = 15;
+const DURATION_MIN = 15;
+const DURATION_MAX = 480;
+
+const FlagIcon = props => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" {...props}>
+    <path d="M5 21V4" /><path d="M5 4h11l-2 4 2 4H5" />
+  </svg>
+);
+const StopwatchIcon = props => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" {...props}>
+    <circle cx="12" cy="13" r="8" /><path d="M12 9v4l2.5 2.5" /><path d="M10 2h4" />
+  </svg>
+);
+
+function EndModePicker({ isTimed, setIsTimed, minutes, setMinutes }) {
+  const step = d => setMinutes(m => Math.max(DURATION_MIN, Math.min(DURATION_MAX, m + d)));
+  const seg = active => `flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold transition-colors ${
+    active ? 'bg-accent-strong text-strong' : 'bg-black/20 text-faint hover:text-body'}`;
+  return (
+    <div>
+      <div className="text-[10px] font-bold text-muted mb-2">Game Ends</div>
+      <div className="flex rounded-lg border border-hairline overflow-hidden w-fit">
+        <button type="button" onClick={() => setIsTimed(false)} className={seg(!isTimed)} aria-pressed={!isTimed}>
+          <FlagIcon className="w-3.5 h-3.5" /> Host ends it
+        </button>
+        <button type="button" onClick={() => setIsTimed(true)} className={seg(isTimed)} aria-pressed={isTimed}>
+          <StopwatchIcon className="w-3.5 h-3.5" /> Timer
+        </button>
+      </div>
+
+      {isTimed && (
+        <div className="mt-3 flex items-center gap-3 flex-wrap">
+          <div className="flex items-center rounded-lg border border-hairline overflow-hidden">
+            <button type="button" onClick={() => step(-DURATION_STEP)} disabled={minutes <= DURATION_MIN}
+              className="w-9 h-9 text-lg font-bold text-muted hover:text-strong hover:bg-edge disabled:opacity-30 disabled:hover:bg-transparent transition-colors"
+              aria-label={`${DURATION_STEP} minutes less`}>−</button>
+            <div className="w-24 h-9 flex items-center justify-center gap-1.5 bg-black/30 text-strong text-sm font-bold tabular-nums">
+              <StopwatchIcon className="w-3.5 h-3.5 text-warn" /> {formatDuration(minutes)}
+            </div>
+            <button type="button" onClick={() => step(DURATION_STEP)} disabled={minutes >= DURATION_MAX}
+              className="w-9 h-9 text-lg font-bold text-muted hover:text-strong hover:bg-edge disabled:opacity-30 disabled:hover:bg-transparent transition-colors"
+              aria-label={`${DURATION_STEP} minutes more`}>+</button>
+          </div>
+          <div className="flex gap-1.5">
+            {DURATION_PRESETS.map(m => (
+              <button key={m} type="button" onClick={() => setMinutes(m)}
+                className={`px-2.5 py-1 rounded-full text-[11px] font-semibold border transition-colors ${
+                  minutes === m ? 'border-accent-strong bg-accent-strong/10 text-accent' : 'border-hairline text-muted hover:border-edge hover:text-body'}`}>
+                {formatDuration(m)}
+              </button>
+            ))}
+          </div>
+          <p className="w-full text-[10px] text-faint">Clock starts at ▶ Start</p>
+        </div>
+      )}
     </div>
   );
 }
@@ -74,11 +138,12 @@ export default function JeopardyCreate() {
   const [shalphaDbl, setShalphaDbl] = useState(false);
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState(null);
+  const [existingCode, setExistingCode] = useState(null); // set when the server says you're already hosting
   const [gameSearch, setGameSearch] = useState('');
   const [columns, setColumns] = useState(5);
   const [visibility, setVisibility] = useState('public');
   const [isTimed, setIsTimed] = useState(false);
-  const [timedMinutes, setTimedMinutes] = useState(30);
+  const [timedMinutes, setTimedMinutes] = useState(60);
 
   useEffect(() => {
     if (isModerator === false) navigate('/games');
@@ -95,7 +160,7 @@ export default function JeopardyCreate() {
 
   const handleCreate = async () => {
     if (!selectedGame || creating) return;
-    setCreating(true); setError(null);
+    setCreating(true); setError(null); setExistingCode(null);
     try {
       const res = await fetch('/api/mod/jeopardy', {
         method: 'POST',
@@ -105,7 +170,11 @@ export default function JeopardyCreate() {
           timed_minutes: isTimed ? timedMinutes : null,
         }),
       });
-      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || `HTTP ${res.status}`);
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        if (res.status === 409 && body.code) setExistingCode(body.code);
+        throw new Error(body.error || `HTTP ${res.status}`);
+      }
       const { board } = await res.json();
       navigate(`/games/jeopardy/${board.code}`);
     } catch (err) { setError(err.message); setCreating(false); }
@@ -132,13 +201,20 @@ export default function JeopardyCreate() {
           {/* ── Form ── */}
           <div className="w-full lg:flex-1 rounded-xl p-6 space-y-6 border border-hairline bg-black/30">
             {error && (
-              <div className="p-3 bg-red-900/50 border border-red-600 rounded text-red-300 text-sm">{error}</div>
+              <div className="p-3 bg-red-900/50 border border-red-600 rounded text-red-300 text-sm flex items-center justify-between gap-3">
+                <span>{error}</span>
+                {existingCode && (
+                  <Link to={`/games/jeopardy/${existingCode}`} className="shrink-0 px-3 py-1 rounded font-semibold font-mono bg-accent-strong text-strong hover:brightness-110">
+                    {existingCode} →
+                  </Link>
+                )}
+              </div>
             )}
-            <p className="text-sm text-muted">Set up a new lobby — you'll get a code to share once it's created.</p>
+            <p className="text-sm text-muted">Set up a new lobby. You'll get a code to share once it's created.</p>
 
             <div>
               <div className="flex items-center justify-between gap-3 mb-2 flex-wrap">
-                <div className="text-[10px] font-bold uppercase tracking-wider text-muted">
+                <div className="text-[10px] font-bold text-muted">
                   Game {gameSearch && `— ${filteredGames.length}`}
                 </div>
                 <input
@@ -180,7 +256,7 @@ export default function JeopardyCreate() {
 
             <div>
               <div className="flex items-center justify-between mb-2">
-                <div className="text-[10px] font-bold uppercase tracking-wider text-muted">Points per Row</div>
+                <div className="text-[10px] font-bold text-muted">Points per Row</div>
                 <div className="flex gap-1.5">
                   {PRESETS.map(p => (
                     <button
@@ -198,7 +274,7 @@ export default function JeopardyCreate() {
             </div>
 
             <div>
-              <div className="text-[10px] font-bold uppercase tracking-wider text-muted mb-2">Board Columns</div>
+              <div className="text-[10px] font-bold text-muted mb-2">Board Columns</div>
               <div className="flex gap-1.5">
                 {[3, 4, 5, 6, 7, 8].map(n => (
                   <button
@@ -215,16 +291,16 @@ export default function JeopardyCreate() {
                   </button>
                 ))}
               </div>
-              <p className="text-[10px] text-faint mt-1.5">{columns * 5} squares total — 5 rows × {columns} columns</p>
+              <p className="text-[10px] text-faint mt-1.5">{columns * 5} squares total: 5 rows × {columns} columns</p>
             </div>
 
             <div>
-              <div className="text-[10px] font-bold uppercase tracking-wider text-muted mb-2">Visibility</div>
+              <div className="text-[10px] font-bold text-muted mb-2">Visibility</div>
               <div className="flex rounded-lg border border-hairline overflow-hidden w-fit">
                 <button
                   type="button"
                   onClick={() => setVisibility('public')}
-                  className={`px-3 py-1.5 text-xs font-bold uppercase tracking-wider transition-colors ${
+                  className={`px-3 py-1.5 text-xs font-bold transition-colors ${
                     visibility === 'public' ? 'bg-accent-strong text-strong' : 'bg-black/20 text-faint hover:text-body'
                   }`}
                 >
@@ -233,7 +309,7 @@ export default function JeopardyCreate() {
                 <button
                   type="button"
                   onClick={() => setVisibility('private')}
-                  className={`px-3 py-1.5 text-xs font-bold uppercase tracking-wider transition-colors ${
+                  className={`px-3 py-1.5 text-xs font-bold transition-colors ${
                     visibility === 'private' ? 'bg-accent-strong text-strong' : 'bg-black/20 text-faint hover:text-body'
                   }`}
                 >
@@ -245,30 +321,7 @@ export default function JeopardyCreate() {
               </p>
             </div>
 
-            <div>
-              <label className="flex items-center gap-2 cursor-pointer mb-2">
-                <input
-                  type="checkbox"
-                  checked={isTimed}
-                  onChange={e => setIsTimed(e.target.checked)}
-                  className="w-4 h-4 accent-yellow-500"
-                />
-                <span className="text-sm text-body">Timed event — auto-finish when the clock runs out</span>
-              </label>
-              {isTimed && (
-                <div className="flex items-center gap-2">
-                  <input
-                    type="number"
-                    min="1"
-                    max="480"
-                    value={timedMinutes}
-                    onChange={e => setTimedMinutes(Math.max(1, Math.min(480, parseInt(e.target.value) || 1)))}
-                    className="w-20 px-2 py-1.5 rounded-md text-center bg-black/30 border border-hairline text-strong text-sm font-bold outline-none focus:ring-2 focus:ring-accent-strong"
-                  />
-                  <span className="text-xs text-muted">minutes, starting when the host hits Start</span>
-                </div>
-              )}
-            </div>
+            <EndModePicker isTimed={isTimed} setIsTimed={setIsTimed} minutes={timedMinutes} setMinutes={setTimedMinutes} />
 
             {SHALPHA_GAMES.has(selectedGame) && (
               <label className="flex items-center gap-2 cursor-pointer">
@@ -288,7 +341,7 @@ export default function JeopardyCreate() {
             <button
               onClick={handleCreate}
               disabled={creating}
-              className="w-full px-6 py-2.5 bg-purple-700 hover:bg-purple-600 disabled:bg-gray-600 text-white rounded-lg font-semibold transition-colors"
+              className="w-full px-6 py-2.5 bg-lagoon-700 hover:bg-lagoon-600 disabled:bg-gray-600 text-white rounded-lg font-semibold transition-colors"
             >
               {creating ? 'Creating…' : 'Create Lobby'}
             </button>
@@ -297,7 +350,7 @@ export default function JeopardyCreate() {
           {/* ── Preview ── */}
           <div className="hidden lg:block w-64 shrink-0">
             <div className="sticky top-6 rounded-xl p-5 border border-hairline bg-black/30 space-y-4">
-              <div className="text-[10px] font-bold uppercase tracking-wider text-muted">Preview</div>
+              <div className="text-[10px] font-bold text-muted">Preview</div>
               <GameLogo game={selectedGameObj} height="h-14" />
               <p className="text-sm font-semibold text-strong text-center leading-snug">{selectedGameObj?.label}</p>
               <p className="text-xs text-muted text-center">5×{columns} board · {columns * 5} Pokémon</p>
@@ -319,8 +372,15 @@ export default function JeopardyCreate() {
                 })}
               </div>
               <div className="pt-3 border-t border-hairline flex items-center justify-between">
+                <span className="text-xs text-muted">Ends</span>
+                <span className={`flex items-center gap-1.5 text-sm font-bold ${isTimed ? 'text-warn' : 'text-strong'}`}>
+                  {isTimed ? <StopwatchIcon className="w-3.5 h-3.5" /> : <FlagIcon className="w-3.5 h-3.5" />}
+                  {isTimed ? formatDuration(timedMinutes) : 'Host'}
+                </span>
+              </div>
+              <div className="pt-3 border-t border-hairline flex items-center justify-between">
                 <span className="text-xs text-muted">Max score</span>
-                <span className="text-sm font-bold text-strong">{maxPossible}pt{shalphaDbl ? ' · ×2 w/ Shalpha' : ''}</span>
+                <span className="text-sm font-bold text-strong">{maxPossible}pts{shalphaDbl ? ' · ×2 w/ Shalpha' : ''}</span>
               </div>
               {shalphaDbl && SHALPHA_GAMES.has(selectedGame) && (
                 <div className="flex items-center gap-1.5 pt-3 border-t border-hairline text-xs text-warn">

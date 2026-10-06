@@ -341,7 +341,7 @@ function CounterBox({ label, sublabel, value, onChange }) {
   return (
     <div className="bg-gray-900/60 rounded-xl p-3 flex flex-col gap-1.5">
       <div>
-        <p className="text-[11px] font-bold uppercase tracking-widest text-gray-500 mb-0">{label}</p>
+        <p className="text-[11px] font-bold text-gray-500 mb-0">{label}</p>
         {sublabel && <p className="text-[10px] text-gray-600 leading-tight mt-0.5">{sublabel}</p>}
       </div>
       <div className="flex items-center gap-1.5">
@@ -500,7 +500,7 @@ export default function SafariZone() {
       {game && mechanic === 'rse' && (
         <div className="mt-4">
           <p className="text-gray-400 text-sm mb-2.5 leading-relaxed">
-            Hoenn uses Pokéblock feeders placed <em>before</em> entering — no bait/rock in battle.
+            Hoenn uses Pokéblock feeders placed <em>before</em> entering. No bait/rock in battle.
             Set your escape factor below to track your flee rate.
           </p>
 
@@ -523,14 +523,14 @@ export default function SafariZone() {
 
           <div className="grid grid-cols-2 gap-3">
             <div className="bg-gray-900/60 rounded-xl p-3">
-              <p className="text-[11px] font-bold uppercase tracking-widest text-gray-500 mb-1.5">Flee / turn</p>
+              <p className="text-[11px] font-bold text-gray-500 mb-1.5">Flee / Turn</p>
               <p className="text-[32px] font-black leading-none tabular-nums"
                 style={{ color: ['#6ee7b7','#34d399','#fbbf24','#f87171'][rseEscapeFactor] }}>
                 {['0%','5%','10%','15%'][rseEscapeFactor]}
               </p>
               {rseEscapeFactor === 0 && (
                 <p className="text-[11px] font-semibold text-emerald-400 mt-1.5">
-                  Can't flee — just throw balls
+                  Can't flee, just throw balls
                 </p>
               )}
             </div>
@@ -550,7 +550,7 @@ export default function SafariZone() {
           <div className="grid grid-cols-2 gap-2 mb-3">
             {[['Shiny rate','1 / 512','#fde68a'],['Level','30','#fff'],['2× 31 IVs','guaranteed','#34d399'],['Hidden Ability','possible','#93c5fd']].map(([l,v,c]) => (
               <div key={l} className="bg-gray-800 border border-gray-700 rounded-xl p-3">
-                <p className="text-[11px] uppercase tracking-wide text-gray-500 mb-1">{l}</p>
+                <p className="text-[11px] text-gray-500 mb-1">{l}</p>
                 <p className="text-lg font-extrabold" style={{ color: c }}>{v}</p>
               </div>
             ))}
@@ -564,13 +564,13 @@ export default function SafariZone() {
               onChange={v => setShinyCount(Math.max(0, v))}
             />
             <div className="bg-gray-900/60 rounded-xl p-3">
-              <p className="text-[11px] font-bold uppercase tracking-widest text-gray-500 mb-1.5">Seen shiny</p>
+              <p className="text-[11px] font-bold text-gray-500 mb-1.5">Seen Shiny</p>
               <p className="text-[32px] font-black leading-none tabular-nums text-yellow-200">
                 {shinyCount === 0 ? '0%' : pct(1 - Math.pow(511 / 512, shinyCount))}
               </p>
               {shinyCount >= 512 && (
                 <p className="text-[11px] font-semibold text-yellow-200 mt-1.5">
-                  Past average — every encounter is still 1/512
+                  Past average, every encounter is still 1/512
                 </p>
               )}
             </div>
@@ -633,9 +633,9 @@ export default function SafariZone() {
             <div className="grid px-4 py-1.5 border-b border-gray-800/60 bg-gray-950/40"
               style={{ gridTemplateColumns: '100px 1fr 1fr 1fr' }}>
               <span />
-              <span className="text-[10px] uppercase tracking-widest text-gray-600 text-center">Catch/ball</span>
-              <span className="text-[10px] uppercase tracking-widest text-gray-600 text-center">Flee/turn</span>
-              <span className="text-[10px] uppercase tracking-widest text-gray-600 text-center">Est. {balls} balls</span>
+              <span className="text-[10px] text-gray-600 text-center">Catch/Ball</span>
+              <span className="text-[10px] text-gray-600 text-center">Flee/Turn</span>
+              <span className="text-[10px] text-gray-600 text-center">Est. {balls} Balls</span>
             </div>
             {rows.map(row => {
               const isBest = row.total >= bestTotal - 0.0001;
@@ -692,8 +692,8 @@ export default function SafariZone() {
               }
               return (
                 <div className="px-4 py-3 border-t border-gray-800">
-                  <p className="text-[10px] uppercase tracking-widest text-gray-600 mb-2">
-                    Throw sequence · {balls} balls
+                  <p className="text-[10px] text-gray-600 mb-2">
+                    Throw Sequence · {balls} Balls
                   </p>
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3 }}>
                     {seq.map((type, i) => {
@@ -711,7 +711,7 @@ export default function SafariZone() {
                     <p className="text-[10px] text-gray-600 mt-2">Re-throw bait whenever eating wears off</p>
                   )}
                   {rec === 'rock' && mechanic === 'gen1' && (
-                    <p className="text-[10px] text-gray-600 mt-2">Anger also raises flee — throw balls each turn after</p>
+                    <p className="text-[10px] text-gray-600 mt-2">Anger also raises flee, throw balls each turn after</p>
                   )}
                   {rec === 'rock' && mechanic === 'gen4' && (
                     <p className="text-[10px] text-gray-600 mt-2">Two {rockLabel.toLowerCase()}s to stack catch rate before throwing balls</p>

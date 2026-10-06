@@ -22,9 +22,9 @@ const Banner = ({ banner, onDismiss }) => {
     <div
       className="relative overflow-hidden rounded-xl flex items-center gap-3.5 px-4 py-3 transition-all duration-300"
       style={{
-        background: 'linear-gradient(160deg, #1a1c23 0%, #1f2128 100%)',
+        background: '#1a1c23',
         border: '1px solid rgba(255,255,255,0.07)',
-        borderLeft: '3px solid #9147ff',
+        borderLeft: '3px solid #038691',
         opacity: dismissing ? 0 : 1,
         transform: dismissing ? 'translateY(-4px)' : 'translateY(0)',
         maxHeight: dismissing ? 0 : 200,
@@ -33,9 +33,6 @@ const Banner = ({ banner, onDismiss }) => {
         paddingBottom: dismissing ? 0 : undefined,
       }}
     >
-      {/* Subtle purple glow on left */}
-      <div className="absolute left-0 top-0 bottom-0 w-24 pointer-events-none"
-        style={{ background: 'linear-gradient(90deg, rgba(147,51,234,0.08) 0%, transparent 100%)' }} />
 
       {/* Optional image */}
       {banner.image_url && (
@@ -47,8 +44,8 @@ const Banner = ({ banner, onDismiss }) => {
       {/* Icon if no image */}
       {!banner.image_url && (
         <div className="w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 relative z-10"
-          style={{ background: 'rgba(147,51,234,0.15)', border: '1px solid rgba(147,51,234,0.3)' }}>
-          <svg className="w-3.5 h-3.5 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          style={{ background: 'rgba(3,134,145,0.15)', border: '1px solid rgba(3,134,145,0.3)' }}>
+          <svg className="w-3.5 h-3.5 text-lagoon-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
               d="M11 5.882V19.24a1.76 1.76 0 01-3.417.592l-2.147-6.15M18 13a3 3 0 100-6M5.436 13.683A4.001 4.001 0 017 6h1.832c4.1 0 7.625-1.234 9.168-3v14c-1.543-1.766-5.067-3-9.168-3H7a3.988 3.988 0 01-1.564-.317z" />
           </svg>
@@ -64,12 +61,12 @@ const Banner = ({ banner, onDismiss }) => {
             {banner.link_url.startsWith('/') ? (
               // In-app destination — route without a full page reload.
               <Link to={banner.link_url}
-                className="text-purple-400 hover:text-purple-300 underline underline-offset-2 transition-colors font-medium">
+                className="text-lagoon-400 hover:text-lagoon-300 underline underline-offset-2 transition-colors font-medium">
                 {banner.link_label || 'Learn more'}
               </Link>
             ) : (
               <a href={banner.link_url}
-                className="text-purple-400 hover:text-purple-300 underline underline-offset-2 transition-colors font-medium">
+                className="text-lagoon-400 hover:text-lagoon-300 underline underline-offset-2 transition-colors font-medium">
                 {banner.link_label || 'Learn more'}
               </a>
             )}

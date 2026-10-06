@@ -14,7 +14,7 @@ import { SURFACE, GRADIENT, BORDER, ACCENT as ACCENT_TOKEN, SEMANTIC, BRAND } fr
 // Every colour here comes from docs/DESIGN_TOKENS.md via constants/theme.js.
 // The rule that matters on this page: a `base` value is TEXT/ICON, a `strong`
 // value is a FILL. Reversing them is what made the old palette fail contrast
-// (#8b5cf6 as text was 3.80:1, #ef4444 as text was 4.27:1).
+// (#0ea3b0 as text was 3.80:1, #ef4444 as text was 4.27:1).
 const CARD = {
   bg: GRADIENT.card,
   inner: GRADIENT.inset,
@@ -31,7 +31,7 @@ const ACCENT_FILL = ACCENT_TOKEN.strong;  // accent bars, dots, selected chips
 // violet, so an achievement race rendered in gold was the one place on the site
 // where that concept changed colour.
 const WARN = SEMANTIC.warn.base;          // gold text/icons
-const ACCENT_RGB = '167,139,250';         // accent, for tints only
+const ACCENT_RGB = '18,191,206';         // accent, for tints only
 const SUCCESS = SEMANTIC.success.base;
 const DANGER = SEMANTIC.danger.base;
 const RESTRICTED = BRAND.restricted;      // background only — 1.5:1
@@ -42,8 +42,8 @@ const RESTRICTED = BRAND.restricted;      // background only — 1.5:1
 // identical to a section title — so "TOTAL SHINIES" and "OVERVIEW" read as the
 // same kind of object and colour became the only hierarchy signal on the page.
 // SECTION_LABEL names a section; MICRO_LABEL names anything *inside* a card.
-const SECTION_LABEL = 'text-xs font-bold uppercase tracking-widest text-muted';
-const MICRO_LABEL = 'text-[10px] font-bold uppercase tracking-widest text-muted';
+const SECTION_LABEL = 'text-xs font-bold text-muted';
+const MICRO_LABEL = 'text-[10px] font-bold text-muted';
 
 // One padding value per box level. Hero is one step up from a panel — that gap
 // is the tier signal, not drift. Rows keep p-2.5: a list item is a different
@@ -104,7 +104,7 @@ const HeroSection = ({ label, restricted = false, tint = ACCENT_RGB, children })
   <section
     className={`rounded-xl border ${HERO_PAD} min-w-0 overflow-hidden`}
     style={{
-      background: `linear-gradient(135deg, rgba(${tint},0.10) 0%, rgba(26,28,35,0.95) 45%)`,
+      background: '#1a1c23',
       borderColor: `rgba(${tint},0.35)`,
     }}
   >
@@ -132,7 +132,7 @@ const HeroShellSkeleton = ({ tint = ACCENT_RGB, children }) => (
   <div
     className={`rounded-xl border ${HERO_PAD} min-w-0 overflow-hidden`}
     style={{
-      background: `linear-gradient(135deg, rgba(${tint},0.10) 0%, rgba(26,28,35,0.95) 45%)`,
+      background: '#1a1c23',
       borderColor: `rgba(${tint},0.35)`,
     }}
   >
@@ -686,7 +686,7 @@ const HunterSpotlight = ({ items }) => {
   if (!items.length) {
     return (
       <HeroSection label="Hunter Spotlight" tint={GOLD_RGB}>
-        <div className="text-sm text-muted">No standout performances yet this month — check back as more catches come in.</div>
+        <div className="text-sm text-muted">No standout performances yet this month. Check back as more catches come in.</div>
       </HeroSection>
     );
   }
@@ -873,9 +873,9 @@ const TierListCTA = ({ submissionCount, ranked, poolSize }) => {
         </div>
         <div className="text-xs text-muted">
           {partial
-            ? `${ranked} of ${poolSize} ranked — a tier list only counts once the whole board is called.`
+            ? `${ranked} of ${poolSize} . A tier list only counts once the whole board is called.`
             : submissionCount > 0
-              ? `${submissionCount} ${submissionCount === 1 ? 'hunter has' : 'hunters have'} called it so far — add yours before the results land.`
+              ? `${submissionCount} ${submissionCount === 1 ? 'hunter has' : 'hunters have'} filled one out. Add your prediction for this month!`
               : 'Call which Pokémon will be brutal before anyone catches them.'}
         </div>
       </div>
@@ -899,7 +899,7 @@ const CommunityRead = ({ stats }) => {
   if (!isCurrent && tierList.submission_count === 0) return null;
 
   return (
-    <SectionCard title="Community Read">
+    <SectionCard title="Tierlist Stats">
       <div className="space-y-3">
         {stats.consensus_callout?.available && <ConsensusCallout callout={stats.consensus_callout} />}
         {upsets?.available ? (
@@ -913,7 +913,7 @@ const CommunityRead = ({ stats }) => {
         ) : (
           <EmptyCard>
             {isCurrent
-              ? `Tier upsets unlock at 3 tier lists — ${tierList.submission_count} in so far. Yours is counted.`
+              ? `Tier upsets unlock at 3 tier lists submitted, with ${tierList.submission_count} in so far. Yours is counted.`
               : 'Not enough hunters ranked this month for a community read.'}
           </EmptyCard>
         )}
@@ -1202,7 +1202,7 @@ const CatchesByGame = ({ items, emptyLabel }) => {
         </svg>
         <div className="absolute inset-0 rounded-full flex flex-col items-center justify-center pointer-events-none px-6 text-center">
           <div className="text-3xl font-bold text-strong leading-none">{(activeStop?.catch_count ?? total).toLocaleString()}</div>
-          <div className="text-xs text-muted uppercase tracking-widest mt-1.5 truncate max-w-full">{activeStop ? activeStop.label : 'catches'}</div>
+          <div className="text-xs text-muted mt-1.5 truncate max-w-full">{activeStop ? activeStop.label : 'catches'}</div>
         </div>
       </div>
       <div className="flex-1 min-w-0 w-full space-y-1.5">
@@ -1402,7 +1402,7 @@ const MonthStats = () => {
             <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)_minmax(0,0.7fr)] gap-6 items-start">
               <div className="space-y-6 min-w-0">
                 <SectionCard title="Overview" restricted={isRestricted}><OverviewCardSkeleton cellCount={4} /></SectionCard>
-                <SectionCard title="Top Hunted" restricted={isRestricted}><ListSkeleton rows={10} /></SectionCard>
+                <SectionCard title="Submissions" restricted={isRestricted}><ListSkeleton rows={10} /></SectionCard>
               </div>
               <div className="space-y-6 min-w-0">
                 <SectionCard title="Most Unique Catch" restricted={isRestricted}><UniqueCatchSkeleton /></SectionCard>
@@ -1411,7 +1411,7 @@ const MonthStats = () => {
               </div>
               <div className="space-y-6 min-w-0">
                 <SectionCard title="Badges Earned"><ListSkeleton rows={5} /></SectionCard>
-                <SectionCard title="Community Read"><CardSkeleton /></SectionCard>
+                <SectionCard title="Tierlist Stats"><CardSkeleton /></SectionCard>
                 <SectionCard title="Rarest Catches" restricted={isRestricted}><RarestListSkeleton /></SectionCard>
               </div>
             </div>
@@ -1466,7 +1466,7 @@ const MonthStats = () => {
                     showTierLists={tierListsActive}
                   />
                 </SectionCard>
-                <SectionCard title="Top Hunted" restricted={isRestricted}>
+                <SectionCard title="Submissions" restricted={isRestricted}>
                   <TopHunted items={bucket.top_hunted} pokemon={stats.pokemon} emptyLabel={`No ${modeLabel}catches recorded yet.`} />
                 </SectionCard>
               </div>

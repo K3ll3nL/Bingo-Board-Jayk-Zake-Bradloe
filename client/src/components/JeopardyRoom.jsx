@@ -8,6 +8,7 @@ import PageBackground from './PageBackground';
 import PageHeader from './PageHeader';
 import PokemonImage from './PokemonImage';
 import alphaIcon from '../Icons/alpha.png';
+import { formatDuration } from '../utils/formatDuration';
 
 const SHALPHA_GAMES = new Set(['legends_arceus', 'legends_za']);
 const DEFAULT_ROW_POINTS = [1, 2, 3, 4, 5];
@@ -93,9 +94,12 @@ export default function JeopardyRoom() {
   const finishCalledRef = useRef(false);
 
   const isMember  = viewerRole === 'host' || viewerRole === 'player';
-  const canManage = isModerator; // lobby lifecycle (start/discard/end) — creation is mod-only for now, so host === mod
-  const canClaim  = isMember || isModerator;
   const isHost    = viewerRole === 'host';
+  const canManage = isHost; // lobby lifecycle (start/discard/end) + overlay belong to this lobby's host
+  const canClaim  = isMember; // roster-only — a moderator who never joined is a spectator
+  // Undo is your own claims only; the host referees their lobby and a
+  // moderator can clean up any lobby. Mirrors DELETE /api/jeopardy/claim.
+  const canUndoAny = isHost || isModerator;
   // Tile edits (reroll/lock/swap/shuffle) are scoped to the lobby roster —
   // host always, everyone else only once the host grants it. Derived from
   // `members` (not a separate server flag) so it stays in sync with the
@@ -254,7 +258,7 @@ export default function JeopardyRoom() {
       }
     } catch {
       setMembers(prevMembers);
-      pushToast('Network error — try again.');
+      pushToast('Network error. Try again.');
     }
   };
 
@@ -273,7 +277,7 @@ export default function JeopardyRoom() {
       }
     } catch {
       setMembers(prevMembers);
-      pushToast('Network error — try again.');
+      pushToast('Network error. Try again.');
     }
   };
 
@@ -293,7 +297,7 @@ export default function JeopardyRoom() {
       setMembers(newMembers || []);
       setViewerRole('player');
     } catch {
-      pushToast('Network error — try again.');
+      pushToast('Network error. Try again.');
     }
   };
 
@@ -326,7 +330,7 @@ export default function JeopardyRoom() {
     } catch (err) {
       console.error('Reroll failed:', err);
       pendingOps.current.delete(opId);
-      pushToast(err.message || 'Reroll failed — try again.');
+      pushToast(err.message || 'Reroll failed. Try again.');
     } finally {
       setRerolling(prev => { const s = new Set(prev); s.delete(position); return s; });
       setFadingOut(prev => { const s = new Set(prev); s.delete(position); return s; });
@@ -348,7 +352,7 @@ export default function JeopardyRoom() {
       });
       if (!res.ok) {
         pendingOps.current.delete(opId);
-        pushToast((await res.json().catch(() => ({}))).error || 'Reroll all failed — try again.');
+        pushToast((await res.json().catch(() => ({}))).error || 'Reroll all failed. Try again.');
         return;
       }
       const { tiles: newTiles } = await res.json();
@@ -357,7 +361,7 @@ export default function JeopardyRoom() {
     } catch (err) {
       console.error('Reroll all failed:', err);
       pendingOps.current.delete(opId);
-      pushToast('Reroll all failed — try again.');
+      pushToast('Reroll all failed. Try again.');
     } finally {
       setRerollingAll(false);
       setFadingOut(new Set());
@@ -377,12 +381,12 @@ export default function JeopardyRoom() {
       if (!res.ok) {
         pendingOps.current.delete(opId);
         setTiles(prev => prev.map(t => t.position === position ? { ...t, locked: currentLocked } : t));
-        pushToast('Lock toggle failed — try again.');
+        pushToast('Lock toggle failed. Try again.');
       }
     } catch {
       pendingOps.current.delete(opId);
       setTiles(prev => prev.map(t => t.position === position ? { ...t, locked: currentLocked } : t));
-      pushToast('Lock toggle failed — try again.');
+      pushToast('Lock toggle failed. Try again.');
     }
   };
 
@@ -399,7 +403,7 @@ export default function JeopardyRoom() {
       }
     } catch (err) {
       console.error('Clear locks failed:', err);
-      pushToast('Clear locks failed — some tiles may still be locked.');
+      pushToast('Clear locks failed. Some tiles may still be locked.');
     }
   };
 
@@ -427,8 +431,8 @@ export default function JeopardyRoom() {
         headers: await getAuthHeaders(),
         body: JSON.stringify({ boardId: board.id, operationId: opId }),
       });
-      if (!res.ok) { pendingOps.current.delete(opId); pushToast('Shuffle failed — try again.'); }
-    } catch { pendingOps.current.delete(opId); pushToast('Shuffle failed — try again.'); }
+      if (!res.ok) { pendingOps.current.delete(opId); pushToast('Shuffle failed. Try again.'); }
+    } catch { pendingOps.current.delete(opId); pushToast('Shuffle failed. Try again.'); }
     finally { setShuffling(false); }
   };
 
@@ -499,11 +503,11 @@ export default function JeopardyRoom() {
       const claimedCount = claims.length;
       const uniqueClaimers = new Set(claims.map(c => c.claimed_by)).size;
       confirmMsg = claimedCount > 0
-        ? `${uniqueClaimers} player${uniqueClaimers === 1 ? '' : 's'} claimed ${claimedCount} square${claimedCount === 1 ? '' : 's'} — end anyway? This cannot be undone.`
+        ? `${uniqueClaimers} player${uniqueClaimers === 1 ? '' : 's'} claimed ${claimedCount} square${claimedCount === 1 ? '' : 's'} , end anyway? This cannot be undone.`
         : 'End this lobby? No squares have been claimed yet. This cannot be undone.';
     } else {
       confirmMsg = members.length > 1
-        ? `Discard this lobby? ${members.length} people are in it, but the game hasn't started — nothing has been played. This cannot be undone.`
+        ? `Discard this lobby? ${members.length} people are in it, but the game hasn't started. This cannot be undone.`
         : 'Discard this lobby? This cannot be undone.';
     }
     if (!window.confirm(confirmMsg)) return;
@@ -550,7 +554,7 @@ export default function JeopardyRoom() {
           triggerConflict(position, body.claim);
         } else {
           console.error('Claim failed:', body.error);
-          pushToast(body.error || 'Claim failed — try again.');
+          pushToast(body.error || 'Claim failed. Try again.');
         }
         return;
       }
@@ -558,7 +562,7 @@ export default function JeopardyRoom() {
       setClaims(prev => [...prev.filter(c => c.position !== position), claim]);
     } catch (err) {
       console.error('Claim error:', err);
-      pushToast('Network error — try again.');
+      pushToast('Network error. Try again.');
     }
   };
 
@@ -570,11 +574,18 @@ export default function JeopardyRoom() {
         headers: await getAuthHeaders(),
         body: JSON.stringify({ boardId: board.id, position }),
       });
-      if (!res.ok) { pushToast('Unclaim failed — try again.'); return; }
-      setClaims(prev => prev.filter(c => c.position !== position));
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        // 409 = the claim changed under us; show what's really there now.
+        if (res.status === 409 && body.claim) setClaims(prev => [...prev.filter(c => c.position !== position), body.claim]);
+        pushToast(body.error || 'Unclaim failed. Try again.');
+        return;
+      }
+      // Undoing a Shalpha steal hands the square back to the original claimer.
+      setClaims(prev => [...prev.filter(c => c.position !== position), ...(body.claim ? [body.claim] : [])]);
     } catch (err) {
       console.error('Unclaim error:', err);
-      pushToast('Network error — try again.');
+      pushToast('Network error. Try again.');
     }
   };
 
@@ -686,8 +697,8 @@ export default function JeopardyRoom() {
                         )}
                       </div>
                       <div className="text-xs text-muted mt-0.5">
-                        Lobby — not yet started
-                        {board.timed_minutes && <span className="text-warn ml-2">· ⏱ {board.timed_minutes} min once started</span>}
+                        Lobby not yet started
+                        {board.timed_minutes && <span className="text-warn ml-2">· {formatDuration(board.timed_minutes)} game</span>}
                       </div>
                       {canEditTiles && (
                         <div className="text-[10px] text-faint mt-0.5">Drag a tile, or tap one then tap another, to swap them</div>
@@ -739,7 +750,7 @@ export default function JeopardyRoom() {
                           <button
                             onClick={handleEnd}
                             disabled={ending}
-                            title="The host isn't around — end this lobby as a moderator"
+                            title="End this lobby as a moderator"
                             className="px-3 py-1 text-sm bg-danger-strong/10 hover:bg-danger-strong/20 border border-danger-strong/40 text-danger rounded transition-colors"
                           >
                             {ending ? 'Ending…' : 'Force End (Mod)'}
@@ -753,7 +764,7 @@ export default function JeopardyRoom() {
                           <button
                             onClick={handleEnd}
                             disabled={ending}
-                            title="The host isn't around — end this lobby as a moderator"
+                            title="End this lobby as a moderator"
                             className="px-3 py-1 text-sm bg-danger-strong/10 hover:bg-danger-strong/20 border border-danger-strong/40 text-danger rounded transition-colors"
                           >
                             {ending ? 'Ending…' : 'Force End (Mod)'}
@@ -763,7 +774,7 @@ export default function JeopardyRoom() {
                     )}
                     {isHost && members.length < MIN_PLAYERS_TO_START && (
                       <p className="w-full text-right text-[10px] text-warn">
-                        Need {MIN_PLAYERS_TO_START}+ players to start — share the code
+                        Need {MIN_PLAYERS_TO_START}more players to start.
                       </p>
                     )}
                   </div>
@@ -797,7 +808,7 @@ export default function JeopardyRoom() {
                         <h2 className="text-lg font-bold text-strong">{gameLabel}</h2>
                         <p className="text-xs text-muted mt-0.5">
                           {hostMember?.user?.display_name ? `Hosted by ${hostMember.user.display_name}` : 'Waiting to start'} · {members.length} in lobby
-                          {board.timed_minutes && <span className="text-warn"> · ⏱ {board.timed_minutes} min</span>}
+                          {board.timed_minutes && <span className="text-warn"> · {formatDuration(board.timed_minutes)}</span>}
                         </p>
                       </div>
                       <button
@@ -815,7 +826,7 @@ export default function JeopardyRoom() {
                       <button
                         onClick={handleEnd}
                         disabled={ending}
-                        title="The host isn't around — end this lobby as a moderator"
+                        title="End this lobby as a moderator"
                         className="mt-3 px-3 py-1 text-sm bg-danger-strong/10 hover:bg-danger-strong/20 border border-danger-strong/40 text-danger rounded transition-colors"
                       >
                         {ending ? 'Ending…' : 'Force End (Mod)'}
@@ -860,7 +871,7 @@ export default function JeopardyRoom() {
                         )}
                       </div>
                       <div className="text-xs text-muted mt-0.5">
-                        {canClaim ? 'Active — click a square to claim it' : 'Active — this game is already in progress'}
+                        {canClaim ? 'Active: click a square to claim it' : 'Active: this game is already in progress'}
                         {isShalpha && canClaim && <span className="text-warn ml-2">· Shalpha clause enabled</span>}
                       </div>
                     </div>
@@ -883,7 +894,7 @@ export default function JeopardyRoom() {
                         <button
                           onClick={handleEnd}
                           disabled={ending}
-                          title="The host isn't around — end this lobby as a moderator"
+                          title="End this lobby as a moderator"
                           className="px-3 py-1 text-sm bg-danger-strong/10 hover:bg-danger-strong/20 border border-danger-strong/40 text-danger rounded transition-colors"
                         >
                           {ending ? 'Ending…' : 'Force End (Mod)'}
@@ -895,7 +906,7 @@ export default function JeopardyRoom() {
                   {claims.length >= boardColumns * 5 && (
                     <div className="mb-4 p-3 rounded-lg border border-success-strong/40 bg-success-strong/10 text-center">
                       <p className="text-sm font-semibold text-success">
-                        🎉 Every square's been claimed!{isHost ? ' End the lobby to lock in the standings.' : ' Waiting for the host to end the lobby.'}
+                        Every square's been claimed!{isHost ? ' End the lobby to lock in the standings.' : ' Waiting for the host to end the lobby.'}
                       </p>
                     </div>
                   )}
@@ -910,6 +921,7 @@ export default function JeopardyRoom() {
                     columns={boardColumns}
                     currentUserId={user?.id}
                     canClaim={canClaim}
+                    canUndoAny={canUndoAny}
                     conflictFlash={conflictFlash}
                     onClaim={handleClaim}
                     onUnclaim={handleUnclaim}
@@ -975,7 +987,7 @@ function ShalphaInfoButton() {
       {open && (
         <div className="absolute z-40 top-full mt-2 left-1/2 -translate-x-1/2 w-56 rounded-lg p-3 text-xs leading-relaxed text-body bg-surface-card border border-hairline shadow-lg">
           <p>
-            <strong className="text-strong">Shalpha</strong> — on Legends Arceus / Z-A boards, any already-claimed
+            <strong className="text-strong">Shalpha</strong> - on Legends Arceus / Z-A boards, any already-claimed
             square can be stolen with a Shalpha claim, worth double points. The tile's crossed-out avatar shows who
             it was stolen from.
           </p>
@@ -1007,7 +1019,7 @@ function OverlayPanel({ isPro, apiKey, code }) {
   if (!isPro) {
     return (
       <div className="rounded-xl p-4 border border-hairline border-dashed bg-black/20">
-        <div className="text-[10px] font-bold uppercase tracking-wider text-muted mb-2">Stream Overlay</div>
+        <div className="text-[10px] font-bold text-muted mb-2">Stream Overlay</div>
         <p className="text-xs text-muted leading-relaxed">
           Pro members can add this board as a live OBS browser source that updates instantly as squares get claimed.
         </p>
@@ -1017,7 +1029,7 @@ function OverlayPanel({ isPro, apiKey, code }) {
 
   return (
     <div className="rounded-xl p-4 border border-hairline bg-black/30">
-      <div className="text-[10px] font-bold uppercase tracking-wider text-muted mb-2">Stream Overlay</div>
+      <div className="text-[10px] font-bold text-muted mb-2">Stream Overlay</div>
       {apiKey === undefined && <p className="text-xs text-faint">Loading…</p>}
       {apiKey === null && (
         <>
@@ -1060,7 +1072,7 @@ function LobbyCodeCard({ code }) {
   };
   return (
     <div className="rounded-xl p-4 border border-accent-strong bg-accent-strong/10">
-      <div className="text-[10px] font-bold uppercase tracking-wider text-muted mb-2">Connection Code</div>
+      <div className="text-[10px] font-bold text-muted mb-2">Connection Code</div>
       <div className="flex items-center gap-2">
         <div className="flex-1 text-2xl font-black tracking-[0.2em] text-strong text-center py-2 rounded-lg bg-black/30">
           {code}
@@ -1084,7 +1096,7 @@ function LobbyCodeCard({ code }) {
 function LobbyCodeLockedCard() {
   return (
     <div className="rounded-xl p-4 border border-hairline bg-black/30">
-      <div className="text-[10px] font-bold uppercase tracking-wider text-muted mb-2">Connection Code</div>
+      <div className="text-[10px] font-bold text-muted mb-2">Connection Code</div>
       <div className="relative">
         <div className="text-2xl font-black tracking-[0.2em] text-strong text-center py-2 rounded-lg bg-black/30 blur-sm select-none" aria-hidden="true">
           ••••••
@@ -1101,8 +1113,8 @@ function LobbyCodeLockedCard() {
 function RosterList({ members, isHost, onTogglePermission, onKick, onTransferHost }) {
   return (
     <div className="rounded-xl p-4 border border-hairline bg-black/30">
-      <div className="text-[10px] font-bold uppercase tracking-wider text-muted mb-2">
-        In This Game — {members.length}
+      <div className="text-[10px] font-bold text-muted mb-2">
+        In this Game: {members.length}
       </div>
       {members.length === 0 ? (
         <p className="text-xs text-faint">Nobody's joined yet.</p>
@@ -1124,7 +1136,7 @@ function RosterList({ members, isHost, onTogglePermission, onKick, onTransferHos
               )}
               <span className="text-sm text-body truncate">{m.user?.display_name || 'Unknown'}</span>
               {m.role === 'host' ? (
-                <span className="shrink-0 text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-full bg-accent-strong/20 text-accent border border-accent-strong/40 ml-auto">
+                <span className="shrink-0 text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-accent-strong/20 text-accent border border-accent-strong/40 ml-auto">
                   Host
                 </span>
               ) : isHost ? (
@@ -1132,7 +1144,7 @@ function RosterList({ members, isHost, onTogglePermission, onKick, onTransferHos
                   <button
                     onClick={() => onTogglePermission(m.user_id, !m.can_edit)}
                     className={[
-                      'shrink-0 text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-full border transition-colors',
+                      'shrink-0 text-[9px] font-bold px-1.5 py-0.5 rounded-full border transition-colors',
                       m.can_edit
                         ? 'bg-success-strong/20 text-success border-success-strong/40 hover:bg-success-strong/30'
                         : 'bg-surface-inset text-faint border-edge hover:text-body',
@@ -1143,7 +1155,7 @@ function RosterList({ members, isHost, onTogglePermission, onKick, onTransferHos
                   </button>
                   <button
                     onClick={() => onTransferHost(m.user_id, m.user?.display_name)}
-                    className="shrink-0 text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-full border bg-surface-inset text-faint border-edge hover:text-accent hover:border-accent-strong/40 transition-colors"
+                    className="shrink-0 text-[9px] font-bold px-1.5 py-0.5 rounded-full border bg-surface-inset text-faint border-edge hover:text-accent hover:border-accent-strong/40 transition-colors"
                     title="Make this player the host"
                   >
                     Make Host
@@ -1158,7 +1170,7 @@ function RosterList({ members, isHost, onTogglePermission, onKick, onTransferHos
                   </button>
                 </div>
               ) : m.can_edit ? (
-                <span className="shrink-0 text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-full bg-success-strong/20 text-success border border-success-strong/40 ml-auto">
+                <span className="shrink-0 text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-success-strong/20 text-success border border-success-strong/40 ml-auto">
                   Can Edit
                 </span>
               ) : null}
@@ -1279,7 +1291,7 @@ function BoardGrid({
 }
 
 // ── Active-phase claim grid ────────────────────────────────────────────────────
-function ClaimGrid({ tileMap, claimMap, claimersMap, isShalpha, shalphaDbl, rowPoints, columns, currentUserId, canClaim, conflictFlash, onClaim, onUnclaim }) {
+function ClaimGrid({ tileMap, claimMap, claimersMap, isShalpha, shalphaDbl, rowPoints, columns, currentUserId, canClaim, canUndoAny, conflictFlash, onClaim, onUnclaim }) {
   return (
     <div className="flex items-stretch gap-1">
       <div className="flex flex-col" style={{ width: '20px', paddingTop: '8px', paddingBottom: '8px' }}>
@@ -1323,6 +1335,7 @@ function ClaimGrid({ tileMap, claimMap, claimersMap, isShalpha, shalphaDbl, rowP
               claimersMap={claimersMap}
               currentUserId={currentUserId}
               canClaim={canClaim}
+              canUndo={!!claim && (claim.claimed_by === currentUserId || canUndoAny)}
               isConflict={conflictFlash?.has(pos) ?? false}
               onClaim={onClaim}
               onUnclaim={onUnclaim}
@@ -1334,7 +1347,7 @@ function ClaimGrid({ tileMap, claimMap, claimersMap, isShalpha, shalphaDbl, rowP
   );
 }
 
-function ClaimTile({ pos, tile, claim, isClaimed, isShalphaClaim, isShalpha, shalphaDbl, rowPoints, columns, claimersMap, currentUserId, canClaim, isConflict, onClaim, onUnclaim }) {
+function ClaimTile({ pos, tile, claim, isClaimed, isShalphaClaim, isShalpha, shalphaDbl, rowPoints, columns, claimersMap, currentUserId, canClaim, canUndo, isConflict, onClaim, onUnclaim }) {
   const claimer         = claimersMap?.[claim?.claimed_by]          ?? claim?.claimer         ?? null;
   const originalClaimer = claimersMap?.[claim?.original_claimed_by] ?? claim?.original_claimer ?? null;
 
@@ -1427,9 +1440,9 @@ function ClaimTile({ pos, tile, claim, isClaimed, isShalphaClaim, isShalpha, sha
         </div>
       )}
 
-      {canClaim && (
+      {(canClaim || canUndo) && (
         <div className="absolute top-1 right-1 z-30 flex flex-col gap-1">
-          {isClaimed && (
+          {isClaimed && canUndo && (
             <button
               onClick={e => { e.stopPropagation(); onUnclaim(pos); }}
               className="w-8 h-8 rounded-lg bg-danger-strong hover:brightness-110 text-strong flex items-center justify-center text-sm font-bold opacity-80 group-hover:opacity-100 transition-all"
@@ -1439,17 +1452,17 @@ function ClaimTile({ pos, tile, claim, isClaimed, isShalphaClaim, isShalpha, sha
               ✕
             </button>
           )}
-          {isShalpha && isClaimed && !isShalphaClaim && (
+          {canClaim && isShalpha && isClaimed && !isShalphaClaim && (
             <button
               onClick={e => { e.stopPropagation(); onClaim(pos, 'shalpha'); }}
               className="w-8 h-8 rounded-lg bg-warn-strong hover:brightness-110 flex items-center justify-center p-1.5 opacity-80 group-hover:opacity-100 transition-all"
-              title="Shalpha — override this claim"
-              aria-label="Shalpha — steal this claim"
+              title="Shalpha: override this claim"
+              aria-label="Shalpha: steal this claim"
             >
               <img src={alphaIcon} alt="" className="w-full h-full object-contain" draggable="false" />
             </button>
           )}
-          {isShalpha && !isClaimed && (
+          {canClaim && isShalpha && !isClaimed && (
             <button
               onClick={e => { e.stopPropagation(); onClaim(pos, 'shalpha'); }}
               className="w-8 h-8 rounded-lg bg-warn-strong hover:brightness-110 flex items-center justify-center p-1.5 opacity-60 group-hover:opacity-100 transition-all"
@@ -1478,7 +1491,7 @@ function ClaimsLegend({ claims, claimersMap, rowPoints, shalphaDbl, columns }) {
 
   return (
     <div className="rounded-xl p-4 border border-hairline bg-black/30">
-      <div className="text-[10px] font-bold uppercase tracking-wider text-muted mb-2">Standings</div>
+      <div className="text-[10px] font-bold text-muted mb-2">Standings</div>
       {ranked.length === 0 ? (
         <p className="text-xs text-faint">No claims yet.</p>
       ) : (

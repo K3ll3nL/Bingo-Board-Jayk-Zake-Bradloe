@@ -72,7 +72,7 @@ const AchievementSvg = ({ type, className }) => {
  *   type              'row' | 'column' | 'x' | 'blackout'
  *   restricted        boolean — renders #78150a bg, dashed stroke, restricted badge
  *   claimed           boolean — false renders gray/unclaimed style (BingoBoard use)
- *   color             hex bg color for claimed non-restricted icons (default #9147ff)
+ *   color             hex bg color for claimed non-restricted icons (default: accent-strong)
  *   containerClassName  Tailwind size + any extra classes for the outer div
  *   svgClassName        Tailwind size classes for the inner SVG
  */
@@ -80,7 +80,7 @@ const AchievementIcon = ({
   type,
   restricted = false,
   claimed = true,
-  color = '#9147ff',
+  color = '#038691',
   containerClassName = 'w-5 h-5',
   svgClassName = 'w-3 h-3',
 }) => {

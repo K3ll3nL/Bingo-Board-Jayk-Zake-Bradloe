@@ -5,11 +5,11 @@ import { useAuth } from '../../contexts/AuthContext';
 import { getAuthHeaders } from '../../services/api';
 import { XY_ROUTES, GRASS_TYPE_INFO, isEdgePatch, analyzePosition } from '../../data/xyRadarData';
 
-const ACCENT = '#a78bfa';
-const ACCENT_BG = 'rgba(167,139,250,0.12)';
-const ACCENT_BORDER = 'rgba(167,139,250,0.3)';
+const ACCENT = '#12bfce';
+const ACCENT_BG = 'rgba(18,191,206,0.12)';
+const ACCENT_BORDER = 'rgba(18,191,206,0.3)';
 const CARD_STYLE = {
-  background: 'linear-gradient(160deg, #1a1c23 0%, #1f2128 100%)',
+  background: '#1a1c23',
   border: '1px solid rgba(255,255,255,0.07)',
 };
 
@@ -415,7 +415,7 @@ export default function XYRadarBuilder() {
         <div className="w-56 shrink-0">
           <div className="rounded-xl overflow-hidden sticky top-20" style={CARD_STYLE}>
             <div className="p-3 border-b border-gray-800">
-              <p className="text-[10px] font-bold uppercase tracking-widest text-gray-500">Routes</p>
+              <p className="text-[10px] font-bold text-gray-500">Routes</p>
             </div>
             <div className="overflow-y-auto" style={{ maxHeight: 'calc(100vh - 140px)' }}>
               {XY_ROUTES.map(route => {
@@ -480,7 +480,7 @@ export default function XYRadarBuilder() {
               <div className="rounded-xl p-4 flex flex-wrap items-end gap-4" style={CARD_STYLE}>
                 <div className="flex items-end gap-2">
                   <div>
-                    <label className="text-[10px] font-bold uppercase tracking-widest text-gray-500 block mb-1">Width</label>
+                    <label className="text-[10px] font-bold text-gray-500 block mb-1">Width</label>
                     <input type="number" min="5" max="60" value={widthInput}
                       onChange={e => setWidthInput(e.target.value)}
                       className="w-16 text-sm font-semibold text-white text-center rounded-lg px-2 py-1.5 border"
@@ -489,7 +489,7 @@ export default function XYRadarBuilder() {
                   </div>
                   <span className="text-gray-600 mb-2">×</span>
                   <div>
-                    <label className="text-[10px] font-bold uppercase tracking-widest text-gray-500 block mb-1">Height</label>
+                    <label className="text-[10px] font-bold text-gray-500 block mb-1">Height</label>
                     <input type="number" min="5" max="60" value={heightInput}
                       onChange={e => setHeightInput(e.target.value)}
                       className="w-16 text-sm font-semibold text-white text-center rounded-lg px-2 py-1.5 border"
@@ -517,13 +517,13 @@ export default function XYRadarBuilder() {
                   <button onClick={handleCalculateSpots}
                     disabled={!tiles}
                     className="text-[11px] px-2.5 py-1.5 rounded-lg border font-semibold transition-all hover:opacity-80 disabled:opacity-40"
-                    style={{ background: 'rgba(167,139,250,0.08)', borderColor: 'rgba(167,139,250,0.3)', color: '#a78bfa' }}>
+                    style={{ background: 'rgba(18,191,206,0.08)', borderColor: 'rgba(18,191,206,0.3)', color: '#12bfce' }}>
                     ⭐✨ Calculate Spots
                   </button>
                 </div>
 
                 <div className="flex items-center gap-2 ml-auto">
-                  <span className="text-[10px] text-gray-500 font-semibold uppercase tracking-widest">Preview</span>
+                  <span className="text-[10px] text-gray-500 font-semibold">Preview</span>
                   <button
                     onClick={() => setPreviewMode(p => !p)}
                     className="relative w-10 h-5 rounded-full transition-all"
@@ -542,7 +542,7 @@ export default function XYRadarBuilder() {
                     <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-sm inline-block" style={{ background: '#4ade80' }} /> Safe tile</span>
                     <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-sm inline-block" style={{ background: '#16a34a' }} /> Edge patch risk</span>
                     <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-sm inline-block" style={{ background: '#1e2028' }} /> No grass</span>
-                    <span className="ml-2 text-amber-400">Preview mode — click to switch to edit mode</span>
+                    <span className="ml-2 text-amber-400">Preview mode. click to switch to edit mode</span>
                   </>
                 ) : (
                   <>
@@ -571,8 +571,8 @@ export default function XYRadarBuilder() {
               ) : null}
 
               {/* Reference note */}
-              <div className="rounded-xl px-4 py-3 text-xs text-gray-500" style={{ background: 'rgba(167,139,250,0.04)', border: '1px solid rgba(167,139,250,0.1)' }}>
-                Tip: open the <a href={selectedRoute.edgePatchUrl} target="_blank" rel="noopener noreferrer" className="text-violet-400 underline">edge patch guide</a> in another window and replicate the grass layout tile-by-tile. Each green tile = walkable grass in-game. Toggle preview mode to verify safe (bright green) vs edge (dark green) tiles.
+              <div className="rounded-xl px-4 py-3 text-xs text-gray-500" style={{ background: 'rgba(18,191,206,0.04)', border: '1px solid rgba(18,191,206,0.1)' }}>
+                Tip: open the <a href={selectedRoute.edgePatchUrl} target="_blank" rel="noopener noreferrer" className="text-lagoon-400 underline">edge patch guide</a> in another window and replicate the grass layout tile-by-tile. Each green tile = walkable grass in-game. Toggle preview mode to verify safe (bright green) vs edge (dark green) tiles.
               </div>
             </>
           )}

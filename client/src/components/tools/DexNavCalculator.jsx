@@ -107,11 +107,11 @@ function CounterBox({ label, sublabel, value, onChange, accent = A }) {
 
   return (
     <div className="rounded-2xl p-4 flex flex-col gap-3 min-w-0 overflow-hidden" style={{
-      background: 'linear-gradient(160deg, #1a1c23 0%, #1f2128 100%)',
+      background: '#1a1c23',
       border: '1px solid rgba(255,255,255,0.07)',
     }}>
       <div>
-        <p className="text-[10px] font-bold uppercase tracking-widest text-gray-500">{label}</p>
+        <p className="text-[10px] font-bold text-gray-500">{label}</p>
         {sublabel && <p className="text-[10px] text-gray-700 leading-tight mt-0.5">{sublabel}</p>}
       </div>
       <div className="flex items-center gap-2">
@@ -153,10 +153,10 @@ function CounterBox({ label, sublabel, value, onChange, accent = A }) {
 function SmallStatCard({ label, value, sub, note, accent = '#9ca3af' }) {
   return (
     <div className="rounded-xl p-3.5" style={{
-      background: 'linear-gradient(160deg, #1a1c23 0%, #1f2128 100%)',
+      background: '#1a1c23',
       border: '1px solid rgba(255,255,255,0.07)',
     }}>
-      <p className="text-[10px] font-bold uppercase tracking-widest text-gray-500 mb-1">{label}</p>
+      <p className="text-[10px] font-bold text-gray-500 mb-1">{label}</p>
       <p className="text-xl font-bold leading-tight" style={{ color: accent }}>{value}</p>
       {sub  && <p className="text-xs leading-tight mt-0.5" style={{ color: accent, opacity: 0.55 }}>{sub}</p>}
       {note && <p className="text-xs text-gray-600 mt-1 leading-snug">{note}</p>}
@@ -344,9 +344,9 @@ export default function DexNavCalculator() {
           <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
             {/* Left: odds */}
             <div>
-              {atMilestone === 'enc100' && <p className="text-xs font-bold uppercase tracking-wider mb-1" style={{ color: '#fbbf24' }}>★ Step 100 — Best Odds!</p>}
-              {atMilestone === 'enc50'  && <p className="text-xs font-bold uppercase tracking-wider mb-1" style={{ color: '#34d399' }}>★ Step 50 — Bonus Encounter!</p>}
-              {atMilestone === 'boost'  && <p className="text-xs font-bold uppercase tracking-wider mb-1" style={{ color: '#38bdf8' }}>✦ Every 5th Step Boost</p>}
+              {atMilestone === 'enc100' && <p className="text-xs font-bold mb-1" style={{ color: '#fbbf24' }}>★ Step 100. Best odds!</p>}
+              {atMilestone === 'enc50'  && <p className="text-xs font-bold mb-1" style={{ color: '#34d399' }}>★ Step 50. Bonus encounter!</p>}
+              {atMilestone === 'boost'  && <p className="text-xs font-bold mb-1" style={{ color: '#38bdf8' }}>✦ Every 5th step boost</p>}
               <p className="text-xs text-gray-500 mb-1">
                 {chain === 0 ? `Next encounter is chain 1 · SL ${searchLevel}` : `Next encounter is chain ${nextChain} · SL ${searchLevel}`}
               </p>
@@ -379,7 +379,7 @@ export default function DexNavCalculator() {
 
             {/* Right: SL odds breakdown */}
             <div className="rounded-xl px-4 py-3 shrink-0 self-start" style={{ background: 'rgba(0,0,0,0.3)', border: '1px solid rgba(255,255,255,0.06)' }}>
-              <p className="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-2">SL {searchLevel} odds</p>
+              <p className="text-[10px] font-bold text-gray-500 mb-2">SL {searchLevel} odds</p>
               <div className="space-y-1.5 font-mono text-xs">
                 {[
                   { label: 'No boost',      denom: std,   color: '#6b7280', active: !atMilestone },
@@ -404,11 +404,11 @@ export default function DexNavCalculator() {
           <div className="space-y-5">
             {/* Settings */}
             <div className="rounded-xl p-4 flex flex-wrap gap-4 items-end" style={{
-              background: 'linear-gradient(160deg, #1a1c23 0%, #1f2128 100%)',
+              background: '#1a1c23',
               border: '1px solid rgba(255,255,255,0.07)',
             }}>
               <div>
-                <p className="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1.5">
+                <p className="text-[10px] font-bold text-gray-500 mb-1.5">
                   Reset chain after <span className="text-gray-700 font-normal normal-case">(optional)</span>
                 </p>
                 <input type="number" min={1} value={resetAtStr}
@@ -418,7 +418,7 @@ export default function DexNavCalculator() {
                 />
               </div>
               <div>
-                <p className="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1.5">
+                <p className="text-[10px] font-bold text-gray-500 mb-1.5">
                   Seconds / encounter <span className="text-gray-700 font-normal normal-case">(optional)</span>
                 </p>
                 <input type="number" min={1} max={300} value={secsStr}
@@ -435,7 +435,7 @@ export default function DexNavCalculator() {
                 const enc50Reachable = resetAt <= 0 || resetAt >= 50;
                 const step50Card = !enc50Reachable
                   ? <SmallStatCard key="s50" label="Step 50 Bonus" value="Unreachable" accent="#6b7280"
-                      note={`Resets at ${resetAt} — need ≥50`} />
+                      note={`Resets at ${resetAt} - need ≥50`} />
                   : distTo50 === 0
                     ? <SmallStatCard key="s50" label="Step 50 ★ NEXT" value={fmtDenom(1/pAt50)} accent="#34d399"
                         sub={fmtPct(pAt50, 4)} note={`SL ${slAt50}`} />
@@ -446,7 +446,7 @@ export default function DexNavCalculator() {
                 const enc100Reachable = resetAt <= 0 || resetAt >= 100;
                 const step100Card = !enc100Reachable
                   ? <SmallStatCard key="s100" label="Step 100 Bonus" value="Unreachable" accent="#6b7280"
-                      note={`Resets at ${resetAt} — need ≥100`} />
+                      note={`Resets at ${resetAt} - need ≥100`} />
                   : distTo100 === 0
                     ? <SmallStatCard key="s100" label="Step 100 ★ NEXT" value={fmtDenom(1/pAt100)} accent="#fbbf24"
                         sub={fmtPct(pAt100, 4)} note={`SL ${slAt100}`} />
@@ -455,7 +455,7 @@ export default function DexNavCalculator() {
                         note={`SL ${slAt100} at that point`} />;
 
                 return [step50Card, step100Card,
-                  <SmallStatCard key="exp" label="Expected encounters"
+                  <SmallStatCard key="exp" label="Expected Encounters"
                     value={expectedEnc.toLocaleString()} accent="#fb923c"
                     sub={secsPerEnc ? `≈ ${fmtTime(expectedEnc * secsPerEnc)}` : undefined}
                     note={slCapped ? 'from now · milestones + boosts included' : 'from now · SL growth + milestones + boosts included'} />
@@ -465,7 +465,7 @@ export default function DexNavCalculator() {
 
             {/* Graph */}
             <div className="rounded-2xl overflow-hidden" style={{
-              background: 'linear-gradient(160deg, #1a1c23 0%, #1f2128 100%)',
+              background: '#1a1c23',
               border: '1px solid rgba(255,255,255,0.07)',
             }}>
               <div className="px-4 py-3 border-b flex items-center justify-between" style={{ borderColor: 'rgba(255,255,255,0.06)' }}>
@@ -495,7 +495,7 @@ export default function DexNavCalculator() {
 
             {/* Milestones table */}
             <div className="rounded-2xl overflow-hidden" style={{
-              background: 'linear-gradient(160deg, #1a1c23 0%, #1f2128 100%)',
+              background: '#1a1c23',
               border: '1px solid rgba(255,255,255,0.07)',
             }}>
               <div className="px-4 py-3 border-b" style={{ borderColor: 'rgba(255,255,255,0.06)' }}>
@@ -505,7 +505,7 @@ export default function DexNavCalculator() {
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
-                    <tr className="border-b text-[10px] font-bold uppercase tracking-wider text-gray-500"
+                    <tr className="border-b text-[10px] font-bold text-gray-500"
                       style={{ borderColor: 'rgba(255,255,255,0.06)', background: 'rgba(255,255,255,0.02)' }}>
                       <th className="text-left px-4 py-2.5">Target</th>
                       <th className="text-right px-4 py-2.5">Encounter #</th>
@@ -680,7 +680,7 @@ function SLReferenceTable({ shinyCharm, currentSL, accentColor }) {
 
   return (
     <div className="rounded-2xl overflow-hidden" style={{
-      background: 'linear-gradient(160deg, #1a1c23 0%, #1f2128 100%)',
+      background: '#1a1c23',
       border: '1px solid rgba(255,255,255,0.07)',
     }}>
       <div className="px-4 py-3 border-b" style={{ borderColor: 'rgba(255,255,255,0.06)' }}>
@@ -692,10 +692,10 @@ function SLReferenceTable({ shinyCharm, currentSL, accentColor }) {
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
-            <tr className="border-b text-[10px] font-bold uppercase tracking-wider text-gray-500"
+            <tr className="border-b text-[10px] font-bold text-gray-500"
               style={{ borderColor: 'rgba(255,255,255,0.06)', background: 'rgba(255,255,255,0.02)' }}>
-              <th className="text-left px-4 py-2.5">SL range</th>
-              <th className="text-right px-4 py-2.5">No boost</th>
+              <th className="text-left px-4 py-2.5">SL Range</th>
+              <th className="text-right px-4 py-2.5">No Boost</th>
               <th className="text-right px-4 py-2.5">Every 5th / 4% random</th>
               <th className="text-right px-4 py-2.5">Step 50 ★</th>
               <th className="text-right px-4 py-2.5">Step 100 ★</th>

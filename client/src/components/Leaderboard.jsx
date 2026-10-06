@@ -15,7 +15,7 @@ const CAN_HOVER = typeof window !== 'undefined'
 const StatContent = ({ step, points, pokemonCount }) => (
   step % 2 === 0 ? (
     <>
-      <span className="text-xl font-bold text-purple-400">{points}</span>
+      <span className="text-xl font-bold text-white">{points}</span>
       <span className="text-xs text-gray-400">pts</span>
     </>
   ) : (
@@ -261,7 +261,7 @@ const Leaderboard = ({ pinSelf = false }) => {
             does not change shape when data lands. See .lb-tabs in index.css. */}
         <div className="lb-tabs-wrap mb-2.5"><div className="lb-tabs">
           {MODES.map((mode, i) => (
-            <div key={mode} className={`px-3 py-1.5 rounded-lg text-sm font-medium text-center ${i === 0 ? 'bg-purple-600/40' : 'bg-gray-700/40'}`} style={{ minWidth: 60 }}>&nbsp;</div>
+            <div key={mode} className={`px-3 py-1.5 rounded-lg text-sm font-medium text-center ${i === 0 ? 'bg-lagoon-600/40' : 'bg-gray-700/40'}`} style={{ minWidth: 60 }}>&nbsp;</div>
           ))}
         </div></div>
         <div className="mb-3 h-6" />
@@ -301,7 +301,7 @@ const Leaderboard = ({ pinSelf = false }) => {
           <button
             key={mode}
             onClick={() => { setModeIndex(i); setPeriodIdx(0); }}
-            className={`px-3 py-1.5 rounded-lg text-sm font-medium text-center whitespace-nowrap transition-colors ${i === modeIndex ? 'bg-purple-600 text-white' : 'text-gray-400 hover:text-white hover:bg-gray-700'}`}
+            className={`px-3 py-1.5 rounded-lg text-sm font-medium text-center whitespace-nowrap transition-colors ${i === modeIndex ? 'bg-lagoon-600 text-white' : 'text-gray-400 hover:text-white hover:bg-gray-700'}`}
           >
             {MODE_LABELS[mode]}
           </button>
@@ -320,7 +320,7 @@ const Leaderboard = ({ pinSelf = false }) => {
           </button>
           <span className="text-sm text-gray-300 min-w-[110px] text-center">
             {getPeriodLabel() || (periodIdx === 0 ? 'Current' : '…')}
-            {periodIdx === 0 && <span className="ml-1 text-xs text-purple-400">(live)</span>}
+            {periodIdx === 0 && <span className="ml-1 text-xs text-lagoon-400">(live)</span>}
           </span>
           <button
             onClick={() => setPeriodIdx(i => Math.max(0, i - 1))}
@@ -336,7 +336,7 @@ const Leaderboard = ({ pinSelf = false }) => {
       <div className="rounded-lg shadow-lg overflow-hidden relative flex flex-col flex-1" style={{ background: '#0d0f14' }}>
         {refreshing && (
           <div className="absolute top-0 left-0 right-0 h-0.5 bg-gray-700 overflow-hidden z-10">
-            <div className="h-full bg-purple-500 animate-pulse" style={{ width: '100%' }} />
+            <div className="h-full bg-lagoon-500 animate-pulse" style={{ width: '100%' }} />
           </div>
         )}
         {leaderboard.length === 0 ? (
@@ -382,7 +382,7 @@ const Leaderboard = ({ pinSelf = false }) => {
                     <AchievementIcon
                       type={type}
                       restricted={restricted}
-                      color={user.hex_code || '#9147ff'}
+                      color={user.hex_code || '#038691'}
                       svgClassName={isBlackout ? 'w-4 h-4' : 'w-3 h-3'}
                     />
                     {showCount && (
@@ -409,8 +409,7 @@ const Leaderboard = ({ pinSelf = false }) => {
                   style={pinSelf && authUser && user.user_id === authUser.id ? {
                     // A sticky row needs an opaque ground or the rows it covers
                     // show through it.
-                    background: 'linear-gradient(160deg, #241f3a 0%, #1b1a26 100%)',
-                    boxShadow: 'inset 0 0 0 1px rgba(167,139,250,0.45)',
+                    background: '#182f37',
                   } : undefined}
                 >
                   {/* Stretched link overlay: makes the whole row a real anchor (open-in-new-tab, right-click) while keeping nested links like Twitch clickable via higher z-index */}

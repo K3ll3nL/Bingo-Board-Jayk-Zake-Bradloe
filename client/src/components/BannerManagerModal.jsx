@@ -2,8 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { getAuthHeaders } from '../services/api';
 
 const C = {
-  bg:     'linear-gradient(160deg, #13151a 0%, #181a21 100%)',
-  card:   'linear-gradient(160deg, #1a1c23 0%, #1f2128 100%)',
+  bg:     '#13151a',
+  card:   '#1a1c23',
   input:  '#0d0f14',
   border: 'rgba(255,255,255,0.07)',
   borderSubt: 'rgba(255,255,255,0.04)',
@@ -38,12 +38,12 @@ const CONDITIONS = [
   { value: 'tier_list_incomplete', label: 'Only users who have not finished this month’s tier list' },
 ];
 
-const inputCls = 'w-full rounded-lg px-3 py-2 text-sm text-white placeholder-gray-600 border focus:border-purple-500 focus:outline-none transition-colors';
+const inputCls = 'w-full rounded-lg px-3 py-2 text-sm text-white placeholder-gray-600 border focus:border-lagoon-500 focus:outline-none transition-colors';
 const inputStyle = { background: C.input, borderColor: C.border, colorScheme: 'dark' };
 
 const Field = ({ label, required, children }) => (
   <div>
-    <label className="block text-[10px] font-bold uppercase tracking-widest text-gray-500 mb-1.5">
+    <label className="block text-[10px] font-bold text-gray-500 mb-1.5">
       {label}{required && <span className="text-red-400 ml-0.5">*</span>}
     </label>
     {children}
@@ -127,8 +127,8 @@ const BannerManagerModal = ({ isOpen, onClose }) => {
           style={{ borderColor: C.border }}>
           <div className="flex items-center gap-2.5">
             <div className="w-7 h-7 rounded-lg flex items-center justify-center"
-              style={{ background: 'rgba(147,51,234,0.15)', border: '1px solid rgba(147,51,234,0.3)' }}>
-              <svg className="w-3.5 h-3.5 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              style={{ background: 'rgba(3,134,145,0.15)', border: '1px solid rgba(3,134,145,0.3)' }}>
+              <svg className="w-3.5 h-3.5 text-lagoon-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
                   d="M11 5.882V19.24a1.76 1.76 0 01-3.417.592l-2.147-6.15M18 13a3 3 0 100-6M5.436 13.683A4.001 4.001 0 017 6h1.832c4.1 0 7.625-1.234 9.168-3v14c-1.543-1.766-5.067-3-9.168-3H7a3.988 3.988 0 01-1.564-.317z" />
               </svg>
@@ -151,7 +151,7 @@ const BannerManagerModal = ({ isOpen, onClose }) => {
             style={{ borderColor: C.border }}>
             <div className="px-4 py-2.5 border-b"
               style={{ background: 'rgba(255,255,255,0.03)', borderColor: C.border }}>
-              <p className="text-[10px] font-bold uppercase tracking-widest text-gray-500">New Banner</p>
+              <p className="text-[10px] font-bold text-gray-500">New banner</p>
             </div>
             <div className="p-4 space-y-3.5" style={{ background: C.card }}>
 
@@ -176,7 +176,7 @@ const BannerManagerModal = ({ isOpen, onClose }) => {
                     placeholder="/about#restricted"
                     className={inputCls} style={inputStyle} />
                 </Field>
-                <Field label="Link Label">
+                <Field label="Link label">
                   <input type="text" value={form.link_label}
                     onChange={e => setForm(f => ({ ...f, link_label: e.target.value }))}
                     placeholder="Learn more"
@@ -216,9 +216,9 @@ const BannerManagerModal = ({ isOpen, onClose }) => {
 
               <button type="submit" disabled={submitting}
                 className="w-full py-2.5 rounded-xl text-sm font-semibold text-white transition-all disabled:opacity-40 disabled:cursor-not-allowed"
-                style={{ background: submitting ? 'rgba(147,51,234,0.4)' : 'rgba(147,51,234,0.8)' }}
-                onMouseEnter={e => { if (!submitting) e.currentTarget.style.background = 'rgba(147,51,234,1)'; }}
-                onMouseLeave={e => { if (!submitting) e.currentTarget.style.background = 'rgba(147,51,234,0.8)'; }}>
+                style={{ background: submitting ? 'rgba(3,134,145,0.4)' : 'rgba(3,134,145,0.8)' }}
+                onMouseEnter={e => { if (!submitting) e.currentTarget.style.background = 'rgba(3,134,145,1)'; }}
+                onMouseLeave={e => { if (!submitting) e.currentTarget.style.background = 'rgba(3,134,145,0.8)'; }}>
                 {submitting ? 'Creating…' : 'Create Banner'}
               </button>
             </div>
@@ -229,8 +229,8 @@ const BannerManagerModal = ({ isOpen, onClose }) => {
             <div className="rounded-xl border overflow-hidden" style={{ borderColor: C.border }}>
               <div className="px-4 py-2.5 border-b"
                 style={{ background: 'rgba(255,255,255,0.03)', borderColor: C.border }}>
-                <p className="text-[10px] font-bold uppercase tracking-widest text-gray-500">
-                  Active & Scheduled — {banners.length}
+                <p className="text-[10px] font-bold text-gray-500">
+                  Active & scheduled: {banners.length}
                 </p>
               </div>
               <div className="divide-y" style={{ background: C.card, borderColor: C.borderSubt }}>
@@ -244,7 +244,7 @@ const BannerManagerModal = ({ isOpen, onClose }) => {
                     <div className="flex-1 min-w-0">
                       <p className="text-sm text-gray-200 break-words leading-snug">{banner.message}</p>
                       {banner.link_url && (
-                        <p className="text-xs text-purple-400 mt-0.5 truncate">{banner.link_label || banner.link_url}</p>
+                        <p className="text-xs text-lagoon-400 mt-0.5 truncate">{banner.link_label || banner.link_url}</p>
                       )}
                       <p className="text-[11px] text-gray-600 mt-1">
                         {new Date(banner.starts_at).toLocaleString()} → {new Date(banner.expires_at).toLocaleString()}
@@ -253,7 +253,7 @@ const BannerManagerModal = ({ isOpen, onClose }) => {
                         <div className="flex flex-wrap gap-1.5 mt-1.5">
                           {banner.condition && (
                             <span className="text-[10px] rounded-full px-2 py-0.5"
-                              style={{ background: 'rgba(147,51,234,0.15)', color: '#c4b5fd' }}>
+                              style={{ background: 'rgba(3,134,145,0.15)', color: '#63d4e1' }}>
                               {CONDITIONS.find(c => c.value === banner.condition)?.label || banner.condition}
                             </span>
                           )}

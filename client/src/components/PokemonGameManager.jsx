@@ -19,8 +19,8 @@ const getAuthHeader = async () => {
 // ── Theme ──────────────────────────────────────────────────────────────────────
 const C = {
   bg:         '#0d0f14',
-  card:       'linear-gradient(160deg, #1a1c23 0%, #1f2128 100%)',
-  header:     'linear-gradient(160deg, #13151a 0%, #181a21 100%)',
+  card:       '#1a1c23',
+  header:     '#13151a',
   input:      '#0d0f14',
   border:     'rgba(255,255,255,0.07)',
   borderSubt: 'rgba(255,255,255,0.04)',
@@ -32,7 +32,7 @@ const C = {
 // Always-visible: checkbox, sprite, name, spacer, save.
 // 'slugs' is a paired entry - toggling it shows/hides both slug columns together.
 const COLUMN_DEFS = [
-  { id: 'slugs',       label: 'Slug Columns',  dot: '#a855f7', widths: ['200px', '200px'] },
+  { id: 'slugs',       label: 'Slug Columns',  dot: '#0ea3b0', widths: ['200px', '200px'] },
   { id: 'shiny',       label: 'Shiny',          dot: '#facc15', width: '90px'  },
   { id: 'properties',  label: 'Properties',     dot: '#f472b6', width: '190px' },
   { id: 'copy_paste',  label: 'Copy / Paste',   dot: null,      width: '72px'  },
@@ -101,7 +101,7 @@ const usePortalDropdown = (onClose) => {
 const PanelBox = React.forwardRef(({ style, children, maxH = 400 }, ref) => (
   <div ref={ref} style={{ ...style, maxHeight: maxH }}
     className="rounded-xl border overflow-y-auto shadow-2xl"
-    style={{ ...style, maxHeight: maxH, background: 'linear-gradient(160deg, #13151a 0%, #181a21 100%)', borderColor: C.border }}>
+    style={{ ...style, maxHeight: maxH, background: '#13151a', borderColor: C.border }}>
     {children}
   </div>
 ));
@@ -113,9 +113,9 @@ const ColumnsDropdown = ({ visible, setVisible }) => {
   const hiddenCount = COLUMN_DEFS.length - visible.size;
 
   const panel = (
-    <div ref={panelRef} style={{ ...style, width: 220, maxHeight: 400, background: 'linear-gradient(160deg, #13151a 0%, #181a21 100%)', borderColor: C.border }}
+    <div ref={panelRef} style={{ ...style, width: 220, maxHeight: 400, background: '#13151a', borderColor: C.border }}
       className="rounded-xl border overflow-y-auto shadow-2xl">
-      <div className="px-3 py-2 border-b text-[10px] font-bold uppercase tracking-widest text-gray-500"
+      <div className="px-3 py-2 border-b text-[10px] font-bold text-gray-500"
         style={{ borderColor: C.border }}>Columns</div>
       <div className="p-2 space-y-0.5">
         {COLUMN_DEFS.map(col => {
@@ -129,7 +129,7 @@ const ColumnsDropdown = ({ visible, setVisible }) => {
                   on ? next.delete(col.id) : next.add(col.id);
                   return next;
                 })}
-                className="w-3.5 h-3.5 rounded accent-purple-500 flex-shrink-0" />
+                className="w-3.5 h-3.5 rounded accent-lagoon-500 flex-shrink-0" />
               {col.dot && <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: col.dot }} />}
               <span className="text-sm text-gray-300">{col.label}</span>
             </label>
@@ -138,7 +138,7 @@ const ColumnsDropdown = ({ visible, setVisible }) => {
       </div>
       <div className="px-3 py-2 border-t flex gap-3" style={{ borderColor: C.border }}>
         <button type="button" onClick={() => setVisible(ALL_COLUMNS)}
-          className="text-xs text-purple-400 hover:text-purple-300 transition-colors">Show all</button>
+          className="text-xs text-lagoon-400 hover:text-lagoon-300 transition-colors">Show all</button>
       </div>
     </div>
   );
@@ -148,9 +148,9 @@ const ColumnsDropdown = ({ visible, setVisible }) => {
       <button ref={btnRef} type="button" onClick={() => toggle(220)}
         className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-colors border"
         style={{
-          background: hiddenCount > 0 ? 'rgba(147,51,234,0.12)' : C.input,
-          borderColor: hiddenCount > 0 ? 'rgba(147,51,234,0.4)' : C.border,
-          color: hiddenCount > 0 ? '#c084fc' : 'rgba(255,255,255,0.5)',
+          background: hiddenCount > 0 ? 'rgba(3,134,145,0.12)' : C.input,
+          borderColor: hiddenCount > 0 ? 'rgba(3,134,145,0.4)' : C.border,
+          color: hiddenCount > 0 ? '#12bfce' : 'rgba(255,255,255,0.5)',
         }}>
         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
@@ -158,7 +158,7 @@ const ColumnsDropdown = ({ visible, setVisible }) => {
         </svg>
         Columns
         {hiddenCount > 0 && (
-          <span className="text-xs font-bold px-1.5 py-0.5 rounded-full bg-purple-500/20 text-purple-300">
+          <span className="text-xs font-bold px-1.5 py-0.5 rounded-full bg-lagoon-500/20 text-lagoon-300">
             {hiddenCount} hidden
           </span>
         )}
@@ -189,11 +189,11 @@ const SlugDropdown = ({ pokemonId, field, value, onChange, matchValue, reversed 
     : <span className="text-white">{value.length} game{value.length !== 1 ? 's' : ''}</span>;
 
   const panel = (
-    <div ref={panelRef} style={{ ...style, width: SLUG_PANEL_WIDTH, maxHeight: 360, background: 'linear-gradient(160deg, #13151a 0%, #181a21 100%)', borderColor: C.border }}
+    <div ref={panelRef} style={{ ...style, width: SLUG_PANEL_WIDTH, maxHeight: 360, background: '#13151a', borderColor: C.border }}
       className="rounded-xl border overflow-y-auto shadow-2xl">
       <div className="flex gap-3 px-3 py-2.5 border-b flex-wrap" style={{ borderColor: C.border }}>
         <button type="button" onClick={() => onChange(pokemonId, field, ALLOWED_GAMES.map(g => g.key))}
-          className="text-xs text-purple-400 hover:text-purple-300 transition-colors">Select all</button>
+          className="text-xs text-lagoon-400 hover:text-lagoon-300 transition-colors">Select all</button>
         <span className="text-gray-700">·</span>
         <button type="button" onClick={() => onChange(pokemonId, field, [])}
           className="text-xs text-gray-500 hover:text-gray-300 transition-colors">Clear</button>
@@ -212,14 +212,14 @@ const SlugDropdown = ({ pokemonId, field, value, onChange, matchValue, reversed 
             <label key={g.key}
               className="flex items-center gap-3 px-3 py-2 rounded-lg cursor-pointer border transition-colors"
               style={{
-                borderColor: checked ? 'rgba(147,51,234,0.5)' : 'transparent',
-                background: checked ? 'rgba(147,51,234,0.1)' : 'transparent',
+                borderColor: checked ? 'rgba(3,134,145,0.5)' : 'transparent',
+                background: checked ? 'rgba(3,134,145,0.1)' : 'transparent',
               }}
               onMouseEnter={e => { if (!checked) e.currentTarget.style.background = 'rgba(255,255,255,0.04)'; }}
               onMouseLeave={e => { if (!checked) e.currentTarget.style.background = 'transparent'; }}
             >
               <input type="checkbox" checked={checked} onChange={() => toggleSlug(g.key)}
-                className="w-3.5 h-3.5 rounded accent-purple-500 flex-shrink-0" />
+                className="w-3.5 h-3.5 rounded accent-lagoon-500 flex-shrink-0" />
               <div className="flex items-center justify-center gap-1" style={{ width: '90px', flexShrink: 0 }}>
                 {(g.img_urls ?? []).slice(0, 3).map((url, i) => (
                   <img key={i} src={url} alt="" className="object-contain" style={{ height: '27px', maxWidth: '40px' }} />
@@ -277,7 +277,7 @@ const BLUE  = '#60a5fa';
 
 const SectionHead = ({ color, label, right }) => (
   <div className="flex items-center justify-between gap-2 mb-2">
-    <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest text-gray-500">
+    <div className="flex items-center gap-1.5 text-[10px] font-bold text-gray-500">
       <span className="w-2 h-2 rounded-full" style={{ background: color }} />
       {label}
     </div>
@@ -376,7 +376,7 @@ const PropertiesCell = ({ p, data, rosterById, childrenOf, familyOf, onForms, on
         </div>
         {/* Forms: the sprite beside it cycles through them live */}
         <div className="flex items-center gap-1.5 flex-shrink-0">
-          <span className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest text-gray-500">
+          <span className="flex items-center gap-1.5 text-[10px] font-bold text-gray-500">
             <span className="w-2 h-2 rounded-full" style={{ background: BLUE }} />Forms
           </span>
           <div className="flex items-center rounded-lg border overflow-hidden" style={{ borderColor: C.border, background: C.input }}>
@@ -408,7 +408,7 @@ const PropertiesCell = ({ p, data, rosterById, childrenOf, familyOf, onForms, on
 
       {/* Family */}
       <div className="px-4 py-3 border-b" style={{ borderColor: C.border }}>
-        <SectionHead color="#a78bfa" label="Family" right={
+        <SectionHead color="#12bfce" label="Family" right={
           <div className="flex items-center gap-1.5">
             <div className="flex items-center rounded-lg border overflow-hidden" style={{ borderColor: C.border, background: C.input }}>
               <button type="button" onClick={() => setFamily(Math.max(0, (p.family_id ?? 1) - 1))}
@@ -420,14 +420,14 @@ const PropertiesCell = ({ p, data, rosterById, childrenOf, familyOf, onForms, on
                 className="w-7 h-7 text-gray-400 hover:text-white hover:bg-white/[0.06] transition-colors">+</button>
             </div>
             <button type="button" onClick={() => setFamily(view.maxFamily + 1)} title={`New family #${view.maxFamily + 1}`}
-              className="h-7 px-2 rounded-lg border text-xs text-violet-300 hover:text-white hover:bg-violet-500/20 transition-colors"
-              style={{ borderColor: 'rgba(167,139,250,0.35)' }}>New</button>
+              className="h-7 px-2 rounded-lg border text-xs text-lagoon-300 hover:text-white hover:bg-lagoon-500/20 transition-colors"
+              style={{ borderColor: 'rgba(18,191,206,0.35)' }}>New</button>
           </div>
         } />
         <div className="flex flex-wrap gap-1">
           {(view.family.length ? view.family : [p]).map(m => (
             <span key={m.id} title={m.name} className="rounded-lg p-0.5"
-              style={{ background: m.id === p.id ? 'rgba(167,139,250,0.18)' : 'transparent', outline: m.id === p.id ? '1px solid rgba(167,139,250,0.6)' : 'none' }}>
+              style={{ background: m.id === p.id ? 'rgba(18,191,206,0.18)' : 'transparent', outline: m.id === p.id ? '1px solid rgba(18,191,206,0.6)' : 'none' }}>
               <PokemonImage pokemon={m} className="w-9 h-9" disableCycling />
             </span>
           ))}
@@ -450,7 +450,7 @@ const PropertiesCell = ({ p, data, rosterById, childrenOf, familyOf, onForms, on
             : <EmptySlot />}
         </div>
 
-        <div className="text-[10px] font-semibold uppercase tracking-wider text-gray-500 mb-1 flex items-center gap-1">
+        <div className="text-[10px] font-semibold text-gray-500 mb-1 flex items-center gap-1">
           From <Arrow className="w-3 h-3" />
         </div>
         <div className="grid grid-cols-5 gap-1 mb-2">
@@ -462,7 +462,7 @@ const PropertiesCell = ({ p, data, rosterById, childrenOf, familyOf, onForms, on
           ))}
         </div>
 
-        <div className="text-[10px] font-semibold uppercase tracking-wider text-gray-500 mb-1 flex items-center gap-1">
+        <div className="text-[10px] font-semibold text-gray-500 mb-1 flex items-center gap-1">
           <Arrow className="w-3 h-3" /> To
         </div>
         {view.toOptions.length ? (
@@ -492,7 +492,7 @@ const PropertiesCell = ({ p, data, rosterById, childrenOf, familyOf, onForms, on
                 <span className="flex items-center justify-center flex-shrink-0" style={{ width: 44, height: 22 }}>
                   {rule.game?.img_urls?.[0]
                     ? <img src={rule.game.img_urls[0]} alt={rule.game.label} title={rule.game.label} className="object-contain" style={{ maxHeight: 22, maxWidth: 44 }} />
-                    : <span className="text-[10px] font-bold uppercase tracking-wider text-gray-500">All</span>}
+                    : <span className="text-[10px] font-bold text-gray-500">All</span>}
                 </span>
                 <span className={`flex-1 min-w-0 truncate text-sm ${on ? 'text-amber-300 line-through decoration-amber-400/70' : 'text-gray-300'}`}>
                   {rule.short}
@@ -589,7 +589,7 @@ const PokemonRow = React.memo(({
     {/* Checkbox */}
     <div className="flex items-center justify-center">
       <input type="checkbox" checked={isSelected} onChange={() => toggleSelected(p.id)}
-        className="w-4 h-4 rounded accent-purple-500" />
+        className="w-4 h-4 rounded accent-lagoon-500" />
     </div>
 
     {/* Sprite */}
@@ -602,7 +602,7 @@ const PokemonRow = React.memo(({
         target="_blank"
         rel="noopener noreferrer"
         title="Open on Bulbapedia"
-        className="block truncate text-white text-sm font-medium leading-tight hover:text-purple-300 hover:underline transition-colors"
+        className="block truncate text-white text-sm font-medium leading-tight hover:text-lagoon-300 hover:underline transition-colors"
       >
         {p.name}
       </a>
@@ -638,7 +638,7 @@ const PokemonRow = React.memo(({
           onClick={() => setClipboard({ fromId: p.id, game_slugs: [...data.game_slugs], restricted_game_slugs: [...data.restricted_game_slugs] })}
           className="p-1.5 rounded-lg transition-colors text-sm"
           style={{
-            background: clipboard?.fromId === p.id ? 'rgba(147,51,234,0.3)' : 'transparent',
+            background: clipboard?.fromId === p.id ? 'rgba(3,134,145,0.3)' : 'transparent',
             color: clipboard?.fromId === p.id ? '#fff' : 'rgba(255,255,255,0.3)',
           }}>📋</button>
         {clipboard && clipboard.fromId !== p.id && (
@@ -941,7 +941,7 @@ const PokemonGameManager = () => {
                 placeholder="Search by name, dex #, or slug (prefix with - to exclude)"
                 className="pl-9 pr-4 py-2 rounded-lg text-sm text-white placeholder-gray-600 focus:outline-none transition-colors"
                 style={{ background: C.input, border: `1px solid ${C.border}`, width: 240 }}
-                onFocus={e => e.target.style.borderColor = 'rgba(147,51,234,0.5)'}
+                onFocus={e => e.target.style.borderColor = 'rgba(3,134,145,0.5)'}
                 onBlur={e => e.target.style.borderColor = C.border}
               />
             </div>
@@ -951,9 +951,9 @@ const PokemonGameManager = () => {
 
             {/* Reverse order */}
             <label className="flex items-center gap-2 cursor-pointer select-none text-sm transition-colors"
-              style={{ color: reversed ? '#c084fc' : 'rgba(255,255,255,0.4)' }}>
+              style={{ color: reversed ? '#12bfce' : 'rgba(255,255,255,0.4)' }}>
               <input type="checkbox" checked={reversed} onChange={e => setReversed(e.target.checked)}
-                className="w-4 h-4 rounded accent-purple-500" />
+                className="w-4 h-4 rounded accent-lagoon-500" />
               Reverse order
             </label>
 
@@ -963,7 +963,7 @@ const PokemonGameManager = () => {
             {/* Clipboard chip */}
             {clipboard && (
               <div className="flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-full border"
-                style={{ background: 'rgba(147,51,234,0.12)', borderColor: 'rgba(147,51,234,0.3)', color: '#c084fc' }}>
+                style={{ background: 'rgba(3,134,145,0.12)', borderColor: 'rgba(3,134,145,0.3)', color: '#12bfce' }}>
                 <span>📋</span>
                 <span>{clipboard.game_slugs.length ? `${clipboard.game_slugs.length} game${clipboard.game_slugs.length !== 1 ? 's' : ''}` : 'empty'}</span>
                 <button type="button" onClick={() => setClipboard(null)}
@@ -975,9 +975,9 @@ const PokemonGameManager = () => {
             <div className="text-sm" style={{ color: 'rgba(255,255,255,0.3)' }}>
               {selected.size > 0 && (
                 <>
-                  <span style={{ color: '#c084fc' }}>{selected.size} selected</span>
+                  <span style={{ color: '#12bfce' }}>{selected.size} selected</span>
                   <button type="button" onClick={clearSelection}
-                    className="ml-2 text-xs hover:text-white transition-colors" style={{ color: '#a855f7' }}>Clear</button>
+                    className="ml-2 text-xs hover:text-white transition-colors" style={{ color: '#0ea3b0' }}>Clear</button>
                   <span className="mx-2 text-gray-700">·</span>
                 </>
               )}
@@ -989,19 +989,19 @@ const PokemonGameManager = () => {
           <div className="flex-1 overflow-y-auto rounded-xl border" style={{ borderColor: C.border, background: C.card }}>
 
             {/* Column headers */}
-            <div className="grid gap-3 px-4 py-3 text-[10px] font-bold text-gray-500 uppercase tracking-widest whitespace-nowrap border-b sticky top-0 z-10 rounded-t-xl"
+            <div className="grid gap-3 px-4 py-3 text-[10px] font-bold text-gray-500 whitespace-nowrap border-b sticky top-0 z-10 rounded-t-xl"
               style={{ gridTemplateColumns: grid, background: C.header, borderColor: C.border }}>
               <div className="flex items-center justify-center">
                 <input type="checkbox"
                   checked={selected.size > 0 && selected.size === filtered.length}
                   onChange={() => selected.size === filtered.length ? clearSelection() : selectAll()}
-                  className="w-4 h-4 rounded accent-purple-500" />
+                  className="w-4 h-4 rounded accent-lagoon-500" />
               </div>
               <div />
               <div>Pokémon</div>
               {visible.has('slugs') && (
                 <div className="flex items-center gap-1.5">
-                  <span className="w-2 h-2 rounded-full bg-purple-400 inline-block" />
+                  <span className="w-2 h-2 rounded-full bg-lagoon-400 inline-block" />
                   Game Slugs
                 </div>
               )}
@@ -1031,7 +1031,7 @@ const PokemonGameManager = () => {
             {/* Rows */}
             {loading ? (
               <div className="flex items-center justify-center py-20 gap-3">
-                <div className="w-6 h-6 border-2 border-gray-700 border-t-purple-500 rounded-full animate-spin" />
+                <div className="w-6 h-6 border-2 border-gray-700 border-t-lagoon-500 rounded-full animate-spin" />
                 <span className="text-sm text-gray-500">Loading…</span>
               </div>
             ) : error ? (

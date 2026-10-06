@@ -86,7 +86,7 @@ const OverlayApprovals = () => {
     };
   }, [showBanner, apiKey]);
 
-  const accentColor = submission?.restricted ? '#ef4444' : '#a855f7';
+  const accentColor = submission?.restricted ? '#ef4444' : '#0ea3b0';
   const bgColor     = submission?.restricted ? '#1a0707'  : '#0f0a1a';
 
   return (
@@ -133,7 +133,7 @@ const OverlayApprovals = () => {
             <div style={{ marginBottom: '5px' }}>
               <span style={{
                 backgroundColor: submission?.restricted ? '#450a0a' : '#3b0764',
-                color: submission?.restricted ? '#fca5a5' : '#e9d5ff',
+                color: submission?.restricted ? '#fca5a5' : '#a0e7f0',
                 fontSize: '12px',
                 fontWeight: 600,
                 padding: '2px 9px',
@@ -172,7 +172,7 @@ const OverlayApprovals = () => {
             opacity: 0.45,
           }}>
             <img src={faviconImage} alt="" style={{ width: 14, height: 14 }} />
-            <span style={{ color: '#a78bfa', fontSize: '11px', fontWeight: 600, whiteSpace: 'nowrap' }}>
+            <span style={{ color: '#12bfce', fontSize: '11px', fontWeight: 600, whiteSpace: 'nowrap' }}>
               Pokéboard
             </span>
           </div>

@@ -185,10 +185,10 @@ const DEFAULT_CONFIG = {
 };
 
 const BADGE_CONFIG = {
-  borderColor: '#a855f7',
+  borderColor: '#0ea3b0',
   bgColor: '#0f0a1a',
   badgeBg: '#3b0764',
-  badgeText: '#e9d5ff',
+  badgeText: '#a0e7f0',
   label: 'Badge Earned!',
   icon: (
     <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
@@ -203,8 +203,8 @@ const STATUS_BODY = {
   accepted_restricted:           'accepted as a restricted catch',
   accepted_downgraded:           'accepted (downgraded from restricted)',
   accepted_downgraded_historical:'accepted as a historical catch (downgraded)',
-  accepted_upgraded:             'approved and upgraded to restricted! 🎉',
-  accepted_upgraded_historical:  'approved and upgraded to restricted! 🎉',
+  accepted_upgraded:             'approved and upgraded to restricted!',
+  accepted_upgraded_historical:  'approved and upgraded to restricted!',
   rejected:                      'rejected',
   rejected_restricted_ban:       'rejected',
 };

@@ -219,7 +219,7 @@ const ShotTile = ({ step, on, behind, nudge, onToggle, onZoom }) => {
         <span className="text-xs font-semibold leading-tight text-body whitespace-nowrap">{step.label}</span>
         {step.chip && (
           <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-semibold whitespace-nowrap"
-            style={{ background: 'rgba(167,139,250,0.14)', color: ACCENT.base }}>
+            style={{ background: 'rgba(18,191,206,0.14)', color: ACCENT.base }}>
             <Glyph name="calendar" className="w-3.5 h-3.5" />{step.chip}
           </span>
         )}
@@ -253,7 +253,7 @@ const Phase = ({ index, title, done, total, behind, children, grid }) => {
             : { boxShadow: `inset 0 0 0 1.5px ${BORDER.outline}`, color: TEXT.muted }}>
           {complete ? <Glyph name="check" className="w-3 h-3" strokeWidth={3} /> : index}
         </span>
-        <h2 className={`text-[10px] font-semibold uppercase tracking-[0.12em] ${behind ? '' : 'text-muted'}`} style={behind ? { color: AMBER } : undefined}>{title}</h2>
+        <h2 className={`text-[10px] font-semibold ${behind ? '' : 'text-muted'}`} style={behind ? { color: AMBER } : undefined}>{title}</h2>
       </div>
       <div className={grid}>{children}</div>
     </section>
@@ -271,7 +271,7 @@ const BoardPicker = ({ pool, selectedId, onPick }) => {
         const pos = i + 1;
         if (pos === 13) {
           return <div key={pos} className="aspect-square rounded-md flex items-center justify-center"
-            style={{ background: 'rgba(167,139,250,0.10)', color: ACCENT.base }}>
+            style={{ background: 'rgba(18,191,206,0.10)', color: ACCENT.base }}>
             <svg viewBox="0 0 24 24" className="w-5 h-5" fill="currentColor" aria-hidden="true"><path d="M12 2l2.6 6.6L21 9.3l-5 4.4 1.5 6.8L12 17l-5.5 3.5L8 13.7 3 9.3l6.4-.7z" /></svg>
           </div>;
         }
@@ -295,7 +295,7 @@ const GameTile = ({ game, on, restrictedOk, showRestricted, onPick }) => (
   <button type="button" onClick={onPick} aria-pressed={on} title={game.label}
     className="relative min-w-0 h-14 px-2 rounded-lg flex items-center justify-center gap-1 transition-[box-shadow,background] hover:brightness-110"
     style={{
-      background: on ? 'rgba(139,92,246,0.18)' : GRADIENT.inset,
+      background: on ? 'rgba(14,163,176,0.18)' : GRADIENT.inset,
       boxShadow: `inset 0 0 0 ${on ? 2 : 1}px ${on ? ACCENT.base : BORDER.hairline}`,
     }}>
     {game.img_urls.slice(0, 2).map(url => (
@@ -577,7 +577,7 @@ const HuntPrep = () => {
 
                     {preEvos.length > 0 && (
                       <div className="min-w-0">
-                        <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted mb-1.5">Hunt as</div>
+                        <div className="text-[10px] font-semibold text-muted mb-1.5">Hunt as</div>
                         <div className="flex items-center gap-1 flex-wrap">
                           {[...preEvos, board].map((m, i, arr) => {
                             const on = m.id === huntAs.id;
@@ -585,7 +585,7 @@ const HuntPrep = () => {
                               <React.Fragment key={m.id}>
                                 <button type="button" onClick={() => setHuntAsId(m.id === board.id ? null : m.id)} aria-pressed={on} title={m.name}
                                   className="w-12 h-12 rounded-lg flex items-center justify-center transition-[box-shadow] hover:brightness-110"
-                                  style={{ background: on ? 'rgba(139,92,246,0.18)' : GRADIENT.inset, boxShadow: `inset 0 0 0 ${on ? 2 : 1}px ${on ? ACCENT.base : BORDER.hairline}` }}>
+                                  style={{ background: on ? 'rgba(14,163,176,0.18)' : GRADIENT.inset, boxShadow: `inset 0 0 0 ${on ? 2 : 1}px ${on ? ACCENT.base : BORDER.hairline}` }}>
                                   <Sprite mon={m} className="w-10 h-10" />
                                 </button>
                                 {i < arr.length - 1 && <Glyph name="arrow" className="w-3.5 h-3.5" style={{ color: TEXT.faint }} />}

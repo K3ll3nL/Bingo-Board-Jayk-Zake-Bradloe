@@ -77,15 +77,15 @@ a {
 }
 
 /* Thumb is `accent-strong` (a fill); hover lifts to `accent`. The old hover
-   (#7c3aed) maps to accent-strong too, which would have made hover a no-op —
+   (#038691) maps to accent-strong too, which would have made hover a no-op —
    so hover goes one step lighter inside the same family instead. */
 ::-webkit-scrollbar-thumb {
-  background: #8b5cf6;
+  background: #0ea3b0;
   border-radius: 10px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #a78bfa;
+  background: #12bfce;
 }
 
 /* Hide the scrollbar on swipe/scroll-snap tracks (Month Stats carousels,

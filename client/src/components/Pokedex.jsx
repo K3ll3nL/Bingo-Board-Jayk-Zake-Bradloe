@@ -61,7 +61,7 @@ const Pokedex = () => {
             <p className="text-gray-400 mb-4">Please log in to view your Pokédex</p>
             <Link
               to="/"
-              className="inline-block px-4 py-2 bg-purple-500 text-white rounded-lg hover:bg-purple-600"
+              className="inline-block px-4 py-2 bg-lagoon-500 text-white rounded-lg hover:bg-lagoon-600"
             >
               Back to Home
             </Link>
@@ -109,14 +109,14 @@ const Pokedex = () => {
               value={search}
               onChange={e => setSearch(e.target.value)}
               placeholder="Search Pokémon..."
-              className="px-4 py-2 bg-gray-800 border border-gray-600 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-purple-500 text-sm w-56"
+              className="px-4 py-2 bg-gray-800 border border-gray-600 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-lagoon-500 text-sm w-56"
             />
             <div className="flex items-center gap-1 bg-gray-800 rounded-lg p-1">
               {[['all', 'All'], ['caught', 'Caught'], ['missed', 'Missed'], ['never_featured', 'Undiscovered']].map(([val, label]) => (
                 <button
                   key={val}
                   onClick={() => setFilter(val)}
-                  className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${filter === val ? 'bg-purple-600 text-white' : 'text-gray-400 hover:text-white'}`}
+                  className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${filter === val ? 'bg-lagoon-600 text-white' : 'text-gray-400 hover:text-white'}`}
                 >
                   {label}
                 </button>
@@ -152,7 +152,7 @@ const Pokedex = () => {
             return gens.map(gen => (
               <div key={gen} className="mb-8">
                 <div className="flex items-center gap-3 mb-3">
-                  <h3 className="text-sm font-semibold text-purple-400 uppercase tracking-wider">{GEN_NAMES[gen] || `Generation ${gen}`}</h3>
+                  <h3 className="text-sm font-semibold text-lagoon-400">{GEN_NAMES[gen] || `Generation ${gen}`}</h3>
                   <div className="flex-1 h-px bg-gray-700" />
                   <span className="text-xs text-gray-600">{byGen[gen].filter(p => p.caught).length} / {byGen[gen].length}</span>
                 </div>
@@ -175,7 +175,7 @@ const Pokedex = () => {
                     <CellTag
                       key={poke.id}
                       {...cellProps}
-                      className={`group relative block rounded-lg border-2 transition-all duration-200 overflow-hidden leading-none aspect-square ${canSubmit ? 'hover:scale-105 cursor-pointer hover:border-purple-400' : poke.caught ? 'hover:scale-105 cursor-pointer' : 'cursor-default'} ${poke.caught ? 'border-purple-500 bg-gray-800' : 'border-gray-700 bg-gray-900'}`}
+                      className={`group relative block rounded-lg border-2 transition-all duration-200 overflow-hidden leading-none aspect-square ${canSubmit ? 'hover:scale-105 cursor-pointer hover:border-lagoon-400' : poke.caught ? 'hover:scale-105 cursor-pointer' : 'cursor-default'} ${poke.caught ? 'border-lagoon-500 bg-gray-800' : 'border-gray-700 bg-gray-900'}`}
                       title={canSubmit ? submitTitle : `${poke.display_name || poke.name}${poke.caught ? ' ✓' : ''}`}
                     >
                       <div className={`w-full h-full ${poke.caught ? '' : poke.in_pool ? 'grayscale opacity-30' : 'brightness-0 opacity-20'}`}>
@@ -190,7 +190,7 @@ const Pokedex = () => {
                       )}
                       {/* Upload hint on hover for missed pokemon */}
                       {canSubmit && (
-                        <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-150" style={{ background: 'rgba(145,71,255,0.25)' }}>
+                        <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-150" style={{ background: 'rgba(14,163,176,0.25)' }}>
                           <svg className="w-5 h-5 text-white drop-shadow" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
                           </svg>

@@ -49,7 +49,7 @@ const ExpandedTierRows = ({ byTier, poolById }) => {
               style={{ backgroundColor: TIER_COLORS[tierKey], color: '#0d0f14' }}>
               {tierKey === 'unranked' ? '?' : tierKey[0].toUpperCase()}
             </div>
-            <span className="text-[9px] font-semibold uppercase tracking-wide text-center leading-tight"
+            <span className="text-[9px] font-semibold text-center leading-tight"
               style={{ color: TIER_COLORS[tierKey] }}>
               {TIER_LABELS[tierKey]}
             </span>
@@ -158,7 +158,7 @@ const TierRoster = ({ roster, pool, viewerTiers, onCompare, viewingUserId, onVie
                     type="button"
                     onClick={() => onCompare(sub.user_id)}
                     className="px-2.5 py-1.5 rounded-lg text-xs font-medium text-white border shrink-0"
-                    style={{ borderColor: BORDER.edge, background: 'rgba(139,92,246,0.15)', color: '#a78bfa' }}
+                    style={{ borderColor: BORDER.edge, background: 'rgba(14,163,176,0.15)', color: '#12bfce' }}
                   >
                     Compare
                   </button>

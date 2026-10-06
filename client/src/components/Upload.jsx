@@ -62,7 +62,7 @@ const ProofDropzone = ({ id, label, optional, file, onPick, disabled }) => (
       id={id}
       disabled={disabled}
     />
-    <label htmlFor={id} className="block w-full p-4 border-2 border-dashed rounded-lg text-center cursor-pointer transition-colors border-gray-600 bg-gray-700 hover:border-purple-500">
+    <label htmlFor={id} className="block w-full p-4 border-2 border-dashed rounded-lg text-center cursor-pointer transition-colors border-gray-600 bg-gray-700 hover:border-lagoon-500">
       {file ? (
         <div className="text-white">
           <svg className="w-6 h-6 mx-auto mb-2 text-green-400" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" /></svg>
@@ -326,7 +326,7 @@ const HistoricalUploadSection = () => {
     if (caughtInDifferentGame) attachedFiles.push(evolutionFile, evolutionSummaryFile);
     const totalFileSize = attachedFiles.filter(Boolean).reduce((sum, f) => sum + f.size, 0);
     if (totalFileSize > MAX_TOTAL_SIZE) {
-      setError(`Your files total ${(totalFileSize / 1048576).toFixed(1)}MB. A submission must be under 4.5MB total — compress or remove a file and try again.`);
+      setError(`Your files total ${(totalFileSize / 1048576).toFixed(1)}MB, and a submission must be under 4.5MB total. Compress or remove a file and try again.`);
       return;
     }
 
@@ -395,15 +395,15 @@ const HistoricalUploadSection = () => {
           <label className="block text-sm font-medium text-gray-200">Select Pokemon</label>
           <div className="flex rounded-lg overflow-hidden border border-gray-600 divide-x divide-gray-600 flex-shrink-0">
             <button type="button" onClick={() => setSortBy('dex')}
-              className={`px-2 py-1.5 text-xs font-medium transition-colors ${sortBy === 'dex' ? 'bg-purple-500 text-white' : 'bg-gray-800 text-gray-300'}`}>
+              className={`px-2 py-1.5 text-xs font-medium transition-colors ${sortBy === 'dex' ? 'bg-lagoon-500 text-white' : 'bg-gray-800 text-gray-300'}`}>
               Dex #
             </button>
             <button type="button" onClick={() => setSortBy('alpha')}
-              className={`px-2 py-1.5 text-xs font-medium transition-colors ${sortBy === 'alpha' ? 'bg-purple-500 text-white' : 'bg-gray-800 text-gray-300'}`}>
+              className={`px-2 py-1.5 text-xs font-medium transition-colors ${sortBy === 'alpha' ? 'bg-lagoon-500 text-white' : 'bg-gray-800 text-gray-300'}`}>
               A-Z
             </button>
             <button type="button" onClick={() => setSortBy('month')}
-              className={`px-2 py-1.5 text-xs font-medium transition-colors ${sortBy === 'month' ? 'bg-purple-500 text-white' : 'bg-gray-800 text-gray-300'}`}>
+              className={`px-2 py-1.5 text-xs font-medium transition-colors ${sortBy === 'month' ? 'bg-lagoon-500 text-white' : 'bg-gray-800 text-gray-300'}`}>
               Month
             </button>
             {restrictedEnabled && (
@@ -419,7 +419,7 @@ const HistoricalUploadSection = () => {
             type="button"
             onClick={() => setDropdownOpen(!dropdownOpen)}
             disabled={submitting}
-            className="w-full p-3 bg-gray-700 text-white rounded-lg border border-gray-600 focus:border-purple-500 focus:outline-none flex items-center justify-between"
+            className="w-full p-3 bg-gray-700 text-white rounded-lg border border-gray-600 focus:border-lagoon-500 focus:outline-none flex items-center justify-between"
           >
             {selectedPokemon && selectedPokeData ? (
               <div className="flex items-center gap-3 min-w-0">
@@ -464,7 +464,7 @@ const HistoricalUploadSection = () => {
                   value={pokemonSearch}
                   onChange={(e) => setPokemonSearch(e.target.value)}
                   placeholder="Search by name or dex #..."
-                  className="w-full p-2 bg-gray-800 text-white text-sm rounded border border-gray-600 focus:border-purple-500 focus:outline-none"
+                  className="w-full p-2 bg-gray-800 text-white text-sm rounded border border-gray-600 focus:border-lagoon-500 focus:outline-none"
                 />
               </div>
               {searchedPokemon.length === 0 ? (
@@ -501,7 +501,7 @@ const HistoricalUploadSection = () => {
             type="button"
             onClick={() => setGameDropdownOpen(!gameDropdownOpen)}
             disabled={submitting}
-            className="w-full p-3 bg-gray-700 text-white rounded-lg border border-gray-600 focus:border-purple-500 focus:outline-none flex items-center justify-between"
+            className="w-full p-3 bg-gray-700 text-white rounded-lg border border-gray-600 focus:border-lagoon-500 focus:outline-none flex items-center justify-between"
           >
             {game && selectedGameObj ? (
               <div className="flex items-center gap-3 min-w-0">
@@ -546,7 +546,7 @@ const HistoricalUploadSection = () => {
                   value={gameSearch}
                   onChange={(e) => setGameSearch(e.target.value)}
                   placeholder="Search games..."
-                  className="w-full p-2 bg-gray-800 text-white text-sm rounded border border-gray-600 focus:border-purple-500 focus:outline-none"
+                  className="w-full p-2 bg-gray-800 text-white text-sm rounded border border-gray-600 focus:border-lagoon-500 focus:outline-none"
                 />
               </div>
               {searchedGames.length === 0 ? (
@@ -605,7 +605,7 @@ const HistoricalUploadSection = () => {
                 type="button"
                 onClick={() => setCaughtInGameOpen(!caughtInGameOpen)}
                 disabled={submitting}
-                className="w-full p-3 bg-gray-700 text-white rounded-lg border border-gray-600 focus:border-purple-500 focus:outline-none flex items-center justify-between"
+                className="w-full p-3 bg-gray-700 text-white rounded-lg border border-gray-600 focus:border-lagoon-500 focus:outline-none flex items-center justify-between"
               >
                 {caughtInGame ? (
                   <div className="flex items-center gap-3 min-w-0">
@@ -647,7 +647,7 @@ const HistoricalUploadSection = () => {
                       value={caughtGameSearch}
                       onChange={(e) => setCaughtGameSearch(e.target.value)}
                       placeholder="Search games..."
-                      className="w-full p-2 bg-gray-800 text-white text-sm rounded border border-gray-600 focus:border-purple-500 focus:outline-none"
+                      className="w-full p-2 bg-gray-800 text-white text-sm rounded border border-gray-600 focus:border-lagoon-500 focus:outline-none"
                     />
                   </div>
                   {searchedCaughtGames.length === 0 && (
@@ -673,7 +673,7 @@ const HistoricalUploadSection = () => {
               <div>
                 <label className="block text-xs font-medium text-gray-300 mb-2">Evolution Screenshot <span className="text-red-400">*</span></label>
                 <input type="file" onChange={(e) => { if (e.target.files[0]) setEvolutionFile(e.target.files[0]); }} accept="image/*,video/*" className="hidden" id="hist-evo-file" disabled={submitting} />
-                <label htmlFor="hist-evo-file" className="block w-full p-4 border-2 border-dashed rounded-lg text-center cursor-pointer transition-colors border-gray-600 bg-gray-700 hover:border-purple-500">
+                <label htmlFor="hist-evo-file" className="block w-full p-4 border-2 border-dashed rounded-lg text-center cursor-pointer transition-colors border-gray-600 bg-gray-700 hover:border-lagoon-500">
                   {evolutionFile ? (
                     <div className="text-white"><svg className="w-6 h-6 mx-auto mb-2 text-green-400" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" /></svg><p className="text-xs truncate">{evolutionFile.name}</p></div>
                   ) : (
@@ -684,7 +684,7 @@ const HistoricalUploadSection = () => {
               <div>
                 <label className="block text-xs font-medium text-gray-300 mb-2">Evolved Summary <span className="text-red-400">*</span></label>
                 <input type="file" onChange={(e) => { if (e.target.files[0]) setEvolutionSummaryFile(e.target.files[0]); }} accept="image/*,video/*" className="hidden" id="hist-evo-summary-file" disabled={submitting} />
-                <label htmlFor="hist-evo-summary-file" className="block w-full p-4 border-2 border-dashed rounded-lg text-center cursor-pointer transition-colors border-gray-600 bg-gray-700 hover:border-purple-500">
+                <label htmlFor="hist-evo-summary-file" className="block w-full p-4 border-2 border-dashed rounded-lg text-center cursor-pointer transition-colors border-gray-600 bg-gray-700 hover:border-lagoon-500">
                   {evolutionSummaryFile ? (
                     <div className="text-white"><svg className="w-6 h-6 mx-auto mb-2 text-green-400" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" /></svg><p className="text-xs truncate">{evolutionSummaryFile.name}</p></div>
                   ) : (
@@ -751,7 +751,7 @@ const HistoricalUploadSection = () => {
 
               {showLockedTooltip && (
                 <div className="absolute bottom-full right-0 mb-2 w-56 bg-gray-900 border border-gray-700 rounded-lg p-2 text-xs z-10 shadow-lg text-center pointer-events-none">
-                  <p className="text-yellow-300">You already have a standard submission for this Pokémon — restricted only.</p>
+                  <p className="text-yellow-300">You already have a standard submission for this Pokémon. You may only submit restricted submissions for this Pokémon.</p>
                 </div>
               )}
               {!isRestricted && showTooltip && (
@@ -762,7 +762,7 @@ const HistoricalUploadSection = () => {
                 >
                   <p className="font-medium text-white mb-1">Restricted Challenge</p>
                   <p className="text-gray-400 mb-2">Submit a VOD or stored video link to count toward the restricted challenge.</p>
-                  <a href="/about#restricted" className="text-purple-400 hover:text-purple-300 transition-colors">Learn more →</a>
+                  <a href="/about#restricted" className="text-lagoon-400 hover:text-lagoon-300 transition-colors">Learn more →</a>
                 </div>
               )}
             </div>
@@ -780,7 +780,7 @@ const HistoricalUploadSection = () => {
                 setMediaUrls(next);
               }}
               placeholder="Twitch clip, VOD, or YouTube link"
-              className="flex-1 p-3 bg-gray-700 text-white rounded-lg border border-gray-600 focus:border-purple-500 focus:outline-none"
+              className="flex-1 p-3 bg-gray-700 text-white rounded-lg border border-gray-600 focus:border-lagoon-500 focus:outline-none"
               disabled={submitting}
             />
             {mediaUrls.length > 1 && (
@@ -802,7 +802,7 @@ const HistoricalUploadSection = () => {
           type="button"
           onClick={() => setMediaUrls(prev => [...prev, ''])}
           disabled={submitting}
-          className="text-xs text-purple-400 hover:text-purple-300 transition-colors mt-1"
+          className="text-xs text-lagoon-400 hover:text-lagoon-300 transition-colors mt-1"
         >
           + Add another link
         </button>
@@ -817,7 +817,7 @@ const HistoricalUploadSection = () => {
                     type="checkbox"
                     checked={!!checkedItems[item.id]}
                     onChange={() => toggleCheck(item.id)}
-                    className="mt-0.5 flex-shrink-0 accent-purple-500"
+                    className="mt-0.5 flex-shrink-0 accent-lagoon-500"
                   />
                   <span className="text-gray-300 leading-tight">{item.label}</span>
                 </label>
@@ -850,7 +850,7 @@ const HistoricalUploadSection = () => {
           className={`block w-full p-4 border-2 border-dashed rounded-lg text-center transition-colors ${
             extraFiles.length >= 6
               ? 'border-gray-700 bg-gray-800/40 cursor-not-allowed'
-              : 'border-gray-600 bg-gray-700 hover:border-purple-500 cursor-pointer'
+              : 'border-gray-600 bg-gray-700 hover:border-lagoon-500 cursor-pointer'
           }`}
         >
           <svg className="w-6 h-6 mx-auto mb-1 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -896,7 +896,7 @@ const HistoricalUploadSection = () => {
           placeholder="Any context that might help the mod team..."
           rows={2}
           maxLength={500}
-          className="w-full px-3 py-2 bg-gray-800 border border-gray-600 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-purple-500 text-sm resize-none"
+          className="w-full px-3 py-2 bg-gray-800 border border-gray-600 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-lagoon-500 text-sm resize-none"
         />
       </div>
 
@@ -1199,7 +1199,7 @@ const Upload = () => {
     if (caughtInDifferentGame) attachedFiles.push(evolutionFile, evolutionSummaryFile);
     const totalFileSize = attachedFiles.filter(Boolean).reduce((sum, f) => sum + f.size, 0);
     if (totalFileSize > MAX_TOTAL_SIZE) {
-      setError(`Your files total ${(totalFileSize / 1048576).toFixed(1)}MB. A submission must be under 4.5MB total — compress or remove a file and try again.`);
+      setError(`Your files total ${(totalFileSize / 1048576).toFixed(1)}MB. A submission must be under 4.5MB total. Compress or remove a file and try again.`);
       return;
     }
 
@@ -1284,7 +1284,7 @@ const Upload = () => {
                 type="button"
                 onClick={() => setIsHistoricalMode(false)}
                 className={`px-3.5 py-1.5 sm:px-5 sm:py-2 rounded-lg font-medium text-xs sm:text-sm transition-colors ${
-                  !isHistoricalMode ? 'bg-purple-500 text-white' : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                  !isHistoricalMode ? 'bg-lagoon-500 text-white' : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
                 }`}
               >
                 Current Month
@@ -1303,13 +1303,13 @@ const Upload = () => {
 
           {/* ── Historical Form ─────────────────────────────────────────────── */}
           {restrictedEnabled && (
-            <div className={`rounded-lg shadow-lg p-4 sm:p-6 border border-gray-600 ${!isHistoricalMode ? 'hidden' : ''}`} style={{ background: 'linear-gradient(160deg, #1a1c23 0%, #1f2128 100%)' }}>
+            <div className={`rounded-lg shadow-lg p-4 sm:p-6 border border-gray-600 ${!isHistoricalMode ? 'hidden' : ''}`} style={{ background: '#1a1c23' }}>
               <HistoricalUploadSection />
             </div>
           )}
 
           {/* ── Current Month Form ──────────────────────────────────────────── */}
-          <div className={`rounded-lg shadow-lg p-4 sm:p-6 border border-gray-600 ${isHistoricalMode && restrictedEnabled ? 'hidden' : ''}`} style={{ background: 'linear-gradient(160deg, #1a1c23 0%, #1f2128 100%)' }}>
+          <div className={`rounded-lg shadow-lg p-4 sm:p-6 border border-gray-600 ${isHistoricalMode && restrictedEnabled ? 'hidden' : ''}`} style={{ background: '#1a1c23' }}>
 
             {error && (
               <div className="mb-4 p-3 bg-red-900 border border-red-700 rounded-lg text-red-200 text-sm">{error}</div>
@@ -1330,11 +1330,11 @@ const Upload = () => {
                   </label>
                   <div className="flex rounded-lg overflow-hidden border border-gray-600 divide-x divide-gray-600 flex-shrink-0">
                     <button type="button" onClick={() => setSortBy('dex')}
-                      className={`px-2 py-1.5 text-xs font-medium transition-colors ${sortBy === 'dex' ? 'bg-purple-500 text-white' : 'bg-gray-800 text-gray-300'}`}>
+                      className={`px-2 py-1.5 text-xs font-medium transition-colors ${sortBy === 'dex' ? 'bg-lagoon-500 text-white' : 'bg-gray-800 text-gray-300'}`}>
                       Dex #
                     </button>
                     <button type="button" onClick={() => setSortBy('alpha')}
-                      className={`px-2 py-1.5 text-xs font-medium transition-colors ${sortBy === 'alpha' ? 'bg-purple-500 text-white' : 'bg-gray-800 text-gray-300'}`}>
+                      className={`px-2 py-1.5 text-xs font-medium transition-colors ${sortBy === 'alpha' ? 'bg-lagoon-500 text-white' : 'bg-gray-800 text-gray-300'}`}>
                       A-Z
                     </button>
                     {restrictedEnabled && (
@@ -1350,7 +1350,7 @@ const Upload = () => {
                   <button
                     type="button"
                     onClick={() => setDropdownOpen(!dropdownOpen)}
-                    className="w-full p-3 bg-gray-700 text-white rounded-lg border border-gray-600 focus:border-purple-500 focus:outline-none flex items-center justify-between"
+                    className="w-full p-3 bg-gray-700 text-white rounded-lg border border-gray-600 focus:border-lagoon-500 focus:outline-none flex items-center justify-between"
                     disabled={loading || submitting}
                   >
                     {selectedPokemon && selectedPokeObj ? (
@@ -1397,7 +1397,7 @@ const Upload = () => {
                           value={pokemonSearch}
                           onChange={(e) => setPokemonSearch(e.target.value)}
                           placeholder="Search by name or dex #..."
-                          className="w-full p-2 bg-gray-800 text-white text-sm rounded border border-gray-600 focus:border-purple-500 focus:outline-none"
+                          className="w-full p-2 bg-gray-800 text-white text-sm rounded border border-gray-600 focus:border-lagoon-500 focus:outline-none"
                         />
                       </div>
                       {searchedPokemon.length === 0 ? (
@@ -1432,7 +1432,7 @@ const Upload = () => {
                   <button
                     type="button"
                     onClick={() => setGameDropdownOpen(!gameDropdownOpen)}
-                    className="w-full p-3 bg-gray-700 text-white rounded-lg border border-gray-600 focus:border-purple-500 focus:outline-none flex items-center justify-between"
+                    className="w-full p-3 bg-gray-700 text-white rounded-lg border border-gray-600 focus:border-lagoon-500 focus:outline-none flex items-center justify-between"
                     disabled={submitting}
                   >
                     {game && selectedGameObj ? (
@@ -1483,7 +1483,7 @@ const Upload = () => {
                           value={gameSearch}
                           onChange={(e) => setGameSearch(e.target.value)}
                           placeholder="Search games..."
-                          className="w-full p-2 bg-gray-800 text-white text-sm rounded border border-gray-600 focus:border-purple-500 focus:outline-none"
+                          className="w-full p-2 bg-gray-800 text-white text-sm rounded border border-gray-600 focus:border-lagoon-500 focus:outline-none"
                         />
                       </div>
                       {searchedGames.length === 0 ? (
@@ -1545,7 +1545,7 @@ const Upload = () => {
                         type="button"
                         onClick={() => setCaughtInGameOpen(!caughtInGameOpen)}
                         disabled={submitting}
-                        className="w-full p-3 bg-gray-700 text-white rounded-lg border border-gray-600 focus:border-purple-500 focus:outline-none flex items-center justify-between"
+                        className="w-full p-3 bg-gray-700 text-white rounded-lg border border-gray-600 focus:border-lagoon-500 focus:outline-none flex items-center justify-between"
                       >
                         {caughtInGame ? (
                           <div className="flex items-center gap-3 min-w-0">
@@ -1587,7 +1587,7 @@ const Upload = () => {
                               value={caughtGameSearch}
                               onChange={(e) => setCaughtGameSearch(e.target.value)}
                               placeholder="Search games..."
-                              className="w-full p-2 bg-gray-800 text-white text-sm rounded border border-gray-600 focus:border-purple-500 focus:outline-none"
+                              className="w-full p-2 bg-gray-800 text-white text-sm rounded border border-gray-600 focus:border-lagoon-500 focus:outline-none"
                             />
                           </div>
                           {searchedCaughtGames.length === 0 && (
@@ -1613,7 +1613,7 @@ const Upload = () => {
                       <div>
                         <label className="block text-xs font-medium text-gray-300 mb-2">Evolution Screenshot <span className="text-red-400">*</span></label>
                         <input type="file" onChange={(e) => { if (e.target.files[0]) setEvolutionFile(e.target.files[0]); }} accept="image/*,video/*" className="hidden" id="main-evo-file" disabled={submitting} />
-                        <label htmlFor="main-evo-file" className="block w-full p-4 border-2 border-dashed rounded-lg text-center cursor-pointer transition-colors border-gray-600 bg-gray-700 hover:border-purple-500">
+                        <label htmlFor="main-evo-file" className="block w-full p-4 border-2 border-dashed rounded-lg text-center cursor-pointer transition-colors border-gray-600 bg-gray-700 hover:border-lagoon-500">
                           {evolutionFile ? (
                             <div className="text-white"><svg className="w-6 h-6 mx-auto mb-2 text-green-400" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" /></svg><p className="text-xs truncate">{evolutionFile.name}</p></div>
                           ) : (
@@ -1624,7 +1624,7 @@ const Upload = () => {
                       <div>
                         <label className="block text-xs font-medium text-gray-300 mb-2">Evolved Summary <span className="text-red-400">*</span></label>
                         <input type="file" onChange={(e) => { if (e.target.files[0]) setEvolutionSummaryFile(e.target.files[0]); }} accept="image/*,video/*" className="hidden" id="main-evo-summary-file" disabled={submitting} />
-                        <label htmlFor="main-evo-summary-file" className="block w-full p-4 border-2 border-dashed rounded-lg text-center cursor-pointer transition-colors border-gray-600 bg-gray-700 hover:border-purple-500">
+                        <label htmlFor="main-evo-summary-file" className="block w-full p-4 border-2 border-dashed rounded-lg text-center cursor-pointer transition-colors border-gray-600 bg-gray-700 hover:border-lagoon-500">
                           {evolutionSummaryFile ? (
                             <div className="text-white"><svg className="w-6 h-6 mx-auto mb-2 text-green-400" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" /></svg><p className="text-xs truncate">{evolutionSummaryFile.name}</p></div>
                           ) : (
@@ -1692,7 +1692,7 @@ const Upload = () => {
 
                       {showLockedTooltip && (
                         <div className="absolute bottom-full right-0 mb-2 w-56 bg-gray-900 border border-gray-700 rounded-lg p-3 text-xs z-10 shadow-lg whitespace-normal text-center pointer-events-none">
-                          <p className="text-yellow-300">You already have a standard submission for this Pokémon — restricted only.</p>
+                          <p className="text-yellow-300">You already have a standard submission for this Pokémon. You may only submit restricted submissions for this Pokémon.</p>
                         </div>
                       )}
                       {!isRestricted && showTooltip && (
@@ -1703,7 +1703,7 @@ const Upload = () => {
                         >
                           <p className="font-medium text-white mb-1">Restricted Challenge</p>
                           <p className="text-gray-400 mb-2">Submit a VOD or stored video link to count toward the restricted challenge.</p>
-                          <a href="/about#restricted" className="text-purple-400 hover:text-purple-300 transition-colors">Learn more →</a>
+                          <a href="/about#restricted" className="text-lagoon-400 hover:text-lagoon-300 transition-colors">Learn more →</a>
                         </div>
                       )}
                     </div>
@@ -1721,7 +1721,7 @@ const Upload = () => {
                         setMediaUrls(next);
                       }}
                       placeholder="Twitch clip, VOD, or YouTube link"
-                      className="flex-1 p-3 bg-gray-700 text-white rounded-lg border border-gray-600 focus:border-purple-500 focus:outline-none"
+                      className="flex-1 p-3 bg-gray-700 text-white rounded-lg border border-gray-600 focus:border-lagoon-500 focus:outline-none"
                       disabled={submitting}
                     />
                     {mediaUrls.length > 1 && (
@@ -1746,7 +1746,7 @@ const Upload = () => {
                     }}
                   onClick={() => setMediaUrls(prev => [...prev, ''])}
                   disabled={submitting}
-                  className="text-xs text-purple-400 hover:text-purple-300 transition-colors mt-1"
+                  className="text-xs text-lagoon-400 hover:text-lagoon-300 transition-colors mt-1"
                 >
                   + Add another link
                 </button>
@@ -1761,7 +1761,7 @@ const Upload = () => {
                             type="checkbox"
                             checked={!!checkedItems[item.id]}
                             onChange={() => toggleCheck(item.id)}
-                            className="mt-0.5 flex-shrink-0 accent-purple-500"
+                            className="mt-0.5 flex-shrink-0 accent-lagoon-500"
                           />
                           <span className="text-gray-300 leading-tight">{item.label}</span>
                         </label>
@@ -1794,7 +1794,7 @@ const Upload = () => {
                   className={`block w-full p-4 border-2 border-dashed rounded-lg text-center transition-colors ${
                     extraFiles.length >= 6
                       ? 'border-gray-700 bg-gray-800/40 cursor-not-allowed'
-                      : 'border-gray-600 bg-gray-700 hover:border-purple-500 cursor-pointer'
+                      : 'border-gray-600 bg-gray-700 hover:border-lagoon-500 cursor-pointer'
                   }`}
                 >
                   <svg className="w-6 h-6 mx-auto mb-1 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1840,7 +1840,7 @@ const Upload = () => {
                   placeholder="Any context that might help the mod team..."
                   rows={2}
                   maxLength={500}
-                  className="w-full px-3 py-2 bg-gray-800 border border-gray-600 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-purple-500 text-sm resize-none"
+                  className="w-full px-3 py-2 bg-gray-800 border border-gray-600 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-lagoon-500 text-sm resize-none"
                 />
               </div>
 
@@ -1854,7 +1854,7 @@ const Upload = () => {
                   (isRestricted && activeChecklist.length > 0 && !activeChecklist.every(item => !!checkedItems[item.id])) ||
                   (isRestricted || noImageProof ? !mediaUrls.some(u => u.trim()) : (!mediaUrls.some(u => u.trim()) && proof.missing))
                 }
-                className="w-full py-3 bg-purple-500 text-white rounded-lg font-medium hover:bg-purple-600 disabled:bg-gray-600 disabled:cursor-not-allowed transition-colors"
+                className="w-full py-3 bg-lagoon-500 text-white rounded-lg font-medium hover:bg-lagoon-600 disabled:bg-gray-600 disabled:cursor-not-allowed transition-colors"
               >
                 {submitting ? 'Submitting...' : 'Submit Catch'}
               </button>

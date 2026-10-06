@@ -21,7 +21,7 @@ const STATUS_COLORS = {
 };
 
 const TYPE_COLORS = {
-  suggestion: 'bg-purple-500 bg-opacity-20 text-purple-300',
+  suggestion: 'bg-lagoon-500 bg-opacity-20 text-lagoon-300',
   bug: 'bg-red-500 bg-opacity-20 text-red-300',
   // Amber, and sorted to the top of the list below: these are copyright
   // takedowns and data access/deletion requests, which carry a response
@@ -108,7 +108,7 @@ export default function ModFeedback() {
         {counts.legal > 0 && (
           <div className="mb-6 rounded-lg border border-amber-500/40 bg-amber-500/10 px-4 py-3">
             <p className="text-amber-200 text-sm font-medium">
-              {counts.legal} open legal {counts.legal === 1 ? 'request' : 'requests'} — needs a response
+              {counts.legal} open legal {counts.legal === 1 ? 'request' : 'requests'} needs a response
             </p>
             <p className="text-amber-200/70 text-xs mt-1">
               Copyright takedowns and data access/deletion requests. Our published policies commit to
@@ -122,7 +122,7 @@ export default function ModFeedback() {
           <span className="px-3 py-1 rounded-full text-sm bg-yellow-500 bg-opacity-20 text-yellow-300">
             {counts.open} open
           </span>
-          <span className="px-3 py-1 rounded-full text-sm bg-purple-500 bg-opacity-20 text-purple-300">
+          <span className="px-3 py-1 rounded-full text-sm bg-lagoon-500 bg-opacity-20 text-lagoon-300">
             {counts.suggestion} suggestions
           </span>
           <span className="px-3 py-1 rounded-full text-sm bg-red-500 bg-opacity-20 text-red-300">
@@ -137,7 +137,7 @@ export default function ModFeedback() {
               <button
                 key={t}
                 onClick={() => setFilter(t)}
-                className={`px-3 py-1.5 transition-colors ${filter === t ? 'bg-purple-600 text-white' : 'text-gray-400 hover:text-gray-200'}`}
+                className={`px-3 py-1.5 transition-colors ${filter === t ? 'bg-lagoon-600 text-white' : 'text-gray-400 hover:text-gray-200'}`}
                 style={filter !== t ? { backgroundColor: '#35373b' } : {}}
               >
                 {t === 'all' ? 'All types' : t === 'legal' ? 'Legal' : t === 'suggestion' ? 'Suggestions' : 'Bugs'}
@@ -149,7 +149,7 @@ export default function ModFeedback() {
               <button
                 key={s}
                 onClick={() => setStatusFilter(s)}
-                className={`px-3 py-1.5 transition-colors ${statusFilter === s ? 'bg-purple-600 text-white' : 'text-gray-400 hover:text-gray-200'}`}
+                className={`px-3 py-1.5 transition-colors ${statusFilter === s ? 'bg-lagoon-600 text-white' : 'text-gray-400 hover:text-gray-200'}`}
                 style={statusFilter !== s ? { backgroundColor: '#35373b' } : {}}
               >
                 {s === 'all' ? 'All statuses' : s.charAt(0).toUpperCase() + s.slice(1)}

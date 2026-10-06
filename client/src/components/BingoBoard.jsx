@@ -142,7 +142,7 @@ const BingoBoard = ({ data, error: errorProp = null, hideTitle = false, hideAchi
               <AchievementIcon
                 type={type}
                 claimed={!!label}
-                color="#9147ff"
+                color="#038691"
                 containerClassName="w-6 h-6 md:w-9 md:h-9 rounded-lg"
                 svgClassName={type === 'blackout' ? 'w-6 h-6 md:w-9 md:h-9' : 'w-4 h-4 md:w-6 md:h-6'}
               />
@@ -156,8 +156,8 @@ const BingoBoard = ({ data, error: errorProp = null, hideTitle = false, hideAchi
         </div>
 
         <div className="mt-3">
-            <p className="text-center text-[10px] md:text-xs text-gray-500 uppercase tracking-wider mb-2">
-              Restricted Challenge
+            <p className="text-center text-[10px] md:text-xs text-gray-500 mb-2">
+              Restricted challenge
             </p>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
               {[
@@ -171,7 +171,7 @@ const BingoBoard = ({ data, error: errorProp = null, hideTitle = false, hideAchi
                     type={type}
                     claimed={!!label}
                     restricted={true}
-                    color="#9147ff"
+                    color="#038691"
                     containerClassName="w-6 h-6 md:w-9 md:h-9 rounded-lg"
                     svgClassName={type === 'blackout' ? 'w-6 h-6 md:w-9 md:h-9' : 'w-4 h-4 md:w-6 md:h-6'}
                   />

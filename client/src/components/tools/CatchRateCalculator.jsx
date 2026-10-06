@@ -62,7 +62,7 @@ const BALLS = {
   heal:    { name: 'Heal Ball',    short: 'HlB', color: '#f9a8d4', getBonus: () => 1, note: 'Restores HP/status on catch' },
   cherish: { name: 'Cherish Ball', short: 'ChB', color: '#dc2626', getBonus: () => 1, note: 'Event-only' },
   park:    { name: 'Park Ball',    short: 'PkB', color: '#facc15', getBonus: () => Infinity },
-  dream:   { name: 'Dream Ball',   short: 'DrB', color: '#a78bfa', getBonus: () => 1, note: 'Only works on sleeping Pokémon in Dream World / Poké Transfer' },
+  dream:   { name: 'Dream Ball',   short: 'DrB', color: '#12bfce', getBonus: () => 1, note: 'Only works on sleeping Pokémon in Dream World / Poké Transfer' },
   friend:  { name: 'Friend Ball',  short: 'FrB', color: '#86efac', getBonus: () => 1, note: 'Sets high friendship' },
   feather: { name: 'Feather Ball', short: 'FeB', color: '#bae6fd', getBonus: () => 1 },
   wing:    { name: 'Wing Ball',    short: 'WiB', color: '#7dd3fc', getBonus: () => 1.5 },
@@ -118,7 +118,7 @@ const BALLS = {
     bonusDesc: '3.5× at night or inside caves/buildings',
   },
   moon: {
-    name: 'Moon Ball', short: 'MnB', color: '#c4b5fd',
+    name: 'Moon Ball', short: 'MnB', color: '#63d4e1',
     getBonus: (ctx) => ctx.isMoonEvo ? 4 : 1,
     contexts: ['moonevo'],
     bonusDesc: '4× if target evolves with a Moon Stone',
@@ -326,7 +326,7 @@ function computeProb(formula, catchRate, maxHP, currentHP, ballId, statusId, ctx
 const A  = '#fbbf24';
 const AB = 'rgba(251,191,36,0.10)';
 const ABorder = 'rgba(251,191,36,0.28)';
-const CARD = { background: 'linear-gradient(160deg, #1a1c23 0%, #1f2128 100%)', border: '1px solid rgba(255,255,255,0.07)' };
+const CARD = { background: '#1a1c23', border: '1px solid rgba(255,255,255,0.07)' };
 const INPUT_STYLE = { background: '#0d0f14', border: '1px solid rgba(255,255,255,0.07)' };
 
 // ─── Toggle ───────────────────────────────────────────────────────────────────
@@ -347,7 +347,7 @@ function Toggle({ value, onChange, label }) {
 function NumInput({ label, value, onChange, min = 1, max = 999, step = 1, wide = false }) {
   return (
     <div>
-      <p className="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1">{label}</p>
+      <p className="text-[10px] font-bold text-gray-500 mb-1">{label}</p>
       <input type="number" min={min} max={max} step={step} value={value}
         onChange={e => {
           const v = parseFloat(e.target.value);
@@ -660,7 +660,7 @@ export default function CatchRateCalculator() {
 
         {/* ── 1. Game ─────────────────────────────────────────────────────────── */}
         <div className="rounded-xl p-4" style={CARD}>
-          <p className="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-2">Game</p>
+          <p className="text-[10px] font-bold text-gray-500 mb-2">Game</p>
           <select value={gameId} onChange={e => setGameId(e.target.value)}
             className="rounded-lg px-3 py-2 text-white text-sm w-full sm:max-w-xs focus:outline-none"
             style={{ ...INPUT_STYLE, colorScheme: 'dark' }}>
@@ -670,7 +670,7 @@ export default function CatchRateCalculator() {
 
         {/* ── 2. Pokémon + Catch Rate ──────────────────────────────────────────── */}
         <div className="rounded-xl p-4" style={CARD}>
-          <p className="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-3">Pokémon</p>
+          <p className="text-[10px] font-bold text-gray-500 mb-3">Pokémon</p>
           <div className="grid sm:grid-cols-[1fr_auto] gap-3 items-start min-w-0">
             <div className="min-w-0">
               <PokemonSearch
@@ -680,13 +680,13 @@ export default function CatchRateCalculator() {
               />
               {!selectedPokemon && (
                 <p className="text-[11px] text-gray-600 mt-1.5">
-                  Search to auto-fill catch rate, weight, and type — or set manually below.
+                  Search to auto-fill catch rate, weight, and type, or set manually below.
                 </p>
               )}
             </div>
 
             <div className="shrink-0">
-              <p className="text-[10px] font-bold uppercase tracking-wider mb-1" style={{ color: 'rgba(255,255,255,0.3)' }}>
+              <p className="text-[10px] font-bold mb-1" style={{ color: 'rgba(255,255,255,0.3)' }}>
                 Catch Rate
                 {selectedPokemon && !catchRateOverridden && (
                   <span className="ml-1.5 text-[10px] font-normal normal-case" style={{ color: A }}>auto-filled</span>
@@ -723,7 +723,7 @@ export default function CatchRateCalculator() {
         {/* ── 3. HP Remaining ──────────────────────────────────────────────────── */}
         <div className="rounded-xl p-4" style={CARD}>
           <div className="flex items-center justify-between mb-3">
-            <p className="text-[10px] font-bold uppercase tracking-wider text-gray-500">HP Remaining</p>
+            <p className="text-[10px] font-bold text-gray-500">HP Remaining</p>
             <button
               onClick={toggleHpExactMode}
               className="px-2.5 py-1 rounded-lg text-[10px] font-semibold border transition-all"
@@ -749,7 +749,7 @@ export default function CatchRateCalculator() {
 
         {/* ── 4. Status Condition ───────────────────────────────────────────────── */}
         <div className="rounded-xl p-4" style={CARD}>
-          <p className="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-2.5">Status Condition</p>
+          <p className="text-[10px] font-bold text-gray-500 mb-2.5">Status Condition</p>
           <div className="flex flex-wrap gap-2">
             {statusDefs.map(s => {
               const active = activeStatusId === s.id;
@@ -758,7 +758,7 @@ export default function CatchRateCalculator() {
                 <button key={s.id} onClick={() => setStatusId(s.id)}
                   className="px-3 py-1.5 rounded-lg text-xs font-medium border transition-all"
                   style={active
-                    ? { background: 'rgba(167,139,250,0.15)', borderColor: 'rgba(167,139,250,0.4)', color: '#a78bfa' }
+                    ? { background: 'rgba(18,191,206,0.15)', borderColor: 'rgba(18,191,206,0.4)', color: '#12bfce' }
                     : { background: 'transparent', borderColor: 'rgba(255,255,255,0.08)', color: '#6b7280' }}>
                   {s.label}
                   {bonus && <span className="ml-1 opacity-70">{bonus}</span>}
@@ -770,7 +770,7 @@ export default function CatchRateCalculator() {
 
         {/* ── 5. Ball Selector ──────────────────────────────────────────────────── */}
         <div className="rounded-xl p-4" style={CARD}>
-          <p className="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-2.5">Poké Ball</p>
+          <p className="text-[10px] font-bold text-gray-500 mb-2.5">Pokéball</p>
           <div className="flex flex-wrap gap-2">
             {availableBalls.map(bid => {
               const b = BALLS[bid];
@@ -799,7 +799,7 @@ export default function CatchRateCalculator() {
         {/* ── 6. Ball Conditions ────────────────────────────────────────────────── */}
         {hasConditions && (
           <div className="rounded-xl p-4" style={CARD}>
-            <p className="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-3">
+            <p className="text-[10px] font-bold text-gray-500 mb-3">
               Conditions for {activeBall?.name}
             </p>
             <div className="flex flex-wrap gap-x-5 gap-y-4">
@@ -858,7 +858,7 @@ export default function CatchRateCalculator() {
         <div className="rounded-2xl p-5" style={CARD}>
           <div className="flex flex-col sm:flex-row sm:items-end gap-4 mb-4">
             <div>
-              <p className="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1">Catch probability</p>
+              <p className="text-[10px] font-bold text-gray-500 mb-1">Catch Probability</p>
               <p className="text-6xl font-black leading-none" style={{ color: probColor }}>{pct(prob)}</p>
             </div>
             <div className="pb-0.5">
@@ -896,7 +896,7 @@ export default function CatchRateCalculator() {
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
-                    <tr className="border-b text-[10px] font-bold uppercase tracking-wider text-gray-500"
+                    <tr className="border-b text-[10px] font-bold text-gray-500"
                       style={{ borderColor: 'rgba(255,255,255,0.06)', background: 'rgba(255,255,255,0.02)' }}>
                       <th className="text-left px-4 py-2.5">Ball</th>
                       <th className="text-right px-4 py-2.5">Probability</th>
@@ -942,16 +942,16 @@ export default function CatchRateCalculator() {
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm">
                     <thead>
-                      <tr className="border-b text-[10px] font-bold uppercase tracking-wider text-gray-500"
+                      <tr className="border-b text-[10px] font-bold text-gray-500"
                         style={{ borderColor: 'rgba(255,255,255,0.06)', background: 'rgba(255,255,255,0.02)' }}>
                         <th className="text-left px-4 py-2.5">Confidence</th>
-                        <th className="text-right px-4 py-2.5">Throws needed</th>
+                        <th className="text-right px-4 py-2.5">Throws Needed</th>
                         <th className="text-right px-4 py-2.5">Interpretation</th>
                       </tr>
                     </thead>
                     <tbody>
                       {[
-                        { conf: 50,   note: '50/50 — coin flip' },
+                        { conf: 50,   note: '50/50: coin flip' },
                         { conf: 75,   note: '3 in 4 chance' },
                         { conf: 90,   note: 'Expected unlucky' },
                         { conf: 95,   note: 'Very likely caught' },

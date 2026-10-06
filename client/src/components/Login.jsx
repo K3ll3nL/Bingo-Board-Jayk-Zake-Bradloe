@@ -68,7 +68,7 @@ const Login = () => {
   return (
     <div className="min-h-screen flex items-center justify-center" style={{ isolation: 'isolate', position: 'relative' }}>
       <PageBackground />
-      <div className="relative z-10 rounded-2xl shadow-2xl border border-gray-600 p-8 max-w-sm w-full mx-4" style={{ background: 'linear-gradient(160deg, #13151a 0%, #181a21 100%)' }}>
+      <div className="relative z-10 rounded-2xl shadow-2xl border border-gray-600 p-8 max-w-sm w-full mx-4" style={{ background: '#13151a' }}>
         <button
           onClick={() => navigate(-1)}
           className="flex items-center gap-1.5 text-gray-500 hover:text-gray-300 text-sm transition-colors mb-6"

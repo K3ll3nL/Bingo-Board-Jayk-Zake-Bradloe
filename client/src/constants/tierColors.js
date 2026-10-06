@@ -33,7 +33,7 @@ export const TIER_COLORS = {
   medium: '#eab308',     // yellow-500
   hard: '#f59e0b',       // amber-500
   super_hard: '#ef4444', // red-500
-  sleeper: '#8b5cf6',    // violet-500
+  sleeper: '#0ea3b0',    // lagoon-500
   cant_get: '#6b7280',   // gray-500 — neutral, signals "off the difficulty scale"
 };
 

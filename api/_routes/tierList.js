@@ -317,7 +317,7 @@ module.exports = function register(app) {
           return res.status(400).json({ error: `Pokemon ${pokemonId} is not in this month's pool` });
         }
         if (!VALID_TIER_CODES.includes(tier)) {
-          return res.status(400).json({ error: `Invalid tier code "${tier}" — must be one of ${VALID_TIER_CODES.join(', ')}` });
+          return res.status(400).json({ error: `Invalid tier code "${tier}" - must be one of ${VALID_TIER_CODES.join(', ')}` });
         }
       }
 

@@ -51,7 +51,7 @@ export default function BingoGrid({ board, onCellClick, large = false }) {
                 ? 'text-white font-semibold shadow-lg'
                 : 'border-gray-600 text-gray-200'
               }
-              ${isFreeSpace ? 'bg-gradient-to-br from-purple-500 to-pink-500 text-white font-bold border-purple-600 flex items-center justify-center text-center' : ''}
+              ${isFreeSpace ? 'bg-lagoon-600 text-white font-bold border-lagoon-600 flex items-center justify-center text-center' : ''}
               ${isEmpty ? 'bg-gray-900 border-gray-700 opacity-50 flex items-center justify-center text-center' : ''}
               ${isClickable ? 'cursor-pointer hover:scale-105' : ''}
             `}

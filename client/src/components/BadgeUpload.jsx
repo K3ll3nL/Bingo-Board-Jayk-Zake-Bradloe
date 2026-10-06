@@ -10,8 +10,8 @@ import PageHeader from './PageHeader';
 
 // ── Theme ─────────────────────────────────────────────────────────────────────
 const C = {
-  card:   'linear-gradient(160deg, #1a1c23 0%, #1f2128 100%)',
-  inner:  'linear-gradient(160deg, #13151a 0%, #181a21 100%)',
+  card:   '#1a1c23',
+  inner:  '#13151a',
   border: 'rgba(255,255,255,0.07)',
   input:  '#0d0f14',
 };
@@ -20,14 +20,14 @@ const C = {
 const BASE_BADGE_URL = 'https://pub-583ae6cd5f8b4b58b0ee7053ea1d4b0b.r2.dev/assets/badges';
 
 const TRIGGERS = [
-  { value: 'submission',        label: 'Submission — fires when a user submits' },
-  { value: 'approved',          label: 'Approved — fires when a submission is approved' },
-  { value: 'rejected',          label: 'Rejected — fires when a submission is rejected' },
-  { value: 'monthly_active',    label: 'Monthly Active — fires on new active month' },
-  { value: 'period_end',        label: 'Period End — fires when a month / season / year closes' },
-  { value: 'bingo_achievement', label: 'Bingo Achievement — fires when a bingo is recorded' },
-  { value: 'date_award',        label: 'Date Award — award all users on a specific date' },
-  { value: 'account_age',       label: 'Account Age — fires when a user gains a new active month' },
+  { value: 'submission',        label: 'Submission: fires when a user submits' },
+  { value: 'approved',          label: 'Approved: fires when a submission is approved' },
+  { value: 'rejected',          label: 'Rejected: fires when a submission is rejected' },
+  { value: 'monthly_active',    label: 'Monthly Active: fires on new active month' },
+  { value: 'period_end',        label: 'Period End: fires when a month / season / year closes' },
+  { value: 'bingo_achievement', label: 'Bingo Achievement: fires when a bingo is recorded' },
+  { value: 'date_award',        label: 'Date Award: award all users on a specific date' },
+  { value: 'account_age',       label: 'Account Age: fires when a user gains a new active month' },
 ];
 
 const POKEMON_TYPES = [
@@ -37,16 +37,16 @@ const POKEMON_TYPES = [
 ];
 
 const GENERATIONS = [
-  { value: '1', label: 'Gen I — Kanto' },
-  { value: '2', label: 'Gen II — Johto' },
-  { value: '3', label: 'Gen III — Hoenn' },
-  { value: '4', label: 'Gen IV — Sinnoh' },
-  { value: '5', label: 'Gen V — Unova' },
-  { value: '6', label: 'Gen VI — Kalos' },
-  { value: '7', label: 'Gen VII — Alola' },
-  { value: '8', label: 'Gen VIII — Galar' },
-  { value: '8.5', label: 'Gen VIII.5 — Hisui' },
-  { value: '9', label: 'Gen IX — Paldea' },
+  { value: '1', label: 'Gen I: Kanto' },
+  { value: '2', label: 'Gen II: Johto' },
+  { value: '3', label: 'Gen III: Hoenn' },
+  { value: '4', label: 'Gen IV: Sinnoh' },
+  { value: '5', label: 'Gen V: Unova' },
+  { value: '6', label: 'Gen VI: Kalos' },
+  { value: '7', label: 'Gen VII: Alola' },
+  { value: '8', label: 'Gen VIII: Galar' },
+  { value: '8.5', label: 'Gen VIII.5: Hisui' },
+  { value: '9', label: 'Gen IX: Paldea' },
 ];
 
 const INITIAL_FORM = {
@@ -63,7 +63,7 @@ const INITIAL_FORM = {
 function Field({ label, note, name, value, onChange, placeholder, textarea, required, type = 'text', ...rest }) {
   return (
     <div>
-      <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1.5">
+      <label className="block text-xs font-semibold text-gray-400 mb-1.5">
         {label}
         {required && <span className="text-red-400 ml-0.5">*</span>}
         {note && <span className="text-gray-600 font-normal normal-case tracking-normal ml-1">— {note}</span>}
@@ -71,11 +71,11 @@ function Field({ label, note, name, value, onChange, placeholder, textarea, requ
       {textarea
         ? <textarea name={name} value={value} onChange={onChange} placeholder={placeholder}
             required={required} rows={2}
-            className="w-full rounded-lg px-3 py-2 text-sm text-white placeholder-gray-600 border focus:border-purple-500 focus:outline-none resize-none transition-colors"
+            className="w-full rounded-lg px-3 py-2 text-sm text-white placeholder-gray-600 border focus:border-lagoon-500 focus:outline-none resize-none transition-colors"
             style={{ background: C.input, borderColor: C.border }} />
         : <input type={type} name={name} value={value} onChange={onChange} placeholder={placeholder}
             required={required}
-            className="w-full rounded-lg px-3 py-2 text-sm text-white placeholder-gray-600 border focus:border-purple-500 focus:outline-none transition-colors"
+            className="w-full rounded-lg px-3 py-2 text-sm text-white placeholder-gray-600 border focus:border-lagoon-500 focus:outline-none transition-colors"
             style={{ background: C.input, borderColor: C.border }} {...rest} />
       }
     </div>
@@ -87,7 +87,7 @@ function SectionBox({ title, children }) {
     <div className="rounded-xl border overflow-hidden" style={{ borderColor: C.border }}>
       {title && (
         <div className="px-4 py-2.5 border-b" style={{ background: 'rgba(255,255,255,0.03)', borderColor: C.border }}>
-          <p className="text-[10px] font-bold uppercase tracking-widest text-gray-500">{title}</p>
+          <p className="text-[10px] font-bold text-gray-500">{title}</p>
         </div>
       )}
       <div className="p-4 space-y-4" style={{ background: C.inner }}>
@@ -126,7 +126,7 @@ export default function BadgeUpload() {
   if (isModerator === null) {
     return (
       <div className="min-h-screen flex items-center justify-center" style={{ background: '#0d0f14' }}>
-        <div className="w-8 h-8 border-2 border-purple-500 border-t-transparent rounded-full animate-spin" />
+        <div className="w-8 h-8 border-2 border-lagoon-500 border-t-transparent rounded-full animate-spin" />
       </div>
     );
   }
@@ -154,7 +154,7 @@ export default function BadgeUpload() {
               onClick={() => setTab(t.id)}
               className={`flex items-center gap-1.5 px-4 py-1.5 rounded-full text-sm font-medium transition-colors ${
                 tab === t.id
-                  ? 'bg-purple-600/20 text-purple-300 border border-purple-500/30'
+                  ? 'bg-lagoon-600/20 text-lagoon-300 border border-lagoon-500/30'
                   : 'text-gray-500 hover:text-gray-200'
               }`}
             >
@@ -293,7 +293,7 @@ function CreateBadgeTab({ onCreated }) {
   };
 
   const selectStyle = { background: C.input, borderColor: C.border };
-  const selectCls = 'w-full rounded-lg px-3 py-2 text-sm text-white border focus:border-purple-500 focus:outline-none transition-colors';
+  const selectCls = 'w-full rounded-lg px-3 py-2 text-sm text-white border focus:border-lagoon-500 focus:outline-none transition-colors';
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-[1fr_280px] gap-4">
@@ -301,7 +301,7 @@ function CreateBadgeTab({ onCreated }) {
       {/* Left — main form */}
       <form onSubmit={handleSubmit} className="space-y-4">
 
-        <SectionBox title="Badge Image">
+        <SectionBox title="Badge image">
           <div className="flex items-center gap-4">
             <div className="w-16 h-16 rounded-xl border flex items-center justify-center overflow-hidden shrink-0"
               style={{ borderColor: C.border, background: C.input }}>
@@ -310,7 +310,7 @@ function CreateBadgeTab({ onCreated }) {
                 : <span className="text-gray-700 text-xs text-center leading-tight px-1">PNG<br/>500×500</span>}
             </div>
             <div className="flex-1 min-w-0">
-              <label className="inline-flex items-center gap-2 cursor-pointer px-4 py-2 rounded-lg text-sm font-medium text-purple-300 border border-purple-500/40 hover:border-purple-400 hover:bg-purple-500/10 transition-all">
+              <label className="inline-flex items-center gap-2 cursor-pointer px-4 py-2 rounded-lg text-sm font-medium text-lagoon-300 border border-lagoon-500/40 hover:border-lagoon-400 hover:bg-lagoon-500/10 transition-all">
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
                 </svg>
@@ -324,15 +324,15 @@ function CreateBadgeTab({ onCreated }) {
 
         <SectionBox title="Identity">
           <div>
-            <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1.5">
-              Image Key <span className="text-red-400">*</span>
-              <span className="text-gray-600 font-normal normal-case tracking-normal ml-1">— R2 filename, never change after seeding</span>
+            <label className="block text-xs font-semibold text-gray-400 mb-1.5">
+              Image key <span className="text-red-400">*</span>
+              <span className="text-gray-600 font-normal normal-case tracking-normal ml-1">- R2 filename, never change after seeding</span>
             </label>
             <input type="text" name="key" value={form.key} onChange={handleField} placeholder="e.g. sub_veteran_7"
               required className={selectCls} style={selectStyle} />
             {form.key && (
               <p className="mt-1.5 text-[11px] text-gray-600 truncate">
-                {BASE_BADGE_URL}/<span className="text-purple-400">{form.key}</span>.png
+                {BASE_BADGE_URL}/<span className="text-lagoon-400">{form.key}</span>.png
               </p>
             )}
           </div>
@@ -341,10 +341,10 @@ function CreateBadgeTab({ onCreated }) {
           <Field label="Hint" name="hint" value={form.hint} onChange={handleField} placeholder="How to earn this badge." note="shown when hint chain unlocked" textarea />
           <label className="flex items-center gap-3 cursor-pointer select-none">
             <input type="checkbox" id="is_secret" name="is_secret" checked={form.is_secret} onChange={handleField}
-              className="w-4 h-4 rounded accent-purple-500" />
+              className="w-4 h-4 rounded accent-lagoon-500" />
             <span className="text-sm text-gray-300">
               Secret badge
-              <span className="text-gray-600 font-normal ml-1">— hides name, image, and hint until earned</span>
+              <span className="text-gray-600 font-normal ml-1">- hides name, image, and hint until earned</span>
             </span>
           </label>
         </SectionBox>
@@ -352,28 +352,28 @@ function CreateBadgeTab({ onCreated }) {
         <SectionBox title="Family">
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1.5">Family</label>
+              <label className="block text-xs font-semibold text-gray-400 mb-1.5">Family</label>
               <select value={isNewFamily ? '__new__' : (form.family || '')} onChange={handleFamilySelect} className={selectCls} style={selectStyle}>
-                <option value="">— no family —</option>
+                <option value="">-- No family --</option>
                 {familyOptions.map(f => (
                   <option key={f.id} value={f.id}>{f.display_name} ({f.id})</option>
                 ))}
                 <option value="__new__">＋ New family…</option>
               </select>
             </div>
-            <Field label="Family Order" note="0 = next" name="family_order" value={form.family_order} onChange={handleField} type="number" min="0" placeholder="0" />
+            <Field label="Family order" note="0 = next" name="family_order" value={form.family_order} onChange={handleField} type="number" min="0" placeholder="0" />
           </div>
 
           {isNewFamily && (
-            <div className="rounded-lg border p-3 space-y-3 mt-1" style={{ borderColor: 'rgba(147,51,234,0.3)', background: 'rgba(147,51,234,0.05)' }}>
-              <p className="text-[10px] font-bold uppercase tracking-widest text-purple-400">New Family</p>
+            <div className="rounded-lg border p-3 space-y-3 mt-1" style={{ borderColor: 'rgba(3,134,145,0.3)', background: 'rgba(3,134,145,0.05)' }}>
+              <p className="text-[10px] font-bold text-lagoon-400">New family</p>
               <div className="grid grid-cols-2 gap-3">
                 <Field label="Slug" name="family" value={form.family} onChange={handleField} placeholder="submission_veteran" required />
-                <Field label="Display Name" name="family_display_name" value={form.family_display_name} onChange={handleField} placeholder="Submission Veteran" required />
-                <Field label="Display Order" name="family_display_order" value={form.family_display_order} onChange={handleField} type="number" min="0" placeholder="0" />
+                <Field label="Display name" name="family_display_name" value={form.family_display_name} onChange={handleField} placeholder="Submission Veteran" required />
+                <Field label="Display order" name="family_display_order" value={form.family_display_order} onChange={handleField} type="number" min="0" placeholder="0" />
                 <div className="flex flex-col justify-end">
                   <label className="flex items-center gap-2 cursor-pointer">
-                    <input type="checkbox" name="family_is_sequential" checked={form.family_is_sequential} onChange={handleField} className="w-4 h-4 rounded accent-purple-500" />
+                    <input type="checkbox" name="family_is_sequential" checked={form.family_is_sequential} onChange={handleField} className="w-4 h-4 rounded accent-lagoon-500" />
                     <span className="text-sm text-gray-300">Sequential hints</span>
                   </label>
                   <p className="text-[11px] text-gray-600 mt-1">
@@ -385,16 +385,16 @@ function CreateBadgeTab({ onCreated }) {
           )}
         </SectionBox>
 
-        <SectionBox title="Earn Condition">
+        <SectionBox title="Earn condition">
           <div>
-            <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1.5">Trigger <span className="text-red-400">*</span></label>
+            <label className="block text-xs font-semibold text-gray-400 mb-1.5">Trigger <span className="text-red-400">*</span></label>
             <select name="trigger" value={form.trigger} onChange={handleTriggerChange} required className={selectCls} style={selectStyle}>
               {TRIGGERS.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
             </select>
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1.5">Check Type <span className="text-red-400">*</span></label>
+            <label className="block text-xs font-semibold text-gray-400 mb-1.5">Check type <span className="text-red-400">*</span></label>
             <select value={form.check_type} onChange={handleCheckTypeChange} required className={selectCls} style={selectStyle}>
               {checkTypes.map(ct => <option key={ct.value} value={ct.value}>{ct.label}</option>)}
             </select>
@@ -402,9 +402,9 @@ function CreateBadgeTab({ onCreated }) {
 
           {form.check_type === 'type_percentage' && (
             <div>
-              <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1.5">Pokémon Type <span className="text-red-400">*</span></label>
+              <label className="block text-xs font-semibold text-gray-400 mb-1.5">Pokémon type <span className="text-red-400">*</span></label>
               <select name="check_qualifier" value={form.check_qualifier} onChange={handleField} required className={`${selectCls} capitalize`} style={selectStyle}>
-                <option value="">— pick a type —</option>
+                <option value="">-- Pick a type --</option>
                 {POKEMON_TYPES.map(t => <option key={t} value={t} className="capitalize">{t.charAt(0).toUpperCase() + t.slice(1)}</option>)}
               </select>
             </div>
@@ -412,22 +412,22 @@ function CreateBadgeTab({ onCreated }) {
 
           {form.check_type === 'generation_percentage' && (
             <div>
-              <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1.5">Generation <span className="text-red-400">*</span></label>
+              <label className="block text-xs font-semibold text-gray-400 mb-1.5">Generation <span className="text-red-400">*</span></label>
               <select name="check_qualifier" value={form.check_qualifier} onChange={handleField} required className={selectCls} style={selectStyle}>
-                <option value="">— pick a generation —</option>
+                <option value="">-- Pick a generation --</option>
                 {GENERATIONS.map(g => <option key={g.value} value={g.value}>{g.label}</option>)}
               </select>
             </div>
           )}
 
           {isCollection && (
-            <Field label="Collection Slug" name="check_qualifier" value={form.check_qualifier} onChange={handleField}
+            <Field label="Collection slug" name="check_qualifier" value={form.check_qualifier} onChange={handleField}
               note='must match slug in Collections tab' placeholder="weather_trio" required />
           )}
 
           {form.check_type === 'date_award' && (
             <div>
-              <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1.5">Award Date <span className="text-red-400">*</span></label>
+              <label className="block text-xs font-semibold text-gray-400 mb-1.5">Award date <span className="text-red-400">*</span></label>
               <input type="date" name="check_qualifier" value={form.check_qualifier} onChange={handleField} required
                 className={selectCls} style={{ ...selectStyle, colorScheme: 'dark' }} />
               <p className="mt-1.5 text-[11px] text-gray-600">Every registered user receives this badge. Cron runs at midnight UTC; anyone who joins on this date is still included.</p>
@@ -442,13 +442,13 @@ function CreateBadgeTab({ onCreated }) {
 
           {isBingo && (
             <div>
-              <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">
-                Count these bingo types <span className="text-gray-600 font-normal normal-case tracking-normal ml-1">— each includes its restricted variant</span>
+              <label className="block text-xs font-semibold text-gray-400 mb-2">
+                Count these bingo types <span className="text-gray-600 font-normal normal-case tracking-normal ml-1">- each includes its restricted variant</span>
               </label>
               <div className="grid grid-cols-2 gap-1">
                 {['row', 'column', 'x', 'blackout'].map(type => (
                   <label key={type} className="flex items-center gap-2 cursor-pointer py-1">
-                    <input type="checkbox" className="accent-purple-500"
+                    <input type="checkbox" className="accent-lagoon-500"
                       checked={getBingoTypes(form.check_qualifier).includes(type)}
                       onChange={e => handleBingoTypeToggle(type, e.target.checked)} />
                     <span className="text-sm text-gray-300 capitalize">{type}</span>
@@ -465,7 +465,7 @@ function CreateBadgeTab({ onCreated }) {
 
           {!isCollection && !isDateAward && !isFirstApprovalMonth && (
             <div>
-              <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1.5">
+              <label className="block text-xs font-semibold text-gray-400 mb-1.5">
                 {checkValueLabel} <span className="text-red-400">*</span>
               </label>
               <input type="number" name="check_value" value={form.check_value} onChange={handleField}
@@ -484,14 +484,14 @@ function CreateBadgeTab({ onCreated }) {
         {success && <Alert type="success">{success}</Alert>}
 
         <button type="submit" disabled={submitting}
-          className="w-full py-3 rounded-xl text-sm font-semibold text-white bg-purple-600 hover:bg-purple-500 disabled:opacity-40 disabled:cursor-not-allowed transition-all">
+          className="w-full py-3 rounded-xl text-sm font-semibold text-white bg-lagoon-600 hover:bg-lagoon-500 disabled:opacity-40 disabled:cursor-not-allowed transition-all">
           {submitting ? 'Creating badge…' : 'Create Badge'}
         </button>
       </form>
 
       {/* Right — live preview */}
       <div className="lg:sticky lg:top-4 self-start space-y-4">
-        <SectionBox title="Live Preview">
+        <SectionBox title="Live preview">
           {form.name || preview ? (
             <div className="flex flex-col items-center gap-3">
               <BadgeCard
@@ -623,19 +623,19 @@ function ReplaceImageTab() {
             value={search}
             onChange={e => setSearch(e.target.value)}
             placeholder="Search badges by name or key…"
-            className="w-full rounded-xl pl-9 pr-4 py-2.5 text-sm text-white placeholder-gray-600 border focus:border-purple-500 focus:outline-none transition-colors"
+            className="w-full rounded-xl pl-9 pr-4 py-2.5 text-sm text-white placeholder-gray-600 border focus:border-lagoon-500 focus:outline-none transition-colors"
             style={{ background: C.input, borderColor: C.border }}
           />
         </div>
 
         {loading ? (
           <div className="flex justify-center py-12">
-            <div className="w-7 h-7 border-2 border-gray-700 border-t-purple-500 rounded-full animate-spin" />
+            <div className="w-7 h-7 border-2 border-gray-700 border-t-lagoon-500 rounded-full animate-spin" />
           </div>
         ) : (
           <div className="rounded-xl border overflow-hidden" style={{ borderColor: C.border, background: C.inner }}>
             <div className="px-4 py-2.5 border-b" style={{ borderColor: C.border, background: 'rgba(255,255,255,0.03)' }}>
-              <p className="text-[10px] font-bold uppercase tracking-widest text-gray-500">
+              <p className="text-[10px] font-bold text-gray-500">
                 {filtered.length} badge{filtered.length !== 1 ? 's' : ''}
                 {search ? ` matching "${search}"` : ''}
               </p>
@@ -650,8 +650,8 @@ function ReplaceImageTab() {
                   onClick={() => handleSelect(badge)}
                   className="w-full flex items-center gap-3 px-4 py-3 text-left transition-all"
                   style={{
-                    background: selected?.id === badge.id ? 'rgba(147,51,234,0.12)' : 'transparent',
-                    borderLeft: selected?.id === badge.id ? '3px solid #a855f7' : '3px solid transparent',
+                    background: selected?.id === badge.id ? 'rgba(3,134,145,0.12)' : 'transparent',
+                    borderLeft: selected?.id === badge.id ? '3px solid #0ea3b0' : '3px solid transparent',
                   }}
                 >
                   <div className="w-10 h-10 rounded-lg overflow-hidden shrink-0 border" style={{ borderColor: C.border }}>
@@ -665,7 +665,7 @@ function ReplaceImageTab() {
                     <p className="text-[11px] text-gray-600 truncate">{badge.key}</p>
                   </div>
                   {badge.is_secret && (
-                    <span className="shrink-0 text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-full text-yellow-400 bg-yellow-400/10 border border-yellow-400/20">
+                    <span className="shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded-full text-yellow-400 bg-yellow-400/10 border border-yellow-400/20">
                       secret
                     </span>
                   )}
@@ -688,14 +688,14 @@ function ReplaceImageTab() {
         ) : (
           <div className="rounded-xl border overflow-hidden" style={{ borderColor: C.border }}>
             <div className="px-4 py-3 border-b" style={{ background: 'rgba(255,255,255,0.03)', borderColor: C.border }}>
-              <p className="text-xs font-bold uppercase tracking-widest text-gray-500">Replace Image</p>
+              <p className="text-xs font-bold text-gray-500">Replace image</p>
             </div>
             <div className="p-4 space-y-4" style={{ background: C.inner }}>
 
               {/* Current vs new */}
               <div className="grid grid-cols-2 gap-3">
                 <div className="flex flex-col items-center gap-2">
-                  <p className="text-[10px] uppercase tracking-widest text-gray-600">Current</p>
+                  <p className="text-[10px] text-gray-600">Current</p>
                   <div className="w-20 h-20 rounded-xl border overflow-hidden" style={{ borderColor: C.border }}>
                     {selected.image_url
                       ? <img src={selected.image_url} alt={selected.name} className="w-full h-full object-cover" />
@@ -704,9 +704,9 @@ function ReplaceImageTab() {
                   </div>
                 </div>
                 <div className="flex flex-col items-center gap-2">
-                  <p className="text-[10px] uppercase tracking-widest text-gray-600">New</p>
+                  <p className="text-[10px] text-gray-600">New</p>
                   <div className="w-20 h-20 rounded-xl border-2 border-dashed overflow-hidden flex items-center justify-center"
-                    style={{ borderColor: newPreview ? '#a855f7' : C.border, background: C.input }}>
+                    style={{ borderColor: newPreview ? '#0ea3b0' : C.border, background: C.input }}>
                     {newPreview
                       ? <img src={newPreview} alt="New" className="w-full h-full object-cover" />
                       : <span className="text-gray-700 text-xs text-center px-2">upload PNG</span>
@@ -720,7 +720,7 @@ function ReplaceImageTab() {
                 <p className="text-[11px] text-gray-600 mt-0.5">{selected.key}.png</p>
               </div>
 
-              <label className="flex items-center justify-center gap-2 cursor-pointer px-4 py-2.5 rounded-lg text-sm font-medium text-purple-300 border border-purple-500/40 hover:border-purple-400 hover:bg-purple-500/10 transition-all w-full">
+              <label className="flex items-center justify-center gap-2 cursor-pointer px-4 py-2.5 rounded-lg text-sm font-medium text-lagoon-300 border border-lagoon-500/40 hover:border-lagoon-400 hover:bg-lagoon-500/10 transition-all w-full">
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
                 </svg>
@@ -735,7 +735,7 @@ function ReplaceImageTab() {
               <button
                 onClick={handleReplace}
                 disabled={!newFile || submitting}
-                className="w-full py-2.5 rounded-xl text-sm font-semibold text-white bg-purple-600 hover:bg-purple-500 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+                className="w-full py-2.5 rounded-xl text-sm font-semibold text-white bg-lagoon-600 hover:bg-lagoon-500 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
               >
                 {submitting ? 'Replacing…' : 'Replace Image'}
               </button>
@@ -871,15 +871,15 @@ function ManageCollectionsTab() {
 
   const slugLoaded = slug.trim() && members !== null;
   const selectStyle = { background: C.input, borderColor: C.border };
-  const selectCls = 'w-full rounded-lg px-3 py-2 text-sm text-white border focus:border-purple-500 focus:outline-none transition-colors';
+  const selectCls = 'w-full rounded-lg px-3 py-2 text-sm text-white border focus:border-lagoon-500 focus:outline-none transition-colors';
 
   return (
     <div className="space-y-4">
       <SectionBox title="Collection">
         <div>
-          <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1.5">Collection Slug</label>
+          <label className="block text-xs font-semibold text-gray-400 mb-1.5">Collection slug</label>
           <select value={isNewSlug ? '__new__' : (slug || '')} onChange={handleSlugSelect} className={selectCls} style={selectStyle}>
-            <option value="">— select a collection —</option>
+            <option value="">-- Select a collection --</option>
             {slugOptions.map(o => (
               <option key={o.slug} value={o.slug}>
                 {o.slug}{o.required_game ? ` [${o.required_game}]` : ''}
@@ -895,7 +895,7 @@ function ManageCollectionsTab() {
                 placeholder="e.g. legendary_birds"
                 className={`flex-1 ${selectCls}`} style={selectStyle} />
               <button type="button" onClick={() => loadCollection()} disabled={!slug.trim() || loadingCol}
-                className="px-4 py-2 rounded-lg text-sm font-medium text-white bg-purple-600 hover:bg-purple-500 disabled:opacity-50 transition-colors">
+                className="px-4 py-2 rounded-lg text-sm font-medium text-white bg-lagoon-600 hover:bg-lagoon-500 disabled:opacity-50 transition-colors">
                 {loadingCol ? '…' : 'Create'}
               </button>
             </div>
@@ -904,7 +904,7 @@ function ManageCollectionsTab() {
       </SectionBox>
 
       {slugLoaded && (
-        <SectionBox title="Required Game">
+        <SectionBox title="Required game">
           <div className="flex items-end gap-3">
             <div className="flex-1">
               <p className="text-[11px] text-gray-600 mb-2">Only entries from this game count toward completing this collection. Leave blank to accept any game.</p>
@@ -914,7 +914,7 @@ function ManageCollectionsTab() {
               </select>
             </div>
             <button type="button" onClick={() => saveRequiredGame(requiredGame)} disabled={savingGame}
-              className="px-4 py-2 rounded-lg text-sm font-medium text-white bg-purple-600 hover:bg-purple-500 disabled:opacity-50 transition-colors shrink-0">
+              className="px-4 py-2 rounded-lg text-sm font-medium text-white bg-lagoon-600 hover:bg-lagoon-500 disabled:opacity-50 transition-colors shrink-0">
               {savingGame ? 'Saving…' : 'Save'}
             </button>
           </div>
@@ -956,7 +956,7 @@ function ManageCollectionsTab() {
                   <span className="flex-1 text-sm text-white capitalize">{p.name}</span>
                   <span className="text-xs text-gray-600">#{String(p.national_dex_id).padStart(4, '0')}</span>
                   <button type="button" onClick={() => addMember(p)}
-                    className="text-xs text-purple-400 hover:text-purple-300 transition-colors ml-2">+ Add</button>
+                    className="text-xs text-lagoon-400 hover:text-lagoon-300 transition-colors ml-2">+ Add</button>
                 </div>
               ))}
             </div>
@@ -992,11 +992,11 @@ function ToggleChip({ active, onClick, label }) {
     <button type="button" onClick={onClick}
       className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium transition-all border ${
         active
-          ? 'bg-purple-600/20 border-purple-500/40 text-purple-300'
+          ? 'bg-lagoon-600/20 border-lagoon-500/40 text-lagoon-300'
           : 'bg-transparent border-white/[0.07] text-gray-500 hover:text-gray-300 hover:border-gray-500'
       }`}
     >
-      <span className={`w-2 h-2 rounded-full flex-shrink-0 ${active ? 'bg-purple-400' : 'bg-gray-700'}`} />
+      <span className={`w-2 h-2 rounded-full flex-shrink-0 ${active ? 'bg-lagoon-400' : 'bg-gray-700'}`} />
       {label}
     </button>
   );
@@ -1037,8 +1037,8 @@ function BadgeCard({ badge, silhouette, publicView, isSequential, large }) {
           <p className="font-bold text-white leading-snug">{badge.name}</p>
           {badge.is_secret && <span className="text-yellow-400 text-[10px]">★ Secret badge</span>}
           <p className="text-gray-400 leading-snug">{badge.description}</p>
-          {badge.hint && !isHintLocked && <p className="text-purple-300">💡 {badge.hint}</p>}
-          {isHintLocked && <p className="text-gray-600 italic">💡 Hint locked until previous earned</p>}
+          {badge.hint && !isHintLocked && <p className="text-lagoon-300">💡 {badge.hint}</p>}
+          {isHintLocked && <p className="text-gray-600 italic">Hint locked until previous earned</p>}
           <p className="text-blue-400 pt-1.5 border-t border-white/[0.06]">✓ {checkDescription(badge)}</p>
           <p className="text-gray-700">Order: {badge.family_order ?? '—'}</p>
         </div>
@@ -1136,7 +1136,7 @@ function GrantBadgeTab() {
       {/* User search */}
       <div className="rounded-xl border" style={{ borderColor: C.border, background: C.card }}>
         <div className="px-4 py-2.5 border-b" style={{ background: 'rgba(255,255,255,0.03)', borderColor: C.border }}>
-          <p className="text-[10px] font-bold uppercase tracking-widest text-gray-500">Find Player</p>
+          <p className="text-[10px] font-bold text-gray-500">Find player</p>
         </div>
         <div className="p-4">
           <div className="relative">
@@ -1144,7 +1144,7 @@ function GrantBadgeTab() {
               value={query}
               onChange={e => setQuery(e.target.value)}
               placeholder="Search by display name or username…"
-              className="w-full rounded-lg px-3 py-2 text-sm text-white placeholder-gray-600 border focus:border-purple-500 focus:outline-none transition-colors"
+              className="w-full rounded-lg px-3 py-2 text-sm text-white placeholder-gray-600 border focus:border-lagoon-500 focus:outline-none transition-colors"
               style={{ background: C.input, borderColor: C.border }}
             />
             {(results.length > 0 || (query.trim() && !searching)) && (
@@ -1189,7 +1189,7 @@ function GrantBadgeTab() {
 
           {loading ? (
             <div className="flex justify-center py-12">
-              <div className="w-7 h-7 border-2 border-gray-700 border-t-purple-500 rounded-full animate-spin" />
+              <div className="w-7 h-7 border-2 border-gray-700 border-t-lagoon-500 rounded-full animate-spin" />
             </div>
           ) : (
             <>
@@ -1197,7 +1197,7 @@ function GrantBadgeTab() {
                 value={filter}
                 onChange={e => setFilter(e.target.value)}
                 placeholder="Filter badges…"
-                className="w-full rounded-lg px-3 py-2 text-sm text-white placeholder-gray-600 border focus:border-purple-500 focus:outline-none transition-colors mb-4"
+                className="w-full rounded-lg px-3 py-2 text-sm text-white placeholder-gray-600 border focus:border-lagoon-500 focus:outline-none transition-colors mb-4"
                 style={{ background: C.input, borderColor: C.border }}
               />
               {filtered.length === 0
@@ -1303,7 +1303,7 @@ function MonthlyBadgeModal({ badge, user, onClose, onChanged }) {
             onError={e => { e.target.style.display = 'none'; }} />
           <div className="min-w-0">
             <p className="text-white font-semibold truncate">{badge.name}</p>
-            <p className="text-xs text-gray-500">Monthly winner — assign per month to {uname}</p>
+            <p className="text-xs text-gray-500">-- Monthly winner: assign per month to -- {uname}</p>
           </div>
           <button onClick={onClose} className="ml-auto text-gray-500 hover:text-white text-lg leading-none">✕</button>
         </div>
@@ -1312,7 +1312,7 @@ function MonthlyBadgeModal({ badge, user, onClose, onChanged }) {
 
         {loading ? (
           <div className="flex justify-center py-16">
-            <div className="w-7 h-7 border-2 border-gray-700 border-t-purple-500 rounded-full animate-spin" />
+            <div className="w-7 h-7 border-2 border-gray-700 border-t-lagoon-500 rounded-full animate-spin" />
           </div>
         ) : (
           <div className="overflow-y-auto p-3 space-y-1.5">
@@ -1336,7 +1336,7 @@ function MonthlyBadgeModal({ badge, user, onClose, onChanged }) {
                       ? <button onClick={() => revoke(m.id)}
                           className="text-xs font-medium px-2.5 py-1 rounded-lg border border-red-500/40 text-red-300 hover:bg-red-500/10 transition-colors">Revoke</button>
                       : <button onClick={() => grant(m.id, false)}
-                          className="text-xs font-medium px-2.5 py-1 rounded-lg border border-purple-500/40 text-purple-300 hover:bg-purple-500/10 transition-colors">
+                          className="text-xs font-medium px-2.5 py-1 rounded-lg border border-lagoon-500/40 text-lagoon-300 hover:bg-lagoon-500/10 transition-colors">
                           {holder ? 'Reassign' : 'Grant'}
                         </button>}
                 </div>
@@ -1354,8 +1354,8 @@ function GrantBadgeRow({ badge, busy, disabled, onToggle }) {
   const monthly = badge.is_monthly;
   const monthCount = (badge.earned_month_ids || []).length;
   const status = monthly
-    ? (monthCount > 0 ? `Winner of ${monthCount} month${monthCount !== 1 ? 's' : ''} — manage` : 'Monthly winner — assign months')
-    : (earned ? '✓ Earned — click to revoke' : 'Click to grant');
+    ? (monthCount > 0 ? `Winner of ${monthCount} month${monthCount !== 1 ? 's' : ''} -- manage --` : '-- Monthly winner: assign months --')
+    : (earned ? '✓ Earned: click to revoke' : 'Click to grant');
   return (
     <button
       onClick={onToggle}
@@ -1365,7 +1365,7 @@ function GrantBadgeRow({ badge, busy, disabled, onToggle }) {
           ? 'border-amber-500/30 bg-amber-500/[0.04] hover:border-amber-500/50 hover:bg-amber-500/[0.08]'
           : earned
             ? 'border-green-500/40 bg-green-500/[0.06] hover:border-red-500/50 hover:bg-red-500/[0.06]'
-            : 'border-white/[0.07] hover:border-purple-500/50 hover:bg-purple-500/[0.06]'
+            : 'border-white/[0.07] hover:border-lagoon-500/50 hover:bg-lagoon-500/[0.06]'
       } group`}
     >
       <div className="w-10 h-10 rounded-lg overflow-hidden border border-white/[0.07] flex-shrink-0 bg-gray-900">
@@ -1397,12 +1397,12 @@ function FamilyCard({
       onDragStart={onDragStart} onDragOver={onDragOver} onDrop={onDrop} onDragEnd={onDragEnd}
       className={`rounded-xl border p-4 transition-all select-none ${
         isDragOver && !isDragging
-          ? 'border-purple-500/60 shadow-lg shadow-purple-500/10 scale-[1.01]'
+          ? 'border-lagoon-500/60 shadow-lg shadow-lagoon-500/10 scale-[1.01]'
           : ''
       } ${isDragging ? 'opacity-30 scale-95' : 'cursor-grab active:cursor-grabbing'}`}
       style={{
         background: C.card,
-        borderColor: isDragOver && !isDragging ? 'rgba(168,85,247,0.6)' : C.border,
+        borderColor: isDragOver && !isDragging ? 'rgba(14,163,176,0.6)' : C.border,
       }}
     >
       <div className="flex items-center gap-2 mb-3 min-h-[28px]">
@@ -1412,12 +1412,12 @@ function FamilyCard({
             <input value={editForm.display_name}
               onChange={e => setEditForm(f => ({ ...f, display_name: e.target.value }))}
               onClick={e => e.stopPropagation()}
-              className="flex-1 rounded-lg px-2 py-1 text-sm text-white border focus:border-purple-500 focus:outline-none"
+              className="flex-1 rounded-lg px-2 py-1 text-sm text-white border focus:border-lagoon-500 focus:outline-none"
               style={{ background: C.input, borderColor: C.border }} />
             <label className="flex items-center gap-1.5 text-xs text-gray-400 cursor-pointer shrink-0" onClick={e => e.stopPropagation()}>
               <input type="checkbox" checked={editForm.is_sequential}
                 onChange={e => setEditForm(f => ({ ...f, is_sequential: e.target.checked }))}
-                className="accent-purple-500" />
+                className="accent-lagoon-500" />
               Sequential
             </label>
             <button onClick={e => { e.stopPropagation(); onSaveEdit(); }} className="text-green-400 hover:text-green-300 font-bold px-1 shrink-0">✓</button>
@@ -1428,7 +1428,7 @@ function FamilyCard({
             <span className="font-semibold text-white">{family.display_name}</span>
             <span className="text-xs text-gray-600">({family.id})</span>
             {family.is_sequential
-              ? <span className="text-[10px] text-purple-400 bg-purple-400/10 px-1.5 py-0.5 rounded-full border border-purple-400/20">sequential</span>
+              ? <span className="text-[10px] text-lagoon-400 bg-lagoon-400/10 px-1.5 py-0.5 rounded-full border border-lagoon-400/20">sequential</span>
               : <span className="text-[10px] text-gray-500 bg-white/[0.04] px-1.5 py-0.5 rounded-full border border-white/[0.07]">open</span>
             }
             <span className="text-xs text-gray-600 ml-auto">{badges.length} badge{badges.length !== 1 ? 's' : ''}</span>
@@ -1533,7 +1533,7 @@ function BadgeVisualizerTab({ refreshKey }) {
 
   if (loading) return (
     <div className="flex justify-center py-16">
-      <div className="w-7 h-7 border-2 border-gray-700 border-t-purple-500 rounded-full animate-spin" />
+      <div className="w-7 h-7 border-2 border-gray-700 border-t-lagoon-500 rounded-full animate-spin" />
     </div>
   );
 
@@ -1570,8 +1570,8 @@ function BadgeVisualizerTab({ refreshKey }) {
 
       {orphaned.length > 0 && (
         <div className="rounded-xl border border-dashed p-4" style={{ borderColor: C.border, background: C.inner }}>
-          <p className="text-xs font-bold uppercase tracking-widest text-gray-600 mb-3">
-            Uncategorized — {orphaned.length} badge{orphaned.length !== 1 ? 's' : ''}
+          <p className="text-xs font-bold text-gray-600 mb-3">
+            Uncategorized: {orphaned.length} badge{orphaned.length !== 1 ? 's' : ''}
           </p>
           <div className="flex flex-wrap gap-2">
             {orphaned.map(b => <BadgeCard key={b.id} badge={b} silhouette={silhouette} publicView={publicView} />)}
@@ -1580,7 +1580,7 @@ function BadgeVisualizerTab({ refreshKey }) {
       )}
 
       {families.length === 0 && orphaned.length === 0 && (
-        <p className="text-center text-gray-600 py-16 text-sm">No badges yet — create some in the Create Badge tab.</p>
+        <p className="text-center text-gray-600 py-16 text-sm">No badges yet. Create some in the Create Badge tab.</p>
       )}
     </div>
   );

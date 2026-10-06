@@ -49,7 +49,7 @@ const UrlRow = ({ label, url, disabled, blurred }) => (
         className="flex-1 text-xs rounded px-3 py-2 truncate transition-all duration-200"
         style={{
           backgroundColor: '#161819',
-          color: disabled ? '#4b5563' : '#a78bfa',
+          color: disabled ? '#4b5563' : '#12bfce',
           border: `1px solid ${disabled ? '#1f2937' : '#374151'}`,
           filter: blurred ? 'blur(6px)' : 'none',
           userSelect: blurred ? 'none' : 'auto',
@@ -155,7 +155,7 @@ const Pro = () => {
   if (keyInfo === undefined) {
     return (
       <div className="min-h-screen flex items-center justify-center" style={{ background: '#0d0f14' }}>
-        <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-purple-500" />
+        <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-lagoon-500" />
       </div>
     );
   }
@@ -216,7 +216,7 @@ const Pro = () => {
         )}
 
         {/* ── Board Overlay ── */}
-        <section className="rounded-2xl shadow-xl" style={{ background: 'linear-gradient(160deg, #1a1c23 0%, #1f2128 100%)', border: '1px solid rgba(255,255,255,0.07)' }}>
+        <section className="rounded-2xl shadow-xl" style={{ background: '#1a1c23', border: '1px solid rgba(255,255,255,0.07)' }}>
           <div className="px-6 py-5 space-y-4">
             <div>
               <h2 className="text-base font-semibold text-white">Board Overlay</h2>
@@ -224,7 +224,7 @@ const Pro = () => {
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Mode</label>
+              <label className="block text-xs font-semibold text-gray-400 mb-2">Mode</label>
               <div className="flex gap-2">
                 {[
                   { v: 'live',     l: 'Live',     d: 'Your real completion, updates automatically' },
@@ -235,11 +235,11 @@ const Pro = () => {
                     onClick={() => setBoardMode(v)}
                     className="flex-1 px-4 py-3 rounded-lg text-left transition-all"
                     style={{
-                      backgroundColor: boardMode === v ? 'rgba(124,58,237,0.2)' : '#2a2d31',
-                      border: `1.5px solid ${boardMode === v ? '#7c3aed' : '#374151'}`,
+                      backgroundColor: boardMode === v ? 'rgba(3,134,145,0.2)' : '#2a2d31',
+                      border: `1.5px solid ${boardMode === v ? '#038691' : '#374151'}`,
                     }}
                   >
-                    <div className="text-sm font-semibold" style={{ color: boardMode === v ? '#a78bfa' : '#d1d5db' }}>{l}</div>
+                    <div className="text-sm font-semibold" style={{ color: boardMode === v ? '#12bfce' : '#d1d5db' }}>{l}</div>
                     <div className="text-xs text-gray-500 mt-0.5">{d}</div>
                   </button>
                 ))}
@@ -248,38 +248,38 @@ const Pro = () => {
 
             <UrlRow label="Browser source URL" url={boardUrl} disabled={!hasKey} blurred={true} />
             <Warn>
-              If unsure which mode to use, choose <strong>Template</strong> — it shares no personal completion data.
+              If unsure which mode to use, choose <strong>Template</strong> - it shares no personal completion data.
               Do not display this URL on stream or share it publicly.
             </Warn>
           </div>
         </section>
 
         {/* ── Leaderboard Overlay ── */}
-        <section className="rounded-2xl shadow-xl" style={{ background: 'linear-gradient(160deg, #1a1c23 0%, #1f2128 100%)', border: '1px solid rgba(255,255,255,0.07)' }}>
+        <section className="rounded-2xl shadow-xl" style={{ background: '#1a1c23', border: '1px solid rgba(255,255,255,0.07)' }}>
           <div className="px-6 py-5 space-y-4">
             <div>
               <h2 className="text-base font-semibold text-white">Leaderboard Overlay</h2>
-              <p className="text-xs text-gray-400 mt-0.5">Scales to any browser source size — taller layouts fit more rows.</p>
+              <p className="text-xs text-gray-400 mt-0.5">Scales to any browser source size. Taller layouts fit more rows.</p>
             </div>
 
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Period</label>
+                <label className="block text-xs font-semibold text-gray-400 mb-2">Period</label>
                 <select
                   value={lbPeriod}
                   onChange={e => setLbPeriod(e.target.value)}
-                  className="w-full px-3 py-2 rounded-lg text-sm text-white outline-none focus:ring-2 focus:ring-purple-500"
+                  className="w-full px-3 py-2 rounded-lg text-sm text-white outline-none focus:ring-2 focus:ring-lagoon-500"
                   style={{ backgroundColor: '#2a2d31', border: '1px solid #374151' }}
                 >
                   {PERIODS.map(p => <option key={p.value} value={p.value}>{p.label}</option>)}
                 </select>
               </div>
               <div>
-                <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Rows shown</label>
+                <label className="block text-xs font-semibold text-gray-400 mb-2">Rows shown</label>
                 <select
                   value={lbLimit}
                   onChange={e => setLbLimit(Number(e.target.value))}
-                  className="w-full px-3 py-2 rounded-lg text-sm text-white outline-none focus:ring-2 focus:ring-purple-500"
+                  className="w-full px-3 py-2 rounded-lg text-sm text-white outline-none focus:ring-2 focus:ring-lagoon-500"
                   style={{ backgroundColor: '#2a2d31', border: '1px solid #374151' }}
                 >
                   {LIMITS.map(l => <option key={l} value={l}>Top {l}</option>)}
@@ -292,13 +292,13 @@ const Pro = () => {
               onClick={() => setLbPin(v => !v)}
               className="flex items-center gap-3 w-full px-4 py-3 rounded-lg text-left transition-all"
               style={{
-                backgroundColor: lbPin ? 'rgba(124,58,237,0.15)' : '#2a2d31',
-                border: `1.5px solid ${lbPin ? '#7c3aed' : '#374151'}`,
+                backgroundColor: lbPin ? 'rgba(3,134,145,0.15)' : '#2a2d31',
+                border: `1.5px solid ${lbPin ? '#038691' : '#374151'}`,
               }}
             >
               <div
                 className="w-9 h-5 rounded-full flex-shrink-0 relative transition-colors"
-                style={{ backgroundColor: lbPin ? '#7c3aed' : '#374151' }}
+                style={{ backgroundColor: lbPin ? '#038691' : '#374151' }}
               >
                 <div
                   className="absolute top-0.5 w-4 h-4 rounded-full bg-white transition-transform"
@@ -306,7 +306,7 @@ const Pro = () => {
                 />
               </div>
               <div>
-                <div className="text-sm font-semibold" style={{ color: lbPin ? '#a78bfa' : '#d1d5db' }}>
+                <div className="text-sm font-semibold" style={{ color: lbPin ? '#12bfce' : '#d1d5db' }}>
                   Always show my rank
                 </div>
                 <div className="text-xs text-gray-500 mt-0.5">
@@ -325,7 +325,7 @@ const Pro = () => {
 
         {/* ── Pending Approvals Overlay (mod only) ── */}
         {isModerator && (
-          <section className="rounded-2xl shadow-xl" style={{ background: 'linear-gradient(160deg, #1a1c23 0%, #1f2128 100%)', border: '1px solid rgba(255,255,255,0.07)' }}>
+          <section className="rounded-2xl shadow-xl" style={{ background: '#1a1c23', border: '1px solid rgba(255,255,255,0.07)' }}>
             <div className="px-6 py-5 space-y-4">
               <div>
                 <h2 className="text-base font-semibold text-white">Pending Approvals Overlay <span className="text-xs font-semibold ml-1 px-1.5 py-0.5 rounded" style={{ backgroundColor: 'rgba(239,68,68,0.15)', color: '#f87171', border: '1px solid rgba(239,68,68,0.3)' }}>Mod only</span></h2>
@@ -334,11 +334,11 @@ const Pro = () => {
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Max items shown</label>
+                  <label className="block text-xs font-semibold text-gray-400 mb-2">Max items shown</label>
                   <select
                     value={aqLimit}
                     onChange={e => setAqLimit(Number(e.target.value))}
-                    className="w-full px-3 py-2 rounded-lg text-sm text-white outline-none focus:ring-2 focus:ring-purple-500"
+                    className="w-full px-3 py-2 rounded-lg text-sm text-white outline-none focus:ring-2 focus:ring-lagoon-500"
                     style={{ backgroundColor: '#2a2d31', border: '1px solid #374151' }}
                   >
                     {[3, 5, 7, 10].map(n => <option key={n} value={n}>{n} items</option>)}
@@ -349,13 +349,13 @@ const Pro = () => {
                     onClick={() => setAqNames(v => !v)}
                     className="flex items-center gap-3 w-full px-4 py-3 rounded-lg text-left transition-all"
                     style={{
-                      backgroundColor: aqNames ? 'rgba(124,58,237,0.15)' : '#2a2d31',
-                      border: `1.5px solid ${aqNames ? '#7c3aed' : '#374151'}`,
+                      backgroundColor: aqNames ? 'rgba(3,134,145,0.15)' : '#2a2d31',
+                      border: `1.5px solid ${aqNames ? '#038691' : '#374151'}`,
                     }}
                   >
                     <div
                       className="w-9 h-5 rounded-full flex-shrink-0 relative transition-colors"
-                      style={{ backgroundColor: aqNames ? '#7c3aed' : '#374151' }}
+                      style={{ backgroundColor: aqNames ? '#038691' : '#374151' }}
                     >
                       <div
                         className="absolute top-0.5 w-4 h-4 rounded-full bg-white transition-transform"
@@ -363,7 +363,7 @@ const Pro = () => {
                       />
                     </div>
                     <div>
-                      <div className="text-sm font-semibold" style={{ color: aqNames ? '#a78bfa' : '#d1d5db' }}>Show names</div>
+                      <div className="text-sm font-semibold" style={{ color: aqNames ? '#12bfce' : '#d1d5db' }}>Show names</div>
                       <div className="text-xs text-gray-500">Display submitter names</div>
                     </div>
                   </button>
@@ -386,16 +386,16 @@ const Pro = () => {
                   }}
                   className="px-4 py-2 rounded-lg text-sm font-semibold transition-all"
                   style={{
-                    backgroundColor: testEventState === 'sent' ? 'rgba(34,197,94,0.15)' : testEventState === 'error' ? 'rgba(239,68,68,0.15)' : 'rgba(124,58,237,0.15)',
-                    border: `1.5px solid ${testEventState === 'sent' ? '#22c55e' : testEventState === 'error' ? '#ef4444' : '#7c3aed'}`,
-                    color: testEventState === 'sent' ? '#86efac' : testEventState === 'error' ? '#fca5a5' : '#a78bfa',
+                    backgroundColor: testEventState === 'sent' ? 'rgba(34,197,94,0.15)' : testEventState === 'error' ? 'rgba(239,68,68,0.15)' : 'rgba(3,134,145,0.15)',
+                    border: `1.5px solid ${testEventState === 'sent' ? '#22c55e' : testEventState === 'error' ? '#ef4444' : '#038691'}`,
+                    color: testEventState === 'sent' ? '#86efac' : testEventState === 'error' ? '#fca5a5' : '#12bfce',
                     opacity: (!hasKey || testEventState === 'loading') ? 0.5 : 1,
                     cursor: (!hasKey || testEventState === 'loading') ? 'not-allowed' : 'pointer',
                   }}
                 >
                   {testEventState === 'loading' ? 'Sending…' : testEventState === 'sent' ? 'Event sent!' : testEventState === 'error' ? 'Failed' : 'Send test notification'}
                 </button>
-                <span className="text-xs text-gray-500">Fires a real queue-changed event — your overlay will drop down if it's live.</span>
+                <span className="text-xs text-gray-500">Fires a real queue-changed event. Your overlay will drop down if it's live.</span>
               </div>
               <Warn>
                 This overlay requires your API key to belong to a moderator account. Non-moderator keys will receive a 403 error.

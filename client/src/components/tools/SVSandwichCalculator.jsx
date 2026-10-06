@@ -538,9 +538,9 @@ function TargetRow({ target, index, onChange, onRemove, canRemove }) {
   const pc = POWER_COLORS[POWER_ALIAS[target.power]] || '#aaa';
 
   return (
-    <div className="rounded-xl p-3 space-y-3" style={{ background: 'linear-gradient(160deg, #1a1c23 0%, #1f2128 100%)', border: '1px solid rgba(255,255,255,0.07)' }}>
+    <div className="rounded-xl p-3 space-y-3" style={{ background: '#1a1c23', border: '1px solid rgba(255,255,255,0.07)' }}>
       <div className="flex items-center justify-between">
-        <span className="text-xs font-bold uppercase tracking-wider text-gray-500">Target {index + 1}</span>
+        <span className="text-xs font-bold text-gray-500">Target {index + 1}</span>
         {canRemove && (
           <button onClick={onRemove} className="text-gray-600 hover:text-red-400 transition-colors text-xs">✕ Remove</button>
         )}
@@ -548,7 +548,7 @@ function TargetRow({ target, index, onChange, onRemove, canRemove }) {
 
       {/* Power */}
       <div>
-        <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-600 mb-1.5">Power</p>
+        <p className="text-[10px] font-semibold text-gray-600 mb-1.5">Power</p>
         <div className="flex flex-wrap gap-1">
           {ALL_POWERS.map(p => {
             const alias = POWER_ALIAS[p];
@@ -568,7 +568,7 @@ function TargetRow({ target, index, onChange, onRemove, canRemove }) {
       {/* Type */}
       {needsType && (
         <div>
-          <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-600 mb-1.5">Pokémon Type</p>
+          <p className="text-[10px] font-semibold text-gray-600 mb-1.5">Pokémon Type</p>
           <div className="flex flex-wrap gap-1">
             {TYPES.map(t => {
               const tc = TYPE_COLORS[t] || '#888';
@@ -587,7 +587,7 @@ function TargetRow({ target, index, onChange, onRemove, canRemove }) {
 
       {/* Level */}
       <div>
-        <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-600 mb-1.5">Level</p>
+        <p className="text-[10px] font-semibold text-gray-600 mb-1.5">Level</p>
         <div className="flex gap-1">
           {[null, 1, 2, 3].map(lv => (
             <button key={lv ?? 'any'} onClick={() => onChange({ ...target, level: lv })}
@@ -750,7 +750,7 @@ function TargetPowerTab({ fillings, condiments, playerCount = 1 }) {
 
       {/* Left: Target selectors */}
       <div className="space-y-3">
-        <p className="text-xs font-bold uppercase tracking-wider text-gray-500">Target Meal Powers</p>
+        <p className="text-xs font-bold text-gray-500">Target Meal Powers</p>
         {targets.map((tgt, i) => (
           <TargetRow key={i} target={tgt} index={i}
             onChange={val => updateTarget(i, val)}
@@ -779,7 +779,7 @@ function TargetPowerTab({ fillings, condiments, playerCount = 1 }) {
               style={resultsTab === key ? { backgroundColor: '#35373b', color: '#fff' } : { color: '#6b7280' }}>
               {label}
               {wip && (
-                <span className="text-[9px] font-bold uppercase tracking-wider px-1 py-0.5 rounded bg-yellow-500/20 text-yellow-400 leading-none">
+                <span className="text-[9px] font-bold px-1 py-0.5 rounded bg-yellow-500/20 text-yellow-400 leading-none">
                   WIP
                 </span>
               )}
@@ -796,7 +796,7 @@ function TargetPowerTab({ fillings, condiments, playerCount = 1 }) {
           ) : (
             <div className="space-y-3 overflow-y-auto" style={{ maxHeight: '65vh' }}>
               {matches.map(sw => (
-                <div key={sw.number} className="rounded-xl p-3" style={{ background: 'linear-gradient(160deg, #1a1c23 0%, #1f2128 100%)', border: '1px solid rgba(255,255,255,0.07)' }}>
+                <div key={sw.number} className="rounded-xl p-3" style={{ background: '#1a1c23', border: '1px solid rgba(255,255,255,0.07)' }}>
                   <div className="flex items-start gap-3">
                     {sw.imageUrl && (
                       <img src={sw.imageUrl} alt={sw.name}
@@ -847,7 +847,7 @@ function TargetPowerTab({ fillings, condiments, playerCount = 1 }) {
           ) : (
             <div className="space-y-3 overflow-y-auto" style={{ maxHeight: '65vh' }}>
               {mealMatches.map((meal, mi) => (
-                <div key={mi} className="rounded-xl p-3" style={{ background: 'linear-gradient(160deg, #1a1c23 0%, #1f2128 100%)', border: '1px solid rgba(255,255,255,0.07)' }}>
+                <div key={mi} className="rounded-xl p-3" style={{ background: '#1a1c23', border: '1px solid rgba(255,255,255,0.07)' }}>
                   <div className="flex items-start gap-3">
                     {meal.imageUrl && (
                       <img src={meal.imageUrl} alt={meal.name}
@@ -918,8 +918,8 @@ function TargetPowerTab({ fillings, condiments, playerCount = 1 }) {
           ) : customResults.length > 0 ? (
             <div className="space-y-3 overflow-y-auto" style={{ maxHeight: '65vh' }}>
               {customResults.map((res, ri) => (
-                <div key={ri} className="rounded-xl p-4 space-y-3" style={{ background: 'linear-gradient(160deg, #1a1c23 0%, #1f2128 100%)', border: '1px solid rgba(52,211,153,0.2)' }}>
-                  <p className="text-xs font-bold uppercase tracking-wider text-emerald-400">
+                <div key={ri} className="rounded-xl p-4 space-y-3" style={{ background: '#1a1c23', border: '1px solid rgba(52,211,153,0.2)' }}>
+                  <p className="text-xs font-bold text-emerald-400">
                     {res.fillings.length} filling{res.fillings.length !== 1 ? 's' : ''}, {res.condiments.length} condiment{res.condiments.length !== 1 ? 's' : ''}
                     {res.totalPieces != null && (
                       <span className="text-gray-600 font-normal ml-2">({res.totalPieces} total pieces)</span>
@@ -939,7 +939,7 @@ function TargetPowerTab({ fillings, condiments, playerCount = 1 }) {
                   </div>
                   {res.fillings.length > 0 && (
                     <div>
-                      <p className="text-[10px] font-bold uppercase tracking-wider text-gray-600 mb-1.5">Fillings</p>
+                      <p className="text-[10px] font-bold text-gray-600 mb-1.5">Fillings</p>
                       <div className="space-y-1">
                         {res.fillings.map(f => (
                           <div key={f.name} className="flex items-center gap-2 text-sm">
@@ -953,7 +953,7 @@ function TargetPowerTab({ fillings, condiments, playerCount = 1 }) {
                   )}
                   {res.condiments.length > 0 && (
                     <div>
-                      <p className="text-[10px] font-bold uppercase tracking-wider text-gray-600 mb-1.5">Condiments</p>
+                      <p className="text-[10px] font-bold text-gray-600 mb-1.5">Condiments</p>
                       <div className="space-y-1">
                         {res.condiments.map(c => (
                           <div key={c.name} className="flex items-center gap-2 text-sm">
@@ -1093,8 +1093,8 @@ export default function SVSandwichCalculator() {
       <div className="flex items-center gap-4 mb-6 flex-wrap">
       <div className="flex gap-1 p-1 rounded-lg w-fit" style={{ background: 'rgba(0,0,0,0.3)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: '0.5rem' }}>
         {[
-          { key: 'builder', label: '🥪 Custom Builder' },
-          { key: 'target',  label: '🎯 Target Power' },
+          { key: 'builder', label: 'Custom Builder' },
+          { key: 'target',  label: 'Target Power' },
         ].map(({ key, label, wip }) => (
           <button
             key={key}
@@ -1107,7 +1107,7 @@ export default function SVSandwichCalculator() {
           >
             {label}
             {wip && (
-              <span className="text-[9px] font-bold uppercase tracking-wider px-1 py-0.5 rounded bg-yellow-500/20 text-yellow-400 leading-none">
+              <span className="text-[9px] font-bold px-1 py-0.5 rounded bg-yellow-500/20 text-yellow-400 leading-none">
                 WIP
               </span>
             )}
@@ -1161,7 +1161,7 @@ export default function SVSandwichCalculator() {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
 
           {/* ── Left: Ingredient picker ── */}
-          <div className="rounded-xl overflow-hidden" style={{ background: 'linear-gradient(160deg, #1a1c23 0%, #1f2128 100%)', border: '1px solid rgba(255,255,255,0.07)' }}>
+          <div className="rounded-xl overflow-hidden" style={{ background: '#1a1c23', border: '1px solid rgba(255,255,255,0.07)' }}>
 
             {/* Tabs */}
             <div className="flex border-b" style={{ borderColor: 'rgba(255,255,255,0.07)' }}>
@@ -1312,8 +1312,8 @@ export default function SVSandwichCalculator() {
               <>
                 {/* Meal powers — only shown once sandwich is completable */}
                 {sandwichComplete ? (
-                  <div className="rounded-xl p-4 space-y-2" style={{ background: 'linear-gradient(160deg, #1a1c23 0%, #1f2128 100%)', border: '1px solid rgba(255,255,255,0.07)' }}>
-                    <p className="text-xs font-bold uppercase tracking-wider text-gray-500 mb-3">Meal Powers</p>
+                  <div className="rounded-xl p-4 space-y-2" style={{ background: '#1a1c23', border: '1px solid rgba(255,255,255,0.07)' }}>
+                    <p className="text-xs font-bold text-gray-500 mb-3">Meal Powers</p>
                     {results.mealPowers.length === 0 ? (
                       <p className="text-gray-600 text-sm">No active powers yet</p>
                     ) : results.mealPowers.map((mp, i) => (
@@ -1328,8 +1328,8 @@ export default function SVSandwichCalculator() {
 
                 {/* Flavor breakdown */}
                 {results.sortedTastes.length > 0 && (
-                  <div className="rounded-xl p-4" style={{ background: 'linear-gradient(160deg, #1a1c23 0%, #1f2128 100%)', border: '1px solid rgba(255,255,255,0.07)' }}>
-                    <p className="text-xs font-bold uppercase tracking-wider text-gray-500 mb-3">Flavor Profile</p>
+                  <div className="rounded-xl p-4" style={{ background: '#1a1c23', border: '1px solid rgba(255,255,255,0.07)' }}>
+                    <p className="text-xs font-bold text-gray-500 mb-3">Flavor Profile</p>
                     <div className="space-y-1.5">
                       {results.sortedTastes.filter(t => t.amount > 0).map(t => (
                         <ScoreBar
@@ -1345,8 +1345,8 @@ export default function SVSandwichCalculator() {
                 )}
 
                 {/* Top types */}
-                <div className="rounded-xl p-4" style={{ background: 'linear-gradient(160deg, #1a1c23 0%, #1f2128 100%)', border: '1px solid rgba(255,255,255,0.07)' }}>
-                  <p className="text-xs font-bold uppercase tracking-wider text-gray-500 mb-3">Top Types</p>
+                <div className="rounded-xl p-4" style={{ background: '#1a1c23', border: '1px solid rgba(255,255,255,0.07)' }}>
+                  <p className="text-xs font-bold text-gray-500 mb-3">Top Types</p>
                   <div className="space-y-1.5">
                     {results.sortedTypes.slice(0, 8).map(t => (
                       <ScoreBar

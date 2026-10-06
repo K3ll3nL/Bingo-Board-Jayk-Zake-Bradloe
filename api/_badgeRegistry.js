@@ -563,7 +563,7 @@ const BADGE_REGISTRY = [
     description: 'Caught Kyogre, Groudon, and Rayquaza.',
     image_url: `${BASE_URL}/weather_trio.png`,
     is_secret: false,
-    hint: 'Three Pokémon control the world\'s weather — catch them all.',
+    hint: 'Three Pokémon control the world\'s weather. Catch them all.',
     family: null,
     family_order: null,
     trigger: 'approved',

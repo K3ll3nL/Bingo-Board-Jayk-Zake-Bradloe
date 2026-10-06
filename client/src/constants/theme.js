@@ -22,8 +22,8 @@ export const SURFACE = {
 // The two canonical fills. These exact strings appear inline in dozens of
 // components today; import them instead of retyping the 160deg literal.
 export const GRADIENT = {
-  card: `linear-gradient(160deg, ${SURFACE.card} 0%, ${SURFACE.cardAlt} 100%)`,
-  inset: `linear-gradient(160deg, ${SURFACE.inset} 0%, ${SURFACE.insetAlt} 100%)`,
+  card: `${SURFACE.card}`,
+  inset: `${SURFACE.inset}`,
 };
 
 // ── Borders ─────────────────────────────────────────────────────────────────
@@ -50,8 +50,8 @@ export const TEXT = {
 // One family. `accent` is the text/icon value; `strong` is a FILL and fails
 // 4.5:1 as text — that pairing is the point, not an oversight.
 export const ACCENT = {
-  base: '#a78bfa',
-  strong: '#8b5cf6',
+  base: '#12bfce',
+  strong: '#038691',
 };
 
 // ── Semantic ────────────────────────────────────────────────────────────────
@@ -101,8 +101,6 @@ export const FONT_WEIGHT = {
 export const EYEBROW = {
   fontSize: TEXT_SIZE.micro,
   fontWeight: FONT_WEIGHT.bold,
-  textTransform: 'uppercase',
-  letterSpacing: '0.1em',
   color: TEXT.muted,
 };
 

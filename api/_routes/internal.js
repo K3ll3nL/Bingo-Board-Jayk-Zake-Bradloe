@@ -33,8 +33,8 @@ async function upsertCountdownBanner() {
   if (daysLeft <= 0 || daysLeft > COUNTDOWN_WINDOW_DAYS) return null;
 
   const message = daysLeft === 1
-    ? `Last day of ${month.month_year_display} — get your submissions in before the board resets!`
-    : `${daysLeft} days left in ${month.month_year_display} — get your submissions in before the board resets!`;
+    ? `Last day of ${month.month_year_display} , get your submissions in before the board resets!`
+    : `${daysLeft} days left in ${month.month_year_display} , get your submissions in before the board resets!`;
 
   const { error } = await supabase.from('banners').upsert({
     banner_key: `month_countdown:${month.id}`,

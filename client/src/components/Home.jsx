@@ -33,7 +33,7 @@ import { GRADIENT, BORDER, TEXT, ACCENT, SEMANTIC, BRAND } from '../constants/th
 */
 
 const Eyebrow = ({ children, className = '', style }) => (
-  <span className={`text-[10px] font-bold uppercase tracking-[0.1em] ${className}`} style={{ color: TEXT.muted, ...style }}>
+  <span className={`text-xs font-semibold ${className}`} style={{ color: TEXT.muted, ...style }}>
     {children}
   </span>
 );
@@ -94,7 +94,7 @@ const LadderShell = ({ children }) => (
   <Panel className="p-4 flex flex-col gap-3">
     <div className="flex items-baseline justify-between gap-3 min-w-0">
       <Eyebrow>Upcoming Badges</Eyebrow>
-      <Link to="/profile?tab=badges" className="text-[10px] font-bold uppercase tracking-[0.1em] shrink-0 transition-colors hover:opacity-80"
+      <Link to="/profile?tab=badges" className="text-[10px] font-bold shrink-0 transition-colors hover:opacity-80"
             style={{ color: ACCENT.base }}>Case</Link>
     </div>
     {/* Constant height whether it holds four badges, one, or none. */}
@@ -210,10 +210,10 @@ const BountyState = ({ bounty, restricted = false }) => {
     // "earned" accent, oxblood is Restricted's own. Oxblood is a BACKGROUND
     // value (1.5:1), so the name on it stays Ink Strong either way.
     const fill = restricted
-      ? { background: 'linear-gradient(160deg, rgba(120,21,10,0.85) 0%, rgba(120,21,10,0.45) 100%)',
+      ? { background: 'rgba(120,21,10,0.85)',
           boxShadow: 'inset 0 0 0 1px rgba(192,57,43,0.55)' }
-      : { background: 'linear-gradient(160deg, rgba(139,92,246,0.26) 0%, rgba(139,92,246,0.12) 100%)',
-          boxShadow: 'inset 0 0 0 1px rgba(167,139,250,0.4)' };
+      : { background: 'rgba(14,163,176,0.26)',
+          boxShadow: 'inset 0 0 0 1px rgba(18,191,206,0.4)' };
     return (
       <div className="flex items-center gap-2 min-w-0 rounded-md px-2 py-1.5 h-9" style={fill}>
         <Avatar url={bounty.holder.avatar_url} name={bounty.holder.display_name} size={20}
@@ -299,7 +299,7 @@ const Bounties = ({ bounties, loading }) => {
                 containerClassName="w-6 h-6 rounded-md shrink-0"
                 svgClassName={t === 'blackout' ? 'w-6 h-6' : 'w-3.5 h-3.5'}
               />
-              <span className="text-[10px] font-bold uppercase tracking-[0.1em] truncate"
+              <span className="text-[10px] font-bold truncate"
                     style={{ color: TEXT.muted }}>
                 {RACE_LABELS[t]}
               </span>
@@ -381,7 +381,7 @@ const LiveNow = () => {
       <div className="flex items-baseline justify-between gap-3 min-w-0">
         <Eyebrow>Streamers</Eyebrow>
         {sorted && (
-          <span className="text-[10px] font-bold uppercase tracking-[0.1em] shrink-0"
+          <span className="text-[10px] font-bold shrink-0"
                 style={{ color: live.length ? SEMANTIC.danger.base : TEXT.faint }}>
             {live.length ? `${live.length} live` : 'Offline'}
           </span>

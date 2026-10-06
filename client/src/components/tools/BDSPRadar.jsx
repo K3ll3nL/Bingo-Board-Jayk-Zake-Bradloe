@@ -52,17 +52,17 @@ const ABorder = 'rgba(99,102,241,0.3)';
 // ── StatCard ──────────────────────────────────────────────────────────────────
 const COLOR_MAP = {
   emerald: '#34d399', yellow: '#fbbf24', red: '#f87171',
-  amber: '#fbbf24',  pink: '#f472b6',   violet: '#a78bfa',
+  amber: '#fbbf24',  pink: '#f472b6',   violet: '#12bfce',
 };
 
 function StatCard({ label, value, color, note }) {
   const col = COLOR_MAP[color] ?? '#fff';
   return (
     <div className="rounded-xl p-3.5" style={{
-      background: 'linear-gradient(160deg, #1a1c23 0%, #1f2128 100%)',
+      background: '#1a1c23',
       border: '1px solid rgba(255,255,255,0.07)',
     }}>
-      <p className="text-[10px] font-bold uppercase tracking-widest text-gray-500 mb-1">{label}</p>
+      <p className="text-[10px] font-bold text-gray-500 mb-1">{label}</p>
       <p className="text-2xl font-bold leading-tight" style={{ color: col }}>{value}</p>
       {note && <p className="text-xs text-gray-500 mt-1 leading-snug">{note}</p>}
     </div>
@@ -191,7 +191,7 @@ export default function BDSPRadar() {
 
         {/* ── Main tracker card ────────────────────────────────────────────── */}
         <div className="rounded-2xl overflow-hidden mb-5" style={{
-          background: 'linear-gradient(160deg, #1a1c23 0%, #1f2128 100%)',
+          background: '#1a1c23',
           border: '1px solid rgba(255,255,255,0.07)',
         }}>
           <div className="h-0.5" style={{ background: `linear-gradient(90deg, ${A} 0%, transparent 100%)` }} />
@@ -200,8 +200,8 @@ export default function BDSPRadar() {
             {/* ── Desktop hero row: big odds left, counter right ── */}
             <div className="hidden lg:flex items-start justify-between gap-8 pb-6 mb-6 border-b" style={{ borderColor: 'rgba(255,255,255,0.06)' }}>
               <div>
-                <p className="text-[10px] font-bold uppercase tracking-widest mb-2" style={{ color: 'rgba(129,140,248,0.5)' }}>
-                  Current odds
+                <p className="text-[10px] font-bold mb-2" style={{ color: 'rgba(129,140,248,0.5)' }}>
+                  Current Odds
                 </p>
                 <p className="text-7xl font-black leading-none tabular-nums" style={{ color: A }}>
                   1/{stats.odds.toLocaleString()}
@@ -216,12 +216,12 @@ export default function BDSPRadar() {
                 </p>
               </div>
               <div className="text-right shrink-0">
-                <p className="text-[10px] font-bold uppercase tracking-widest mb-3" style={{ color: 'rgba(129,140,248,0.6)' }}>
+                <p className="text-[10px] font-bold mb-3" style={{ color: 'rgba(129,140,248,0.6)' }}>
                   Chain Length
                 </p>
                 <CounterBox value={chain} onChange={setChain} />
                 <div className="mt-2">
-                  {chain >= 40 && <p className="text-xs font-bold" style={{ color: '#fbbf24' }}>★ Max chain — best odds!</p>}
+                  {chain >= 40 && <p className="text-xs font-bold" style={{ color: '#fbbf24' }}>★ Max chain. Best odds!</p>}
                   {isBigJumpZone && chain < 40 && <p className="text-xs font-bold" style={{ color: '#fbbf24' }}>Odds spike zone!</p>}
                   <p className="text-sm text-gray-500">
                     {chain >= 40 ? '41× base odds!' : `${40 - chain} step${40 - chain !== 1 ? 's' : ''} to chain 40`}
@@ -232,14 +232,14 @@ export default function BDSPRadar() {
 
             {/* ── Mobile: counter at top ── */}
             <div className="lg:hidden mb-5">
-              <p className="text-[10px] font-bold uppercase tracking-widest mb-4" style={{ color: 'rgba(129,140,248,0.6)' }}>
+              <p className="text-[10px] font-bold mb-4" style={{ color: 'rgba(129,140,248,0.6)' }}>
                 Chain Length
               </p>
               <div className="flex items-center justify-between">
                 <CounterBox value={chain} onChange={setChain} />
                 <div className="text-right">
-                  {chain >= 40 && <p className="text-xs font-bold uppercase tracking-wider" style={{ color: '#fbbf24' }}>★ Max chain — best odds!</p>}
-                  {isBigJumpZone && chain < 40 && <p className="text-xs font-bold uppercase tracking-wider" style={{ color: '#fbbf24' }}>Odds spike zone!</p>}
+                  {chain >= 40 && <p className="text-xs font-bold" style={{ color: '#fbbf24' }}>★ Max chain. Best odds!</p>}
+                  {isBigJumpZone && chain < 40 && <p className="text-xs font-bold" style={{ color: '#fbbf24' }}>Odds Spike Zone!</p>}
                   <p className="text-sm text-gray-500 mt-0.5">
                     {chain >= 40 ? '40+ chain' : `${40 - chain} step${40 - chain !== 1 ? 's' : ''} to 40`}
                   </p>
@@ -285,8 +285,8 @@ export default function BDSPRadar() {
             <div className="lg:hidden pt-5 mt-5 border-t" style={{ borderColor: 'rgba(255,255,255,0.06)' }}>
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-[10px] font-bold uppercase tracking-widest mb-1" style={{ color: 'rgba(129,140,248,0.5)' }}>
-                    Current odds
+                  <p className="text-[10px] font-bold mb-1" style={{ color: 'rgba(129,140,248,0.5)' }}>
+                    Current Odds
                   </p>
                   <p className="text-4xl font-black leading-none" style={{ color: A }}>
                     1/{stats.odds.toLocaleString()}
@@ -301,7 +301,7 @@ export default function BDSPRadar() {
                   if (!next) return null;
                   return (
                     <div className="text-right">
-                      <p className="text-[10px] font-bold uppercase tracking-widest mb-1 text-gray-600">Next milestone</p>
+                      <p className="text-[10px] font-bold mb-1 text-gray-600">Next Milestone</p>
                       <p className="text-sm font-bold" style={{ color: next >= 36 ? '#fbbf24' : A }}>Chain {next}</p>
                       <p className="text-sm font-mono tabular-nums text-gray-400">1/{getOdds(next).toLocaleString()}</p>
                     </div>
@@ -319,10 +319,10 @@ export default function BDSPRadar() {
 
             {/* Settings */}
             <div className="rounded-xl p-4" style={{
-              background: 'linear-gradient(160deg, #1a1c23 0%, #1f2128 100%)',
+              background: '#1a1c23',
               border: '1px solid rgba(255,255,255,0.07)',
             }}>
-              <p className="text-[10px] font-bold uppercase tracking-widest text-gray-500 mb-4">Settings</p>
+              <p className="text-[10px] font-bold text-gray-500 mb-4">Settings</p>
               <div className="grid grid-cols-3 gap-4">
                 {[
                   { label: 'Sec / Step', hint: 'optional', unit: 's', min: 1, max: 300, value: secsStr, set: setSecsStr, placeholder: '20' },
@@ -330,7 +330,7 @@ export default function BDSPRadar() {
                   { label: 'Continuation Rate', hint: 'default 93%', unit: '%', min: 50, max: 99, value: contRateStr, set: setContRateStr, placeholder: '93' },
                 ].map(({ label, hint, unit, min, max, value, set, placeholder }) => (
                   <div key={label}>
-                    <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1">
+                    <label className="block text-[10px] font-bold text-gray-500 mb-1">
                       {label}
                     </label>
                     <p className="text-[10px] text-gray-700 mb-2">{hint}</p>
@@ -351,25 +351,25 @@ export default function BDSPRadar() {
             {/* Stat cards */}
             <div className="grid grid-cols-2 gap-3">
               <StatCard
-                label="Reach this chain"
+                label="Reach this Chain"
                 value={formatPct(stats.chanceThisFar)}
                 color="emerald"
                 note={chain === 0 ? 'Every run starts here.' : `${pct}% per step`}
               />
               <StatCard
-                label="Reach chain 40"
+                label="Reach Chain 40"
                 value={formatPct(stats.chanceToForty)}
                 color={stats.chanceToForty > 50 ? 'emerald' : stats.chanceToForty > 10 ? 'yellow' : 'red'}
                 note={chain >= 40 ? "You're there!" : `${40 - chain} more step${40 - chain !== 1 ? 's' : ''}`}
               />
               <StatCard
-                label="Time to shiny (here)"
+                label="Time to Shiny (Here)"
                 value={formatTime(stats.timeToShinyS)}
                 color="pink"
                 note={`~${Math.round(stats.encToShiny).toLocaleString()} radars at 4 patches each`}
               />
               <StatCard
-                label="Recovery if chain breaks"
+                label="Recovery if Chain Breaks"
                 value={chain === 0 ? '—' : formatTime(stats.timeToRecoverS)}
                 color="amber"
                 note={chain === 0 ? 'Nothing to recover from.' : `~${Math.round(stats.encToRecover).toLocaleString()} enc to rebuild`}
@@ -378,26 +378,26 @@ export default function BDSPRadar() {
 
             {/* Combined */}
             <div className="rounded-xl p-3.5" style={{
-              background: 'linear-gradient(160deg, #1a1c23 0%, #1f2128 100%)',
+              background: '#1a1c23',
               border: '1px solid rgba(255,255,255,0.07)',
             }}>
-              <p className="text-[10px] font-bold uppercase tracking-widest text-gray-500 mb-1">Combined: recover + shiny</p>
-              <p className="text-2xl font-bold" style={{ color: '#a78bfa' }}>
+              <p className="text-[10px] font-bold text-gray-500 mb-1">Combined: Recovery + Shiny</p>
+              <p className="text-2xl font-bold" style={{ color: '#12bfce' }}>
                 {chain === 0 ? formatTime(stats.timeToShinyS) : formatTime(stats.timeTotalS)}
               </p>
             </div>
 
             {/* Progress bar */}
             <div className="rounded-xl p-4" style={{
-              background: 'linear-gradient(160deg, #1a1c23 0%, #1f2128 100%)',
+              background: '#1a1c23',
               border: '1px solid rgba(255,255,255,0.07)',
             }}>
-              <p className="text-[10px] font-bold uppercase tracking-widest text-gray-500 mb-3">Odds improvement</p>
+              <p className="text-[10px] font-bold text-gray-500 mb-3">Odds Improvement</p>
               <div className="h-2.5 rounded-full overflow-hidden" style={{ background: 'rgba(255,255,255,0.06)' }}>
                 <div className="h-full rounded-full transition-all duration-300"
                   style={{
                     width: `${((BASE_ODDS - stats.odds) / (BASE_ODDS - 99)) * 100}%`,
-                    background: `linear-gradient(90deg, ${A}, #c084fc)`,
+                    background: `linear-gradient(90deg, ${A}, #12bfce)`,
                   }}
                 />
               </div>
@@ -409,7 +409,7 @@ export default function BDSPRadar() {
 
             {/* Reference table */}
             <div className="rounded-2xl overflow-hidden" style={{
-              background: 'linear-gradient(160deg, #1a1c23 0%, #1f2128 100%)',
+              background: '#1a1c23',
               border: '1px solid rgba(255,255,255,0.07)',
             }}>
               <div className="px-5 py-3.5 border-b" style={{ borderColor: 'rgba(255,255,255,0.06)' }}>
@@ -419,7 +419,7 @@ export default function BDSPRadar() {
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
-                    <tr className="border-b text-[10px] font-bold uppercase tracking-wider text-gray-500" style={{ borderColor: 'rgba(255,255,255,0.06)', background: 'rgba(255,255,255,0.02)' }}>
+                    <tr className="border-b text-[10px] font-bold text-gray-500" style={{ borderColor: 'rgba(255,255,255,0.06)', background: 'rgba(255,255,255,0.02)' }}>
                       <th className="text-left px-5 py-2.5">Chain</th>
                       <th className="text-right px-5 py-2.5">Odds</th>
                       <th className="text-right px-5 py-2.5">Probability</th>

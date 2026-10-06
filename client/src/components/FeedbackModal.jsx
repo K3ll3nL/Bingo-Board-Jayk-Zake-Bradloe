@@ -77,7 +77,7 @@ export default function FeedbackModal({ isOpen, onClose }) {
               <button
                 onClick={handleClose}
                 className="mt-4 px-4 py-2 rounded-lg text-sm font-medium text-white transition-colors"
-                style={{ backgroundColor: '#5865f2' }}
+                style={{ backgroundColor: '#038691' }}
               >
                 Close
               </button>
@@ -91,7 +91,7 @@ export default function FeedbackModal({ isOpen, onClose }) {
                   onClick={() => setType('suggestion')}
                   className={`flex-1 py-2 text-sm font-medium transition-colors ${
                     type === 'suggestion'
-                      ? 'bg-purple-600 text-white'
+                      ? 'bg-lagoon-600 text-white'
                       : 'text-gray-400 hover:text-gray-200'
                   }`}
                   style={type !== 'suggestion' ? { backgroundColor: '#35373b' } : {}}
@@ -145,7 +145,7 @@ export default function FeedbackModal({ isOpen, onClose }) {
                   onChange={e => setTitle(e.target.value)}
                   maxLength={120}
                   placeholder={type === 'bug' ? 'Brief description of the bug' : 'What would you like to see?'}
-                  className="w-full px-3 py-2 rounded-lg text-sm text-white placeholder-gray-500 border border-gray-600 focus:border-purple-500 focus:outline-none transition-colors"
+                  className="w-full px-3 py-2 rounded-lg text-sm text-white placeholder-gray-500 border border-gray-600 focus:border-lagoon-500 focus:outline-none transition-colors"
                   style={{ backgroundColor: '#1e1f22' }}
                 />
               </div>
@@ -165,7 +165,7 @@ export default function FeedbackModal({ isOpen, onClose }) {
                       ? 'What happened? What did you expect to happen?'
                       : 'Describe your suggestion in more detail...'
                   }
-                  className="w-full px-3 py-2 rounded-lg text-sm text-white placeholder-gray-500 border border-gray-600 focus:border-purple-500 focus:outline-none transition-colors resize-none"
+                  className="w-full px-3 py-2 rounded-lg text-sm text-white placeholder-gray-500 border border-gray-600 focus:border-lagoon-500 focus:outline-none transition-colors resize-none"
                   style={{ backgroundColor: '#1e1f22' }}
                 />
                 <p className="text-xs text-gray-500 mt-1 text-right">{description.length}/2000</p>
@@ -177,7 +177,7 @@ export default function FeedbackModal({ isOpen, onClose }) {
                 type="submit"
                 disabled={submitting}
                 className="w-full py-2 rounded-lg text-sm font-medium text-white transition-colors disabled:opacity-50"
-                style={{ backgroundColor: type === 'bug' ? '#dc2626' : '#5865f2' }}
+                style={{ backgroundColor: type === 'bug' ? '#dc2626' : '#038691' }}
               >
                 {submitting ? 'Submitting...' : 'Submit'}
               </button>

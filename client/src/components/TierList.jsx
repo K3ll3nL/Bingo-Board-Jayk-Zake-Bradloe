@@ -151,9 +151,9 @@ const SignInBanner = () => (
   <Link
     to="/login"
     className="block rounded-xl p-4 text-center border transition-colors hover:bg-white/5"
-    style={{ background: CARD.bg, borderColor: 'rgba(139,92,246,0.35)' }}
+    style={{ background: CARD.bg, borderColor: 'rgba(14,163,176,0.35)' }}
   >
-    <p className="text-purple-300 text-sm">
+    <p className="text-lagoon-300 text-sm">
       Sign in to rank this month's Pokémon and add your voice to the Community Consensus →
     </p>
   </Link>
@@ -383,7 +383,7 @@ const TierList = () => {
                 <button
                   onClick={() => setEditModalOpen(true)}
                   className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs sm:text-sm font-semibold leading-5 text-white border transition-colors shrink-0"
-                  style={{ borderColor: 'rgba(139,92,246,0.4)', background: 'rgba(139,92,246,0.15)' }}
+                  style={{ borderColor: 'rgba(14,163,176,0.4)', background: 'rgba(14,163,176,0.15)' }}
                 >
                   <span aria-hidden="true">⚡</span> {isComplete ? 'Edit My List' : 'Rank Now'}
                 </button>
@@ -397,7 +397,7 @@ const TierList = () => {
                 <button
                   onClick={() => setEditModalOpen(true)}
                   className="mt-3 inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold text-white border transition-colors"
-                  style={{ borderColor: 'rgba(139,92,246,0.4)', background: 'rgba(139,92,246,0.15)' }}
+                  style={{ borderColor: 'rgba(14,163,176,0.4)', background: 'rgba(14,163,176,0.15)' }}
                 >
                   Start Ranking
                 </button>

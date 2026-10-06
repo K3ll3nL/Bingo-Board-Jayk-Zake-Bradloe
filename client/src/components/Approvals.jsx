@@ -128,7 +128,7 @@ const MediaThumb = ({ item, size = 'lg', onClick }) => {
   const box = size === 'lg' ? 'w-28 h-28' : 'w-20 h-20';
   const borderColor = item.label === 'Evolution' || item.label === 'Evolved Summary'
     ? 'border-blue-700 hover:border-blue-500'
-    : 'border-gray-600 hover:border-purple-500';
+    : 'border-gray-600 hover:border-lagoon-500';
   const isTwitch = item.provider === 'Twitch';
   return (
     <button onClick={onClick} className="block group">
@@ -402,7 +402,7 @@ const Approvals = () => {
   if (!user || isModerator !== true) {
     return (
       <div className="min-h-screen flex items-center justify-center" style={{ background: '#0d0f14' }}>
-        <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-purple-500" />
+        <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-lagoon-500" />
       </div>
     );
   }
@@ -487,7 +487,7 @@ const Approvals = () => {
                   href={link}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="self-center text-purple-400 hover:text-purple-300 underline text-sm"
+                  className="self-center text-lagoon-400 hover:text-lagoon-300 underline text-sm"
                 >
                   {externalLinks.length > 1 ? `Video ${i + 1} ↗` : 'View Video Link ↗'}
                 </a>
@@ -629,7 +629,7 @@ const Approvals = () => {
                   panelAction === 'warn' ? 'Enter warning message for the user...' :
                   'Enter reason for ban...'
                 }
-                className="w-full p-3 bg-gray-700 text-white rounded-lg border border-gray-600 focus:border-purple-500 focus:outline-none mb-3"
+                className="w-full p-3 bg-gray-700 text-white rounded-lg border border-gray-600 focus:border-lagoon-500 focus:outline-none mb-3"
                 rows={3}
               />
               <div className="flex justify-end">
@@ -678,11 +678,11 @@ const Approvals = () => {
             <button
               onClick={() => setActiveTab('approvals')}
               className={`px-4 py-1.5 rounded-full text-sm font-medium transition-colors ${
-                activeTab === 'approvals' ? 'bg-purple-600/20 text-purple-300 border border-purple-500/30' : 'text-gray-400 hover:text-gray-200'
+                activeTab === 'approvals' ? 'bg-lagoon-600/20 text-lagoon-300 border border-lagoon-500/30' : 'text-gray-400 hover:text-gray-200'
               }`}
             >
               Pending Approvals
-              <span className="ml-2 bg-purple-700 text-white text-xs rounded-full px-1.5 py-0.5">
+              <span className="ml-2 bg-lagoon-700 text-white text-xs rounded-full px-1.5 py-0.5">
                 {approvals.length}
               </span>
             </button>
@@ -692,11 +692,11 @@ const Approvals = () => {
                 if (!historicalLoaded) loadHistoricalApprovals();
               }}
               className={`px-4 py-1.5 rounded-full text-sm font-medium transition-colors ${
-                activeTab === 'historical' ? 'bg-purple-600/20 text-purple-300 border border-purple-500/30' : 'text-gray-400 hover:text-gray-200'
+                activeTab === 'historical' ? 'bg-lagoon-600/20 text-lagoon-300 border border-lagoon-500/30' : 'text-gray-400 hover:text-gray-200'
               }`}
             >
               Historical
-              <span className="ml-2 bg-purple-700/60 text-purple-200 text-xs rounded-full px-1.5 py-0.5">
+              <span className="ml-2 bg-lagoon-700/60 text-lagoon-200 text-xs rounded-full px-1.5 py-0.5">
                 {historicalApprovals.length}
               </span>
             </button>
@@ -706,7 +706,7 @@ const Approvals = () => {
                 if (!historyLoaded) loadHistory(1);
               }}
               className={`px-4 py-1.5 rounded-full text-sm font-medium transition-colors ${
-                activeTab === 'history' ? 'bg-purple-600/20 text-purple-300 border border-purple-500/30' : 'text-gray-400 hover:text-gray-200'
+                activeTab === 'history' ? 'bg-lagoon-600/20 text-lagoon-300 border border-lagoon-500/30' : 'text-gray-400 hover:text-gray-200'
               }`}
             >
               Approval History
@@ -715,7 +715,7 @@ const Approvals = () => {
 
           {/* Approvals List */}
           {activeTab === 'approvals' && (
-            <div className="rounded-xl border" style={{ background: 'linear-gradient(160deg, #13151a 0%, #181a21 100%)', borderColor: 'rgba(255,255,255,0.07)' }}>
+            <div className="rounded-xl border" style={{ background: '#13151a', borderColor: 'rgba(255,255,255,0.07)' }}>
               {loading && !approvalsLoaded ? (
                 <div className="text-center text-gray-400 py-8">Loading approvals...</div>
               ) : approvals.length === 0 ? (
@@ -730,7 +730,7 @@ const Approvals = () => {
 
           {/* Historical Tab */}
           {activeTab === 'historical' && (
-            <div className="rounded-xl border" style={{ background: 'linear-gradient(160deg, #13151a 0%, #181a21 100%)', borderColor: 'rgba(255,255,255,0.07)' }}>
+            <div className="rounded-xl border" style={{ background: '#13151a', borderColor: 'rgba(255,255,255,0.07)' }}>
               {historicalLoading && !historicalLoaded ? (
                 <div className="text-center text-gray-400 py-8">Loading historical approvals...</div>
               ) : historicalApprovals.length === 0 ? (
@@ -745,7 +745,7 @@ const Approvals = () => {
 
           {/* Approval History Tab */}
           {activeTab === 'history' && (
-            <div className="rounded-xl border" style={{ background: 'linear-gradient(160deg, #13151a 0%, #181a21 100%)', borderColor: 'rgba(255,255,255,0.07)' }}>
+            <div className="rounded-xl border" style={{ background: '#13151a', borderColor: 'rgba(255,255,255,0.07)' }}>
               {historyLoading && !historyLoaded ? (
                 <div className="text-center text-gray-400 py-8">Loading history...</div>
               ) : historyData.length === 0 ? (
@@ -825,7 +825,7 @@ const Approvals = () => {
                                 href={link}
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                className="text-purple-400 hover:text-purple-300 underline text-sm self-center"
+                                className="text-lagoon-400 hover:text-lagoon-300 underline text-sm self-center"
                               >
                                 {rLinks.length > 1 ? `Video ${i + 1} ↗` : 'Video ↗'}
                               </a>

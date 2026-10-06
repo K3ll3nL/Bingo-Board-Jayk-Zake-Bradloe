@@ -371,7 +371,7 @@ export const GRASS_TYPE_INFO = {
   'grass':          { label: 'Grass',          color: '#4ade80', bg: 'rgba(74,222,128,0.12)', border: 'rgba(74,222,128,0.3)' },
   'red-flowers':    { label: 'Red Flowers',    color: '#f87171', bg: 'rgba(248,113,113,0.12)', border: 'rgba(248,113,113,0.3)' },
   'yellow-flowers': { label: 'Yellow Flowers', color: '#fbbf24', bg: 'rgba(251,191,36,0.12)', border: 'rgba(251,191,36,0.3)' },
-  'purple-flowers': { label: 'Purple Flowers', color: '#c084fc', bg: 'rgba(192,132,252,0.12)', border: 'rgba(192,132,252,0.3)' },
+  'purple-flowers': { label: 'Purple Flowers', color: '#12bfce', bg: 'rgba(18,191,206,0.12)', border: 'rgba(18,191,206,0.3)' },
 };
 
 // External resource links

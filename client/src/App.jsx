@@ -253,7 +253,7 @@ const AppLayout = () => {
 
         <div className="py-1.5 overflow-y-auto max-h-[calc(100vh-9rem)]">
           {/* My Account */}
-          <div className="px-3 pt-1.5 pb-0.5 text-[10px] font-bold uppercase tracking-wider text-muted">My Account</div>
+          <div className="px-3 pt-1.5 pb-0.5 text-[10px] font-bold text-muted">My account</div>
           {[
             { label: 'Upload', path: '/upload', icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" /> },
             { label: 'Notifications', path: '/history', icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" /> },
@@ -270,7 +270,7 @@ const AppLayout = () => {
           {(isPro || isModerator) && (
             <>
               <div className="border-t border-hairline my-1.5" />
-              <div className="px-3 py-0.5 text-[10px] font-bold uppercase tracking-wider text-muted">Pro</div>
+              <div className="px-3 py-0.5 text-[10px] font-bold text-muted">Pro</div>
               {isPro && (
                 <Link to="/overlays" onClick={() => setMenuOpen(false)}
                   className="w-full px-3 py-2 text-left text-sm text-accent hover:bg-edge flex items-center gap-2.5 transition-colors">
@@ -294,7 +294,7 @@ const AppLayout = () => {
           {isModerator && (
             <>
               <div className="border-t border-hairline my-1.5" />
-              <div className="px-3 py-0.5 text-[10px] font-bold uppercase tracking-wider text-muted">Moderator</div>
+              <div className="px-3 py-0.5 text-[10px] font-bold text-muted">Moderator</div>
               {[
                 { label: 'Approvals', path: '/approvals' },
                 { label: 'Board Builder', path: '/board-builder' },
@@ -422,7 +422,7 @@ const AppLayout = () => {
 
             {/* Nav links */}
             <nav className="flex-1 overflow-y-auto py-2">
-              <div className="px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-muted">Navigate</div>
+              <div className="px-3 py-1 text-[10px] font-bold text-muted">Navigate</div>
               {[
                 { label: 'Home', path: '/', icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" /> },
                 { label: 'Pokédex', path: '/pokedex', icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" /> },
@@ -448,7 +448,7 @@ const AppLayout = () => {
               {user && (
                 <>
                   <div className="border-t border-hairline my-2" />
-                  <div className="px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-muted">My Account</div>
+                  <div className="px-3 py-1 text-[10px] font-bold text-muted">My account</div>
                   {[
                     { label: 'Upload', path: '/upload', icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" /> },
                     { label: 'Notifications', path: '/history', icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" /> },
@@ -465,7 +465,7 @@ const AppLayout = () => {
               {isModerator && (
                 <>
                   <div className="border-t border-hairline my-2" />
-                  <div className="px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-muted">Moderator</div>
+                  <div className="px-3 py-1 text-[10px] font-bold text-muted">Moderator</div>
                   {[
                     { label: 'Approvals', path: '/approvals' },
                     { label: 'Board Builder', path: '/board-builder' },
@@ -485,7 +485,7 @@ const AppLayout = () => {
                     Manage Banners
                   </button>
                   <div className="border-t border-hairline my-2" />
-                  <div className="px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-muted">Pro</div>
+                  <div className="px-3 py-1 text-[10px] font-bold text-muted">Pro</div>
                   {isPro && (
                     <Link to="/overlays" onClick={() => setDrawerOpen(false)}
                       className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-accent hover:bg-edge transition-colors">

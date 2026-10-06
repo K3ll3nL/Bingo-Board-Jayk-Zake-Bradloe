@@ -64,7 +64,7 @@ const TierRowShell = ({ tierKey, children, droppable = false }) => {
         <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-lg flex items-center justify-center font-extrabold text-base sm:text-lg" style={{ backgroundColor: color, color: '#0d0f14' }}>
           {tierKey === 'unranked' ? '?' : TIER_SHORT[tierKey]}
         </div>
-        <span className="text-[9px] font-semibold uppercase tracking-wide text-center leading-tight" style={{ color }}>
+        <span className="text-[9px] font-semibold text-center leading-tight" style={{ color }}>
           {tierKey === 'unranked' ? 'Unranked' : TIER_LABELS[tierKey]}
         </span>
       </div>
@@ -156,7 +156,7 @@ const QuickRank = ({ pool, tierById, onAssign, onExit }) => {
       {done && (
         <div className="mt-3 text-center">
           <p className="text-sm font-semibold" style={{ color: SEMANTIC.success.base }}>
-            All {ids.length} ranked — your list counts toward the community consensus.
+            All {ids.length} Pokémon ranked. Your tierlist has been logged.
           </p>
           <button
             onClick={onExit}

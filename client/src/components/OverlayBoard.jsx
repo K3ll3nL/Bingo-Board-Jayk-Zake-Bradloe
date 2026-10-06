@@ -113,7 +113,7 @@ const OverlayBoard = () => {
   if (!board.length) {
     return (
       <div style={fullPage}>
-        <div style={{ width: '5vmin', height: '5vmin', borderRadius: '50%', border: '0.5vmin solid #8b5cf6', borderTopColor: 'transparent', animation: 'spin 0.8s linear infinite' }} />
+        <div style={{ width: '5vmin', height: '5vmin', borderRadius: '50%', border: '0.5vmin solid #0ea3b0', borderTopColor: 'transparent', animation: 'spin 0.8s linear infinite' }} />
         <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
       </div>
     );
@@ -135,7 +135,7 @@ const OverlayBoard = () => {
 
           let bg = '#1f2937';
           let borderColor = '#374151';
-          if (isFree) { bg = 'linear-gradient(135deg, #7c3aed, #db2777)'; borderColor = '#7c3aed'; }
+          if (isFree) { bg = '#038691'; borderColor = '#038691'; }
           else if (cell.is_restricted) { bg = '#1e3a5f'; borderColor = '#3b82f6'; }
           else if (cell.is_checked) { bg = '#14532d'; borderColor = '#16a34a'; }
           else if (cell.is_pending) { bg = '#451a03'; borderColor = '#d97706'; }

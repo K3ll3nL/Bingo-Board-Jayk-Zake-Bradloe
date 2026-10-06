@@ -118,7 +118,7 @@ const PokemonModal = ({ pokemon, onClose, monthId = null }) => {
             <img src={restrictedIconSrc} alt="Restricted" className="w-4 h-4 sm:w-5 sm:h-5 object-contain" />
           )}
         </span>
-        <span className="text-sm sm:text-xl font-bold text-purple-400 tabular-nums text-right min-w-[1.75rem] sm:min-w-[2.25rem]">
+        <span className="text-sm sm:text-xl font-bold text-lagoon-400 tabular-nums text-right min-w-[1.75rem] sm:min-w-[2.25rem]">
           {entry.points || 0}
         </span>
         <span className="text-[9px] sm:text-xs text-gray-400">pts</span>
@@ -159,7 +159,7 @@ const PokemonModal = ({ pokemon, onClose, monthId = null }) => {
   } else {
     submitLabel = 'Submit Catch';
     isDisabled = false;
-    submitBtnClass = 'bg-purple-600 hover:bg-purple-700 text-white cursor-pointer';
+    submitBtnClass = 'bg-lagoon-600 hover:bg-lagoon-700 text-white cursor-pointer';
     submitIconContent = <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />;
   }
 
@@ -170,7 +170,7 @@ const PokemonModal = ({ pokemon, onClose, monthId = null }) => {
     >
       <div
         className="rounded-2xl shadow-xl w-full max-w-2xl flex flex-col"
-        style={{ background: 'linear-gradient(160deg, #13151a 0%, #181a21 100%)', border: '1px solid rgba(255,255,255,0.07)', height: '80vh', maxHeight: '640px' }}
+        style={{ background: '#13151a', border: '1px solid rgba(255,255,255,0.07)', height: '80vh', maxHeight: '640px' }}
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header — fixed */}

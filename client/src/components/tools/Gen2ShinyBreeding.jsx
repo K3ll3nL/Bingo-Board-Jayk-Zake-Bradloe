@@ -32,9 +32,9 @@ const GROUP_COLORS = {
   humanlike:  'bg-indigo-500/20 text-indigo-300 border-indigo-500/30',
   water3:     'bg-cyan-500/20 text-cyan-300 border-cyan-500/30',
   mineral:    'bg-stone-400/20 text-stone-300 border-stone-400/30',
-  amorphous:  'bg-purple-500/20 text-purple-300 border-purple-500/30',
+  amorphous:  'bg-lagoon-500/20 text-lagoon-300 border-lagoon-500/30',
   water2:     'bg-teal-500/20 text-teal-300 border-teal-500/30',
-  dragon:     'bg-violet-500/20 text-violet-300 border-violet-500/30',
+  dragon:     'bg-lagoon-500/20 text-lagoon-300 border-lagoon-500/30',
   ditto:      'bg-fuchsia-500/20 text-fuchsia-300 border-fuchsia-500/30',
 };
 
@@ -118,7 +118,7 @@ function DittoModal({ onClose, dittoPm }) {
     /* Page 1 — What & Why */
     <div key="p1" className="space-y-4 text-sm text-gray-300 leading-relaxed">
       <p>
-        A shiny Ditto bypasses egg groups entirely — it can breed with almost any Pokémon
+        A shiny Ditto bypasses egg groups entirely; it can breed with almost any Pokémon
         and passes two shiny DVs to every offspring, raising shiny odds to <strong className="text-white">~1/64</strong>.
       </p>
       <div className="bg-orange-500/10 border border-orange-500/30 rounded-lg px-3 py-2 text-orange-200 text-xs">
@@ -130,7 +130,7 @@ function DittoModal({ onClose, dittoPm }) {
         <p>
           Shininess requires Defense = 10, Speed = 10, Special = 10, and Attack ∈ {'{2, 6, 10, 14}'}.
           Breeding with a shiny Ditto passes <em>both</em> the Special DV and the Defense DV to
-          the offspring, leaving only Speed (1/16) and Attack (4/16) to chance — giving
+          the offspring, leaving only Speed (1/16) and Attack (4/16) to chance; giving
           1/16 × 1/4 = <span className="text-pink-300">1/64</span>.
         </p>
       </div>
@@ -140,14 +140,14 @@ function DittoModal({ onClose, dittoPm }) {
       <div>
         <h3 className="text-white font-semibold mb-2">Step-by-step</h3>
         <ol className="list-decimal list-inside space-y-1.5">
-          <li>Use the <span className="text-yellow-300">Red Gyarados</span> from the Lake of Rage as your bait — it already has shiny DVs.</li>
+          <li>Use the <span className="text-yellow-300">Red Gyarados</span> from the Lake of Rage as your bait. It already has shiny DVs.</li>
           <li>Delete any Gen 2-exclusive moves at the <span className="text-yellow-300">Move Deleter in Blackthorn City</span>.</li>
           <li>Trade Gyarados to Gen 1 via the <span className="text-yellow-300">Time Capsule</span>. <span className="text-gray-400">(Keeps shiny DVs.)</span></li>
           <li>Get <span className="text-yellow-300">TM31 (Mimic)</span> from Copycat in Saffron City. Teach it to Gyarados.</li>
-          <li>Find a wild Ditto — <span className="text-yellow-300">Route 15 or Cinnabar Island basement</span>.</li>
+          <li>Find a wild Ditto on <span className="text-yellow-300">Route 15 or Cinnabar Island basement</span>.</li>
           <li><strong className="text-white">Use Mimic</strong> to copy Ditto's Transform. Gyarados permanently learns it.</li>
           <li>Let Ditto Transform into Gyarados, then Transform <strong className="text-white">a second time</strong>. This glitch locks Gyarados's shiny DVs into Ditto.</li>
-          <li><strong className="text-white">Catch the Ditto</strong> — don't let it faint.</li>
+          <li><strong className="text-white">Catch the Ditto</strong> .</li>
           <li>Trade back to Gen 2. It appears as a <span className="text-fuchsia-300">bright blue shiny Ditto</span>.</li>
         </ol>
       </div>
@@ -156,7 +156,7 @@ function DittoModal({ onClose, dittoPm }) {
         <p>Drop this Ditto in the Day-Care with <em>any</em> breedable Pokémon. At ~1/64 per egg, expect 30–100 eggs on average.</p>
       </div>
       <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-lg px-3 py-2 text-yellow-200 text-xs">
-        <strong>Tip:</strong> The target must be breedable — legendaries and baby Pokémon can't be obtained this way.
+        <strong>Tip:</strong> The target must be breedable, so Legendaries and baby Pokémon can't be obtained this way.
       </div>
     </div>,
   ];
@@ -193,7 +193,7 @@ function DittoModal({ onClose, dittoPm }) {
           {/* Dots */}
           <div className="flex gap-1.5">
             {pages.map((_, i) => (
-              <button key={i} onClick={() => setPage(i)} className={`w-2 h-2 rounded-full transition-colors ${i === page ? 'bg-purple-400' : 'bg-gray-600 hover:bg-gray-500'}`} />
+              <button key={i} onClick={() => setPage(i)} className={`w-2 h-2 rounded-full transition-colors ${i === page ? 'bg-lagoon-400' : 'bg-gray-600 hover:bg-gray-500'}`} />
             ))}
           </div>
           <button
@@ -249,10 +249,10 @@ function ChainStep({ pokemonId, stepIndex, totalSteps, connectingGroups, pmMap }
         <p className="text-[10px] text-gray-500">#{String(p.id).padStart(3,'0')}</p>
 
         {p.gender === 'male-only' && (
-          <span className="text-[10px] text-yellow-400 text-center leading-tight">♂ only — needs Ditto</span>
+          <span className="text-[10px] text-yellow-400 text-center leading-tight">♂ only: needs Ditto</span>
         )}
         {p.gender === 'genderless' && (
-          <span className="text-[10px] text-yellow-400 text-center leading-tight">Genderless — needs Ditto</span>
+          <span className="text-[10px] text-yellow-400 text-center leading-tight">Genderless: needs Ditto</span>
         )}
       </div>
 
@@ -402,7 +402,7 @@ export default function Gen2ShinyBreeding() {
       <div className="grid sm:grid-cols-2 gap-4 mb-4">
         {/* Owned shinies */}
         <div>
-          <label className="block text-xs font-semibold text-pink-300 uppercase tracking-widest mb-1.5">
+          <label className="block text-xs font-semibold text-pink-300 mb-1.5">
             Your Shiny Pokémon
           </label>
           <PokemonSearch
@@ -427,7 +427,7 @@ export default function Gen2ShinyBreeding() {
 
         {/* Target */}
         <div>
-          <label className="block text-xs font-semibold text-emerald-300 uppercase tracking-widest mb-1.5">
+          <label className="block text-xs font-semibold text-emerald-300 mb-1.5">
             Target Pokémon
           </label>
           <PokemonSearch
@@ -508,8 +508,8 @@ export default function Gen2ShinyBreeding() {
 
               {/* Step-by-step instructions */}
               <div className="mt-4 space-y-2">
-                <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-widest">
-                  Step-by-step
+                <h3 className="text-xs font-semibold text-gray-500">
+                  Step-by-Step
                 </h3>
                 {result.path.slice(0, -1).map((id, i) => {
                   const nextId = result.path[i + 1];
@@ -538,17 +538,17 @@ export default function Gen2ShinyBreeding() {
                             <span className="text-gray-500">
                               (shared: {groups.map(g => EGG_GROUP_LABELS[g]).join(', ')})
                             </span>
-                            {' '}— hatch eggs until you get a{isFinalStep ? ' ' : ' female '}
+                            {' '}hatch eggs until you get a{isFinalStep ? ' ' : ' female '}
                             <strong className="text-emerald-300">{nextP?.name}</strong>
                             {isFinalStep ? '.' : ' to continue the chain.'}
                             {nextP?.gender === 'female-only' && (
                               <span className="ml-1 text-green-400">
-                                (Always female — no need to check gender.)
+                                (Always female, no need to check gender.)
                               </span>
                             )}
                             {nextP?.gender === 'male-only' && !isFinalStep && (
                               <span className="ml-1 text-yellow-400">
-                                (Male-only — will need a Ditto for the next step.)
+                                (Male-only, will need a Ditto for the next step.)
                               </span>
                             )}
                           </>

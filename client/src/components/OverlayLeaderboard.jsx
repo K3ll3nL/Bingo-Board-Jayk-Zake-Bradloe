@@ -51,7 +51,7 @@ const AchievementIcons = ({ achievements }) => {
             width: 'clamp(16px, 3.5vw, 26px)',
             height: 'clamp(16px, 3.5vw, 26px)',
             borderRadius: '3px',
-            backgroundColor: restricted ? '#78150a' : '#9147ff',
+            backgroundColor: restricted ? '#78150a' : '#038691',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
@@ -170,7 +170,7 @@ const OverlayLeaderboard = () => {
       <div style={{
         flexShrink: 0,
         padding: '1.6vh 4vw',
-        background: 'linear-gradient(135deg, rgba(109,40,217,0.97) 0%, rgba(192,38,211,0.93) 100%)',
+        background: 'rgba(3,110,119,0.97)',
         display: 'flex',
         alignItems: 'center',
         gap: '2vw',
@@ -267,7 +267,7 @@ const OverlayLeaderboard = () => {
                       flexShrink: 0,
                       fontWeight: 700,
                       fontSize: 'clamp(30px, 7.5vw, 52px)',
-                      color: isTop3 ? '#c4b5fd' : '#a78bfa',
+                      color: isTop3 ? '#63d4e1' : '#12bfce',
                       whiteSpace: 'nowrap',
                     }}>
                       {row.points}
@@ -286,8 +286,8 @@ const OverlayLeaderboard = () => {
                   alignItems: 'center',
                   gap: '3vw',
                   padding: '0 4vw',
-                  background: 'linear-gradient(90deg, rgba(109,40,217,0.22) 0%, rgba(109,40,217,0.06) 60%, transparent 100%)',
-                  borderTop: '1px dashed rgba(124,58,237,0.5)',
+                  background: 'rgba(3,110,119,0.14)',
+                  borderTop: '1px dashed rgba(3,134,145,0.5)',
                 }}>
                   <div style={{
                     width: 'clamp(32px, 8vw, 56px)',
@@ -295,7 +295,7 @@ const OverlayLeaderboard = () => {
                     textAlign: 'center',
                     fontWeight: 800,
                     fontSize: 'clamp(18px, 4.5vw, 30px)',
-                    color: '#a78bfa',
+                    color: '#12bfce',
                     lineHeight: 1,
                   }}>
                     #{pinnedRow.rank}
@@ -304,7 +304,7 @@ const OverlayLeaderboard = () => {
                     flex: 1,
                     fontWeight: 700,
                     fontSize: 'clamp(18px, 4.5vw, 30px)',
-                    color: '#ddd6fe',
+                    color: '#a0e7f0',
                     overflow: 'hidden',
                     textOverflow: 'ellipsis',
                     whiteSpace: 'nowrap',
@@ -316,7 +316,7 @@ const OverlayLeaderboard = () => {
                     flexShrink: 0,
                     fontWeight: 700,
                     fontSize: 'clamp(30px, 7.5vw, 52px)',
-                    color: '#a78bfa',
+                    color: '#12bfce',
                     whiteSpace: 'nowrap',
                   }}>
                     {pinnedRow.points}

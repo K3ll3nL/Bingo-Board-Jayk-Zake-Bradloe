@@ -37,11 +37,11 @@ const InfoTooltip = ({ label, text }) => {
 };
 
 /* ── Reusable section card ────────────────────────────────────────────── */
-const Section = ({ id, title, icon, accentColor = '#9147ff', headerBg = 'rgba(145,71,255,0.08)', children }) => (
+const Section = ({ id, title, icon, accentColor = '#038691', headerBg = 'rgba(14,163,176,0.08)', children }) => (
   <section
     id={id}
     className="rounded-xl shadow-xl overflow-hidden border border-gray-600"
-    style={{ background: 'linear-gradient(160deg, #1a1c23 0%, #1f2128 100%)' }}
+    style={{ background: '#1a1c23' }}
   >
     <div
       className="px-6 py-4 border-b flex items-center gap-3"
@@ -171,18 +171,18 @@ const RulesBlock = ({ rules, exceptions = [], title, exceptionsTitle = 'Exceptio
     <div className="space-y-0 rounded-lg overflow-hidden border border-gray-600" style={{ backgroundColor: 'rgba(13,15,20,0.6)' }}>
       {rules.map((rule, i) => (
         <div key={rule.key} className={`px-4 py-3 flex gap-4 ${i > 0 ? 'border-t border-gray-700/60' : ''}`}>
-          <span className="text-gray-400 text-xs font-semibold uppercase tracking-wide w-36 flex-shrink-0 pt-0.5">{rule.game}</span>
+          <span className="text-gray-400 text-xs font-semibold w-36 flex-shrink-0 pt-0.5">{rule.game}</span>
           <div className="flex-1 text-sm">{rule.content(openLightbox)}</div>
         </div>
       ))}
     </div>
     {exceptions.length > 0 && (
       <div className="mt-3">
-        <h4 className="text-gray-400 text-xs font-semibold uppercase tracking-wide mb-2">{exceptionsTitle}</h4>
+        <h4 className="text-gray-400 text-xs font-semibold mb-2">{exceptionsTitle}</h4>
         <div className="space-y-0 rounded-lg overflow-hidden border border-gray-600" style={{ backgroundColor: 'rgba(13,15,20,0.6)' }}>
           {exceptions.map((ex, i) => (
             <div key={ex.key} className={`px-4 py-3 flex gap-4 ${i > 0 ? 'border-t border-gray-700/60' : ''}`}>
-              <span className="text-gray-400 text-xs font-semibold uppercase tracking-wide w-36 flex-shrink-0 pt-0.5">{ex.game}</span>
+              <span className="text-gray-400 text-xs font-semibold w-36 flex-shrink-0 pt-0.5">{ex.game}</span>
               <div className="flex-1 text-sm">{ex.content(openLightbox)}</div>
             </div>
           ))}
@@ -408,11 +408,11 @@ const About = () => {
                 <div className="flex-1">
                 <p className="text-white font-medium text-sm mb-1">Overworld Screenshot</p>
                 <p className="text-gray-400 text-sm leading-relaxed">
-                  The first image must be of the initial encounter — the egg hatch screen, in-battle
+                  The first image must be of the initial encounter. The egg hatch screen, in-battle
                   view, Dynamax Adventure results page, etc.
                 </p>
                 </div>
-                <figure className="sm:flex-shrink-0 rounded-lg overflow-hidden cursor-zoom-in" style={{ background: 'linear-gradient(160deg, #13151a 0%, #181a21 100%)', width: '170px', maxWidth: '100%' }} onClick={() => setLightboxImage('https://pub-583ae6cd5f8b4b58b0ee7053ea1d4b0b.r2.dev/assets/correct_img1.png')}>
+                <figure className="sm:flex-shrink-0 rounded-lg overflow-hidden cursor-zoom-in" style={{ background: '#13151a', width: '170px', maxWidth: '100%' }} onClick={() => setLightboxImage('https://pub-583ae6cd5f8b4b58b0ee7053ea1d4b0b.r2.dev/assets/correct_img1.png')}>
                   <img
                     src="https://pub-583ae6cd5f8b4b58b0ee7053ea1d4b0b.r2.dev/assets/correct_img1.png"
                     alt="The Pokémon encountered in the wild"
@@ -434,7 +434,7 @@ const About = () => {
                   A screenshot showing your Trainer ID, so the catch can be tied to your account.
                 </p>
                 </div>
-                <figure className="sm:flex-shrink-0 rounded-lg overflow-hidden cursor-zoom-in" style={{ background: 'linear-gradient(160deg, #13151a 0%, #181a21 100%)', width: '170px', maxWidth: '100%' }} onClick={() => setLightboxImage('https://pub-583ae6cd5f8b4b58b0ee7053ea1d4b0b.r2.dev/assets/correct_img2.png')}>
+                <figure className="sm:flex-shrink-0 rounded-lg overflow-hidden cursor-zoom-in" style={{ background: '#13151a', width: '170px', maxWidth: '100%' }} onClick={() => setLightboxImage('https://pub-583ae6cd5f8b4b58b0ee7053ea1d4b0b.r2.dev/assets/correct_img2.png')}>
                   <img
                     src="https://pub-583ae6cd5f8b4b58b0ee7053ea1d4b0b.r2.dev/assets/correct_img2.png"
                     alt="Date proof screen"
@@ -519,7 +519,7 @@ const About = () => {
               { src: 'bingo_board3.png', caption: 'X'               },
               { src: 'bingo_board4.png', caption: 'Blackout'        },
             ].map(({ src, caption }) => (
-              <figure key={src} className="rounded-lg overflow-hidden" style={{ background: 'linear-gradient(160deg, #13151a 0%, #181a21 100%)' }}>
+              <figure key={src} className="rounded-lg overflow-hidden" style={{ background: '#13151a' }}>
                 <img
                   src={`https://pub-583ae6cd5f8b4b58b0ee7053ea1d4b0b.r2.dev/assets/${src}`}
                   alt={caption}
