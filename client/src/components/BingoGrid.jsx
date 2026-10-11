@@ -3,7 +3,10 @@ import backgroundImage from '../Icons/2026Jan.png';
 import restrictedIcon from '../Icons/restricted-icon.png';
 import PokemonImage from './PokemonImage';
 
-export default function BingoGrid({ board, onCellClick, large = false }) {
+// `highlight` (optional): { shape: Set<position>, missing: Set<position>, tone }.
+// Home sets it while a bounty is hovered — every cell outside that bounty's
+// shape dims, and the cells you still need inside it get a ring in `tone`.
+export default function BingoGrid({ board, onCellClick, large = false, highlight = null }) {
   // 4 effective sizes across large/small prop × mobile/desktop breakpoint:
   // large+desktop (~80px cell): w-9, large+mobile (~60px cell): w-6
   // small+desktop (~50px cell): w-5, small+mobile (~24px cell): w-3
@@ -24,6 +27,8 @@ export default function BingoGrid({ board, onCellClick, large = false }) {
         const isFreeSpace = cell.position === 13;
         const isEmpty = cell.pokemon_name === 'EMPTY';
         const isClickable = !isFreeSpace && !isEmpty;
+        const dimmed = highlight && !highlight.shape.has(cell.position);
+        const needed = highlight && highlight.missing.has(cell.position);
 
         let bgColor = '#212326';
         let borderColor = undefined;
@@ -57,7 +62,11 @@ export default function BingoGrid({ board, onCellClick, large = false }) {
             `}
             style={{
               backgroundColor: !isFreeSpace && !isEmpty ? bgColor : undefined,
-              borderColor: !isFreeSpace && !isEmpty ? borderColor : undefined,
+              borderColor: needed ? highlight.tone : (!isFreeSpace && !isEmpty ? borderColor : undefined),
+              // A filter, not opacity: opacity let the board's artwork bleed
+              // through and the dimmed cells read pastel instead of pushed back.
+              filter: dimmed ? 'brightness(0.3) saturate(0.5)' : undefined,
+              boxShadow: needed ? `0 0 0 1px ${highlight.tone}, 0 0 14px ${highlight.tone}` : undefined,
             }}
           >
             {!isFreeSpace && !isEmpty && cell.pokemon && (

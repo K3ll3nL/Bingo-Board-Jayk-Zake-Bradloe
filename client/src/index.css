@@ -177,6 +177,17 @@ a {
   }
 }
 
+/* ── Bounty cell with a "you N" chip ────────────────────────────────────────
+   distance | contender | you N. The contender name truncates to 0px first, but
+   its divider and two gaps still cost 17px, and at a 390 viewport (108px cell)
+   that pushed the chip 6-13px past the cell edge. Below the width where the
+   name would get ~40px, drop it and its divider. Content-box width: 113px of
+   fixed parts (widest chip, "you 24") + 40. The full list is in the title. */
+.race-cell { container: race-cell / inline-size; }
+@container race-cell (max-width: 152px) {
+  .race-name, .race-sep { display: none; }
+}
+
 /* ── Home highlights: 2x2 or 4x1 ────────────────────────────────────────────
    Four teaser cards sit as a 2x2 block, and go 4-across only when this grid is
    wide enough to carry it. Container query, not a media query: the grid's width

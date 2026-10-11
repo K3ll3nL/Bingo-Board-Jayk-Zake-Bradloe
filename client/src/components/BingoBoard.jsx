@@ -12,7 +12,7 @@ import ReconnectingPill from './ReconnectingPill';
 // and /api/bingo/board is `Cache-Control: no-store`, so an uncontrolled second
 // instance would cost a real duplicate serverless invocation on every home load.
 // Omitting `data` keeps the original self-fetching behaviour byte-for-byte.
-const BingoBoard = ({ data, error: errorProp = null, hideTitle = false, hideAchievements = false, maxWidth = '645px' }) => {
+const BingoBoard = ({ data, error: errorProp = null, hideTitle = false, hideAchievements = false, maxWidth = '645px', highlight = null }) => {
   const controlled = data !== undefined;
   const { user, boardVersion, loading: authLoading } = useAuth();
   const [board, setBoard] = useState([]);
@@ -128,7 +128,7 @@ const BingoBoard = ({ data, error: errorProp = null, hideTitle = false, hideAchi
         </div>
       )}
 
-      <BingoGrid board={vBoard} onCellClick={setSelectedPokemon} large />
+      <BingoGrid board={vBoard} onCellClick={setSelectedPokemon} large highlight={highlight} />
 
       {/* Bingo Achievements — hidden when the parent renders its own bounty
           strip instead (Home's Bounties panel). */}

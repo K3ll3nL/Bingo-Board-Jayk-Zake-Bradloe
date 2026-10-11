@@ -186,6 +186,50 @@ const BadgeLadder = () => {
 const RACE_TYPES = ['row', 'column', 'x', 'blackout'];
 const RACE_LABELS = { row: 'Row', column: 'Column', x: 'X', blackout: 'Blackout' };
 
+// Highlight ring on the board per ruleset. Not green (Caught) or blue (a
+// Restricted cell) — the ring has to read as "need this" on top of either.
+const RACE_TONE = { standard: ACCENT.base, restricted: '#e2553f' };
+
+// Mirrors WATCH_SHAPES in api/_lib/core.js — the viewer's own distance must be
+// measured exactly the way the server measures the contenders', or "you: 2"
+// and "2 away" could disagree about the same board.
+const RACE_SHAPES = {
+  row: [[1, 2, 3, 4, 5], [6, 7, 8, 9, 10], [11, 12, 13, 14, 15], [16, 17, 18, 19, 20], [21, 22, 23, 24, 25]],
+  column: [[1, 6, 11, 16, 21], [2, 7, 12, 17, 22], [3, 8, 13, 18, 23], [4, 9, 14, 19, 24], [5, 10, 15, 20, 25]],
+  x: [[1, 7, 13, 19, 25, 5, 9, 17, 21]],
+  blackout: [Array.from({ length: 25 }, (_, i) => i + 1)],
+};
+
+// The viewer's nearest shape for every bounty, in both rulesets:
+// { row: { remaining, shape, missing }, row_restricted: {...}, ... }.
+// Same counting rules as buildWatchOut: the free space is filled, historical
+// catches are not (the server's contender query excludes them).
+const myRaces = (board) => {
+  const filled = { standard: new Set([13]), restricted: new Set([13]) };
+  board.forEach(c => {
+    if (c.position === 13 || c.is_historical) return;
+    if (c.is_checked) filled.standard.add(c.position);
+    if (c.is_restricted) filled.restricted.add(c.position);
+  });
+  const out = {};
+  RACE_TYPES.forEach(t => {
+    ['standard', 'restricted'].forEach(mode => {
+      let best = null;
+      RACE_SHAPES[t].forEach(cells => {
+        const missing = cells.filter(p => !filled[mode].has(p));
+        if (!best || missing.length < best.missing.length) best = { cells, missing };
+      });
+      out[mode === 'restricted' ? `${t}_restricted` : t] = {
+        remaining: best.missing.length,
+        shape: new Set(best.cells),
+        missing: new Set(best.missing),
+        tone: RACE_TONE[mode],
+      };
+    });
+  });
+  return out;
+};
+
 // The inset disc is the skeleton while the picture loads (or a dead Discord URL is
 // repaired), and the initial is the fallback if it never does.
 const Avatar = ({ url, name, size = 18, ring }) => {
@@ -206,7 +250,42 @@ const Avatar = ({ url, name, size = 18, ring }) => {
 // One bounty in one mode. Claimed is a FILLED violet block; open is an empty
 // well. Inside a 4-row matrix that contrast is instant, where eight sibling
 // cards with status chips were not.
-const BountyState = ({ bounty, restricted = false }) => {
+// The viewer's own distance, as a chip at the cell's right edge. Filled when
+// you are (jointly) closest — you are the contender — outlined otherwise.
+const YouChip = ({ mine, leading, restricted }) => {
+  const tone = restricted ? RACE_TONE.restricted : RACE_TONE.standard;
+  return (
+    <span className="ml-auto shrink-0 rounded px-1.5 py-0.5 text-[10px] font-bold tabular-nums leading-none"
+          style={leading
+            ? { background: tone, color: '#0b0d12' }
+            : { boxShadow: `inset 0 0 0 1px ${tone}`, color: tone }}>
+      you {mine.remaining}
+    </span>
+  );
+};
+
+// Wraps an OPEN bounty so pointing at it lights the viewer's nearest shape on
+// the board. Mouse previews on hover; touch toggles on tap (a tap also fires a
+// synthetic mouseenter, so hover is gated on the real pointer type); keyboard
+// gets it on focus.
+const RaceTarget = ({ id, active, onFocusRace, children, className, style, title }) => {
+  const pointer = useRef('mouse');
+  return (
+    <div role="button" tabIndex={0} aria-pressed={active} title={title}
+         className={`${className} cursor-pointer outline-none focus-visible:ring-1 focus-visible:ring-white/40 transition-colors hover:bg-white/[0.05]`}
+         style={{ ...style, ...(active ? { background: 'rgba(255,255,255,0.07)' } : null) }}
+         onPointerDown={e => { pointer.current = e.pointerType; }}
+         onPointerEnter={e => { if (e.pointerType === 'mouse') onFocusRace(id); }}
+         onPointerLeave={e => { if (e.pointerType === 'mouse') onFocusRace(null); }}
+         onClick={() => { if (pointer.current !== 'mouse') onFocusRace(active ? null : id); }}
+         onFocus={() => onFocusRace(id)}
+         onBlur={() => onFocusRace(null)}>
+      {children}
+    </div>
+  );
+};
+
+const BountyState = ({ bounty, restricted = false, id, mine, focus, onFocusRace }) => {
   const held = !!bounty?.holder;
   const contenders = bounty?.contenders || [];
 
@@ -231,17 +310,27 @@ const BountyState = ({ bounty, restricted = false }) => {
     );
   }
 
+  // Open bounty. With a viewer, the cell becomes a target that lights their
+  // nearest shape on the board; signed out, it stays a plain read-out.
+  // Stable element types only — an inline arrow component here would remount
+  // the cell on every render and drop keyboard focus with it.
+  const Cell = mine ? RaceTarget : 'div';
+  const cellProps = mine ? { id, active: focus === id, onFocusRace } : {};
+  const leading = mine && (bounty?.remaining == null || mine.remaining <= bounty.remaining);
+  const chip = mine && <YouChip mine={mine} leading={leading} restricted={restricted} />;
+
   if (!contenders.length) {
     return (
-      <div className="flex items-center min-w-0 rounded-md px-2 py-1.5 h-9"
-           style={{ background: 'rgba(255,255,255,0.02)' }}>
-        <span className="text-xs" style={{ color: TEXT.faint }}>No one in range</span>
-      </div>
+      <Cell {...cellProps} className="flex items-center gap-2 min-w-0 rounded-md px-2 py-1.5 h-9"
+            style={{ background: 'rgba(255,255,255,0.02)' }}>
+        <span className="text-xs truncate min-w-0" style={{ color: TEXT.faint }}>No one in range</span>
+        {chip}
+      </Cell>
     );
   }
 
   return (
-    <div className="flex items-center gap-2 min-w-0 rounded-md px-2 py-1.5 h-9"
+    <Cell {...cellProps} className={`flex items-center gap-2 min-w-0 rounded-md px-2 py-1.5 h-9 ${mine ? 'race-cell' : ''}`}
          style={{ background: 'rgba(255,255,255,0.02)' }}
          title={contenders.map(c => c.display_name).join(', ')}>
       {/* The distance leads: on an open bounty it is the only number that
@@ -250,21 +339,22 @@ const BountyState = ({ bounty, restricted = false }) => {
         {bounty.remaining}
         <span className="font-normal" style={{ color: TEXT.faint }}> away</span>
       </span>
-      <span className="w-px h-3.5 shrink-0" style={{ background: BORDER.hairline }} />
+      <span className="race-sep w-px h-3.5 shrink-0" style={{ background: BORDER.hairline }} />
       {/* No avatar on a contender. A strong hunter is legitimately closest on
           several bounties at once, so faces here repeated down the column and
           made correct data look like a rendering bug. A face now means exactly
           one thing — you hold this — which is also the distinction the panel is
           built around. */}
-      <span className="text-xs truncate min-w-0" style={{ color: TEXT.muted }}>
+      <span className="race-name text-xs truncate min-w-0" style={{ color: TEXT.muted }}>
         {contenders[0].display_name}
         {contenders.length > 1 && <span style={{ color: TEXT.faint }}>{` +${contenders.length - 1}`}</span>}
       </span>
-    </div>
+      {chip}
+    </Cell>
   );
 };
 
-const Bounties = ({ bounties, loading }) => {
+const Bounties = ({ bounties, loading, mine, focus, onFocusRace }) => {
   if (loading) {
     return (
       // Same grid as the loaded card: heading, column labels, four icon+label rows.
@@ -324,8 +414,10 @@ const Bounties = ({ bounties, loading }) => {
                 {RACE_LABELS[t]}
               </span>
             </div>
-            <BountyState bounty={b[t]} />
-            <BountyState bounty={b[`${t}_restricted`]} restricted />
+            <BountyState bounty={b[t]} id={t} mine={mine?.[t]}
+                         focus={focus} onFocusRace={onFocusRace} />
+            <BountyState bounty={b[`${t}_restricted`]} restricted id={`${t}_restricted`}
+                         mine={mine?.[`${t}_restricted`]} focus={focus} onFocusRace={onFocusRace} />
           </React.Fragment>
         ))}
       </div>
@@ -336,12 +428,21 @@ const Bounties = ({ bounties, loading }) => {
 // ── Board bar — the month, who is in it, and the way in ─────────────────────
 // Replaces the board's centred title. The one call to action on the page, and
 // it changes with the viewer rather than adding a second button per state:
-//   signed out          → Join the hunt          (/login)
-//   signed in, unranked → Submit your first catch (/upload)
-//   ranked              → Submit                  (/upload)
+//   signed out          → Prep + Join the hunt            (/prep, /login)
+//   signed in, unranked → Prep + Submit your first catch  (/prep, /upload)
+//   ranked              → Submit                          (/upload)
+// Prep rides along for everyone who hasn't caught yet: /prep is public and is
+// the first stop for a new player, and until now nothing on this page led to it.
 // The faces are the social proof — real hunters this month, not a bare count.
 const FACES = 5;
 const DAY_MS = 86400000;
+
+// Clipboard with a tick — the Hunt Prep checklist.
+const PrepGlyph = () => (
+  <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" aria-hidden="true">
+    <path strokeLinecap="round" strokeLinejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+  </svg>
+);
 
 const UploadGlyph = () => (
   <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" aria-hidden="true">
@@ -397,7 +498,10 @@ const BoardBar = ({ boardData, rows, me }) => {
 
   // Natural width of each button label, so the skeleton's button wraps below
   // the month row at exactly the widths the real one will.
-  const ctaWidth = !authLoading && !user ? 127 : 106; // Join the hunt : Submit
+  // Signed out is known before the board lands, so its Prep button (89px) can be
+  // reserved exactly; whether a signed-in viewer is unranked is not known yet.
+  const signedOut = !authLoading && !user;
+  const ctaWidth = signedOut ? 127 : 106; // Join the hunt : Submit
 
   if (!boardData) {
     // Sized to the loaded bar line for line: title 30px (25 under 380), the
@@ -414,7 +518,10 @@ const BoardBar = ({ boardData, rows, me }) => {
             <div className="h-4 flex items-center"><div className="h-3 w-16 rounded bg-white/5" /></div>
           </div>
         </div>
-        <div className="grow h-10 rounded-lg bg-white/5" style={{ minWidth: ctaWidth }} />
+        <div className="grow flex gap-2 min-w-0">
+          {signedOut && <div className="shrink-0 h-10 w-[89px] rounded-lg bg-white/5" />}
+          <div className="grow h-10 rounded-lg bg-white/5" style={{ minWidth: ctaWidth }} />
+        </div>
       </div>
     );
   }
@@ -428,10 +535,10 @@ const BoardBar = ({ boardData, rows, me }) => {
   const cta = authLoading || (user && rows === null)
     ? null
     : !user
-      ? { to: '/login', label: 'Join the hunt' }
+      ? { to: '/login', label: 'Join the hunt', prep: true }
       : me
         ? { to: '/upload', label: 'Submit' }
-        : { to: '/upload', label: 'Submit your first catch' };
+        : { to: '/upload', label: 'Submit your first catch', prep: true };
 
   return (
     // Month + hunters are one unbreakable row; the button joins it when there is
@@ -459,6 +566,15 @@ const BoardBar = ({ boardData, rows, me }) => {
       </div>
 
       {cta ? (
+        <div className="grow flex gap-2 min-w-0">
+        {cta.prep && (
+          <Link to="/prep"
+                className="shrink-0 flex items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-semibold transition-colors hover:bg-white/[0.06]"
+                style={{ boxShadow: `inset 0 0 0 1px ${ACCENT.strong}`, color: ACCENT.base }}>
+            <PrepGlyph />
+            Prep
+          </Link>
+        )}
         <Link to={cta.to}
               className="grow flex items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-semibold transition-colors"
               style={{ background: ACCENT.strong, color: TEXT.strong }}
@@ -467,6 +583,7 @@ const BoardBar = ({ boardData, rows, me }) => {
           {cta.to === '/upload' && <UploadGlyph />}
           {cta.label}
         </Link>
+        </div>
       ) : (
         <div className="grow h-10 rounded-lg bg-white/5 animate-pulse" style={{ minWidth: ctaWidth }} />
       )}
@@ -574,6 +691,8 @@ const Home = () => {
   const [boardData, setBoardData] = useState(null);
   const [boardError, setBoardError] = useState(null);
   const [rows, setRows] = useState(null);
+  // Which open bounty the viewer is pointing at — lights its shape on the board.
+  const [raceFocus, setRaceFocus] = useState(null);
   const retry = useRef({ timer: null, attempt: 0 });
 
   useEffect(() => {
@@ -627,6 +746,13 @@ const Home = () => {
         : null,
     };
   }, [boardData, rows, user]);
+
+  // Only for a signed-in viewer: the board is their own board then.
+  const mine = useMemo(
+    () => (boardData?.user_authenticated && boardData.board?.length ? myRaces(boardData.board) : null),
+    [boardData]
+  );
+  const highlight = raceFocus && mine?.[raceFocus] ? mine[raceFocus] : null;
 
   return (
     <main className="px-4 sm:px-6 min-[930px]:px-8 py-5 space-y-5">
@@ -695,9 +821,11 @@ const Home = () => {
               error={boardError}
               hideAchievements
               maxWidth="712px"
+              highlight={highlight}
             />
           </Panel>
-          <Bounties bounties={boardData?.bounties} loading={!boardData} />
+          <Bounties bounties={boardData?.bounties} loading={!boardData}
+                    mine={mine} focus={raceFocus} onFocusRace={setRaceFocus} />
           {/* The friends' carousel idea, minus the carousel: all four
               destinations visible at once, each carrying a live figure rather
               than just a name. Reuses the existing teaser row, which already
