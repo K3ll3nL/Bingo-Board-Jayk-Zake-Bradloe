@@ -37,7 +37,13 @@ const AuthCallback = () => {
               headers: { Authorization: `Bearer ${session.access_token}` },
             }).catch(() => {});
           }
-          navigate(action === 'link' ? '/profile' : '/');
+          let next = null;
+          try {
+            next = sessionStorage.getItem('loginNext');
+            sessionStorage.removeItem('loginNext');
+          } catch { /* storage unavailable */ }
+          const safeNext = next && next.startsWith('/') && !next.startsWith('//') ? next : '/';
+          navigate(action === 'link' ? '/profile' : safeNext, { replace: true });
         } else {
           setError('Authentication failed. Please try again.');
         }

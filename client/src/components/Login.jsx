@@ -58,6 +58,13 @@ const Login = () => {
     try {
       setLoading(key);
       setError(null);
+      // OAuth drops our query string, so carry ?next= across in sessionStorage;
+      // AuthCallback reads it. Same-origin paths only.
+      const next = new URLSearchParams(window.location.search).get('next');
+      try {
+        if (next && next.startsWith('/') && !next.startsWith('//')) sessionStorage.setItem('loginNext', next);
+        else sessionStorage.removeItem('loginNext');
+      } catch { /* storage unavailable — lands on home instead */ }
       await handlers[key]();
     } catch {
       setError(`Failed to sign in with ${key.charAt(0).toUpperCase() + key.slice(1)}`);

@@ -346,7 +346,8 @@ const Shimmer = ({ className }) => <div className={`rounded-lg animate-pulse ${c
 
 // ── Page ────────────────────────────────────────────────────────────────────
 const HuntPrep = () => {
-  const { isModerator } = useAuth();
+  const { user, loading: authLoading, isModerator } = useAuth();
+  const signedOut = !authLoading && !user;
   const showRestricted = isRestrictedEnabled(isModerator);
   const [searchParams, setSearchParams] = useSearchParams();
   const pokemonId = Number(searchParams.get('pokemon')) || null;
@@ -525,6 +526,8 @@ const HuntPrep = () => {
   const uploadHref = board && game
     ? `/upload?pokemon=${board.id}&game=${game.key}${restricted ? '&restricted=1' : ''}${inPool ? '' : '&historical=true'}`
     : '/upload';
+  // Upload is blank when signed out, so send them to sign in and come back here.
+  const submitHref = signedOut ? `/login?next=${encodeURIComponent(uploadHref)}` : uploadHref;
 
   const showPicker = !board || boardOpen;
 
@@ -638,7 +641,7 @@ const HuntPrep = () => {
                   </Phase>
                   <Phase index={4} title="Submit" {...toPhase(count(phases.submit))} grid="flex flex-col gap-2">
                     {phases.submit.map(s => tile(s, 3))}
-                    <Link to={uploadHref} onClick={onSubmit}
+                    <Link to={submitHref} onClick={onSubmit}
                       className="h-11 rounded-lg inline-flex items-center justify-center gap-2 text-sm font-semibold text-strong transition-[filter,box-shadow] hover:brightness-110"
                       style={{ background: restricted ? RESTRICTED : ACCENT.strong, boxShadow: allDone ? `0 0 0 2px ${MINT}` : armed ? `0 0 0 2px ${AMBER}` : 'none' }}>
                       {restricted && <img src={restrictedIcon} alt="" className="w-4 h-4 object-contain" />}
