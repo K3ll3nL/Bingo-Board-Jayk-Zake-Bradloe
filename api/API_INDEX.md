@@ -288,9 +288,9 @@
 | Method | Path | Auth | Location | Notes |
 |---|---|---|---|---|
 | GET | `/api/profile/:userId` | public | `api/_routes/profile.js:18` | Get user profile stats |
-| GET | `/api/profile/:userId/board` | auth | `api/_routes/profile.js:216` | Get user's current month board |
-| GET | `/api/profile/:userId/board/:monthId` | public | `api/_routes/profile.js:366` | Get board state for a specific past month |
-| GET | `/api/profile/:userId/past-months` | public | `api/_routes/profile.js:332` | Get list of all past months that have a pokemon pool (strictly before the active month) |
+| GET | `/api/profile/:userId/board` | auth | `api/_routes/profile.js:218` | Get user's current month board |
+| GET | `/api/profile/:userId/board/:monthId` | public | `api/_routes/profile.js:368` | Get board state for a specific past month |
+| GET | `/api/profile/:userId/past-months` | public | `api/_routes/profile.js:334` | Get list of all past months that have a pokemon pool (strictly before the active month) |
 
 ## /radar
 

@@ -32,7 +32,7 @@ module.exports = function register(app) {
         stats,
         dex,
       ] = await Promise.all([
-        supabase.from('users').select('username, display_name, avatar_url, created_at, twitch_url, youtube_url, shinydex_url').eq('id', userId).single(),
+        supabase.from('users').select('username, display_name, avatar_url, created_at, twitch_url, youtube_url, shinydex_url').eq('id', userId).maybeSingle(),
         supabase.from('user_monthly_points').select('points, month_id, bingo_months!inner(month_year_display)').eq('user_id', userId).order('month_id', { ascending: true }),
         supabase.from('user_monthly_points').select('user_id, month_id, points, last_updated, bingo_months!inner(month_year_display)'),
         getUserStats(userId),
@@ -40,6 +40,8 @@ module.exports = function register(app) {
       ]);
 
       if (userError) throw userError;
+      // No such user: 404, which the client renders as "Hunter not found". A 500 here made it retry forever.
+      if (!userData) return res.status(404).json({ error: 'User not found' });
       if (monthlyError) throw monthlyError;
       if (rankError) throw rankError;
 

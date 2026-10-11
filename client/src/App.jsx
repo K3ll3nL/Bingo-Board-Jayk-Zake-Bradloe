@@ -4,52 +4,57 @@ import { AuthProvider, useAuth, supabase } from './contexts/AuthContext';
 import { PageTitleContext } from './contexts/PageTitleContext';
 import { onQueueChanged, onLocalQueueDelta } from './services/approvalsQueue';
 import { ErrorBoundary } from './components/ErrorBoundary';
-import BingoBoard from './components/BingoBoard';
-import Leaderboard from './components/Leaderboard';
 import AuthCallback from './components/AuthCallback';
-import Profile from './components/Profile';
-import Pokedex from './components/Pokedex';
-import HuntPrep from './components/HuntPrep';
-import Upload from './components/Upload';
-import Approvals from './components/Approvals';
-import BoardBuilder from './components/BoardBuilder';
-import GameHostPicker from './components/GameHostPicker';
-import JeopardyCreate from './components/JeopardyCreate';
-import JeopardyRoom from './components/JeopardyRoom';
-import ShinyGames from './components/ShinyGames';
-import SubmissionHistory from './components/SubmissionHistory';
-import NotificationToast from './components/NotificationToast';
-import About from './components/About';
-import Pro from './components/Pro';
-import OverlayBoard from './components/OverlayBoard';
-import OverlayLeaderboard from './components/OverlayLeaderboard';
-import OverlayApprovals from './components/OverlayApprovals';
-import OverlayJeopardy from './components/OverlayJeopardy';
-import BadgeUpload from './components/BadgeUpload';
-import PokemonGameManager from './components/PokemonGameManager';
-import FeedbackModal from './components/FeedbackModal';
-import ModFeedback from './components/ModFeedback';
-import BannerBar from './components/BannerBar';
-import BannerManagerModal from './components/BannerManagerModal';
-import MonthStats from './components/MonthStats';
-import TierList from './components/TierList';
-import HomeHighlights from './components/HomeHighlights';
-import Home from './components/Home';
-import ShinyTools from './components/ShinyTools';
-import SVSandwichCalculator from './components/tools/SVSandwichCalculator';
-import BDSPRadar from './components/tools/BDSPRadar';
-import Gen2ShinyBreeding from './components/tools/Gen2ShinyBreeding';
-import DexNavCalculator from './components/tools/DexNavCalculator';
-import CatchRateCalculator from './components/tools/CatchRateCalculator';
-import XYRadar from './components/tools/XYRadar';
-import XYRadarBuilder from './components/tools/XYRadarBuilder';
 import Login from './components/Login';
+import Home from './components/Home';
+import NotificationToast from './components/NotificationToast';
+import FeedbackModal from './components/FeedbackModal';
+import BannerManagerModal from './components/BannerManagerModal';
+import ConsentModal from './components/ConsentModal';
 import DevViewSwitcher from './components/DevViewSwitcher';
 import { isLocalDev } from './devView';
-import SafariZone from './components/tools/SafariZone';
-import PrivacyPolicy from './components/PrivacyPolicy';
-import TermsOfService from './components/TermsOfService';
-import ConsentModal from './components/ConsentModal';
+import { lazyPage } from './lazyPage';
+
+// Every other page is its own chunk, fetched on first visit. Home, sign-in and
+// the always-mounted chrome above stay in the main bundle.
+const Profile = lazyPage(() => import('./components/Profile'));
+const Pokedex = lazyPage(() => import('./components/Pokedex'));
+const HuntPrep = lazyPage(() => import('./components/HuntPrep'));
+const Upload = lazyPage(() => import('./components/Upload'));
+const Approvals = lazyPage(() => import('./components/Approvals'));
+const BoardBuilder = lazyPage(() => import('./components/BoardBuilder'));
+const GameHostPicker = lazyPage(() => import('./components/GameHostPicker'));
+const JeopardyCreate = lazyPage(() => import('./components/JeopardyCreate'));
+const JeopardyRoom = lazyPage(() => import('./components/JeopardyRoom'));
+const ShinyGames = lazyPage(() => import('./components/ShinyGames'));
+const SubmissionHistory = lazyPage(() => import('./components/SubmissionHistory'));
+const About = lazyPage(() => import('./components/About'));
+const Pro = lazyPage(() => import('./components/Pro'));
+const OverlayBoard = lazyPage(() => import('./components/OverlayBoard'));
+const OverlayLeaderboard = lazyPage(() => import('./components/OverlayLeaderboard'));
+const OverlayApprovals = lazyPage(() => import('./components/OverlayApprovals'));
+const OverlayJeopardy = lazyPage(() => import('./components/OverlayJeopardy'));
+const BadgeUpload = lazyPage(() => import('./components/BadgeUpload'));
+const PokemonGameManager = lazyPage(() => import('./components/PokemonGameManager'));
+const ModFeedback = lazyPage(() => import('./components/ModFeedback'));
+const MonthStats = lazyPage(() => import('./components/MonthStats'));
+const TierList = lazyPage(() => import('./components/TierList'));
+const ShinyTools = lazyPage(() => import('./components/ShinyTools'));
+const SVSandwichCalculator = lazyPage(() => import('./components/tools/SVSandwichCalculator'));
+const BDSPRadar = lazyPage(() => import('./components/tools/BDSPRadar'));
+const Gen2ShinyBreeding = lazyPage(() => import('./components/tools/Gen2ShinyBreeding'));
+const DexNavCalculator = lazyPage(() => import('./components/tools/DexNavCalculator'));
+const CatchRateCalculator = lazyPage(() => import('./components/tools/CatchRateCalculator'));
+const XYRadar = lazyPage(() => import('./components/tools/XYRadar'));
+const XYRadarBuilder = lazyPage(() => import('./components/tools/XYRadarBuilder'));
+const SafariZone = lazyPage(() => import('./components/tools/SafariZone'));
+const PrivacyPolicy = lazyPage(() => import('./components/PrivacyPolicy'));
+const TermsOfService = lazyPage(() => import('./components/TermsOfService'));
+const NotFound = lazyPage(() => import('./components/NotFound'));
+
+// The pages people reach from the home page. Fetched once the browser is idle,
+// so the first click on them is as fast as it was before splitting.
+const WARM_PAGES = [Upload, Profile, Pokedex, HuntPrep, MonthStats, TierList, About];
 import logoImage from './Icons/pokemon-bounty-board.png';
 import logoIcon from './Icons/logo-mobile.png';
 import { getAuthHeaders } from './services/api';
@@ -616,7 +621,9 @@ const AppLayout = () => {
       </header>
 
       {/* Page content */}
-      <Outlet />
+      <React.Suspense fallback={<PageFallback />}>
+        <Outlet />
+      </React.Suspense>
 
       {/* Footer */}
       <footer className="mt-12 border-t border-hairline py-6 text-center text-xs text-muted">
@@ -693,8 +700,34 @@ const ConsentGate = ({ children }) => {
   );
 };
 
+// Shown inside the layout while a page chunk downloads. Holds the page height so
+// the footer doesn't jump up, and only spins if the wait is long enough to notice.
+const PageFallback = () => {
+  const [show, setShow] = React.useState(false);
+  React.useEffect(() => {
+    const t = setTimeout(() => setShow(true), 200);
+    return () => clearTimeout(t);
+  }, []);
+  return (
+    <div className="min-h-[60vh] flex items-center justify-center">
+      {show && <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-lagoon-500" />}
+    </div>
+  );
+};
+
 function App() {
   const [pageMeta, setPageMeta] = React.useState({ title: '', badge: null, subtitle: null, completion: null });
+
+  React.useEffect(() => {
+    if (window.location.pathname.startsWith('/overlay/')) return; // OBS sources never navigate
+    const warm = () => WARM_PAGES.forEach(p => p.preload());
+    if ('requestIdleCallback' in window) {
+      const id = requestIdleCallback(warm, { timeout: 4000 });
+      return () => cancelIdleCallback(id);
+    }
+    const t = setTimeout(warm, 2000);
+    return () => clearTimeout(t);
+  }, []);
 
   return (
     <ErrorBoundary>
@@ -705,6 +738,9 @@ function App() {
         <NotificationToast />
         {isLocalDev() && <DevViewSwitcher />}
         <ConsentGate>
+        {/* Header-less routes (overlays) suspend here with no fallback, so an OBS
+            source stays transparent while its chunk loads. */}
+        <React.Suspense fallback={null}>
         <Routes>
           {/* Routes without the shared header */}
           <Route path="/auth/callback" element={<AuthCallback />} />
@@ -751,9 +787,10 @@ function App() {
             <Route path="/tools/:toolId" element={<ShinyTools />} />
             <Route path="/privacy" element={<PrivacyPolicy />} />
             <Route path="/terms" element={<TermsOfService />} />
-            <Route path="*" element={<Home />} />
+            <Route path="*" element={<NotFound />} />
           </Route>
         </Routes>
+        </React.Suspense>
         </ConsentGate>
         </PageTitleContext.Provider>
       </AuthProvider>

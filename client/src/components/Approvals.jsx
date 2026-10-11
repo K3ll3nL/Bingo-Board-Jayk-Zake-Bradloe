@@ -673,7 +673,7 @@ const Approvals = () => {
       <div className="p-8">
         <div className="max-w-7xl mx-auto">
           {/* Tabs */}
-          <div className="flex gap-2 mb-6">
+          <div className="flex flex-wrap gap-2 mb-6">
             <button
               onClick={() => setActiveTab('approvals')}
               className={`px-4 py-1.5 rounded-full text-sm font-medium transition-colors ${

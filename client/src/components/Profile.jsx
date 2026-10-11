@@ -11,6 +11,7 @@ import shinyDexUrl from '../Icons/ShinyDex Logo.png';
 import PageBackground from './PageBackground';
 import PageHeader from './PageHeader';
 import ReconnectingPill from './ReconnectingPill';
+import { NotFoundPanel } from './NotFound';
 import { getAuthHeaders, api } from '../services/api';
 import { useRepairedAvatar } from '../services/avatarRepair';
 import { profileLink, profileSlugKey } from '../utils/profileLink';
@@ -769,11 +770,20 @@ const ProfileSkeleton = ({ title, reconnecting, own = false }) => {
   );
 };
 
-const ProfileNotFound = () => (
-  <ProfileShell title="Profile">
-    <div className="min-h-[60vh] flex items-center justify-center text-gray-400">Profile not found</div>
-  </ProfileShell>
-);
+// `name` is the URL slug when the visitor came by name; an id URL shows nothing,
+// since a UUID means nothing to them.
+const ProfileNotFound = ({ name }) => {
+  const { user } = useAuth();
+  return (
+    <ProfileShell title="Profile">
+      <NotFoundPanel
+        title="Hunter not found"
+        detail={name}
+        secondary={user ? { to: '/profile', label: 'Your profile' } : null}
+      />
+    </ProfileShell>
+  );
+};
 
 // Two accounts share this name: show both, pick by face. Links go to the id URL,
 // which stays put (canonicalising it would land straight back here).
@@ -850,7 +860,7 @@ const Profile = () => {
   if (!param) return <ProfileView key={user?.id || 'anon'} paramUserId={null} />;
   if (directId) return <ProfileView key={directId} paramUserId={directId} />;
   if (lookup.status === 'one') return <ProfileView key={lookup.id} paramUserId={lookup.id} />;
-  if (lookup.status === 'none') return <ProfileNotFound />;
+  if (lookup.status === 'none') return <ProfileNotFound name={param} />;
   if (lookup.status === 'many') return <ProfileChooser matches={lookup.matches} />;
   return <ProfileSkeleton title={title} reconnecting={lookup.reconnecting} />;
 };
