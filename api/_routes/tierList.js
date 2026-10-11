@@ -20,6 +20,7 @@ const {
   fetchTierSubmissions,
   getTierListSchema,
   isCompleteTiers,
+  MONTH_ROLLOVER_OFFSET_MS,
   getAuthenticatedUserId,
   resolveStatsMonth,
   supabase,
@@ -84,6 +85,23 @@ const buildConsensus = (poolIds, submissions) => poolIds.map(pokemonId => {
   return { pokemon_id: pokemonId, majority_tier, distribution, submission_count: submissions.length };
 });
 
+// Owner decision Q3 (docs/TIER_LIST_PLAN.md): a tier list is a prediction, so
+// it is editable for a grace window at the start of the month and then frozen.
+// The window is the 7 days the home-page reminder banner counts down, measured
+// from the month's real start (04:00 UTC on day 1, see MONTH_ROLLOVER_OFFSET_MS).
+// Reads stay open forever; only POST is refused.
+const TIER_LIST_OPEN_DAYS = 7;
+const tierListLocksAt = (startDate) => {
+  if (!startDate) return null;
+  const start = Date.parse(`${String(startDate).slice(0, 10)}T00:00:00Z`);
+  if (Number.isNaN(start)) return null;
+  return new Date(start + TIER_LIST_OPEN_DAYS * 86400000 + MONTH_ROLLOVER_OFFSET_MS);
+};
+const isTierListLocked = (startDate) => {
+  const locksAt = tierListLocksAt(startDate);
+  return Boolean(locksAt) && Date.now() >= locksAt.getTime();
+};
+
 const progressFor = (row, poolIds) => ({
   ranked: row ? Object.keys(row.tiers || {}).filter(k => row.tiers[k]).length : 0,
   pool_size: poolIds.length,
@@ -141,7 +159,13 @@ module.exports = function register(app) {
       }
 
       res.json({
-        month: { id: monthData.id, label: monthData.month_year_display, start_date: monthData.start_date },
+        month: {
+          id: monthData.id,
+          label: monthData.month_year_display,
+          start_date: monthData.start_date,
+          locks_at: tierListLocksAt(monthData.start_date)?.toISOString() || null,
+          locked: isTierListLocked(monthData.start_date),
+        },
         mode,
         // False until 20260802180000_tier_list_mode.sql is applied. The client
         // uses it to explain why Restricted can't be saved yet rather than
@@ -273,6 +297,18 @@ module.exports = function register(app) {
       if (Number.isNaN(monthId)) return res.status(400).json({ error: 'month_id is required' });
       if (!tiers || typeof tiers !== 'object' || Array.isArray(tiers)) {
         return res.status(400).json({ error: 'tiers must be an object mapping pokemon_id to tier code' });
+      }
+
+      const { data: monthRow, error: monthError } = await supabase
+        .from('bingo_months').select('id, start_date').eq('id', monthId).maybeSingle();
+      if (monthError) throw monthError;
+      if (!monthRow) return res.status(404).json({ error: 'Month not found' });
+      if (isTierListLocked(monthRow.start_date)) {
+        return res.status(409).json({
+          error: 'Tier list ranking is closed for this month.',
+          locked: true,
+          locks_at: tierListLocksAt(monthRow.start_date).toISOString(),
+        });
       }
 
       const schema = await getTierListSchema();

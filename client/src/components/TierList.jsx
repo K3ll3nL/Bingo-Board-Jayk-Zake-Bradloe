@@ -147,6 +147,30 @@ const EmptyPool = () => (
   </div>
 );
 
+// "Oct 8" — the day the API stops accepting saves (locks_at is 04:00 UTC that
+// day, the site's day boundary), so read it in UTC.
+const lockDateLabel = (iso) => (iso
+  ? new Date(iso).toLocaleDateString(undefined, { month: 'short', day: 'numeric', timeZone: 'UTC' })
+  : null);
+
+const LockIcon = ({ className }) => (
+  <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} aria-hidden="true">
+    <rect x="5" y="11" width="14" height="10" rx="2" />
+    <path strokeLinecap="round" d="M8 11V8a4 4 0 0 1 8 0v3" />
+  </svg>
+);
+
+// Shown in place of every "Rank" affordance once the grace window has passed.
+const RankingClosed = ({ locksAt, rankedCount, poolSize }) => (
+  <div className="rounded-xl p-8 border text-center" style={{ background: CARD.bg, borderColor: CARD.border }}>
+    <LockIcon className="w-10 h-10 mx-auto mb-3 text-gray-500" />
+    <p className="text-gray-300 font-medium">Ranking closed {lockDateLabel(locksAt)}</p>
+    <p className="text-gray-400 text-sm mt-1">
+      {rankedCount > 0 ? `${rankedCount} / ${poolSize} ranked · ` : ''}Next board opens on the 1st.
+    </p>
+  </div>
+);
+
 const SignInBanner = () => (
   <Link
     to="/login"
@@ -266,20 +290,30 @@ const TierList = () => {
       setSaveState('saved');
       setTimeout(() => setSaveState(s => (s === 'saved' ? 'idle' : s)), 2500);
     } catch (err) {
+      // The window closed while the page was open — reload so the page
+      // switches to its locked state instead of retrying a refused save.
+      if (err?.status === 409) {
+        setEditModalOpen(false);
+        setSaveState('idle');
+        load(mode);
+        return;
+      }
       setSaveState('error');
       setSaveError(err?.message || 'Failed to save');
     }
-  }, [buckets, data]);
+  }, [buckets, data, load]);
+
+  const locked = Boolean(data?.month?.locked);
 
   // Autosave: with tap-to-assign a user makes 24 small edits, and any of them
   // being silently unsaved is the failure mode that matters. Debounced so a
   // burst of taps is one request.
   useEffect(() => {
-    if (!user || !isDirty || !data) return undefined;
+    if (!user || !isDirty || !data || locked) return undefined;
     if (saveTimer.current) clearTimeout(saveTimer.current);
     saveTimer.current = setTimeout(() => { doSave(); }, 900);
     return () => { if (saveTimer.current) clearTimeout(saveTimer.current); };
-  }, [isDirty, buckets, user, data, doSave]);
+  }, [isDirty, buckets, user, data, doSave, locked]);
 
   const assign = (id, tier) => {
     setBuckets(prev => {
@@ -345,9 +379,11 @@ const TierList = () => {
       <PageHeader title="Community Tier List" subtitle={monthLabel} />
 
       <main className="px-4 sm:px-6 py-5 space-y-4 min-w-0">
-        <p className="text-xs text-gray-400">
-          Rank this month's board Pokémon, then see how the whole community voted.
-        </p>
+        {!locked && (
+          <p className="text-xs text-gray-400">
+            Rank this month's board Pokémon, then see how the whole community voted.
+          </p>
+        )}
 
         {error === 'reconnecting' && <div className="relative h-8"><ReconnectingPill label="Reconnecting to tier list..." /></div>}
 
@@ -361,9 +397,12 @@ const TierList = () => {
           <EmptyPool />
         ) : (
           <>
-            {!user && <SignInBanner />}
+            {!user && (locked
+              ? <RankingClosed locksAt={data.month.locks_at} rankedCount={0} poolSize={poolSize} />
+              : <SignInBanner />)}
 
-            {user && (
+            {/* Locked and unfinished: the closed card below says it all. */}
+            {user && !(locked && !isComplete) && (
               <div
                 className="sticky top-0 z-30 -mx-4 sm:-mx-6 px-4 sm:px-6 py-3 border-b backdrop-blur min-w-0 flex items-center justify-between gap-4 flex-wrap"
                 style={{ background: 'rgba(13,15,20,0.92)', borderColor: CARD.border }}
@@ -380,6 +419,14 @@ const TierList = () => {
                     <span className="text-[11px] text-gray-400 shrink-0">{rankedCount} / {poolSize} ranked</span>
                   </div>
                 </div>
+                {locked ? (
+                  <span
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs sm:text-sm font-semibold leading-5 border shrink-0 text-gray-400"
+                    style={{ borderColor: CARD.border, background: 'rgba(255,255,255,0.04)' }}
+                  >
+                    <LockIcon className="w-3.5 h-3.5" /> Closed {lockDateLabel(data.month.locks_at)}
+                  </span>
+                ) : (
                 <button
                   onClick={() => setEditModalOpen(true)}
                   className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs sm:text-sm font-semibold leading-5 text-white border transition-colors shrink-0"
@@ -387,10 +434,13 @@ const TierList = () => {
                 >
                   <span aria-hidden="true">⚡</span> {isComplete ? 'Edit My List' : 'Rank Now'}
                 </button>
+                )}
               </div>
             )}
 
-            {!user ? null : !isComplete ? (
+            {!user ? null : !isComplete && locked ? (
+              <RankingClosed locksAt={data.month.locks_at} rankedCount={rankedCount} poolSize={poolSize} />
+            ) : !isComplete ? (
               <div className="rounded-xl p-8 border text-center" style={{ background: CARD.bg, borderColor: CARD.border }}>
                 <p className="text-gray-300 font-medium">Rank all {poolSize} to unlock the Community comparison.</p>
                 <p className="text-gray-400 text-sm mt-1">{rankedCount} / {poolSize} ranked so far.</p>
@@ -426,7 +476,7 @@ const TierList = () => {
               </div>
             )}
 
-            {editModalOpen && buckets && (
+            {editModalOpen && buckets && !locked && (
               <TierRankModal
                 pool={data.pool}
                 tierById={tierById}

@@ -310,10 +310,10 @@
 
 | Method | Path | Auth | Location | Notes |
 |---|---|---|---|---|
-| GET | `/api/tier-list` | auth | `api/_routes/tierList.js:99` | GET /api/tier-list — board pool, community consensus for one mode, and (if authenticated) the viewer's own submission plus per-mode progress. |
-| POST | `/api/tier-list` | auth | `api/_routes/tierList.js:263` | POST /api/tier-list — upsert the authenticated user's submission for one mode. |
-| GET | `/api/tier-list/submissions` | auth | `api/_routes/tierList.js:165` | GET /api/tier-list/submissions — who has ranked this month, per mode. Public read: browsing other players' lists needs no auth. |
-| GET | `/api/tier-list/user/:userId` | auth | `api/_routes/tierList.js:224` | GET /api/tier-list/user/:userId — one player's list. Public / read-only. |
+| GET | `/api/tier-list` | auth | `api/_routes/tierList.js:117` | GET /api/tier-list — board pool, community consensus for one mode, and (if authenticated) the viewer's own submission plus per-mode progress. |
+| POST | `/api/tier-list` | auth | `api/_routes/tierList.js:287` | POST /api/tier-list — upsert the authenticated user's submission for one mode. |
+| GET | `/api/tier-list/submissions` | auth | `api/_routes/tierList.js:189` | GET /api/tier-list/submissions — who has ranked this month, per mode. Public read: browsing other players' lists needs no auth. |
+| GET | `/api/tier-list/user/:userId` | auth | `api/_routes/tierList.js:248` | GET /api/tier-list/user/:userId — one player's list. Public / read-only. |
 
 ## /tools/sandwiches
 
@@ -433,7 +433,7 @@
 | `broadcastSSE` | `api/_lib/core.js:597` |  |
 | `broadcastUpdate` | `api/_lib/core.js:247` |  |
 | `buildCheckFromDB` | `api/_badgeRegistry.js:590` | ── DB-driven check evaluator ───────────────────────────────────────────────── Used by awardBadgesForTrigger to evaluate badges created via the admin form (whic |
-| `buildConsensus` | `api/_routes/tierList.js:74` | Per-mon plurality across every submission in one mode. Deliberately unchanged from the pre-mode behaviour (all rows, complete or not, first-wins on ties) — unif |
+| `buildConsensus` | `api/_routes/tierList.js:75` | Per-mon plurality across every submission in one mode. Deliberately unchanged from the pre-mode behaviour (all rows, complete or not, first-wins on ties) — unif |
 | `buildMostDisputed` | `api/_routes/stats.js:180` | Most Disputed: the pool mon with the lowest modal-tier percentage. Only complete tier lists count toward modalByMon, so every mon there has the same total_votes |
 | `buildTierUpsets` | `api/_routes/stats.js:95` |  |
 | `buildUniqueCatch` | `api/_routes/stats.js:187` |  |
@@ -479,11 +479,12 @@
 | `isCompleteTiers` | `api/_lib/core.js:1160` |  |
 | `isModerator` | `api/_lib/core.js:893` | Whether a user is a moderator, cached for MODERATOR_CACHE_TTL. Replaces the inline `select from moderators where id = userId` check duplicated across route modu |
 | `isRealImage` | `api/_lib/core.js:79` |  |
-| `loadPool` | `api/_routes/tierList.js:36` | Pool ids for a month, plus the display records the client needs for PokemonImage. POKEMON_IMAGE_FIELDS is mandatory here — without the gender/form columns gende |
+| `isTierListLocked` | `api/_routes/tierList.js:100` |  |
+| `loadPool` | `api/_routes/tierList.js:37` | Pool ids for a month, plus the display records the client needs for PokemonImage. POKEMON_IMAGE_FIELDS is mandatory here — without the gender/form columns gende |
 | `mainProofShots` | `api/_routes/upload.js:26` | Pairs the main proof shots (slots file/file2/file3) with the labels the upload form showed for each slot, then drops empty slots from both together so the array |
 | `modalTierByMon` | `api/_routes/stats.js:77` |  |
 | `nowForMonth` | `api/_lib/core.js:190` |  |
-| `parseMode` | `api/_routes/tierList.js:28` |  |
+| `parseMode` | `api/_routes/tierList.js:29` |  |
 | `pickRandomPokemonForPosition` | `api/_lib/core.js:1243` | Helper: Pick a random eligible pokemon for a given position during reroll |
 | `pokeR2Url` | `api/_lib/core.js:124` |  |
 | `postBroadcast` | `api/_lib/core.js:230` | Supabase Realtime Broadcast helper — fire-and-forget, no WebSocket needed |
@@ -492,7 +493,7 @@
 | `processSeasonEnd` | `api/_lib/core.js:530` |  |
 | `processYearEnd` | `api/_lib/core.js:553` |  |
 | `profileSlugKey` | `api/_routes/users.js:18` | Profile URLs are /profile/<display name, whitespace runs -> '-'>. Two names with the same key share a URL, so the key is what lookup and the rename collision ch |
-| `progressFor` | `api/_routes/tierList.js:87` |  |
+| `progressFor` | `api/_routes/tierList.js:105` |  |
 | `proofObjectKey` | `api/_lib/core.js:109` | Build the R2 object key for a proof image.  The old shape was `approval/<userId>-<pokemonId>-<ts>-<slot>-<originalname>`, which put two things into a PUBLIC, un |
 | `rankedIdsIn` | `api/_lib/core.js:1159` | A tier list counts only once every mon on the board carries a tier. |
 | `rarity` | `api/_routes/stats.js:129` | Rarity tallies for "Most Unique Catch", scoped to whichever entries subset is being summarised. Deliberately NOT month-wide: in Restricted mode every other pane |
@@ -507,6 +508,7 @@
 | `selectAllRows` | `api/_routes/stats.js:42` |  |
 | `sendSSEToUser` | `api/_lib/core.js:583` |  |
 | `shuffleArray` | `api/_lib/core.js:1233` |  |
+| `tierListLocksAt` | `api/_routes/tierList.js:94` |  |
 | `toPrepRow` | `api/_routes/pokemon.js:38` |  |
 | `uploadBufferToR2` | `api/_lib/core.js:1179` | Upload a single multer file buffer to R2 and return its public URL. |
 | `uploadSupplementalProof` | `api/_lib/core.js:1197` | Uploads the optional evolution + extra proof files shared by both submission endpoints. Returns { proofUrl3, proofUrl4, extraImageUrls }. Throws on R2 error. |

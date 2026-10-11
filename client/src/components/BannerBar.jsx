@@ -99,6 +99,7 @@ const CONDITION_RESOLVERS = {
   tier_list_incomplete: async (user) => {
     if (!user) return false;
     const data = await api.getTierList();
+    if (data.month?.locked) return false; // ranking closed — nothing to nudge toward
     const poolSize = (data.pool || []).length;
     if (!poolSize) return false;
     const ranked = Object.keys(data.viewer_submission?.tiers || {}).length;
@@ -107,19 +108,18 @@ const CONDITION_RESOLVERS = {
 };
 
 // ── Tier list reminder — injected client-side, never written to `banners` ──
-// There is no submission lock (the API still accepts a late tier list), so
-// this is a nudge, not enforcement, and it changes identity by date (two
-// different messages) for one viewer in one month — a poor fit for a table
-// row that would need seeding, upserting, and cleanup out of band. This is
-// computed fresh on every load instead.
+// The API owns the ranking window (`month.locks_at`, enforced on POST — see
+// api/_routes/tierList.js); this banner only counts down to it. It changes
+// identity by date (two different messages) for one viewer in one month — a
+// poor fit for a table row that would need seeding, upserting, and cleanup out
+// of band — so it is computed fresh on every load instead.
 //
-// `id` changes at the day-5 boundary on purpose: dismissal is tracked per id
-// in localStorage, so a viewer who dismissed the day-0 prompt still sees the
-// day-5 countdown reminder as a fresh, undismissed banner — same trick the
+// `id` changes when the countdown starts on purpose: dismissal is tracked per
+// id in localStorage, so a viewer who dismissed the opening prompt still sees
+// the countdown reminder as a fresh, undismissed banner — same trick the
 // month-countdown banner uses via `banner_key`, just without a database row
 // behind it.
-const TIER_LIST_REMINDER_DAY = 5; // the countdown reminder takes over here
-const TIER_LIST_WINDOW_DAYS = 7;  // neither banner shows again after this
+const TIER_LIST_REMINDER_DAYS_LEFT = 2; // the countdown reminder takes over here
 
 const buildTierListBanner = (data) => {
   const poolSize = (data.pool || []).length;
@@ -127,15 +127,14 @@ const buildTierListBanner = (data) => {
   const ranked = Object.keys(data.viewer_submission?.tiers || {}).length;
   if (ranked >= poolSize) return null; // already complete — nothing to nudge
 
-  const startDate = data.month?.start_date;
   const monthId = data.month?.id;
-  if (!startDate || monthId == null) return null;
+  const locksAt = Date.parse(data.month?.locks_at || '');
+  if (data.month?.locked || monthId == null || Number.isNaN(locksAt)) return null;
 
-  const start = new Date(`${startDate}T00:00:00Z`);
-  const daysSinceStart = Math.floor((Date.now() - start.getTime()) / 86400000);
-  if (daysSinceStart < 0 || daysSinceStart >= TIER_LIST_WINDOW_DAYS) return null;
+  const daysLeft = Math.ceil((locksAt - Date.now()) / 86400000);
+  if (daysLeft <= 0) return null;
 
-  if (daysSinceStart < TIER_LIST_REMINDER_DAY) {
+  if (daysLeft > TIER_LIST_REMINDER_DAYS_LEFT) {
     return {
       id: `tier_list_prompt:${monthId}`,
       message: 'Call which Pokémon will be brutal before anyone catches them.',
@@ -144,7 +143,6 @@ const buildTierListBanner = (data) => {
     };
   }
 
-  const daysLeft = TIER_LIST_WINDOW_DAYS - daysSinceStart;
   return {
     id: `tier_list_reminder:${monthId}`,
     message: `${daysLeft} ${daysLeft === 1 ? 'day' : 'days'} left to rank this month's board.`,

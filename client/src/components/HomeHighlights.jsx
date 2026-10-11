@@ -114,7 +114,7 @@ const MonthStatsTeaser = ({ compact }) => {
 };
 
 const TierListTeaser = ({ compact }) => {
-  const [state, setState] = useState({ loading: true, mon: null });
+  const [state, setState] = useState({ loading: true, mon: null, locked: false });
 
   useEffect(() => {
     let cancelled = false;
@@ -127,9 +127,9 @@ const TierListTeaser = ({ compact }) => {
           if (s > 0 && (!best || s > best.count)) best = { pokemonId: String(entry.pokemon_id), count: s };
         });
         const mon = best ? (data.pool || []).find(p => String(p.pokemon_id) === best.pokemonId) : null;
-        setState({ loading: false, mon: mon || null });
+        setState({ loading: false, mon: mon || null, locked: Boolean(data.month?.locked) });
       })
-      .catch(() => { if (!cancelled) setState({ loading: false, mon: null }); });
+      .catch(() => { if (!cancelled) setState({ loading: false, mon: null, locked: false }); });
     return () => { cancelled = true; };
   }, []);
 
@@ -151,7 +151,7 @@ const TierListTeaser = ({ compact }) => {
       ) : (
         <>
           <div className="text-2xl font-bold text-white leading-none">—</div>
-          <div className="text-xs text-muted mt-1">be the first to rank this month</div>
+          <div className="text-xs text-muted mt-1">{state.locked ? 'ranking closed this month' : 'be the first to rank this month'}</div>
         </>
       )}
     </TeaserShell>

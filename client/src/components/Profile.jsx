@@ -317,6 +317,49 @@ const PokedexTab = ({ stats, accentColor }) => {
   );
 };
 
+// ── Skeleton pieces ──────────────────────────────────────────
+// Hex, not rgba: the tab components append alpha digits to the accent.
+const SKELETON_ACCENT = '#4b5060';
+const BONE_BG = { background: 'rgba(255,255,255,0.07)' };
+const noop = () => {};
+
+// Sits inside the real text element, so the line box (and the row height) is the
+// loaded one; the placeholder text only sets the width.
+const Bone = ({ children }) => (
+  <span className="rounded select-none" style={{ ...BONE_BG, color: 'transparent' }} aria-hidden="true">{children}</span>
+);
+
+// Same box as BingoGrid (aspect-square, p-2, gap-2) so the card keeps its height.
+const BoardGridSkeleton = () => (
+  <div className="grid grid-cols-5 grid-rows-5 gap-2 aspect-square rounded-lg p-2" style={{ background: CARD.inner }}>
+    {Array.from({ length: 25 }, (_, i) => <div key={i} className="rounded-md" style={BONE_BG} />)}
+  </div>
+);
+
+// The five month-stat cards, value heights matched to the loaded ones.
+const BoardStatsSkeleton = () => {
+  const card = (l, valueH, extra = {}) => (
+    <div key={l} className="rounded-lg p-3 border flex flex-col" style={{ background: CARD.inner, borderColor: CARD.borderSubtle, ...extra }}>
+      <p className="text-[10px] mb-1" style={{ color: 'rgba(255,255,255,0.3)' }}>{l}</p>
+      <div className="w-14 rounded" style={{ ...BONE_BG, height: valueH }} />
+    </div>
+  );
+  return (
+    <div className="w-full sm:w-40 shrink-0 grid grid-cols-2 sm:flex sm:flex-col gap-2">
+      {card('Points', 24)}
+      <div className="rounded-lg p-3 border flex flex-col items-center" style={{ background: CARD.inner, borderColor: CARD.borderSubtle }}>
+        <p className="text-[10px] mb-1" style={{ color: 'rgba(255,255,255,0.3)' }}>Completion</p>
+        <svg viewBox="0 0 70 70" className="w-16 h-16 -mt-1">
+          <circle cx="35" cy="35" r="26" fill="none" stroke="rgba(255,255,255,0.06)" strokeWidth="7" />
+        </svg>
+      </div>
+      {card('Restricted', 24, { background: '#1a0a0a', borderColor: 'rgba(120,21,10,0.4)' })}
+      {card('Monthly Rank', 26)}
+      {card('Historical', 20)}
+    </div>
+  );
+};
+
 // ── Boards tab ───────────────────────────────────────────────
 
 const BoardsTab = ({ userId, monthlyData, stats, onPokemonClick, accentColor }) => {
@@ -431,9 +474,7 @@ const BoardsTab = ({ userId, monthlyData, stats, onPokemonClick, accentColor }) 
         {/* Board */}
         <div className="flex-1 min-w-0">
           {boardLoading ? (
-            <div className="flex items-center justify-center py-16">
-              <div className="w-7 h-7 rounded-full border-2 border-gray-700 border-t-lagoon-500 animate-spin" />
-            </div>
+            <div className="animate-pulse"><BoardGridSkeleton /></div>
           ) : hasData ? (
             <BingoGrid board={displayBoard} onCellClick={onPokemonClick} large />
           ) : (
@@ -619,21 +660,114 @@ const ProfileShell = ({ title, children }) => (
   </div>
 );
 
-const ProfileSkeleton = ({ title, reconnecting }) => (
-  <ProfileShell title={title}>
-    {reconnecting && <ReconnectingPill label="Reconnecting to server…" />}
-    <div className="max-w-7xl mx-auto px-6 py-6 space-y-4 animate-pulse">
-      <div className="h-32 rounded-2xl" style={{ background: CARD.bg, border: `1px solid ${CARD.border}` }} />
-      <div className="flex gap-4">
-        <div className="hidden lg:block w-44 shrink-0 h-48 rounded-xl" style={{ background: CARD.bg }} />
-        <div className="flex-1 space-y-3">
-          <div className="h-40 rounded-xl" style={{ background: CARD.bg }} />
-          <div className="h-48 rounded-xl" style={{ background: CARD.bg }} />
+// Mirrors ProfileView's layout element for element, reusing its classes, so each
+// box takes its loaded height from the same CSS and nothing moves when data lands.
+// Static labels render for real; only data is boned. Guesses that can't be known
+// before the fetch: the socials strip is reserved for your own profile only
+// (anyone else's appears only if they have links), at one row.
+const ProfileSkeleton = ({ title, reconnecting, own = false }) => {
+  const [searchParams] = useSearchParams();
+  const urlTab = searchParams.get('tab');
+  const tab = TABS.some(t => t.id === urlTab) ? urlTab : 'boards';
+  const label = { color: 'rgba(255,255,255,0.35)' };
+  return (
+    <div className="min-h-screen" style={{ background: '#0d0f14' }}>
+      <PageBackground />
+      <PageHeader title={title} />
+      {reconnecting && <ReconnectingPill label="Reconnecting to server…" />}
+      <div className="max-w-7xl mx-auto px-6 py-4 animate-pulse" aria-busy="true">
+
+        {/* Hero */}
+        <div className="rounded-2xl shadow-2xl border" style={{ background: CARD.hero, borderColor: CARD.border }}>
+          <div className="h-1.5 rounded-t-2xl" style={{ backgroundColor: SKELETON_ACCENT }} />
+          <div className="px-4 sm:px-6 py-4">
+            <div className="flex items-center gap-4">
+              <div className="shrink-0 w-16 h-16 sm:w-20 sm:h-20 rounded-full"
+                   style={{ background: CARD.inner, outline: `3px solid ${SKELETON_ACCENT}`, outlineOffset: '2px' }} />
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 mb-0.5">
+                  <h1 className="text-xl sm:text-2xl font-extrabold leading-tight truncate"><Bone>Hunter Name</Bone></h1>
+                  {own && <span className="shrink-0 w-7 h-7" />}
+                </div>
+                <p className="hidden sm:block text-sm mt-0.5"><Bone>Joined January 21, 2026</Bone></p>
+              </div>
+              <div className="hidden sm:flex shrink-0 items-center gap-px border-l pl-5" style={{ borderColor: CARD.border }}>
+                {['Rank', 'Points', 'Shinies'].map((l, i) => (
+                  <div key={l} className={`text-center px-5 ${i > 0 ? 'border-l' : ''}`} style={{ borderColor: CARD.border }}>
+                    <div className="text-xs mb-0.5" style={label}>{l}</div>
+                    <div className="text-2xl font-extrabold leading-none"><Bone>00</Bone></div>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div className="sm:hidden mt-3 pt-3 border-t grid grid-cols-3" style={{ borderColor: CARD.borderSubtle }}>
+              {['Rank', 'Best Rank', 'Shinies', 'Points', 'Avg Pts', 'Months'].map((l, i) => (
+                <div key={l} className={`text-center py-2 ${i % 3 !== 0 ? 'border-l' : ''} ${i >= 3 ? 'border-t' : ''}`}
+                  style={{ borderColor: CARD.borderSubtle }}>
+                  <div className="text-[10px] mb-0.5" style={{ color: 'rgba(255,255,255,0.3)' }}>{l}</div>
+                  <div className="text-lg font-extrabold leading-none"><Bone>00</Bone></div>
+                </div>
+              ))}
+            </div>
+          </div>
+          <div className="border-t px-4 sm:px-6 py-2.5" style={{ borderColor: CARD.borderSubtle }}>
+            <div className="flex items-center gap-2">
+              <div className="h-[38px] w-[123px] rounded-lg" style={BONE_BG} />
+              {own && <div className="ml-auto h-[38px] w-10 sm:w-[146px] rounded-lg" style={BONE_BG} />}
+            </div>
+          </div>
+        </div>
+
+        <MobileTabStrip tab={tab} setTab={noop} accentColor={SKELETON_ACCENT} />
+        {own && (
+          <div className="lg:hidden mt-3 h-[67px] rounded-xl border" style={{ background: CARD.bg, borderColor: CARD.border }} />
+        )}
+
+        <div className="mt-3 flex gap-4 items-start">
+          <div className="hidden lg:block w-44 shrink-0 space-y-2">
+            <GameNav tab={tab} setTab={noop} accentColor={SKELETON_ACCENT} />
+            <div className="rounded-xl p-3 border" style={{ background: CARD.bg, borderColor: CARD.border }}>
+              <div className="space-y-3">
+                {['Months Active', 'Avg Points', 'Pokédex'].map(l => (
+                  <div key={l} className="flex items-baseline justify-between gap-2">
+                    <div className="text-xs shrink-0" style={label}>{l}</div>
+                    <div className="text-xl font-extrabold leading-none"><Bone>00</Bone></div>
+                  </div>
+                ))}
+                <div className="pt-2 border-t" style={{ borderColor: CARD.borderSubtle }}>
+                  <div className="text-xs mb-1" style={label}>Best Rank</div>
+                  <div className="text-2xl font-extrabold leading-none"><Bone>#0</Bone></div>
+                  <div className="text-xs mt-0.5"><Bone>October 2026</Bone></div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="flex-1 min-w-0">
+            {tab === 'boards' ? (
+              <div className="rounded-xl border overflow-hidden" style={{ background: CARD.bg, borderColor: CARD.border }}>
+                <div className="px-4 py-3 border-b flex items-center justify-between" style={{ borderColor: CARD.borderSubtle }}>
+                  <div className="w-7 h-7 rounded-lg" style={{ background: 'rgba(255,255,255,0.04)' }} />
+                  <span className="text-base font-semibold"><Bone>October 2026</Bone></span>
+                  <div className="w-7 h-7 rounded-lg" style={{ background: 'rgba(255,255,255,0.04)' }} />
+                </div>
+                <div className="p-3 flex flex-col sm:flex-row gap-3">
+                  <div className="flex-1 min-w-0"><BoardGridSkeleton /></div>
+                  <BoardStatsSkeleton />
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                <div className="h-40 rounded-xl border" style={{ background: CARD.bg, borderColor: CARD.border }} />
+                <div className="h-48 rounded-xl border" style={{ background: CARD.bg, borderColor: CARD.border }} />
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </div>
-  </ProfileShell>
-);
+  );
+};
 
 const ProfileNotFound = () => (
   <ProfileShell title="Profile">
@@ -771,7 +905,7 @@ const ProfileView = ({ paramUserId }) => {
   // clears the glow in the All Badges grid (both read this set).
   const [seenBadgeIds, setSeenBadgeIds] = useState(() => new Set());
   const markedSeenRef = useRef(new Set());
-  const [tierListStatus, setTierListStatus] = useState(null); // { ranked, total } — own profile only
+  const [tierListStatus, setTierListStatus] = useState(null); // { ranked, total, locked } — own profile only
 
   const isOwn = !paramUserId || user?.id === paramUserId;
 
@@ -791,7 +925,10 @@ const ProfileView = ({ paramUserId }) => {
       .then(data => {
         if (cancelled) return;
         const ranked = Object.keys(data?.viewer_submission?.tiers || {}).length;
-        setTierListStatus({ ranked, total: data?.pool?.length || 0 });
+        const locked = Boolean(data?.month?.locked);
+        // Ranking window closed and nothing ranked: nothing to show or do.
+        if (locked && ranked === 0) { setTierListStatus(null); return; }
+        setTierListStatus({ ranked, total: data?.pool?.length || 0, locked });
       })
       .catch(() => { if (!cancelled) setTierListStatus(null); });
     return () => { cancelled = true; };
@@ -960,7 +1097,7 @@ const ProfileView = ({ paramUserId }) => {
   };
 
   if (loading || (error === 'transient' && !profile)) return (
-    <ProfileSkeleton title={placeholderTitle} reconnecting={error === 'transient'} />
+    <ProfileSkeleton title={placeholderTitle} reconnecting={error === 'transient'} own={isOwn} />
   );
 
   if (!profileUserId) return (
@@ -1057,32 +1194,36 @@ const ProfileView = ({ paramUserId }) => {
 
           </div>
 
-          {/* Social links strip */}
-          {(isOwnProfile || profile.user.twitch_url || profile.user.youtube_url || profile.user.shinydex_url) && (
-            <div className="border-t px-6 py-2.5" style={{ borderColor: CARD.borderSubtle }}>
+          {/* Social links strip — always shown, so the hero is one height on every profile */}
+            <div className="border-t px-4 sm:px-6 py-2.5" style={{ borderColor: CARD.borderSubtle }}>
               <div className="flex items-center gap-2 flex-wrap">
+                {!profile.user.twitch_url && !profile.user.youtube_url && !profile.user.shinydex_url && (
+                  <span className="h-[38px] flex items-center text-sm" style={{ color: 'rgba(255,255,255,0.3)' }}>
+                    No socials added
+                  </span>
+                )}
                 {profile.user.twitch_url && (
-                  <a href={profile.user.twitch_url} target="_blank" rel="noopener noreferrer"
+                  <a href={profile.user.twitch_url} target="_blank" rel="noopener noreferrer" aria-label="Twitch" title="Twitch"
                     className="flex justify-center items-center gap-2 px-3 py-2 rounded-lg text-sm font-semibold transition-all hover:opacity-80"
                     style={{ backgroundColor: 'rgba(145,71,255,0.12)', border: '1px solid rgba(145,71,255,0.25)', color: '#9147ff' }}>
                     <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
                       <path d="M11.571 4.714h1.715v5.143H11.57zm4.715 0H18v5.143h-1.714zM6 0L1.714 4.286v15.428h5.143V24l4.286-4.286h3.428L22.286 12V0zm14.571 11.143l-3.428 3.428h-3.429l-3 3v-3H6.857V1.714h13.714Z" />
                     </svg>
-                    Twitch
+                    <span className="hidden sm:inline">Twitch</span>
                   </a>
                 )}
                 {profile.user.youtube_url && (
-                  <a href={profile.user.youtube_url} target="_blank" rel="noopener noreferrer"
+                  <a href={profile.user.youtube_url} target="_blank" rel="noopener noreferrer" aria-label="YouTube" title="YouTube"
                     className="flex justify-center items-center gap-2 px-3 py-2 rounded-lg text-sm font-semibold transition-all hover:opacity-80"
                     style={{ backgroundColor: 'rgba(255,0,0,0.1)', border: '1px solid rgba(255,0,0,0.22)', color: '#ff4444' }}>
                     <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
                       <path d="M23.498 6.186a3.016 3.016 0 00-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 00.502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 002.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 002.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/>
                     </svg>
-                    YouTube
+                    <span className="hidden sm:inline">YouTube</span>
                   </a>
                 )}
                 {profile.user.shinydex_url && (
-                  <a href={profile.user.shinydex_url} target="_blank" rel="noopener noreferrer"
+                  <a href={profile.user.shinydex_url} target="_blank" rel="noopener noreferrer" aria-label="Shinydex" title="Shinydex"
                     className="flex justify-center items-center gap-2 px-3 py-2 rounded-lg text-sm font-semibold transition-all hover:opacity-80"
                     style={{ backgroundColor: 'rgba(234,179,8,0.1)', border: '1px solid rgba(234,179,8,0.22)'}}>
                     <img src={shinyDexUrl} alt="" className="w-18 h-5 object-contain"/>
@@ -1091,18 +1232,20 @@ const ProfileView = ({ paramUserId }) => {
                 {isOwnProfile && (
                   <>
                     <button onClick={() => { setSocialForm({ twitch_url: handleFromUrl('twitch_url', profile.user.twitch_url), youtube_url: handleFromUrl('youtube_url', profile.user.youtube_url), shinydex_url: handleFromUrl('shinydex_url', profile.user.shinydex_url) }); setEditingSocials(e => !e); }}
+                      aria-label={editingSocials ? 'Cancel' : 'Edit Socials'} title="Edit Socials"
                       className="flex justify-center items-center gap-1.5 px-3 py-2 rounded-lg text-sm transition-all"
                       style={{ color: editingSocials ? '#fff' : 'rgba(255,255,255,0.35)', border: `1px solid ${editingSocials ? 'rgba(255,255,255,0.15)' : CARD.border}`, backgroundColor: editingSocials ? 'rgba(255,255,255,0.08)' : 'transparent' }}>
                       <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
                       </svg>
-                      {editingSocials ? 'Cancel' : 'Edit Socials'}
+                      {editingSocials ? 'Cancel' : <span className="hidden sm:inline">Edit Socials</span>}
                     </button>
 
                     {/* Connect Authenticators toggle */}
                     <div className="ml-auto relative">
                       <button
                         onClick={() => setEditingProviders(e => !e)}
+                        aria-label="Authenticators" title="Authenticators"
                         className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm transition-all"
                         style={{
                           color: editingProviders ? accentColor : 'rgba(255,255,255,0.35)',
@@ -1113,7 +1256,7 @@ const ProfileView = ({ paramUserId }) => {
                         <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
                         </svg>
-                        Authenticators
+                        <span className="hidden sm:inline">Authenticators</span>
                       </button>
 
                       {editingProviders && (
@@ -1184,7 +1327,6 @@ const ProfileView = ({ paramUserId }) => {
                 </div>
               )}
             </div>
-          )}
         </div>
 
         {/* ── Nav + Content ─────────────────────────────────── */}
@@ -1203,7 +1345,7 @@ const ProfileView = ({ paramUserId }) => {
               className="shrink-0 text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors"
               style={{ backgroundColor: 'rgba(251,191,36,0.12)', border: '1px solid rgba(251,191,36,0.3)', color: '#fbbf24' }}
             >
-              {tierListStatus.ranked > 0 ? 'Edit Ranking' : 'Rank Now'}
+              {tierListStatus.locked ? 'View' : tierListStatus.ranked > 0 ? 'Edit Ranking' : 'Rank Now'}
             </Link>
           </div>
         )}
@@ -1252,7 +1394,7 @@ const ProfileView = ({ paramUserId }) => {
                   className="block text-center text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors"
                   style={{ backgroundColor: 'rgba(251,191,36,0.12)', border: '1px solid rgba(251,191,36,0.3)', color: '#fbbf24' }}
                 >
-                  {tierListStatus.ranked > 0 ? 'Edit Ranking' : 'Rank Now'}
+                  {tierListStatus.locked ? 'View' : tierListStatus.ranked > 0 ? 'Edit Ranking' : 'Rank Now'}
                 </Link>
               </div>
             )}
