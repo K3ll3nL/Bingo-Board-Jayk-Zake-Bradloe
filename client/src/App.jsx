@@ -44,6 +44,8 @@ import CatchRateCalculator from './components/tools/CatchRateCalculator';
 import XYRadar from './components/tools/XYRadar';
 import XYRadarBuilder from './components/tools/XYRadarBuilder';
 import Login from './components/Login';
+import DevViewSwitcher from './components/DevViewSwitcher';
+import { isLocalDev } from './devView';
 import SafariZone from './components/tools/SafariZone';
 import PrivacyPolicy from './components/PrivacyPolicy';
 import TermsOfService from './components/TermsOfService';
@@ -336,11 +338,11 @@ const AppLayout = () => {
         </div>
       </div>
     </div>
-  ) : (!import.meta.env.DEV || sessionStorage.getItem('realauth') === '1') ? (
+  ) : (
     <Link to="/login" className="flex items-center gap-2 bg-accent-strong hover:bg-accent text-strong px-4 py-2 rounded-full transition-colors text-sm font-medium">
       Sign In / Sign Up
     </Link>
-  ) : null;
+  );
 
   /* ── Shared action buttons (upload + bell) ── */
   const actionButtons = user && (
@@ -579,8 +581,7 @@ const AppLayout = () => {
                   className="h-10 sm:h-14 object-contain cursor-pointer"
                 />
               </Link>
-              <div className="w-px h-5 ml-6 bg-edge" />
-              <div className="min-w-0 flex-1">
+              <div className="min-w-0 flex-1 ml-6">
                 <div className="flex items-center gap-2">
                   <h1 className="text-lg font-bold text-strong truncate">{pageMeta.title}</h1>
                   {pageMeta.badge === 'mod' && (
@@ -702,6 +703,7 @@ function App() {
       <AuthProvider>
         <PageTitleContext.Provider value={{ pageMeta, setPageMeta }}>
         <NotificationToast />
+        {isLocalDev() && <DevViewSwitcher />}
         <ConsentGate>
         <Routes>
           {/* Routes without the shared header */}

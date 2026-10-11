@@ -90,6 +90,7 @@ const BingoBoard = ({ data, error: errorProp = null, hideTitle = false, hideAchi
               <div key={i} className="rounded-lg bg-gray-700/50" />
             ))}
           </div>
+          {!hideAchievements && (<>
           <div className="mt-4 grid grid-cols-2 md:grid-cols-4 gap-3">
             {Array.from({ length: 4 }).map((_, i) => (
               <div key={i} className="flex items-center gap-2">
@@ -109,6 +110,7 @@ const BingoBoard = ({ data, error: errorProp = null, hideTitle = false, hideAchi
               ))}
             </div>
           </div>
+          </>)}
         </div>
       </div>
     );

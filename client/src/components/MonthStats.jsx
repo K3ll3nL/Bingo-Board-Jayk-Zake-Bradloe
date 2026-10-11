@@ -9,6 +9,7 @@ import PokemonImage from './PokemonImage';
 import { api } from '../services/api';
 import { TIER_COLORS, TIER_LABELS, TIER_SHORT } from '../constants/tierColors';
 import { SURFACE, GRADIENT, BORDER, ACCENT as ACCENT_TOKEN, SEMANTIC, BRAND } from '../constants/theme';
+import { profileLink } from '../utils/profileLink';
 
 // ── Tokens ───────────────────────────────────────────────────────────────────
 // Every colour here comes from docs/DESIGN_TOKENS.md via constants/theme.js.
@@ -308,7 +309,7 @@ const WatchOutHero = ({ item, emptyLabel, users }) => {
         {item.contenders.map(c => (
           <Link
             key={c.user_id}
-            to={`/profile/${c.user_id}`}
+            {...profileLink(c.user_id, users?.[c.user_id])}
             className="flex items-center gap-1.5 rounded-full pl-3 pr-2 py-1.5 max-w-full min-w-0 transition-colors hover:bg-white/[0.06]"
             style={{ background: CARD.inner, border: `1px solid ${CARD.border}` }}
           >
@@ -343,7 +344,7 @@ const MonthChampionHero = ({ winner, emptyLabel, users }) => {
           <StatIcon name="trophy" className="w-7 h-7 sm:w-8 sm:h-8" style={{ color: ACCENT }} />
         </div>
         <div className="min-w-0 flex-1">
-          <Link to={`/profile/${winner.user_id}`} className="text-lg sm:text-2xl font-bold text-strong truncate block hover:underline">
+          <Link {...profileLink(winner.user_id, users?.[winner.user_id])} className="text-lg sm:text-2xl font-bold text-strong truncate block hover:underline">
             {hunterOf(users, winner.user_id)}
           </Link>
           <div className="text-xs text-muted truncate">Topped the leaderboard this month</div>
@@ -603,7 +604,7 @@ const UniqueCatch = ({ unique, emptyLabel, pokemon, users }) => {
               <div className="min-w-0 flex-1">
                 <div className="text-base font-bold text-strong truncate">{monOf(pokemon, it.pokemon_id).name}</div>
                 <div className="text-xs text-muted truncate">{it.game_label}</div>
-                <Link to={`/profile/${it.user_id}`} className="text-xs mt-1 inline-block truncate max-w-full hover:underline" style={{ color: ACCENT }}>
+                <Link {...profileLink(it.user_id, users?.[it.user_id])} className="text-xs mt-1 inline-block truncate max-w-full hover:underline" style={{ color: ACCENT }}>
                   caught by {hunterOf(users, it.user_id)}
                 </Link>
               </div>
@@ -657,7 +658,7 @@ const UniqueCatch = ({ unique, emptyLabel, pokemon, users }) => {
 // name under a bigger avatar keeps each winner to a ~56px-wide column, so up
 // to three fit in the same vertical space the title block already occupies.
 const SpotlightAvatar = ({ user }) => (
-  <Link to={`/profile/${user.user_id}`} className="flex flex-col items-center gap-1 w-14 shrink-0 group">
+  <Link {...profileLink(user.user_id, user.name)} className="flex flex-col items-center gap-1 w-14 shrink-0 group">
     <div
       className="w-11 h-11 rounded-full overflow-hidden shrink-0 flex items-center justify-center transition-transform group-hover:scale-105"
       style={{ background: CARD.bg, border: `1px solid ${CARD.border}` }}
@@ -772,7 +773,7 @@ const BADGE_VISIBLE_ROWS = 6;
 const BADGE_ROW_HEIGHT = 54; // px — measured: 36px avatar + p-2.5 (10px top/bottom) + border
 const BadgeRow = ({ b }) => (
   <Link
-    to={`/profile/${b.user_id}`}
+    {...profileLink(b.user_id, b.user_name)}
     className="flex items-center gap-3 p-2.5 border-b last:border-b-0 transition-colors hover:bg-white/5 min-w-0"
     style={{ borderColor: CARD.borderSubtle }}
   >
@@ -976,7 +977,7 @@ const RarestCatches = ({ items, emptyLabel, pokemon, users }) => {
         {shown.map(m => (
           <Link
             key={m.pokemon_id}
-            to={`/profile/${m.user_id}`}
+            {...profileLink(m.user_id, users?.[m.user_id])}
             className="flex items-center gap-3 p-2.5 border-b last:border-b-0 transition-colors hover:bg-white/5 min-w-0"
             style={{ borderColor: CARD.borderSubtle }}
           >
@@ -1095,7 +1096,7 @@ const MostActive = ({ items, emptyLabel, users }) => {
       {items.map((u, i) => (
         <Link
           key={u.user_id}
-          to={`/profile/${u.user_id}`}
+          {...profileLink(u.user_id, users?.[u.user_id])}
           className="flex items-center gap-3 p-2.5 border-b last:border-b-0 transition-colors hover:bg-white/5 min-w-0"
           style={{ borderColor: CARD.borderSubtle }}
         >

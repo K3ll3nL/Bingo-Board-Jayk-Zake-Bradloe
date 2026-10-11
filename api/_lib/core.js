@@ -621,6 +621,18 @@ function broadcastSSE(event, data) {
 // DEVELOPMENT ONLY: Auth bypass middleware
 const DEV_USER_ID = process.env.DEBUG_USER_ID;
 
+// The one switch for every dev-only behaviour: the dev_token auth bypass, the
+// "view as" personas, /api/debug/data and the upload rate-limit skip. Fails
+// closed — `VERCEL=1` is set by the platform on every deployment (preview
+// included) and can't be unset from the dashboard, so a stray DEBUG_USER_ID or
+// NODE_ENV override in Vercel can never turn the bypass on.
+const DEV_BYPASS = process.env.NODE_ENV !== 'production'
+  && !process.env.VERCEL
+  && Boolean(DEV_USER_ID);
+if (DEV_BYPASS) {
+  console.warn(`⚠ DEV_BYPASS is ON — dev_token auth bypass active (DEBUG_USER_ID=${DEV_USER_ID}). Never run this way outside localhost.`);
+}
+
 // Looks up the user's linked OAuth identities, finds the best available avatar_url
 // (prefers Discord, then Twitch, then Google), updates the users table, and returns it.
 async function refreshAvatarFromProvider(userId) {
@@ -646,6 +658,101 @@ async function refreshAvatarFromProvider(userId) {
     console.error('[avatar-sync] Avatar refresh failed (non-fatal):', err.message);
     return null;
   }
+}
+
+// Self-repair for dead Discord avatars. A Discord avatar URL embeds a content hash, so it
+// 404s the moment the user changes their picture — and Supabase's identity_data only
+// refreshes on that user's next OAuth login, which for most hunters is months away.
+// refreshAvatarFromProvider can't help there; only Discord's API knows the current hash,
+// and reading another user's profile needs a bot token (DISCORD_BOT_TOKEN — any bot from
+// the OAuth app's developer-portal page works; it doesn't need to join a server).
+//
+// Order: stored URL still loads → keep it; Discord API → current avatar; Twitch → their
+// stream pfp; otherwise Discord's own default avatar, returned but NOT stored, so a
+// later bot-token or login sync still writes the real picture.
+const DISCORD_AVATAR_RE = /^https:\/\/cdn\.discordapp\.com\/avatars\/(\d{15,21})\//;
+const AVATAR_REPAIR_TTL_MS = 10 * 60 * 1000;
+const avatarRepairMemo = new Map(); // discordId -> { at, promise }
+
+async function urlLoads(url) {
+  try { return (await fetch(url, { method: 'HEAD' })).ok; } catch { return false; }
+}
+
+function discordDefaultAvatar(discordId, discriminator) {
+  const idx = discriminator && discriminator !== '0'
+    ? Number(discriminator) % 5
+    : Number((BigInt(discordId) >> 22n) % 6n);
+  return `https://cdn.discordapp.com/embed/avatars/${idx}.png`;
+}
+
+async function fetchDiscordUser(discordId) {
+  const token = process.env.DISCORD_BOT_TOKEN;
+  if (!token) return null;
+  const r = await fetch(`https://discord.com/api/v10/users/${discordId}`, {
+    headers: { Authorization: `Bot ${token}` },
+  });
+  if (!r.ok) { console.error(`[avatar-repair] Discord ${r.status} for ${discordId}`); return null; }
+  return r.json();
+}
+
+async function fetchTwitchPfp(twitchUrl) {
+  const login = twitchUrl?.split('/').pop()?.toLowerCase();
+  if (!login) return null;
+  const token = await getTwitchToken();
+  if (!token) return null;
+  const raw = await fetch(`https://api.twitch.tv/helix/users?login=${encodeURIComponent(login)}`, {
+    headers: { Authorization: `Bearer ${token}`, 'Client-Id': process.env.TWITCH_CLIENT_ID },
+  }).then(r => r.json());
+  return raw.data?.[0]?.profile_image_url || null;
+}
+
+// Returns { avatar_url, source } for the user whose stored avatar is this Discord id's,
+// or null when no user has one. source: 'stored' | 'discord' | 'twitch' | 'default'.
+async function repairDiscordAvatar(discordId, { write = true } = {}) {
+  const { data: rows, error } = await supabase
+    .from('users')
+    .select('id, avatar_url, twitch_url')
+    .like('avatar_url', `https://cdn.discordapp.com/avatars/${discordId}/%`)
+    .limit(1);
+  if (error) throw error;
+  const row = rows?.[0];
+  if (!row) return null;
+
+  if (await urlLoads(row.avatar_url)) return { avatar_url: row.avatar_url, source: 'stored' };
+
+  let next = null, source = null, discriminator = null;
+  const du = await fetchDiscordUser(discordId);
+  if (du) {
+    discriminator = du.discriminator;
+    if (du.avatar) {
+      next = `https://cdn.discordapp.com/avatars/${discordId}/${du.avatar}.png`;
+      source = 'discord';
+    }
+  }
+  if (!next && row.twitch_url) {
+    try { next = await fetchTwitchPfp(row.twitch_url); if (next) source = 'twitch'; }
+    catch (err) { console.error('[avatar-repair] Twitch lookup failed:', err.message); }
+  }
+  if (!next) return { avatar_url: discordDefaultAvatar(discordId, discriminator), source: 'default' };
+
+  if (!write) return { avatar_url: next, source, user_id: row.id };
+  const { error: upErr } = await supabase.from('users').update({ avatar_url: next }).eq('id', row.id);
+  if (upErr) throw upErr;
+  console.log(`[avatar-repair] ${row.id}: ${source}`);
+  return { avatar_url: next, source };
+}
+
+// Memoised per Discord id so a page full of one dead avatar (or a client retry loop)
+// costs one HEAD + one API call, not one per image element.
+function repairDiscordAvatarMemo(discordId) {
+  const hit = avatarRepairMemo.get(discordId);
+  if (hit && Date.now() - hit.at < AVATAR_REPAIR_TTL_MS) return hit.promise;
+  const promise = repairDiscordAvatar(discordId).catch(err => {
+    avatarRepairMemo.delete(discordId);
+    throw err;
+  });
+  avatarRepairMemo.set(discordId, { at: Date.now(), promise });
+  return promise;
 }
 
 // Helper function to get authenticated user ID
@@ -1062,7 +1169,9 @@ const uploadRateLimit = rateLimit({
   max: 20,
   standardHeaders: true,
   legacyHeaders: false,
-  skip: (req) => process.env.NODE_ENV !== 'production',
+  skip: () => DEV_BYPASS,
+  // Vercel also sends the RFC 7239 `Forwarded` header; X-Forwarded-For (via trust proxy) is what we key on.
+  validate: { forwardedHeader: false },
   message: { error: 'Too many submissions. Please wait a few minutes before trying again.' },
 });
 
@@ -1900,6 +2009,7 @@ module.exports = {
   WATCH_SHAPES,
   WATCH_TYPES,
   buildWatchOut,
+  DEV_BYPASS,
   DEV_USER_ID,
   FLABEBE_FORM_INDEX,
   GAME_LABELS,
@@ -1961,6 +2071,8 @@ module.exports = {
   processYearEnd,
   rateLimit,
   refreshAvatarFromProvider,
+  repairDiscordAvatar,
+  repairDiscordAvatarMemo,
   resolveStatsMonth,
   sendSSEToUser,
   shuffleArray,

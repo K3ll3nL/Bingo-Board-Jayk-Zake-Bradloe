@@ -10,6 +10,7 @@ import PokemonImage from './PokemonImage';
 import { buildPokemonImageUrl } from '../utils/pokemonImageUtils';
 import { parseApiError } from '../services/api';
 import { GRADIENT, BORDER, TEXT, ACCENT, SEMANTIC, BRAND } from '../constants/theme';
+import { devAuthHeader } from '../devView';
 
 // ── Proof images ─────────────────────────────────────────────────────────────
 // Multipart field names the API reads for proof slots 1-3, in slot order.
@@ -110,10 +111,8 @@ const applyPrepParams = (params, poke, setGame, setIsRestricted) => {
 };
 
 const getAuthHeader = async () => {
-  if (import.meta.env.DEV &&
-      (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')) {
-    return 'Bearer dev_token';
-  }
+  const dev = devAuthHeader();
+  if (dev !== undefined) return dev;
   const { data: { session } } = await supabase.auth.getSession();
   return `Bearer ${session?.access_token}`;
 };

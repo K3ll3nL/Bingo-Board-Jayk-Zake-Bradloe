@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import restrictedIconSrc from '../Icons/restricted-icon.png';
 import { buildPokemonImageUrl } from '../utils/pokemonImageUtils';
 import { ALLOWED_GAMES } from '../constants/games';
+import { profileLink } from '../utils/profileLink';
 
 // entries.game stores the display label (e.g. "Pokémon Sword / Shield"), but
 // fall back to key too in case older rows stored the slug.
@@ -70,7 +71,7 @@ const PokemonModal = ({ pokemon, onClose, monthId = null }) => {
 
   const CatchRow = ({ entry, index }) => (
     <Link
-      to={`/profile/${entry.user_id}`}
+      {...profileLink(entry.user_id, entry.display_name)}
       onClick={onClose}
       className="p-2 flex items-center gap-2 transition-colors cursor-pointer hover:bg-white/[0.04]"
     >

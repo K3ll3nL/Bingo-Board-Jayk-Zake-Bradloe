@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { supabase } from '../services/supabaseClient';
+import { getDevView, devAuthHeader } from '../devView';
 
 const AuthContext = createContext({});
 
@@ -44,7 +45,8 @@ export const AuthProvider = ({ children }) => {
     try {
       let authHeader;
       if (useDevBypass()) {
-        authHeader = 'Bearer dev_token';
+        authHeader = devAuthHeader();
+        if (!authHeader) return;
       } else {
         const { data: { session } } = await supabase.auth.getSession();
         if (!session) return;
@@ -100,11 +102,11 @@ export const AuthProvider = ({ children }) => {
     if (params.get('realauth') === '0') sessionStorage.removeItem('realauth');
 
     if (useDevBypass()) {
-      setUser({
-        id: import.meta.env.VITE_DEV_USER_ID,
-        email: 'dev@localhost',
-        user_metadata: { full_name: 'Dev (localhost)' }
-      });
+      const view = getDevView();
+      if (view.mode === 'out') { setUser(null); setLoading(false); return; }
+      setUser(view.mode === 'as'
+        ? { id: view.userId, email: 'dev@localhost', user_metadata: { full_name: view.name } }
+        : { id: import.meta.env.VITE_DEV_USER_ID, email: 'dev@localhost', user_metadata: { full_name: 'Dev (localhost)' } });
       setLoading(false);
       // Context (identities/tos/mod/pro) is loaded by the [user, loading] effect.
       return;

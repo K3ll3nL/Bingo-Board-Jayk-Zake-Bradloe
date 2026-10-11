@@ -1,13 +1,14 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../services/api';
+import { useRepairedAvatar } from '../services/avatarRepair';
 import { useAuth } from '../contexts/AuthContext';
 import BannerBar from './BannerBar';
 import BingoBoard from './BingoBoard';
 import Leaderboard from './Leaderboard';
 import HomeHighlights from './HomeHighlights';
 import AchievementIcon from './AchievementIcon';
-import { GRADIENT, BORDER, TEXT, ACCENT, SEMANTIC, BRAND } from '../constants/theme';
+import { SURFACE, GRADIENT, BORDER, TEXT, ACCENT, SEMANTIC, BRAND } from '../constants/theme';
 
 /*
   HOME — board first, badges as the carrot.
@@ -185,18 +186,22 @@ const BadgeLadder = () => {
 const RACE_TYPES = ['row', 'column', 'x', 'blackout'];
 const RACE_LABELS = { row: 'Row', column: 'Column', x: 'X', blackout: 'Blackout' };
 
-const Avatar = ({ url, name, size = 18, ring }) => (
-  url
-    ? <img src={url} alt="" draggable={false} title={name}
-           className="rounded-full object-cover shrink-0"
-           style={{ width: size, height: size, boxShadow: `0 0 0 1px ${ring || BORDER.edge}` }} />
-    : <span className="rounded-full shrink-0 flex items-center justify-center font-bold"
-            title={name}
-            style={{ width: size, height: size, fontSize: size * 0.5, background: GRADIENT.inset,
-                     color: TEXT.muted, boxShadow: `0 0 0 1px ${ring || BORDER.edge}` }}>
-        {(name || '?').charAt(0).toUpperCase()}
-      </span>
-);
+// The inset disc is the skeleton while the picture loads (or a dead Discord URL is
+// repaired), and the initial is the fallback if it never does.
+const Avatar = ({ url, name, size = 18, ring }) => {
+  const { status, imgProps } = useRepairedAvatar(url);
+  return (
+    <span className="relative rounded-full shrink-0 flex items-center justify-center font-bold overflow-hidden"
+          title={name}
+          style={{ width: size, height: size, fontSize: size * 0.5, background: GRADIENT.inset,
+                   color: TEXT.muted, boxShadow: `0 0 0 1px ${ring || BORDER.edge}` }}>
+      {status === 'failed'
+        ? (name || '?').charAt(0).toUpperCase()
+        : <img {...imgProps} alt="" draggable={false}
+               className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-150 ${status === 'loaded' ? '' : 'opacity-0'}`} />}
+    </span>
+  );
+};
 
 // One bounty in one mode. Claimed is a FILLED violet block; open is an empty
 // well. Inside a 4-row matrix that contrast is instant, where eight sibling
@@ -262,9 +267,24 @@ const BountyState = ({ bounty, restricted = false }) => {
 const Bounties = ({ bounties, loading }) => {
   if (loading) {
     return (
-      <Panel className="p-4">
-        <div className="animate-pulse flex flex-col gap-2">
-          {Array.from({ length: 4 }).map((_, i) => <div key={i} className="h-9 rounded-md bg-white/5" />)}
+      // Same grid as the loaded card: heading, column labels, four icon+label rows.
+      <Panel className="p-4 flex flex-col gap-2.5">
+        <Eyebrow>Bounties</Eyebrow>
+        <div className="grid gap-x-3 gap-y-1.5 min-w-0 animate-pulse"
+             style={{ gridTemplateColumns: 'minmax(84px, auto) minmax(0,1fr) minmax(0,1fr)' }}>
+          <span />
+          <Eyebrow className="px-2">Standard</Eyebrow>
+          <Eyebrow className="px-2">Restricted</Eyebrow>
+          {RACE_TYPES.map(t => (
+            <React.Fragment key={t}>
+              <div className="flex items-center gap-2 h-9">
+                <div className="w-6 h-6 rounded-md bg-white/5 shrink-0" />
+                <div className="h-2.5 w-10 rounded bg-white/5" />
+              </div>
+              <div className="h-9 rounded-md bg-white/5" />
+              <div className="h-9 rounded-md bg-white/5" />
+            </React.Fragment>
+          ))}
         </div>
       </Panel>
     );
@@ -313,35 +333,142 @@ const Bounties = ({ bounties, loading }) => {
   );
 };
 
-// ── You ─────────────────────────────────────────────────────────────────────
-// Shown ONLY to a hunter who is not yet on the board. Once you are ranked, the
-// leaderboard's own pinned row carries your rank, points, catches, bounties and
-// your gap to the place above — in context, among the people you are chasing,
-// which is strictly better than the same numbers alone in a corner. Two
-// surfaces saying the same thing is one too many; this is the one that only
-// exists when the other cannot.
-const FirstCatchPrompt = ({ show }) => {
-  const { user } = useAuth();
-  if (!user || !show) return null;
+// ── Board bar — the month, who is in it, and the way in ─────────────────────
+// Replaces the board's centred title. The one call to action on the page, and
+// it changes with the viewer rather than adding a second button per state:
+//   signed out          → Join the hunt          (/login)
+//   signed in, unranked → Submit your first catch (/upload)
+//   ranked              → Submit                  (/upload)
+// The faces are the social proof — real hunters this month, not a bare count.
+const FACES = 5;
+const DAY_MS = 86400000;
 
-  const name =
-    user?.user_metadata?.custom_claims?.global_name ||
-    user?.user_metadata?.full_name ||
-    user?.user_metadata?.username || 'Hunter';
+const UploadGlyph = () => (
+  <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" aria-hidden="true">
+    <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1M16 8l-4-4m0 0L8 8m4-4v12" />
+  </svg>
+);
+
+// Stale Discord avatar URLs 404 — useRepairedAvatar fetches the current one; the
+// initial shows only if that finds nothing. Until then the face's tinted disc shows.
+const HunterFace = ({ url, name }) => {
+  const { status, imgProps } = useRepairedAvatar(url);
+  return status === 'failed'
+    ? (name || '?').slice(0, 1).toUpperCase()
+    : <img {...imgProps} alt="" draggable={false}
+           className={`w-full h-full object-cover transition-opacity duration-150 ${status === 'loaded' ? '' : 'opacity-0'}`} />;
+};
+
+const HunterFaces = ({ rows }) => {
+  const shown = rows.slice(0, FACES);
+  const extra = rows.length - shown.length;
+  return (
+    // Count sits under the faces (mirroring month / days left) so the month row
+    // is only as wide as the faces — it fits a 390px phone without shrinking them.
+    <div className="flex flex-col items-end gap-1 min-w-0">
+      {rows.length > 0 && (
+        <div className="flex -space-x-2 shrink-0">
+          {shown.map(r => (
+            <span key={r.user_id} title={r.display_name}
+                  className="w-7 h-7 rounded-full overflow-hidden flex items-center justify-center text-[10px] font-bold"
+                  style={{ boxShadow: `0 0 0 2px ${SURFACE.card}`, background: 'rgba(255,255,255,0.08)', color: TEXT.muted }}>
+              <HunterFace url={r.avatar_url} name={r.display_name} />
+            </span>
+          ))}
+          {extra > 0 && (
+            <span className="w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold tabular-nums"
+                  style={{ boxShadow: `0 0 0 2px ${SURFACE.card}`, background: SURFACE.inset, color: TEXT.body }}>
+              +{extra}
+            </span>
+          )}
+        </div>
+      )}
+      <span className="text-xs tabular-nums whitespace-nowrap" style={{ color: TEXT.muted }}>
+        {rows.length === 0 ? 'No hunters yet' : `${rows.length} hunting`}
+      </span>
+    </div>
+  );
+};
+
+const BoardBar = ({ boardData, rows, me }) => {
+  const { user, loading: authLoading } = useAuth();
+
+  // Natural width of each button label, so the skeleton's button wraps below
+  // the month row at exactly the widths the real one will.
+  const ctaWidth = !authLoading && !user ? 127 : 106; // Join the hunt : Submit
+
+  if (!boardData) {
+    // Sized to the loaded bar line for line: title 30px (25 under 380), the
+    // 6px gap, the 16px days line; faces 28px + 4px + the 16px count line.
+    return (
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-3 mb-4 animate-pulse">
+        <div className="flex items-center justify-between gap-4" style={{ flexGrow: 999 }}>
+          <div>
+            <div className="h-[25px] w-[140px] min-[380px]:h-[32px] min-[380px]:w-[168px] rounded bg-white/5" />
+            <div className="mt-1.5 h-4 flex items-center"><div className="h-3 w-24 rounded bg-white/5" /></div>
+          </div>
+          <div className="flex flex-col items-end gap-1">
+            <div className="h-7 w-32 rounded-full bg-white/5" />
+            <div className="h-4 flex items-center"><div className="h-3 w-16 rounded bg-white/5" /></div>
+          </div>
+        </div>
+        <div className="grow h-10 rounded-lg bg-white/5" style={{ minWidth: ctaWidth }} />
+      </div>
+    );
+  }
+
+  const end = boardData.end_date ? new Date(boardData.end_date).getTime() : null;
+  const start = boardData.start_date ? new Date(`${boardData.start_date}T00:00:00Z`).getTime() : null;
+  const now = Date.now();
+  const daysLeft = end ? Math.max(0, Math.ceil((end - now) / DAY_MS)) : null;
+  const elapsed = end && start && end > start ? Math.min(1, Math.max(0, (now - start) / (end - start))) : null;
+
+  const cta = authLoading || (user && rows === null)
+    ? null
+    : !user
+      ? { to: '/login', label: 'Join the hunt' }
+      : me
+        ? { to: '/upload', label: 'Submit' }
+        : { to: '/upload', label: 'Submit your first catch' };
 
   return (
-    <Panel className="p-4 flex items-center gap-3 min-w-0">
-      <div className="min-w-0 flex-1">
-        <div className="text-sm font-semibold truncate" style={{ color: TEXT.strong }} title={name}>{name}</div>
-        <div className="text-xs" style={{ color: TEXT.muted }}>Not on the board yet</div>
+    // Month + hunters are one unbreakable row; the button joins it when there is
+    // room and otherwise wraps below. flex-grow 999 vs 1: on a shared line the
+    // spare width goes to the month row, alone on its line the button fills it.
+    <div className="flex flex-wrap items-center gap-x-4 gap-y-3 mb-4 min-w-0">
+      <div className="flex items-center justify-between gap-4 whitespace-nowrap" style={{ flexGrow: 999 }}>
+       <div>
+        <h2 className="text-xl min-[380px]:text-2xl font-bold leading-tight" style={{ color: TEXT.strong }}>{boardData.month}</h2>
+        {daysLeft !== null && (
+          <div className="mt-1.5 flex items-center gap-2">
+            {elapsed !== null && (
+              <div className="h-1 w-16 rounded-full overflow-hidden shrink-0" style={{ background: 'rgba(255,255,255,0.08)' }}>
+                <div className="h-full w-full rounded-full origin-left"
+                     style={{ transform: `scaleX(${elapsed})`, background: daysLeft <= 3 ? SEMANTIC.warn.base : ACCENT.base }} />
+              </div>
+            )}
+            <span className="text-xs tabular-nums" style={{ color: daysLeft <= 3 ? SEMANTIC.warn.base : TEXT.muted }}>
+              {daysLeft <= 1 ? 'Last day' : `${daysLeft} days left`}
+            </span>
+          </div>
+        )}
+       </div>
+        {rows !== null && <HunterFaces rows={rows} />}
       </div>
-      <Link to="/upload" className="shrink-0 rounded-lg px-3 py-2 text-xs font-semibold transition-colors"
-            style={{ background: ACCENT.strong, color: TEXT.strong, lineHeight: 1.25 }}
-            onMouseEnter={e => { e.currentTarget.style.background = ACCENT.base; }}
-            onMouseLeave={e => { e.currentTarget.style.background = ACCENT.strong; }}>
-        Submit
-      </Link>
-    </Panel>
+
+      {cta ? (
+        <Link to={cta.to}
+              className="grow flex items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-semibold transition-colors"
+              style={{ background: ACCENT.strong, color: TEXT.strong }}
+              onMouseEnter={e => { e.currentTarget.style.background = ACCENT.base; }}
+              onMouseLeave={e => { e.currentTarget.style.background = ACCENT.strong; }}>
+          {cta.to === '/upload' && <UploadGlyph />}
+          {cta.label}
+        </Link>
+      ) : (
+        <div className="grow h-10 rounded-lg bg-white/5 animate-pulse" style={{ minWidth: ctaWidth }} />
+      )}
+    </div>
   );
 };
 
@@ -499,23 +626,9 @@ const Home = () => {
     };
   }, [boardData, rows, user]);
 
-  const showPrompt = rows !== null && !d.me;
-
   return (
     <main className="px-4 sm:px-6 min-[930px]:px-8 py-5 space-y-5">
       <BannerBar />
-
-      {/* Mobile only. On desktop this card sits at the top of the rail, level
-          with the board — "you" and "the month" are peers. Stacking flattens
-          that into a queue and buries the Submit action ~900px down, so on a
-          phone the card is hoisted above the board to restore the pairing.
-          Rendered twice with complementary visibility because CSS order cannot
-          lift a child out of the aside. */}
-      {showPrompt && (
-        <div className="min-[930px]:hidden">
-          <FirstCatchPrompt show />
-        </div>
-      )}
 
       {/* Breakpoint is 930px, NOT Tailwind's xl (1280). The target is a browser
           snapped to half of a 1920px monitor — by far the most common desktop
@@ -547,10 +660,7 @@ const Home = () => {
              960px viewport -> board 498, rail 378
             1600px viewport -> board 740, rail 480   (was board 700, rail 520)
 
-          Every `min-[930px]:` in this file is part of that one decision,
-          including the `min-[930px]:hidden` above — FirstCatchPrompt renders
-          twice with complementary visibility, so if the two ever disagree it
-          shows up twice.
+          Every `min-[930px]:` in this file is part of that one decision.
 
           Width goes to the BOARD, not the rail. Letting the rail take the
           leftover looked right at 1440 and broke at 2400: a ~600px leaderboard
@@ -571,7 +681,14 @@ const Home = () => {
             in DESIGN.md; promoted grid items would otherwise blow out. */}
         <div className="min-w-0 max-[929px]:contents min-[930px]:space-y-5">
           <Panel className="p-4 sm:p-6 overflow-hidden">
+            {/* Same 712px column as the grid, so the bar's edges line up with it. */}
+            {boardError !== 'no_month' && (
+              <div className="mx-auto" style={{ maxWidth: 712 }}>
+                <BoardBar boardData={boardData} rows={rows} me={d.me} />
+              </div>
+            )}
             <BingoBoard
+              hideTitle
               data={boardData}
               error={boardError}
               hideAchievements
@@ -609,35 +726,25 @@ const Home = () => {
             leaderboard simply gets shorter. */}
         <div className="min-w-0 w-full min-[930px]:relative">
         <aside className="min-w-0 w-full grid grid-cols-1 sm:grid-cols-2 min-[930px]:grid-cols-1 min-[930px]:flex min-[930px]:flex-col gap-5 items-start min-[930px]:items-stretch min-[930px]:absolute min-[930px]:inset-0 min-[930px]:overflow-hidden">
-          {/* Rendered only when it has content: an empty wrapper is still a
-              flex child, and the rail's gap-5 was offsetting every panel by
-              20px against the board column. */}
-          {showPrompt && (
-            <div className="hidden min-[930px]:block">
-              <FirstCatchPrompt show />
-            </div>
-          )}
-          {/* Explicit placement below xl. Left as auto-flow, the short ladder
-              sat beside the tall leaderboard and Streamers was stranded alone
-              on a second row. Stacking ladder + streamers in column one against
-              a row-spanning leaderboard balances the two columns.
-              `min-[930px]:contents` dissolves these wrappers at xl so the panels are
-              direct flex children of the rail again and the leaderboard's
-              flex-1 still resolves. */}
-          <div className="sm:col-start-1 sm:row-start-1 min-[930px]:contents"><BadgeLadder /></div>
-          {/* The cap is load-bearing, not cosmetic. A flex child's natural
-              content height still feeds grid row sizing, so without max-h a
-              24-row All Time list grew this panel to 1785px, stretched the grid
-              row to 2326px and dragged the BOARD column to match, leaving a
-              huge gap under the board. min-h-0 lets it shrink; max-h stops it
-              driving the row. 520px is sized from the column it sits beside:
-              board ~810 + bounties ~200 + gap, minus the rail's fixed cards. */}
-          <div className="sm:col-start-2 sm:row-start-1 sm:row-span-2 min-w-0 min-[930px]:contents">
-          <Panel className="p-4 h-[440px] min-[930px]:h-auto min-[930px]:flex-1 min-[930px]:min-h-0 flex flex-col overflow-hidden">
+          {/* 640-929: the desktop rule, two-up. Leaderboard on the left
+              spanning both rows; Upcoming Badges over Streamers on the right.
+              The leaderboard's wrapper stretches across those two rows and the
+              panel is absolute inside it, so — exactly like the desktop rail —
+              it contributes nothing to row sizing: the right-hand stack sets
+              the height and the leaderboard fills it, both columns ending
+              flush. It used to be a fixed h-[440px], which never matched the
+              stack beside it and left a hole under whichever side was shorter.
+              Below 640 it's one column and the 440 stands.
+              `min-[930px]:contents` dissolves these wrappers on desktop so the
+              panels are direct flex children of the rail and flex-1 resolves;
+              `min-[930px]:static` undoes the absolute there. */}
+          <div className="sm:col-start-1 sm:row-start-1 sm:row-span-2 sm:self-stretch sm:relative min-w-0 min-[930px]:contents">
+          <Panel className="p-4 h-[440px] sm:h-auto sm:absolute sm:inset-0 min-[930px]:static min-[930px]:flex-1 min-[930px]:min-h-0 flex flex-col overflow-hidden">
             <Leaderboard pinSelf />
           </Panel>
           </div>
-          <div className="sm:col-start-1 sm:row-start-2 min-[930px]:contents"><LiveNow /></div>
+          <div className="sm:col-start-2 sm:row-start-1 min-w-0 min-[930px]:contents"><BadgeLadder /></div>
+          <div className="sm:col-start-2 sm:row-start-2 min-w-0 min-[930px]:contents"><LiveNow /></div>
         </aside>
         </div>
       </div>

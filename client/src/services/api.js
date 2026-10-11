@@ -1,4 +1,5 @@
 import { supabase } from '../contexts/AuthContext';
+import { devAuthHeader } from '../devView';
 
 const API_BASE_URL = '/api';
 
@@ -8,10 +9,10 @@ export const getAuthHeaders = async () => {
     'Content-Type': 'application/json'
   };
 
-  // Development only: send the dev bypass token recognised by the API
-  if (import.meta.env.DEV &&
-      (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')) {
-    headers['Authorization'] = 'Bearer dev_token';
+  // Development only: the dev bypass token for the current "view as" (see devView.js)
+  const dev = devAuthHeader();
+  if (dev !== undefined) {
+    if (dev) headers['Authorization'] = dev;
     return headers;
   }
 

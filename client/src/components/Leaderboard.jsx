@@ -4,6 +4,7 @@ import { api } from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
 import AchievementIcon from './AchievementIcon';
 import ReconnectingPill from './ReconnectingPill';
+import { profileLink } from '../utils/profileLink';
 
 // Whether the device supports true hover (desktop). Evaluated once.
 const CAN_HOVER = typeof window !== 'undefined'
@@ -427,7 +428,7 @@ const Leaderboard = ({ pinSelf = false }) => {
                 >
                   {/* Stretched link overlay: makes the whole row a real anchor (open-in-new-tab, right-click) while keeping nested links like Twitch clickable via higher z-index */}
                   <Link
-                    to={`/profile/${user.user_id}`}
+                    {...profileLink(user.user_id, user.display_name)}
                     draggable={false}
                     className="absolute inset-0 z-0"
                     aria-label={`View ${user.display_name}'s profile`}

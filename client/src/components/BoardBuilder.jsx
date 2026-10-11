@@ -8,6 +8,7 @@ import PageBackground from './PageBackground';
 import PageHeader from './PageHeader';
 import PokemonImage from './PokemonImage';
 import { ALLOWED_GAMES } from '../constants/games';
+import { devAuthHeader } from '../devView';
 
 // key -> { label, shortLabel, img }
 const GAME_META = ALLOWED_GAMES.reduce((acc, g) => {
@@ -119,10 +120,8 @@ function GameUtilization({ gameStats, restrictedGameStats, boardMonTotal, dexTot
 }
 
 const getAuthHeader = async () => {
-  if (import.meta.env.DEV &&
-      (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')) {
-    return 'Bearer dev_token';
-  }
+  const dev = devAuthHeader();
+  if (dev !== undefined) return dev;
   const { data: { session } } = await supabaseClient.auth.getSession();
   return `Bearer ${session?.access_token}`;
 };

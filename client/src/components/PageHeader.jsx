@@ -1,4 +1,4 @@
-import { useContext, useEffect } from 'react';
+import { useContext, useLayoutEffect } from 'react';
 import { PageTitleContext } from '../contexts/PageTitleContext';
 
 /**
@@ -18,7 +18,9 @@ import { PageTitleContext } from '../contexts/PageTitleContext';
 const PageHeader = ({ title, subtitle, badge, completion }) => {
   const { setPageMeta } = useContext(PageTitleContext);
 
-  useEffect(() => {
+  // Layout effect so the bar updates before the page's first paint, not one
+  // frame after (which showed the previous page's title on a skeleton).
+  useLayoutEffect(() => {
     setPageMeta({
       title: title ?? '',
       badge: badge ?? null,

@@ -1,7 +1,55 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { buildVariants } from '../utils/pokemonImageUtils';
 
-const AUTO_CYCLE_MS = 3000;
+const AUTO_CYCLE_MS = 4500;
+const REDUCED_CYCLE_MS = 6000;
+const FADE_MS = 500;
+
+const REDUCED_MOTION_QUERY = '(prefers-reduced-motion: reduce)';
+
+const usePrefersReducedMotion = () => {
+  const [reduced, setReduced] = useState(
+    () => typeof window !== 'undefined' && window.matchMedia?.(REDUCED_MOTION_QUERY).matches
+  );
+  useEffect(() => {
+    const mq = window.matchMedia?.(REDUCED_MOTION_QUERY);
+    if (!mq) return;
+    const onChange = () => setReduced(mq.matches);
+    mq.addEventListener('change', onChange);
+    return () => mq.removeEventListener('change', onChange);
+  }, []);
+  return reduced;
+};
+
+// One timer per period, shared by every tile, aligned to the wall clock. All
+// multi-form tiles change in the same frame, and a tile mounted later (e.g.
+// scrolling the Pokédex) joins the next beat instead of starting its own.
+const beats = new Map(); // period -> { listeners: Set, timeoutId }
+
+const subscribeToBeat = (period, fn) => {
+  let beat = beats.get(period);
+  if (!beat) {
+    beat = { listeners: new Set(), timeoutId: null };
+    beats.set(period, beat);
+    const schedule = () => {
+      let delay = period - (Date.now() % period);
+      if (delay < 50) delay += period; // a late fire must not double-tick
+      beat.timeoutId = setTimeout(() => {
+        beat.listeners.forEach(l => l());
+        schedule();
+      }, delay);
+    };
+    schedule();
+  }
+  beat.listeners.add(fn);
+  return () => {
+    beat.listeners.delete(fn);
+    if (beat.listeners.size === 0) {
+      clearTimeout(beat.timeoutId);
+      beats.delete(period);
+    }
+  };
+};
 
 const PokemonImage = ({ pokemon, className = '', disableCycling = false }) => {
   const variants = useMemo(() => buildVariants(pokemon), [pokemon?.national_dex_id]);
@@ -10,6 +58,7 @@ const PokemonImage = ({ pokemon, className = '', disableCycling = false }) => {
   const [prevIdx, setPrevIdx] = useState(null);
   const [loaded, setLoaded] = useState(false);
   const imgRef = useRef(null);
+  const reducedMotion = usePrefersReducedMotion();
 
   // Reset state when pokemon changes
   useEffect(() => {
@@ -25,17 +74,26 @@ const PokemonImage = ({ pokemon, className = '', disableCycling = false }) => {
     }
   }, [pokemon?.national_dex_id]);
 
-  // Auto-cycle when multiple variants exist
+  // Warm every form so the incoming sprite is decoded before it fades in —
+  // otherwise the first pass of a crossfade dips to an empty frame.
   useEffect(() => {
     if (variants.length <= 1 || disableCycling) return;
-    const id = setInterval(() => {
+    variants.slice(1).forEach(v => { const img = new Image(); img.src = v.url; });
+  }, [pokemon?.national_dex_id, variants.length, disableCycling]);
+
+  // Auto-cycle when multiple variants exist, on the shared beat so the whole
+  // page changes at once and is still in between. Reduced motion: hard swap
+  // (no fade), less often.
+  useEffect(() => {
+    if (variants.length <= 1 || disableCycling) return;
+    const period = reducedMotion ? REDUCED_CYCLE_MS : AUTO_CYCLE_MS;
+    return subscribeToBeat(period, () => {
       setCurrentIdx(prev => {
-        setPrevIdx(prev);
+        if (!reducedMotion) setPrevIdx(prev);
         return (prev + 1) % variants.length;
       });
-    }, AUTO_CYCLE_MS);
-    return () => clearInterval(id);
-  }, [pokemon?.national_dex_id, variants.length, disableCycling]);
+    });
+  }, [pokemon?.national_dex_id, variants.length, disableCycling, reducedMotion]);
 
   if (!pokemon?.national_dex_id) {
     return <div className={className} style={{ background: '#1f2937' }} />;
@@ -70,7 +128,7 @@ const PokemonImage = ({ pokemon, className = '', disableCycling = false }) => {
             alt=""
             draggable={false}
             className="absolute w-full h-full object-contain block"
-            style={{ animation: 'pokeSlideOut 0.4s ease-in-out forwards' }}
+            style={{ animation: `pokeFadeOut ${FADE_MS}ms ease-in-out forwards` }}
             onAnimationEnd={() => setPrevIdx(null)}
           />
         )}
@@ -81,7 +139,7 @@ const PokemonImage = ({ pokemon, className = '', disableCycling = false }) => {
           draggable={false}
           className="w-full h-full object-contain block"
           style={{
-            animation: prev ? 'pokeSlideIn 0.4s ease-in-out forwards' : undefined,
+            animation: prev ? `pokeFadeIn ${FADE_MS}ms ease-in-out forwards` : undefined,
             verticalAlign: 'top',
             opacity: loaded ? 1 : 0,
             transition: loaded ? 'opacity 0.15s ease' : 'none',
@@ -90,13 +148,13 @@ const PokemonImage = ({ pokemon, className = '', disableCycling = false }) => {
         />
       </div>
       <style>{`
-        @keyframes pokeSlideOut {
-          from { transform: translateX(0);     opacity: 1; }
-          to   { transform: translateX(-100%); opacity: 0; }
+        @keyframes pokeFadeOut {
+          from { opacity: 1; }
+          to   { opacity: 0; }
         }
-        @keyframes pokeSlideIn {
-          from { transform: translateX(100%); opacity: 0; }
-          to   { transform: translateX(0);    opacity: 1; }
+        @keyframes pokeFadeIn {
+          from { opacity: 0; }
+          to   { opacity: 1; }
         }
         @keyframes pokeShimmer {
           0%   { background-position: 200% 0; }

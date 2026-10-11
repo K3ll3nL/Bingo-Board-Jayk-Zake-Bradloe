@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../services/api';
+import { useAuth } from '../contexts/AuthContext';
 import PokemonImage from './PokemonImage';
 import { GRADIENT, BORDER } from '../constants/theme';
 import { TIER_COLORS } from '../constants/tierColors';
@@ -68,12 +69,24 @@ const Figure = ({ value, unit, muted }) => (
   </div>
 );
 
-const CardSkeleton = () => (
+// Compact skeletons reserve the exact body height the card will load into
+// (`body` px, measured). On the home page these cards set the left column's
+// height, the rail stretches to that column, and the leaderboard is the rail's
+// flex-1 — so a skeleton that is taller than its content makes the leaderboard
+// visibly shrink when each card lands. Measured bodies: Figure 21 (the
+// figure line, with or without "/ N"), Tier List mon row 36, signed-out
+// Pokédex lines 40.
+const CardSkeleton = ({ compact, body, avatar = false }) => (compact ? (
+  <div className="flex items-center gap-2 animate-pulse" style={{ height: body }}>
+    {avatar && <div className="w-7 h-7 rounded-lg bg-white/5 shrink-0" />}
+    <div className="h-4 w-16 rounded bg-white/5" />
+  </div>
+) : (
   <div className="space-y-2 animate-pulse">
     <div className="h-3 w-24 rounded bg-white/5" />
     <div className="h-6 w-16 rounded bg-white/5" />
   </div>
-);
+));
 
 const MonthStatsTeaser = ({ compact }) => {
   const [state, setState] = useState({ loading: true, catches: null });
@@ -88,7 +101,7 @@ const MonthStatsTeaser = ({ compact }) => {
 
   return (
     <TeaserShell to="/stats" label="Month Stats" compact={compact}>
-      {state.loading ? <CardSkeleton /> : compact ? (
+      {state.loading ? <CardSkeleton compact={compact} body={21} /> : compact ? (
         <Figure value={state.catches ?? '—'} unit="shinies" />
       ) : (
         <>
@@ -122,7 +135,7 @@ const TierListTeaser = ({ compact }) => {
 
   return (
     <TeaserShell to="/tier-list" label="Tier List" compact={compact}>
-      {state.loading ? <CardSkeleton /> : state.mon ? (
+      {state.loading ? <CardSkeleton compact={compact} body={36} avatar /> : state.mon ? (
         <div className="flex items-center gap-2 min-w-0">
           <div
             className={`${compact ? 'w-7 h-7' : 'w-9 h-9'} shrink-0 rounded-lg overflow-hidden border`}
@@ -148,6 +161,7 @@ const TierListTeaser = ({ compact }) => {
 // Opt-in fourth card. v1 and v2 render the original three, so this is gated
 // behind a prop rather than changing their layout underneath them.
 const PokedexTeaser = ({ compact }) => {
+  const { user, loading: authLoading } = useAuth();
   const [state, setState] = useState({ loading: true, caught: null, appeared: null });
 
   useEffect(() => {
@@ -161,7 +175,7 @@ const PokedexTeaser = ({ compact }) => {
 
   return (
     <TeaserShell to="/pokedex" label="Pokédex" compact={compact}>
-      {state.loading ? <CardSkeleton /> : state.caught != null && state.appeared ? (
+      {state.loading ? <CardSkeleton compact={compact} body={!authLoading && !user ? 40 : 21} /> : state.caught != null && state.appeared ? (
         compact ? (
           <Figure value={state.caught} muted={` / ${state.appeared}`} unit="seen" />
         ) : (

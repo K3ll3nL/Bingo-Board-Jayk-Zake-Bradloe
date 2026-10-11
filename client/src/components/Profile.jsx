@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { useNavigate, useParams, useSearchParams, Link } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams, useLocation, Link } from 'react-router-dom';
 import PokemonModal from './PokemonModal';
 import PokemonImage from './PokemonImage';
 import ProfileBadges from './ProfileBadges';
@@ -12,6 +12,8 @@ import PageBackground from './PageBackground';
 import PageHeader from './PageHeader';
 import ReconnectingPill from './ReconnectingPill';
 import { getAuthHeaders, api } from '../services/api';
+import { useRepairedAvatar } from '../services/avatarRepair';
+import { profileLink, profileSlugKey } from '../utils/profileLink';
 
 // Card gradient styles — avoids repeating the strings everywhere
 const CARD = {
@@ -581,9 +583,149 @@ const urlFromHandle = (key, handle) => {
 };
 
 // ── Main ──────────────────────────────────────────────────────
+// Hero avatar. A pulsing disc in the same ring holds the spot while the picture loads
+// (or a dead Discord URL is repaired); if there's still nothing, the hunter's initial in
+// their colour — never the browser's broken-image glyph.
+const ProfileAvatar = ({ url, name, accentColor }) => {
+  const { status, imgProps } = useRepairedAvatar(url);
+  return (
+    <div className={`relative w-16 h-16 sm:w-20 sm:h-20 rounded-full overflow-hidden shadow-2xl flex items-center justify-center ${status === 'loading' ? 'animate-pulse' : ''}`}
+         style={{ background: CARD.inner, outline: `3px solid ${accentColor}`, outlineOffset: '2px' }}>
+      {status === 'failed'
+        ? <span className="text-3xl sm:text-4xl font-extrabold select-none" style={{ color: accentColor }} aria-hidden="true">
+            {(name || '?').charAt(0).toUpperCase()}
+          </span>
+        : <img {...imgProps} alt="" draggable={false}
+               className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-200 ${status === 'loaded' ? '' : 'opacity-0'}`} />}
+    </div>
+  );
+};
+
+// Keyed by the profile's user id so moving between profiles (/profile/A ->
+// /profile/B, or someone else's -> your own) remounts with fresh state. React
+// Router reuses the same instance when only :userId changes, which left the
+// previous user's name in the header until the fetch landed and kept their
+// board in BoardsTab indefinitely.
+//
+// The URL segment is a display name (/profile/Big-Red, see utils/profileLink.js)
+// or, for links shared before names were used, a raw user id. In-app links carry
+// the id as router state, so only a typed/shared URL needs the lookup.
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+const ProfileShell = ({ title, children }) => (
+  <div className="min-h-screen relative" style={{ background: '#0d0f14' }}>
+    <PageHeader title={title} />
+    {children}
+  </div>
+);
+
+const ProfileSkeleton = ({ title, reconnecting }) => (
+  <ProfileShell title={title}>
+    {reconnecting && <ReconnectingPill label="Reconnecting to server…" />}
+    <div className="max-w-7xl mx-auto px-6 py-6 space-y-4 animate-pulse">
+      <div className="h-32 rounded-2xl" style={{ background: CARD.bg, border: `1px solid ${CARD.border}` }} />
+      <div className="flex gap-4">
+        <div className="hidden lg:block w-44 shrink-0 h-48 rounded-xl" style={{ background: CARD.bg }} />
+        <div className="flex-1 space-y-3">
+          <div className="h-40 rounded-xl" style={{ background: CARD.bg }} />
+          <div className="h-48 rounded-xl" style={{ background: CARD.bg }} />
+        </div>
+      </div>
+    </div>
+  </ProfileShell>
+);
+
+const ProfileNotFound = () => (
+  <ProfileShell title="Profile">
+    <div className="min-h-[60vh] flex items-center justify-center text-gray-400">Profile not found</div>
+  </ProfileShell>
+);
+
+// Two accounts share this name: show both, pick by face. Links go to the id URL,
+// which stays put (canonicalising it would land straight back here).
+const ProfileChooser = ({ matches }) => (
+  <ProfileShell title={`${matches[0].display_name}'s Profile`}>
+    <div className="max-w-2xl mx-auto px-4 py-10 grid grid-cols-2 sm:grid-cols-3 gap-3">
+      {matches.map(m => (
+        <Link
+          key={m.id}
+          to={`/profile/${m.id}`}
+          state={{ userId: m.id, displayName: m.display_name }}
+          className="rounded-2xl border p-4 flex flex-col items-center gap-2 min-w-0 transition-colors hover:bg-white/5"
+          style={{ background: CARD.bg, borderColor: CARD.border }}
+        >
+          <div className="w-16 h-16 rounded-full overflow-hidden flex items-center justify-center" style={{ background: CARD.inner }}>
+            {m.avatar_url
+              ? <img src={m.avatar_url} alt="" draggable="false" className="w-full h-full object-cover" />
+              : <span className="text-xl font-bold text-gray-400">{m.display_name.charAt(0)}</span>}
+          </div>
+          <div className="text-sm font-bold text-white truncate max-w-full">{m.display_name}</div>
+          <div className="text-xs text-gray-500">
+            since {new Date(m.created_at).toLocaleDateString(undefined, { month: 'short', year: 'numeric' })}
+          </div>
+        </Link>
+      ))}
+    </div>
+  </ProfileShell>
+);
+
 const Profile = () => {
+  const { user } = useAuth();
+  const { userId: param } = useParams();
+  const location = useLocation();
+  const hint = location.state;
+
+  // Resolvable without a request: own profile, an id URL, or an in-app link
+  // whose state names the id (checked against the URL so stale state can't win).
+  const directId = !param ? null
+    : UUID_RE.test(param) ? param
+    : (hint?.userId && profileSlugKey(hint.displayName) === profileSlugKey(param)) ? hint.userId
+    : null;
+
+  const [lookup, setLookup] = useState({ status: 'idle' });
+  useEffect(() => {
+    if (!param || directId) { setLookup({ status: 'idle' }); return; }
+    let cancelled = false;
+    let timer = null;
+    let attempt = 0;
+    setLookup({ status: 'loading' });
+    const run = () => {
+      fetch(`/api/user-lookup/${encodeURIComponent(param)}`)
+        .then(r => {
+          if (r.status === 404) return { matches: [] };
+          if (!r.ok) throw new Error('transient');
+          return r.json();
+        })
+        .then(({ matches }) => {
+          if (cancelled) return;
+          if (!matches.length) setLookup({ status: 'none' });
+          else if (matches.length === 1) setLookup({ status: 'one', id: matches[0].id });
+          else setLookup({ status: 'many', matches });
+        })
+        .catch(() => {
+          if (cancelled) return;
+          setLookup({ status: 'loading', reconnecting: true });
+          timer = setTimeout(run, Math.min(30000, 5000 * Math.pow(1.5, attempt++)));
+        });
+    };
+    run();
+    return () => { cancelled = true; clearTimeout(timer); };
+  }, [param, directId]);
+
+  const title = hint?.displayName ? `${hint.displayName}'s Profile` : 'Profile';
+  if (!param) return <ProfileView key={user?.id || 'anon'} paramUserId={null} />;
+  if (directId) return <ProfileView key={directId} paramUserId={directId} />;
+  if (lookup.status === 'one') return <ProfileView key={lookup.id} paramUserId={lookup.id} />;
+  if (lookup.status === 'none') return <ProfileNotFound />;
+  if (lookup.status === 'many') return <ProfileChooser matches={lookup.matches} />;
+  return <ProfileSkeleton title={title} reconnecting={lookup.reconnecting} />;
+};
+
+const ProfileView = ({ paramUserId }) => {
   const { user, identities, linkIdentity, unlinkIdentity, refreshIdentities } = useAuth();
-  const { userId: paramUserId } = useParams();
+  const { userId: urlSegment } = useParams();
+  const navigate = useNavigate();
+  const location = useLocation();
   const profileUserId = paramUserId || user?.id;
 
   const [profile, setProfile] = useState(null);
@@ -622,6 +764,7 @@ const Profile = () => {
   const [editingName, setEditingName] = useState(false);
   const [nameForm, setNameForm] = useState('');
   const [nameSaving, setNameSaving] = useState(false);
+  const [nameError, setNameError] = useState(null);
   const badgesAnimationPlayed = useRef(false);
   const [unseenBadgeCount, setUnseenBadgeCount] = useState(0);
   // Badges marked seen this session — shared so hovering in the picker also
@@ -631,6 +774,14 @@ const Profile = () => {
   const [tierListStatus, setTierListStatus] = useState(null); // { ranked, total } — own profile only
 
   const isOwn = !paramUserId || user?.id === paramUserId;
+
+  // PageHeader writes into the app bar and never clears it, so every early
+  // return below must set a title too -- otherwise the bar keeps the previous
+  // page's (often the previous profile's name) until this one loads. Links that
+  // already know the name pass it as router state so the bar is right on the
+  // first frame; direct loads get a neutral title.
+  const hintName = location.state?.displayName;
+  const placeholderTitle = hintName ? `${hintName}'s Profile` : 'Profile';
 
   // Own-profile-only tier-list completion card, sourced from GET /api/tier-list.
   useEffect(() => {
@@ -738,6 +889,25 @@ const Profile = () => {
     return () => { cancelled = true; if (retryTimer.current) clearTimeout(retryTimer.current); };
   }, [profileUserId]);
 
+  // Keep the address bar on the name URL: an old /profile/<uuid> link (or a
+  // rename) is swapped for /profile/<name> in place — but only when the name is
+  // unambiguous, or the URL would resolve to a chooser. Own /profile stays bare.
+  const shownName = profile?.user?.display_name;
+  useEffect(() => {
+    if (!urlSegment || !shownName || !paramUserId) return;
+    const target = profileLink(paramUserId, shownName);
+    if (decodeURIComponent(location.pathname) === decodeURIComponent(target.to)) return;
+    let cancelled = false;
+    fetch(`/api/user-lookup/${encodeURIComponent(profileSlugKey(shownName))}`)
+      .then(r => (r.ok ? r.json() : { matches: [] }))
+      .then(({ matches }) => {
+        if (cancelled || matches.length !== 1 || matches[0].id !== paramUserId) return;
+        navigate({ pathname: target.to, search: location.search }, { replace: true, state: target.state });
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [urlSegment, shownName, paramUserId]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const handleSaveSocials = async () => {
     setSocialSaving(true);
     try {
@@ -762,6 +932,7 @@ const Profile = () => {
 
   const openEditName = () => {
     setNameForm(profile.user.display_name || '');
+    setNameError(null);
     setEditingName(true);
   };
 
@@ -778,38 +949,28 @@ const Profile = () => {
       if (res.ok) {
         setProfile(p => ({ ...p, user: { ...p.user, display_name: nameForm.trim() } }));
         setEditingName(false);
+      } else {
+        const body = await res.json().catch(() => ({}));
+        setNameError(body.error || 'Could not save that name');
       }
-    } catch {}
+    } catch {
+      setNameError('Could not reach the server');
+    }
     setNameSaving(false);
   };
 
   if (loading || (error === 'transient' && !profile)) return (
-    <div className="min-h-screen relative" style={{ background: '#0d0f14' }}>
-      {error === 'transient' && <ReconnectingPill label="Reconnecting to server…" />}
-      <div className="max-w-7xl mx-auto px-6 py-6 space-y-4 animate-pulse">
-        <div className="h-32 rounded-2xl" style={{ background: CARD.bg, border: `1px solid ${CARD.border}` }} />
-        <div className="flex gap-4">
-          <div className="hidden lg:block w-44 shrink-0 h-48 rounded-xl" style={{ background: CARD.bg }} />
-          <div className="flex-1 space-y-3">
-            <div className="h-40 rounded-xl" style={{ background: CARD.bg }} />
-            <div className="h-48 rounded-xl" style={{ background: CARD.bg }} />
-          </div>
-        </div>
-      </div>
-    </div>
+    <ProfileSkeleton title={placeholderTitle} reconnecting={error === 'transient'} />
   );
 
   if (!profileUserId) return (
     <div className="min-h-screen flex items-center justify-center" style={{ background: '#0d0f14' }}>
+      <PageHeader title="Profile" />
       <div className="text-gray-400">Please log in to view your profile</div>
     </div>
   );
 
-  if (error === 'not_found' || !profile) return (
-    <div className="min-h-screen flex items-center justify-center" style={{ background: '#0d0f14' }}>
-      <div className="text-gray-400">Profile not found</div>
-    </div>
-  );
+  if (error === 'not_found' || !profile) return <ProfileNotFound />;
 
   const accentColor = profile.user.hex_code || '#038691';
   const isOwnProfile = !paramUserId || user?.id === paramUserId;
@@ -835,12 +996,7 @@ const Profile = () => {
               {/* Avatar */}
               <div className="relative shrink-0">
                 <div className="absolute inset-0 rounded-full blur-lg opacity-40" style={{ backgroundColor: accentColor, margin: '-6px' }} />
-                {profile.user.avatar_url
-                  ? <img src={profile.user.avatar_url} alt="Avatar"
-                      className="relative w-16 h-16 sm:w-20 sm:h-20 rounded-full shadow-2xl"
-                      style={{ outline: `3px solid ${accentColor}`, outlineOffset: '2px' }} />
-                  : <div className="relative w-16 h-16 sm:w-20 sm:h-20 rounded-full flex items-center justify-center text-3xl text-gray-400"
-                      style={{ background: CARD.inner, outline: `3px solid ${accentColor}`, outlineOffset: '2px' }}>?</div>}
+                <ProfileAvatar url={profile.user.avatar_url} name={profile.user.display_name} accentColor={accentColor} />
               </div>
 
               {/* Identity */}
@@ -1143,18 +1299,21 @@ const Profile = () => {
               <input
                 type="text"
                 value={nameForm}
-                onChange={(e) => setNameForm(e.target.value.slice(0, 50))}
+                onChange={(e) => { setNameForm(e.target.value.slice(0, 24)); setNameError(null); }}
                 placeholder="Enter display name"
-                maxLength={50}
+                maxLength={24}
                 className="w-full px-3 py-2 rounded-lg text-white placeholder-gray-500 transition-colors"
-                style={{ background: CARD.inner, border: `1px solid ${CARD.border}` }}
+                style={{ background: CARD.inner, border: `1px solid ${nameError ? '#f87171' : CARD.border}` }}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') handleSaveName();
                   if (e.key === 'Escape') setEditingName(false);
                 }}
                 autoFocus
               />
-              <p className="text-xs text-gray-500 mt-2">{nameForm.length}/50</p>
+              <div className="flex items-baseline justify-between gap-3 mt-2 text-xs">
+                <span className="text-red-400 min-w-0">{nameError}</span>
+                <span className="text-gray-500 shrink-0">{nameForm.length}/24</span>
+              </div>
             </div>
             <div className="px-6 py-4 border-t flex gap-2 justify-end" style={{ borderColor: CARD.borderSubtle }}>
               <button

@@ -155,6 +155,14 @@ a {
 /* Query container for .hl-grid below. */
 .hl-wrap { container-type: inline-size; }
 
+/* Every row as tall as the tallest. In the 2x2 (home, ~930-1124px) each row
+   otherwise sizes to its own content: Tier List's sprite + two lines made the
+   top row 84px and left the bottom row 69. Not below sm, where the cards stack
+   one per row and equal heights would only pad the short ones. */
+@media (min-width: 640px) {
+  .hl-wrap .hl-grid { grid-auto-rows: 1fr; }
+}
+
 .lb-tabs {
   display: grid;
   grid-auto-flow: column;   /* natural widths, as the old flex row had */

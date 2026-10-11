@@ -4,8 +4,10 @@ import App from './App.jsx'
 import './index.css'
 import './fonts.css'
 import { inject } from '@vercel/analytics'
+import { installAvatarRepair } from './services/avatarRepair'
 
 inject()
+installAvatarRepair()
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>

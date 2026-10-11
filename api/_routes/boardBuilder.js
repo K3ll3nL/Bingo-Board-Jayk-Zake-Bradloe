@@ -39,8 +39,12 @@ module.exports = function register(app) {
       const pad      = n => String(n).padStart(2, '0');
       const monthKey  = `${nYear}-${pad(nMonth)}`;
       const startDate = `${nYear}-${pad(nMonth)}-01`;
-      const lastDay   = new Date(Date.UTC(nYear, nMonth, 0)).getUTCDate();
-      const endDate   = `${nYear}-${pad(nMonth)}-${pad(lastDay)}`;
+      // end_date convention: 1st of the FOLLOWING month at 03:00Z (see CLAUDE.md
+      // "Month Rollover"). The old "last day at 00:00" left the final day of
+      // every month with no active month from 04:00Z on (the Sep 30 outage).
+      const endYear   = nMonth === 12 ? nYear + 1 : nYear;
+      const endMonth  = nMonth === 12 ? 1 : nMonth + 1;
+      const endDate   = `${endYear}-${pad(endMonth)}-01T03:00:00+00:00`;
       const names     = ['January','February','March','April','May','June','July','August','September','October','November','December'];
       const display   = `${names[nMonth - 1]} ${nYear}`;
 

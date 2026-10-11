@@ -3,6 +3,8 @@
  * Registered from api/index.js — see api/API_INDEX.md for the full route map.
  */
 const {
+  DEV_BYPASS,
+  getActiveMonth,
   getAuthenticatedUserId,
   sseAnonymousClients,
   sseClients,
@@ -76,7 +78,7 @@ module.exports = function register(app) {
 
   // Debug endpoint to check database state (dev only)
   app.get('/api/debug/data', async (req, res) => {
-    if (process.env.NODE_ENV === 'production') {
+    if (!DEV_BYPASS) {
       return res.status(404).json({ error: 'Not found' });
     }
     try {
@@ -102,6 +104,44 @@ module.exports = function register(app) {
           error: achievementsError
         }
       });
+    } catch (error) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // DEV ONLY — the real accounts the client's "view as" switcher impersonates
+  // (client/src/devView.js). 404 in production, same guard as the dev_token
+  // middleware in api/index.js.
+  //   hunter   — the highest-scoring non-moderator this month
+  //   newcomer — the most recently joined non-moderator with no points this month
+  app.get('/api/dev/personas', async (req, res) => {
+    if (!DEV_BYPASS) return res.status(404).end();
+    try {
+      const month = await getActiveMonth();
+      const [{ data: mods }, { data: points }] = await Promise.all([
+        supabase.from('moderators').select('id'),
+        month
+          ? supabase.from('user_monthly_points').select('user_id, points')
+              .eq('month_id', month.id).order('points', { ascending: false })
+          : Promise.resolve({ data: [] }),
+      ]);
+      const modIds = new Set((mods || []).map(m => m.id));
+      const scored = new Set((points || []).map(p => p.user_id));
+      const hunterId = (points || []).find(p => p.points > 0 && !modIds.has(p.user_id))?.user_id || null;
+
+      const { data: recent } = await supabase.from('users')
+        .select('id, display_name, avatar_url, created_at')
+        .order('created_at', { ascending: false }).limit(50);
+      const newcomer = (recent || []).find(u => !modIds.has(u.id) && !scored.has(u.id)) || null;
+
+      let hunter = null;
+      if (hunterId) {
+        const { data } = await supabase.from('users')
+          .select('id, display_name, avatar_url').eq('id', hunterId).single();
+        hunter = data || null;
+      }
+      const pick = u => u && { id: u.id, name: u.display_name, avatar_url: u.avatar_url || null };
+      res.json({ hunter: pick(hunter), newcomer: pick(newcomer) });
     } catch (error) {
       res.status(500).json({ error: error.message });
     }

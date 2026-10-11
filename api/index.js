@@ -3,6 +3,7 @@ require('dotenv').config({ path: require('path').join(__dirname, '.env') });
 const express = require('express');
 
 const {
+  DEV_BYPASS,
   DEV_USER_ID,
   cors,
   multer,
@@ -20,6 +21,9 @@ const ALLOWED_ORIGINS = [
   'http://localhost:5173',
   'http://127.0.0.1:5173',
 ];
+// Vercel sits one proxy hop in front; without this req.ip is the proxy's address
+// and express-rate-limit buckets every user together (ERR_ERL_UNEXPECTED_X_FORWARDED_FOR).
+app.set('trust proxy', 1);
 app.use(cors({
   origin: (origin, callback) => {
     // No Origin header (same-origin requests, curl, server-to-server) — allow.
@@ -32,10 +36,13 @@ app.use(express.urlencoded({ limit: '50mb', extended: true })); // Increase URL-
 require('./_routes/internal')(app);
 app.use((req, res, next) => {
   const authHeader = req.headers.authorization;
-  const isDev = process.env.NODE_ENV !== 'production' && DEV_USER_ID && authHeader === 'Bearer dev_token';
-  
+  // `dev_token` is the dev account; `dev_token:<uuid>` impersonates that user
+  // (the client's dev "view as" switcher — client/src/devView.js).
+  const devMatch = /^Bearer dev_token(?::([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}))?$/i.exec(authHeader || '');
+  const isDev = DEV_BYPASS && devMatch;
+
   if (isDev) {
-    req.devUserId = DEV_USER_ID;
+    req.devUserId = devMatch[1] || DEV_USER_ID;
   }
   
   next();

@@ -411,7 +411,8 @@ module.exports = function register(app) {
             username,
             display_name,
             created_at,
-            twitch_url
+            twitch_url,
+            avatar_url
           )
         `)
         .eq('month_id', ACTIVE_MONTH_ID)
@@ -469,6 +470,7 @@ module.exports = function register(app) {
           user_id: entry.user_id,
           username: entry.users.username,
           display_name: entry.users.display_name,
+          avatar_url: entry.users.avatar_url || null,
           points: entry.points,
           pokemon_count: pokemonCounts[entry.user_id] || 0,
           rank: index + 1,

@@ -1,5 +1,5 @@
 /**
- * users routes (8).
+ * users routes (9).
  * Registered from api/index.js — see api/API_INDEX.md for the full route map.
  */
 const {
@@ -8,10 +8,48 @@ const {
   getAuthenticatedUserId,
   isModerator,
   refreshAvatarFromProvider,
+  repairDiscordAvatarMemo,
   supabase,
 } = require('../_lib/core');
 
+// Profile URLs are /profile/<display name, whitespace runs -> '-'>. Two names
+// with the same key share a URL, so the key is what lookup and the rename
+// collision check compare. Must match profileSlug() in client/src/utils/profileLink.js.
+const profileSlugKey = (name) =>
+  String(name || '').normalize('NFC').trim().replace(/\s+/g, '-').toLowerCase();
+
+// Users whose display name maps to `key`. ilike narrows in SQL (each '-' may be a
+// hyphen or whitespace in the stored name, so it becomes '%'); the exact key
+// comparison happens here. Oldest account first, so ordering is stable.
+async function usersBySlugKey(key) {
+  const pattern = key.split('-').map(part => part.replace(/[\\%_]/g, c => `\\${c}`)).join('%');
+  const { data, error } = await supabase
+    .from('users')
+    .select('id, display_name, avatar_url, created_at')
+    .ilike('display_name', pattern)
+    .order('created_at', { ascending: true })
+    .limit(50);
+  if (error) throw error;
+  return (data || []).filter(u => profileSlugKey(u.display_name) === key);
+}
+
 module.exports = function register(app) {
+
+  // Resolve a profile URL's name segment to user ids (public). Usually one match;
+  // several only when two accounts share a name (signup copies the OAuth name, and
+  // nothing in the schema makes display_name unique) — the client shows a picker.
+  app.get('/api/user-lookup/:slug', async (req, res) => {
+    try {
+      const key = profileSlugKey(req.params.slug);
+      if (!key || key.length > 64) return res.status(404).json({ matches: [] });
+      const matches = await usersBySlugKey(key);
+      if (!matches.length) return res.status(404).json({ matches: [] });
+      res.json({ matches });
+    } catch (error) {
+      console.error('Error looking up user by name:', error);
+      res.status(500).json({ error: 'Lookup failed' });
+    }
+  });
 
   // Returns the list of OAuth providers linked to the authenticated user's account.
   // Each entry has: { provider, identity_id, email, created_at }
@@ -48,6 +86,24 @@ module.exports = function register(app) {
     } catch (err) {
       console.error('sync-avatar error:', err.message);
       res.status(500).json({ error: 'Failed to sync avatar' });
+    }
+  });
+
+  // Public self-repair for a dead Discord avatar, keyed by the Discord id in the URL that
+  // failed to load (the client only sees the image src, not our user id). Unauthenticated
+  // on purpose — a signed-out visitor sees broken faces too — and safe: it only ever writes
+  // a URL the server itself fetched, only when the stored one really is dead, and is
+  // memoised per id. See repairDiscordAvatar in _lib/core.js.
+  app.post('/api/avatars/discord/:discordId/repair', async (req, res) => {
+    const { discordId } = req.params;
+    if (!/^\d{15,21}$/.test(discordId)) return res.status(400).json({ error: 'Bad Discord id' });
+    try {
+      const result = await repairDiscordAvatarMemo(discordId);
+      if (!result) return res.status(404).json({ error: 'No user with that avatar' });
+      res.json(result);
+    } catch (err) {
+      console.error('avatar-repair error:', err.message);
+      res.status(500).json({ error: 'Failed to repair avatar' });
     }
   });
 
@@ -193,6 +249,10 @@ module.exports = function register(app) {
       if (trimmedName.length > 24) {
         return res.status(400).json({ error: 'Display name must be 24 characters or less' });
       }
+
+      // The name is the profile URL, so two people can't share one.
+      const taken = (await usersBySlugKey(profileSlugKey(trimmedName))).some(u => u.id !== userId);
+      if (taken) return res.status(409).json({ error: 'That name is already taken' });
 
       const { error } = await supabase.from('users').update({ display_name: trimmedName }).eq('id', userId);
       if (error) throw error;

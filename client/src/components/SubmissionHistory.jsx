@@ -6,12 +6,11 @@ import { supabase } from '../services/supabaseClient';
 import PageBackground from './PageBackground';
 import PageHeader from './PageHeader';
 import PokemonImage from './PokemonImage';
+import { devAuthHeader } from '../devView';
 
 const getAuthHeader = async () => {
-  if (import.meta.env.DEV &&
-      (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')) {
-    return 'Bearer dev_token';
-  }
+  const dev = devAuthHeader();
+  if (dev !== undefined) return dev;
   const { data: { session } } = await supabase.auth.getSession();
   return `Bearer ${session?.access_token}`;
 };
