@@ -376,7 +376,9 @@ const HunterFaces = ({ rows }) => {
             </span>
           ))}
           {extra > 0 && (
-            <span className="w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold tabular-nums"
+            // z-10: the faces' <img> fades in via opacity, which can promote it to its own
+            // layer; without an explicit z-index Opera GX painted the last face over this chip.
+            <span className="relative z-10 w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold tabular-nums"
                   style={{ boxShadow: `0 0 0 2px ${SURFACE.card}`, background: SURFACE.inset, color: TEXT.body }}>
               +{extra}
             </span>
