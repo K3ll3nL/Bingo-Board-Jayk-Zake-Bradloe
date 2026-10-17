@@ -50,7 +50,13 @@ export function describeBadgeCheck(badge) {
     case 'monthly_active_count':       return `Active for ${v} month${v != 1 ? 's' : ''}`;
     case 'type_percentage':            return `Catch ${v}% of ${q} type`;
     case 'generation_percentage':      return `Catch ${v}% of Gen ${q}`;
-    case 'collection_complete':        return v == null || Number(v) >= 100 ? `Complete '${q}' collection` : `Catch ${v}% of '${q}' collection`;
+    case 'collection_complete': {
+      // '<slug>:bonus' counts members caught in their own bonus game.
+      const bonus = String(q ?? '').endsWith(':bonus');
+      const slug = bonus ? String(q).slice(0, -6) : q;
+      const tail = bonus ? ' in their bonus games' : '';
+      return v == null || Number(v) >= 100 ? `Complete '${slug}' collection${tail}` : `Catch ${v}% of '${slug}' collection${tail}`;
+    }
     case 'bingo_achievement_count':    return `Earn ${v} bingo achievement${v != 1 ? 's' : ''}${q && q !== 'any' ? ` (${q})` : ''}`;
     case 'approved_count_in_month':    return `Get ${v} approval${v != 1 ? 's' : ''} in ${q ? `month ${q}` : 'any month'}`;
     case 'approved_count_in_season':   return `Get ${v} approval${v != 1 ? 's' : ''} in ${q ? `season ${q}` : 'any season'}`;

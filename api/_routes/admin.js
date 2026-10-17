@@ -3,6 +3,7 @@
  * Registered from api/index.js — see api/API_INDEX.md for the full route map.
  */
 const {
+  GAME_LABELS,
   broadcastUpdate,
   bustShinyPokemon,
   getAuthenticatedUserId,
@@ -10,6 +11,11 @@ const {
   supabase,
   upload,
 } = require('../_lib/core');
+const { bonusRowsFrom } = require('../_lib/collectionBonus');
+// The evaluator memoises pokemon_master (collection_ids, collection_bonus,
+// shiny_available) for 10 min; every write here that changes those clears it,
+// or the Backlog sims a just-built collection as empty ("unknown qualifier").
+const { forgetData } = require('../_lib/badgeEval');
 
 module.exports = function register(app) {
 
@@ -423,7 +429,8 @@ module.exports = function register(app) {
     }
   });
 
-  // GET /api/admin/collections — all distinct collection slugs with their required_game
+  // GET /api/admin/collections — all distinct collection slugs, with how many
+  // members carry a bonus game (0 = no bonus tier possible for that collection)
   app.get('/api/admin/collections', async (req, res) => {
     try {
       const userId = await getAuthenticatedUserId(req);
@@ -431,53 +438,22 @@ module.exports = function register(app) {
       const mod = await isModerator(userId);
       if (!mod) return res.status(403).json({ error: 'Moderators only' });
 
-      const { data, error } = await supabase
-        .from('pokemon_master')
-        .select('collection_ids')
-        .not('collection_ids', 'eq', '{}');
+      const { data, error } = await supabase.from('pokemon_master')
+        .select('id, collection_ids, collection_bonus').not('collection_ids', 'eq', '{}');
       if (error) throw error;
 
       const slugs = [...new Set((data || []).flatMap(p => p.collection_ids || []))].sort();
+      const bonusCount = {};
+      for (const r of bonusRowsFrom(data)) bonusCount[r.slug] = (bonusCount[r.slug] || 0) + 1;
 
-      // Fetch game filters for all slugs
-      const { data: gameFilters } = await supabase
-        .from('collection_game_filter')
-        .select('slug, required_game')
-        .in('slug', slugs);
-      const gameFilterMap = Object.fromEntries((gameFilters || []).map(g => [g.slug, g.required_game]));
-
-      res.json(slugs.map(slug => ({ slug, required_game: gameFilterMap[slug] ?? null })));
+      res.json(slugs.map(slug => ({ slug, bonus_count: bonusCount[slug] || 0 })));
     } catch (err) {
       res.status(500).json({ error: err.message });
     }
   });
 
-  // PUT /api/admin/collections/:slug/game — set or clear the required game for a collection
-  app.put('/api/admin/collections/:slug/game', async (req, res) => {
-    try {
-      const userId = await getAuthenticatedUserId(req);
-      if (!userId) return res.status(401).json({ error: 'Unauthorized' });
-      const mod = await isModerator(userId);
-      if (!mod) return res.status(403).json({ error: 'Moderators only' });
-
-      const { slug } = req.params;
-      const { required_game } = req.body; // null or a game key string
-
-      if (required_game === null || required_game === undefined || required_game === '') {
-        // Clear the filter
-        await supabase.from('collection_game_filter').delete().eq('slug', slug);
-      } else {
-        await supabase
-          .from('collection_game_filter')
-          .upsert({ slug, required_game }, { onConflict: 'slug' });
-      }
-      res.json({ success: true });
-    } catch (err) {
-      res.status(500).json({ error: err.message });
-    }
-  });
-
-  // GET /api/admin/collections/:slug — all Pokémon tagged with this slug
+  // GET /api/admin/collections/:slug — all Pokémon tagged with this slug, each
+  // with its game_slugs and bonus_games (game keys, [] = none)
   app.get('/api/admin/collections/:slug', async (req, res) => {
     try {
       const userId = await getAuthenticatedUserId(req);
@@ -486,21 +462,65 @@ module.exports = function register(app) {
       if (!mod) return res.status(403).json({ error: 'Moderators only' });
 
       const { slug } = req.params;
-      const [{ data, error }, { data: gameFilter }] = await Promise.all([
-        supabase
-          .from('pokemon_master')
-          .select('id, name, national_dex_id, collection_ids, form_id, forms_count, genderless, custom_gender_code, has_gender_difference, has_major_gender_difference')
-          .contains('collection_ids', [slug])
-          .order('national_dex_id'),
-        supabase
-          .from('collection_game_filter')
-          .select('required_game')
-          .eq('slug', slug)
-          .maybeSingle(),
-      ]);
+      const { data, error } = await supabase
+        .from('pokemon_master')
+        .select('id, name, national_dex_id, collection_ids, collection_bonus, game_slugs, form_id, forms_count, genderless, custom_gender_code, has_gender_difference, has_major_gender_difference')
+        .contains('collection_ids', [slug])
+        .order('national_dex_id');
 
       if (error) throw error;
-      res.json({ members: data || [], required_game: gameFilter?.required_game ?? null });
+      res.json({ members: (data || []).map(({ collection_bonus, ...m }) => ({
+        ...m, bonus_games: Array.isArray(collection_bonus?.[slug]) ? collection_bonus[slug] : [],
+      })) });
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // PUT /api/admin/collections/:slug/pokemon/:pokemonId/bonus — replace a
+  // member's bonus games. Body: { games: [<game key>, ...] } ([] clears)
+  app.put('/api/admin/collections/:slug/pokemon/:pokemonId/bonus', async (req, res) => {
+    try {
+      const userId = await getAuthenticatedUserId(req);
+      if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+      const mod = await isModerator(userId);
+      if (!mod) return res.status(403).json({ error: 'Moderators only' });
+
+      const { slug } = req.params;
+      const pokemonId = Number(req.params.pokemonId);
+      if (!Number.isInteger(pokemonId)) return res.status(400).json({ error: 'Bad Pokémon id' });
+      const games = req.body?.games;
+      if (!Array.isArray(games) || games.some(g => typeof g !== 'string')) {
+        return res.status(400).json({ error: 'games must be an array of game keys' });
+      }
+      const unique = [...new Set(games)];
+      const unknown = unique.find(g => !GAME_LABELS[g]);
+      if (unknown) return res.status(400).json({ error: `Unknown game '${unknown}'` });
+
+      const { data: pokemon, error: fetchErr } = await supabase
+        .from('pokemon_master')
+        .select('id, name, collection_ids, collection_bonus, game_slugs')
+        .eq('id', pokemonId)
+        .maybeSingle();
+      if (fetchErr) throw fetchErr;
+      if (!pokemon) return res.status(404).json({ error: 'Pokémon not found' });
+      if (!(pokemon.collection_ids || []).includes(slug)) {
+        return res.status(400).json({ error: `${pokemon.name} is not in '${slug}'` });
+      }
+      const missing = unique.find(g => !(pokemon.game_slugs || []).includes(g));
+      if (missing) {
+        return res.status(400).json({ error: `${pokemon.name} isn't available in ${GAME_LABELS[missing]}` });
+      }
+
+      // Keep games in ALLOWED_GAMES order so the stored list is stable
+      const ordered = Object.keys(GAME_LABELS).filter(k => unique.includes(k));
+      const { [slug]: _old, ...rest } = pokemon.collection_bonus || {};
+      const { error } = await supabase.from('pokemon_master')
+        .update({ collection_bonus: ordered.length ? { ...rest, [slug]: ordered } : rest })
+        .eq('id', pokemonId);
+      if (error) throw error;
+      forgetData();
+      res.json({ success: true, bonus_games: ordered });
     } catch (err) {
       res.status(500).json({ error: err.message });
     }
@@ -534,6 +554,7 @@ module.exports = function register(app) {
         .eq('id', pokemonId);
 
       if (updateErr) throw updateErr;
+      forgetData();
       res.status(200).json({ success: true });
     } catch (err) {
       res.status(500).json({ error: err.message });
@@ -552,18 +573,21 @@ module.exports = function register(app) {
 
       const { data: pokemon, error: fetchErr } = await supabase
         .from('pokemon_master')
-        .select('id, collection_ids')
+        .select('id, collection_ids, collection_bonus')
         .eq('id', pokemonId)
         .single();
 
       if (fetchErr || !pokemon) return res.status(404).json({ error: 'Pokémon not found' });
 
+      // A non-member can't carry bonus games, so they go in the same write
+      const { [slug]: _gone, ...bonus } = pokemon.collection_bonus || {};
       const { error: updateErr } = await supabase
         .from('pokemon_master')
-        .update({ collection_ids: (pokemon.collection_ids || []).filter(c => c !== slug) })
+        .update({ collection_ids: (pokemon.collection_ids || []).filter(c => c !== slug), collection_bonus: bonus })
         .eq('id', pokemonId);
 
       if (updateErr) throw updateErr;
+      forgetData();
       res.status(200).json({ success: true });
     } catch (err) {
       res.status(500).json({ error: err.message });
@@ -641,6 +665,7 @@ module.exports = function register(app) {
       // than merely correct eventually. Must stay next to the update: if
       // another endpoint ever starts writing these columns, it needs this too.
       bustShinyPokemon();
+      forgetData();
 
       // Real-time fan-out to other mods on the Game Manager. editor_id lets the
       // sender's own client ignore its own echo so it can't stomp on in-flight typing.

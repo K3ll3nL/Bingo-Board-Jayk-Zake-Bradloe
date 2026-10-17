@@ -137,32 +137,7 @@ const pokeR2Url = (national_dex_id) => {
 const POKEMON_IMAGE_FIELDS = 'id, name, display_name, national_dex_id, genderless, has_gender_difference, has_major_gender_difference, custom_gender_code, forms_count, form_id';
 
 // Game label lookup for /api/stats/month's catches_by_game breakdown.
-// Mirrors client/src/constants/games.js — duplicated here because that file is
-// an ES module and this file is CommonJS. Keep labels in sync if games.js changes.
-const GAME_LABELS = {
-  firered_leafgreen: 'Pokémon FireRed / LeafGreen',
-  legends_za: 'Pokémon Legends: Z-A',
-  scarlet_violet: 'Pokémon Scarlet / Violet',
-  legends_arceus: 'Pokémon Legends: Arceus',
-  brilliant_diamond_shining_pearl: 'Pokémon Brilliant Diamond / Shining Pearl',
-  sword_shield: 'Pokémon Sword / Shield',
-  lets_go_pikachu_eevee: 'Pokémon Lets Go Pikachu / Eevee',
-  ultra_sun_ultra_moon: 'Pokémon Ultra Sun / Ultra Moon',
-  sun_moon: 'Pokémon Sun / Moon',
-  omega_ruby_alpha_sapphire: 'Pokémon Omega Ruby / Alpha Sapphire',
-  x_y: 'Pokémon X / Y',
-  black2_white2: 'Pokémon Black 2 / White 2',
-  black_white: 'Pokémon Black / White',
-  heartgold_soulsilver: 'Pokémon HeartGold / SoulSilver',
-  platinum: 'Pokémon Platinum',
-  diamond_pearl: 'Pokémon Diamond / Pearl',
-  emerald: 'Pokémon Emerald',
-  ruby_sapphire: 'Pokémon Ruby / Sapphire',
-  crystal: 'Pokémon Crystal',
-  gold_silver: 'Pokémon Gold / Silver',
-  yellow: 'Pokémon Yellow',
-  red_blue: 'Pokémon Red / Blue',
-};
+const { GAME_LABELS, resolveGame } = require('./games');
 
 // Valid tier_list_submissions.tiers values. Per gan-harness/spec.md (and its
 // source plan .claude/plans/tidy-wandering-pascal.md) these are difficulty
@@ -2090,6 +2065,7 @@ module.exports = {
   DEV_USER_ID,
   FLABEBE_FORM_INDEX,
   GAME_LABELS,
+  resolveGame,
   LEADERBOARD_CACHE_TTL,
   MODERATOR_CACHE_TTL,
   isModerator,

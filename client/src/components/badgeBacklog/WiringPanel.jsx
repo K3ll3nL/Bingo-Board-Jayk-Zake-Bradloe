@@ -58,17 +58,10 @@ function Section({ n, title, children }) {
 
 // ── Qualifier inputs, one per check shape ─────────────────────────────────────
 
-function Qualifier({ p, save }) {
+function Qualifier({ p, save, collections }) {
   const [text, setText] = useState(p.check_qualifier || '');
-  const [collections, setCollections] = useState(null);
   const timer = useRef(null);
   useEffect(() => setText(p.check_qualifier || ''), [p.check_qualifier, p.check_type]);
-  useEffect(() => {
-    if (p.check_type !== 'collection_complete' || collections) return;
-    api('/api/admin/collections')
-      .then(d => setCollections((d || []).map(x => (typeof x === 'string' ? x : x.slug))))
-      .catch(() => setCollections([]));
-  }, [p.check_type, collections]);
   const debounced = (v) => { setText(v); clearTimeout(timer.current); timer.current = setTimeout(() => save({ check_qualifier: v }), 500); };
   const q = p.check_qualifier || '';
 
@@ -99,7 +92,12 @@ function Qualifier({ p, save }) {
       return (
         <div className="flex flex-wrap gap-1.5">
           {collections == null && <span className="h-8 w-40 rounded-lg bg-white/[0.04] animate-pulse" />}
-          {collections?.map(s => <Tile key={s} active={q === s} icon="layers" onClick={() => save({ check_qualifier: s })}>{s}</Tile>)}
+          {collections?.map(c => (
+            <Tile key={c.slug} active={q === c.slug} icon="layers" onClick={() => save({ check_qualifier: c.slug })}>
+              {c.slug}
+              {c.bonus_count > 0 && <span className="ml-1.5 text-[11px] font-semibold text-amber-400 tabular-nums" title={`${c.bonus_count} bonus games set`}>★{c.bonus_count}</span>}
+            </Tile>
+          ))}
           {collections?.length === 0 && <span className="text-xs text-gray-500">No collections yet (Collections tab)</span>}
         </div>
       );
@@ -165,7 +163,22 @@ function BingoGlyph({ type, on }) {
 
 // ── Histogram with tier markers ───────────────────────────────────────────────
 
-function Histogram({ p }) {
+// A tier's own toggles, on its count chip: Bonus (collection checks — counts the
+// collection's bonus catches instead) and Secret (publishes as a hidden badge).
+function TierFlag({ on, icon, color, title, onClick, disabled }) {
+  return (
+    <button type="button" onClick={onClick} disabled={disabled} title={title} aria-pressed={on}
+      className={`w-6 h-6 rounded-md flex items-center justify-center border transition-colors disabled:opacity-25 disabled:cursor-not-allowed ${on ? '' : 'border-white/10 text-gray-500 hover:text-white hover:border-white/25'}`}
+      style={on ? { borderColor: color, background: `${color}26`, color } : undefined}>
+      <Icon name={icon} size={13} />
+    </button>
+  );
+}
+
+const BONUS_COLOR = '#fbbf24';
+const SECRET_COLOR = '#a78bfa';
+
+function Histogram({ p, collections, save }) {
   const sim = p.sim;
   if (!sim) return null;
   if (!sim.evaluable) {
@@ -175,6 +188,8 @@ function Histogram({ p }) {
   const total = sim.total_users || 0;
   const percent = PERCENT_CHECKS.has(p.check_type);
   const tiers = p.tiers.filter(t => !t.badge_id);
+  const isCollection = p.check_type === 'collection_complete' && !!p.check_qualifier;
+  const bonusCount = collections?.find(c => c.slug === p.check_qualifier)?.bonus_count ?? 0;
   const upTo = Math.max(percent ? 100 : 0, ...tiers.map(t => Number(t.threshold) || 0));
   const { bars, min, max, width } = histogram(sim, 40, sim.direction === 'lte' ? 0 : upTo);
   const fmt = (v) => `${Math.round(v * 10) / 10}${percent ? '%' : ''}`;
@@ -191,7 +206,7 @@ function Histogram({ p }) {
                 style={{ height: `${Math.max(b.count ? 4 : 0, (b.count / peak) * 100)}%` }} />
             ))}
           </div>
-          {tiers.map(t => t.threshold != null && Number(t.threshold) >= min && Number(t.threshold) <= max + width && (
+          {tiers.map(t => !t.bonus && t.threshold != null && Number(t.threshold) >= min && Number(t.threshold) <= max + width && (
             <div key={t.id} className="absolute top-0 bottom-0 pointer-events-none" style={{ left: `${pct(Number(t.threshold))}%` }}>
               <div className="absolute top-0 -translate-x-1/2 text-[10px] font-bold tabular-nums px-1 rounded" style={{ background: TIER_COLORS[(t.tier_order - 1) % TIER_COLORS.length], color: '#111' }}>
                 {fmt(Number(t.threshold))}
@@ -206,14 +221,28 @@ function Histogram({ p }) {
       <div className="flex flex-wrap gap-2">
         {tiers.map(t => {
           const color = TIER_COLORS[(t.tier_order - 1) % TIER_COLORS.length];
-          const n = countAt(sim, t.threshold);
+          const bonus = isCollection && t.bonus;
+          const n = countAt(bonus ? p.bonus_sim : sim, t.threshold);
           return (
-            <div key={t.id} className="flex items-center gap-2 rounded-lg px-2.5 py-1.5 border min-w-0" style={{ borderColor: `${color}44` }}>
+            <div key={t.id} className="flex items-center gap-2 rounded-lg pl-2.5 pr-1.5 py-1.5 border min-w-0"
+              style={{ borderColor: bonus ? `${BONUS_COLOR}88` : `${color}44`, background: bonus ? `${BONUS_COLOR}0d` : undefined }}>
               <span className="w-2.5 h-2.5 rounded-sm shrink-0" style={{ background: color }} />
               <span className="text-xs text-gray-300 truncate max-w-[8rem]">{t.name || `Tier ${t.tier_order}`}</span>
               <Icon name="user" size={12} className="text-gray-500" />
               <span className="text-sm font-bold text-white tabular-nums">{n ?? '?'}</span>
               <span className="text-[11px] text-gray-600 tabular-nums">/ {total}</span>
+              <span className="flex items-center gap-1 ml-1">
+                {isCollection && (
+                  <TierFlag on={bonus} icon="star" color={BONUS_COLOR}
+                    disabled={!bonus && bonusCount === 0}
+                    title={bonus ? 'Bonus tier: counts catches in each member\'s bonus game (tap to undo)'
+                      : bonusCount ? `Make this the bonus tier (${bonusCount} bonus games)` : 'No bonus games on this collection yet (Collections tab)'}
+                    onClick={() => save({ tier_bonus: { [t.id]: !bonus } })} />
+                )}
+                <TierFlag on={!!t.is_secret} icon={t.is_secret ? 'eyeOff' : 'eye'} color={SECRET_COLOR}
+                  title={t.is_secret ? 'Secret: hidden until earned (tap to undo)' : 'Make this a secret badge'}
+                  onClick={() => save({ tier_secret: { [t.id]: !t.is_secret } })} />
+              </span>
             </div>
           );
         })}
@@ -290,7 +319,14 @@ export default function WiringPanel({ p, onChanged, onPublished }) {
   const [trigger, setTrigger] = useState(p.trigger || TRIGGER_OF[p.check_type] || null);
   const [err, setErr] = useState(null);
   const [saving, setSaving] = useState(false);
+  const [collections, setCollections] = useState(null);
   useEffect(() => { if (p.trigger) setTrigger(p.trigger); }, [p.trigger]);
+  useEffect(() => {
+    if (p.check_type !== 'collection_complete' || collections) return;
+    api('/api/admin/collections')
+      .then(d => setCollections((d || []).map(x => (typeof x === 'string' ? { slug: x, bonus_count: 0 } : x))))
+      .catch(() => setCollections([]));
+  }, [p.check_type, collections]);
 
   const save = async (body) => {
     setSaving(true); setErr(null);
@@ -324,9 +360,9 @@ export default function WiringPanel({ p, onChanged, onPublished }) {
 
       {p.check_type && TRIGGER_OF[p.check_type] === trigger && (
         <>
-          <Qualifier p={p} save={save} />
+          <Qualifier p={p} save={save} collections={collections} />
           <Section n={checks.length > 1 ? 3 : 2} title={FIXED_CHECKS.has(p.check_type) ? 'Who earns it' : 'Who earns each tier'}>
-            <div className={saving ? 'opacity-50 transition-opacity' : 'transition-opacity'}><Histogram p={p} /></div>
+            <div className={saving ? 'opacity-50 transition-opacity' : 'transition-opacity'}><Histogram p={p} collections={collections} save={save} /></div>
           </Section>
         </>
       )}

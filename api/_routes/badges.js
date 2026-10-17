@@ -10,10 +10,13 @@ const {
   getDexTotals,
   getUserStats,
   isModerator,
+  resolveGame,
   supabase,
   upload,
 } = require('../_lib/core');
 const { contextBuilders } = require('../_lib/badgeEval');
+const { collectionProgressFor, computeBonusProgress, parseCollectionQualifier } = require('../_badgeRegistry');
+const { loadBonusRows } = require('../_lib/collectionBonus');
 
 // ── Badge progress ────────────────────────────────────────────────────────────
 // Every badge check in _badgeRegistry.js is a threshold comparison
@@ -63,7 +66,7 @@ const PROGRESS_SOURCES = {
     };
   },
   collection_complete: (ctx, b) => {
-    const prog = ctx.collectionProgress?.[String(b.check_qualifier)];
+    const prog = collectionProgressFor(ctx, b.check_qualifier);
     if (!prog || !prog.total) return null;
     return { current: prog.caught, target: Math.ceil(((b.check_value ?? 100) / 100) * prog.total), unit: 'in the set' };
   },
@@ -463,7 +466,7 @@ module.exports = function register(app) {
         monthRow
           ? supabase.from('monthly_pokemon_pool').select('pokemon_id').eq('month_id', monthRow.id)
           : Promise.resolve({ data: [] }),
-        supabase.from('entries').select('pokemon_id').eq('user_id', userId),
+        supabase.from('entries').select('pokemon_id, game').eq('user_id', userId),
         supabase.from('bingo_achievements').select('month_id, bingo_type').eq('user_id', userId),
       ]);
 
@@ -480,6 +483,21 @@ module.exports = function register(app) {
       // per collection / type / generation. A badge needing more catches than
       // the board can supply is un-completable this month and must not be
       // dangled — "11 more poison" with one poison on the board is not a carrot.
+      // Bonus tiers ('<slug>:bonus') count members caught in their bonus game, so
+      // a mon caught elsewhere is still live if it's on the board. Only loaded
+      // when some badge is a bonus tier.
+      const isBonus = (b) => b.check_type === 'collection_complete' && parseCollectionQualifier(b.check_qualifier).bonus;
+      const bonusRows = (badges || []).some(isBonus) ? await loadBonusRows(supabase) : [];
+      const entriesWithKey = (myEntries || []).map(e => ({ pokemon_id: e.pokemon_id, game_key: resolveGame(e.game).key }));
+      const bonusCaught = new Set(entriesWithKey.filter(e => e.game_key).map(e => `${e.pokemon_id}|${e.game_key}`));
+      const poolIdSet = new Set(poolIds);
+      const liveBonus = new Map();
+      for (const r of bonusRows || []) {
+        if (poolIdSet.has(r.pokemon_id) && !r.games.some(g => bonusCaught.has(`${r.pokemon_id}|${g}`))) {
+          liveBonus.set(r.slug, (liveBonus.get(r.slug) || 0) + 1);
+        }
+      }
+
       const liveCollections = new Map();
       const liveTypes = new Map();
       const liveGens = new Map();
@@ -493,7 +511,10 @@ module.exports = function register(app) {
       }
       const availableOnBoard = (b) => {
         switch (b.check_type) {
-          case 'collection_complete':   return liveCollections.get(String(b.check_qualifier)) || 0;
+          case 'collection_complete': {
+            const { slug, bonus } = parseCollectionQualifier(b.check_qualifier);
+            return (bonus ? liveBonus : liveCollections).get(slug) || 0;
+          }
           case 'type_percentage':       return liveTypes.get(String(b.check_qualifier).toLowerCase()) || 0;
           case 'generation_percentage': return liveGens.get(Number(b.check_qualifier)) || 0;
           default:                      return Infinity;
@@ -517,7 +538,7 @@ module.exports = function register(app) {
       // Context comes from the user_stats cache plus the memoized global dex
       // denominators, NOT from contextBuilders. The builders re-fetch every entry
       // the hunter has (joined to pokemon_master) plus all ~1080 shiny-available
-      // pokemon_master rows plus collection_game_filter, on every single request
+      // pokemon_master rows on every single request
       // -- and this endpoint runs on the home page for every logged-in visitor.
       // The cached row is one indexed read; the denominators are per-process.
       //
@@ -554,6 +575,9 @@ module.exports = function register(app) {
           collectionProgress,
         };
       }
+
+      // Same maths the evaluator uses for '<slug>:bonus' (computeBonusProgress).
+      ctx.collectionBonusProgress = computeBonusProgress(entriesWithKey, bonusRows);
 
       if (candidates.some(b => b.check_type === 'account_age_months')) {
         Object.assign(ctx, await contextBuilders.account_age(userId, supabase).catch(() => ({})));

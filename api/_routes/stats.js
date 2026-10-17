@@ -4,11 +4,11 @@
  */
 const {
   buildWatchOut,
-  GAME_LABELS,
   POKEMON_IMAGE_FIELDS,
   fetchTierSubmissions,
   getActiveMonth,
   getAuthenticatedUserId,
+  resolveGame,
   resolveStatsMonth,
   supabase,
   WATCH_SHAPES,
@@ -21,19 +21,6 @@ const {
 // the approve_submission RPC (supabase/migrations/…_remote_schema.sql). The X
 // shape there requires BOTH diagonals, so it is one shape (their union), not two.
 const claimKey = (type, mode) => (mode === 'restricted' ? `${type}_restricted` : type);
-
-// `entries.game` stores the display label ("Pokémon Emerald"), not the
-// ALLOWED_GAMES slug, so GAME_LABELS[raw] never actually resolves - it just
-// falls through to the raw value, which happens to already be the label. The
-// client needs the slug to look up game logos, so resolve both directions here
-// and emit `game_key` alongside the label. Tolerates either storage form in
-// case entries start carrying slugs later.
-const GAME_KEY_BY_LABEL = Object.fromEntries(Object.entries(GAME_LABELS).map(([k, v]) => [v, k]));
-const resolveGame = (raw) => {
-  if (!raw) return { key: null, label: null };
-  if (GAME_LABELS[raw]) return { key: raw, label: GAME_LABELS[raw] };
-  return { key: GAME_KEY_BY_LABEL[raw] || null, label: raw };
-};
 
 // PostgREST caps a single select at 1000 rows. A single month's entries are
 // nowhere near that today, but a busy month is the one case that could reach it

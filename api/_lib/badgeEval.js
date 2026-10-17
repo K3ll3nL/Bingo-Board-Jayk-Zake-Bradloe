@@ -28,11 +28,14 @@
 const {
   buildCheckFromDB,
   computeApprovedContext,
+  collectionProgressFor,
   computeFirstOfSpecies,
   firstOfSpeciesMode,
   computeAccountAgeMonths,
   computeBingoContext,
 } = require('../_badgeRegistry');
+const { resolveGame } = require('./games');
+const { bonusRowsFrom } = require('./collectionBonus');
 
 // Same value as MONTH_ROLLOVER_OFFSET_MS in core.js (core requires this module,
 // so it can't be imported from there). A month starts at start_date + 4h.
@@ -226,14 +229,13 @@ const LOADERS = {
   },
 
   async approved(supabase, users, scope) {
-    const [entries, master, { data: gameFilters, error: gfErr }] = await Promise.all([
+    const [entries, master] = await Promise.all([
       selectAll(() => scope.q(supabase.from('entries')
         .select('id, user_id, pokemon_id, restricted_submission, game')).order('id')),
       selectAll(() => supabase.from('pokemon_master')
-        .select('id, type1, type2, generation, collection_ids, shiny_available').order('id')),
-      supabase.from('collection_game_filter').select('slug, required_game'),
+        .select('id, type1, type2, generation, collection_ids, collection_bonus, shiny_available').order('id')),
     ]);
-    if (gfErr) throw gfErr;
+    const bonusRows = bonusRowsFrom(master);
 
     // Entries reference every pokemon_master row; totals use shiny_available only.
     const meta = new Map(master.map(p => [p.id, {
@@ -246,12 +248,12 @@ const LOADERS = {
       const userEntries = list.map(e => ({
         pokemon_id: e.pokemon_id,
         restricted_submission: e.restricted_submission,
-        game: e.game,
+        game_key: resolveGame(e.game).key,   // entries.game is the label
         pokemon_master: meta.get(e.pokemon_id) ?? null,
       }));
-      ctx.set(uid, computeApprovedContext(userEntries, allPokemon, gameFilters));
+      ctx.set(uid, computeApprovedContext(userEntries, allPokemon, bonusRows));
     }
-    const out = { ctx, fallback: { ...computeApprovedContext([], allPokemon, gameFilters), firstOfSpecies: { any: 0, standard: 0, restricted: 0 } } };
+    const out = { ctx, fallback: { ...computeApprovedContext([], allPokemon, bonusRows), firstOfSpecies: { any: 0, standard: 0, restricted: 0 } } };
 
     // Site-wide on every load, scoped or not (see loadFirstOfSpecies).
     const { counts: firsts } = await loadFirstOfSpecies(supabase);
@@ -457,9 +459,8 @@ function metricFor(check_type, qualifier) {
       } };
     }
     case 'collection_complete': {
-      const col = String(qualifier ?? '');
       return { direction: 'gte', read: c => {
-        const prog = c.collectionProgress?.[col];
+        const prog = collectionProgressFor(c, qualifier);
         return prog && prog.total > 0 ? (prog.caught / prog.total) * 100 : null;
       } };
     }

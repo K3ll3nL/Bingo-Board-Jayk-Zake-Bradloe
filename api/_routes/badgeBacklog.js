@@ -33,6 +33,7 @@ const { consensusOrder } = require('../_lib/backlogOrder');
 const {
   TRIGGER_BY_CHECK_TYPE, CLOCK_RULES, simulate, awardPlan, forgetData,
 } = require('../_lib/badgeEval');
+const { loadBonusRows } = require('../_lib/collectionBonus');
 
 const MAX_TIERS = 10;
 const CODE_STATUSES = ['unreviewed', 'ready', 'needs_code', 'needs_tracking'];
@@ -165,6 +166,20 @@ async function applyChange(change) {
   }
 }
 
+// A tier flagged `bonus` (collection_complete only) publishes as '<slug>:bonus':
+// % of the collection's bonus members caught in their bonus game.
+function tierQualifier(p, t) {
+  return t.bonus && p.check_qualifier ? `${p.check_qualifier}:bonus` : p.check_qualifier;
+}
+
+// Earn counts for a proposal's bonus tiers (null when it has none).
+async function bonusSimFor(p, tiers) {
+  if (p.check_type !== 'collection_complete' || !p.check_qualifier) return null;
+  if (!tiers.some(t => t.bonus && !t.badge_id)) return null;
+  try { return await simulate({ check_type: p.check_type, check_qualifier: `${p.check_qualifier}:bonus` }, supabase); }
+  catch (e) { return { evaluable: false, reason: 'error', message: e.message }; }
+}
+
 module.exports = function register(app) {
 
   // ── Board: everything the Backlog tab renders, in one payload ───────────────
@@ -216,6 +231,10 @@ module.exports = function register(app) {
         try { sims[p.id] = await simulate({ check_type: p.check_type, check_qualifier: p.check_qualifier }, supabase); }
         catch (e) { sims[p.id] = { evaluable: false, reason: 'error', message: e.message }; }
       }));
+      const bonusSims = {};
+      await Promise.all(open.map(async (p) => {
+        bonusSims[p.id] = await bonusSimFor(p, (tiersR.data || []).filter(t => t.proposal_id === p.id));
+      }));
 
       const commentCount = {};
       for (const c of commentsR.data || []) commentCount[c.proposal_id] = (commentCount[c.proposal_id] || 0) + 1;
@@ -232,6 +251,7 @@ module.exports = function register(app) {
           rank: orderById.get(p.id).rank, score: orderById.get(p.id).score, placed_by: orderById.get(p.id).placedBy,
         } : null,
         sim: sims[p.id] ?? null,
+        bonus_sim: bonusSims[p.id] ?? null,
         changes: (changesR.data || []).filter(c => c.proposal_id === p.id)
           .map(c => ({ ...c, votes: votesBy[c.id] || [] })),
         comment_count: commentCount[p.id] || 0,
@@ -532,7 +552,8 @@ module.exports = function register(app) {
       await requireOwner(req);
       const p = await loadProposal(req.params.id);
       requireOpen(p);
-      if ((await loadTiers(p.id)).some(t => t.badge_id)) {
+      const tiers = await loadTiers(p.id);
+      if (tiers.some(t => t.badge_id)) {
         throw fail(409, 'Some tiers are already live badges, so this wiring is frozen — see CLAUDE.md "Editing live badge criteria"');
       }
       const patch = {};
@@ -549,19 +570,50 @@ module.exports = function register(app) {
       }
       if (b.check_qualifier !== undefined && patch.check_type !== null) {
         const q = b.check_qualifier == null ? '' : String(b.check_qualifier).trim();
+        if (q.endsWith(':bonus')) throw fail(400, 'Bonus is set per tier, not in the qualifier');
         patch.check_qualifier = q || null;
       }
       if (b.code_status !== undefined) {
         if (!CODE_STATUSES.includes(b.code_status)) throw fail(400, 'Unknown code status');
         patch.code_status = b.code_status;
       }
-      if (!Object.keys(patch).length) throw fail(400, 'Nothing to change');
-      const { data, error } = await supabase.from('badge_proposals').update(patch).eq('id', p.id).select().single();
-      if (error) throw error;
+      // Per-tier flags: { [tierId]: boolean }. Bonus only makes sense on a collection.
+      const tierPatches = new Map();
+      const tierIds = new Set(tiers.map(t => t.id));
+      for (const [field, key] of [['bonus', 'tier_bonus'], ['is_secret', 'tier_secret']]) {
+        if (b[key] == null) continue;
+        if (typeof b[key] !== 'object') throw fail(400, `${key} must be an object`);
+        for (const [tid, v] of Object.entries(b[key])) {
+          if (!tierIds.has(tid)) throw fail(404, 'Tier not found');
+          tierPatches.set(tid, { ...tierPatches.get(tid), [field]: !!v });
+        }
+      }
+      const nextType = patch.check_type !== undefined ? patch.check_type : p.check_type;
+      const nextQual = patch.check_qualifier !== undefined ? patch.check_qualifier : p.check_qualifier;
+      if ([...tierPatches.values()].some(t => t.bonus) && (nextType !== 'collection_complete' || !nextQual)) {
+        throw fail(400, 'Only a collection check can have a bonus tier');
+      }
+      // A new check or collection makes old bonus picks meaningless — clear them.
+      if (nextType !== p.check_type || nextQual !== p.check_qualifier) {
+        for (const t of tiers) if (t.bonus) tierPatches.set(t.id, { ...tierPatches.get(t.id), bonus: false });
+      }
+      if (!Object.keys(patch).length && !tierPatches.size) throw fail(400, 'Nothing to change');
+
+      let data = p;
+      if (Object.keys(patch).length) {
+        const r = await supabase.from('badge_proposals').update(patch).eq('id', p.id).select().single();
+        if (r.error) throw r.error;
+        data = r.data;
+      }
+      for (const [tid, tp] of tierPatches) {
+        const { error } = await supabase.from('badge_proposal_tiers').update(tp).eq('id', tid).eq('proposal_id', p.id);
+        if (error) throw error;
+      }
+      const nextTiers = tierPatches.size ? await loadTiers(p.id) : tiers;
       const sim = data.check_type
         ? await simulate({ check_type: data.check_type, check_qualifier: data.check_qualifier }, supabase)
         : null;
-      res.json({ ...data, sim });
+      res.json({ ...data, tiers: nextTiers, sim, bonus_sim: await bonusSimFor(data, nextTiers) });
     } catch (err) { send(res, err); }
   });
 
@@ -586,6 +638,11 @@ module.exports = function register(app) {
         if (!t.name) problems.push(`Tier ${t.tier_order}: no name`);
         if (!t.description) problems.push(`${label}: no description`);
         if (!fixed && t.threshold == null) problems.push(`${label}: no threshold`);
+        if (t.bonus && p.check_type !== 'collection_complete') problems.push(`${label}: bonus tier on a non-collection check`);
+      }
+      if (p.check_type === 'collection_complete' && p.check_qualifier && tiers.some(t => t.bonus && !t.badge_id)) {
+        const count = (await loadBonusRows(supabase, { slug: p.check_qualifier })).length;
+        if (!count) problems.push(`'${p.check_qualifier}' has no bonus games set — add them in the Collections tab`);
       }
       const { data: openVotes } = await supabase.from('badge_proposal_changes')
         .select('id').eq('proposal_id', p.id).eq('status', 'open');
@@ -595,7 +652,7 @@ module.exports = function register(app) {
       for (const t of tiers) {
         if (t.badge_id) continue;
         if (!p.check_type) break;
-        const plan = await awardPlan({ check_type: p.check_type, check_value: t.threshold ?? 1, check_qualifier: p.check_qualifier }, supabase);
+        const plan = await awardPlan({ check_type: p.check_type, check_value: t.threshold ?? 1, check_qualifier: tierQualifier(p, t) }, supabase);
         plans.push({ tier_id: t.id, timing: plan.timing, rows: plan.rows });
       }
       const summary = plans.map(x => ({ tier_id: x.tier_id, timing: x.timing, count: new Set(x.rows.map(r => r.user_id)).size }));
@@ -635,11 +692,11 @@ module.exports = function register(app) {
         const imageBuffer = Buffer.from(await art.arrayBuffer());
 
         const badge = await createBadge({
-          key, name: t.name, description: t.description, hint: t.hint || null, is_secret: false,
+          key, name: t.name, description: t.description, hint: t.hint || null, is_secret: !!t.is_secret,
           family, family_order: t.tier_order,
           family_new: familyNew,
           trigger: p.trigger, check_type: p.check_type,
-          check_value: t.threshold ?? 1, check_qualifier: p.check_qualifier,
+          check_value: t.threshold ?? 1, check_qualifier: tierQualifier(p, t),
           imageBuffer,
         });
         familyNew = null;   // created with the first badge

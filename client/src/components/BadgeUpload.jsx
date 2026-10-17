@@ -345,13 +345,48 @@ function ReplaceImageTab() {
 
 // ── Manage Collections tab ────────────────────────────────────────────────────
 
+// One logo per game the mon is in. Each tap toggles that game as a bonus game:
+// lit = gold ring + star; once any is lit the rest dim.
+function BonusGameStrip({ pokemon, onPick }) {
+  const slugs = new Set(pokemon.game_slugs || []);
+  const games = ALLOWED_GAMES.filter(g => slugs.has(g.key));
+  if (!games.length) return null;
+  const picked = new Set(pokemon.bonus_games || []);
+  const any = picked.size > 0;
+  return (
+    <div className="flex flex-wrap gap-1.5 mt-2 pl-11 min-w-0">
+      {games.map(g => {
+        const on = picked.has(g.key);
+        return (
+          <button key={g.key} type="button" onClick={() => onPick(g.key)}
+            title={on ? `Bonus: ${g.label} (tap to remove)` : `Add ${g.label} as a bonus game`}
+            aria-pressed={on}
+            className={`relative h-7 w-12 rounded-md flex items-center justify-center border transition-all ${
+              on ? 'border-amber-400 ring-1 ring-amber-400/60' : 'border-transparent hover:border-gray-500'
+            }`}
+            style={{
+              background: C.input,
+              opacity: any && !on ? 0.35 : 1,
+              filter: any && !on ? 'grayscale(1)' : 'none',
+            }}>
+            {g.img_urls?.[0]
+              ? <img src={g.img_urls[0]} alt={g.label} className="object-contain" style={{ maxHeight: 20, maxWidth: 40 }} />
+              : <span className="text-[9px] text-gray-400 leading-none">{g.key}</span>}
+            {on && (
+              <span className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full bg-amber-400 text-[10px] leading-4 text-center text-black font-bold">★</span>
+            )}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 function ManageCollectionsTab() {
   const [slug,         setSlug]         = useState('');
   const [slugOptions,  setSlugOptions]  = useState([]);
   const [isNewSlug,    setIsNewSlug]    = useState(false);
   const [members,      setMembers]      = useState(null);
-  const [requiredGame, setRequiredGame] = useState('');
-  const [savingGame,   setSavingGame]   = useState(false);
   const [loadingCol,   setLoadingCol]   = useState(false);
   const [searchQ,      setSearchQ]      = useState('');
   const [results,      setResults]      = useState([]);
@@ -363,17 +398,17 @@ function ManageCollectionsTab() {
     (async () => {
       try {
         const res  = await fetch('/api/admin/collections', { headers: await getAuthHeaders() });
-        const data = await res.json();
-        const normalized = (data || []).map(item =>
-          typeof item === 'string' ? { slug: item, required_game: null } : item
-        );
-        setSlugOptions(normalized);
-      } catch { /* silent */ }
+        const data = await res.json().catch(() => null);
+        if (!res.ok || !Array.isArray(data)) throw new Error(data?.error || `Couldn't load collections (${res.status})`);
+        setSlugOptions(data);
+      } catch (err) {
+        setFeedback({ type: 'error', msg: err.message });
+      }
     })();
   }, []);
 
   const resetCollection = () => {
-    setMembers(null); setResults([]); setSearchQ(''); setFeedback(null); setRequiredGame('');
+    setMembers(null); setResults([]); setSearchQ(''); setFeedback(null);
   };
 
   const handleSlugSelect = (e) => {
@@ -394,29 +429,38 @@ function ManageCollectionsTab() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
       setMembers(data.members);
-      setRequiredGame(data.required_game ?? '');
     } catch (err) {
       setFeedback({ type: 'error', msg: err.message });
     } finally { setLoadingCol(false); }
   };
 
-  const saveRequiredGame = async (game) => {
-    if (!slug.trim()) return;
-    setSavingGame(true); setFeedback(null);
+  const hasBonus = (m) => (m?.bonus_games?.length ?? 0) > 0;
+  const bonusCount = (members || []).filter(hasBonus).length;
+  const bumpBonusCount = (delta) => {
+    if (delta) setSlugOptions(o => o.map(x => x.slug === slug ? { ...x, bonus_count: Math.max(0, (x.bonus_count || 0) + delta) } : x));
+  };
+
+  // Tap a logo to add/remove that game from the member's bonus games.
+  // Saves at once; reverts if the server says no.
+  const setBonus = async (pokemon, game) => {
+    const prev  = pokemon.bonus_games || [];
+    const next  = prev.includes(game) ? prev.filter(g => g !== game) : [...prev, game];
+    const delta = (next.length ? 1 : 0) - (prev.length ? 1 : 0);
+    const put   = (val) => setMembers(m => m.map(p => p.id === pokemon.id ? { ...p, bonus_games: val } : p));
+    setFeedback(null);
+    put(next); bumpBonusCount(delta);
     try {
       const headers = await getAuthHeaders();
-      const res = await fetch(`/api/admin/collections/${encodeURIComponent(slug.trim())}/game`, {
+      const res = await fetch(`/api/admin/collections/${encodeURIComponent(slug.trim())}/pokemon/${pokemon.id}/bonus`, {
         method: 'PUT',
         headers: { ...headers, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ required_game: game || null }),
+        body: JSON.stringify({ games: next }),
       });
       if (!res.ok) { const d = await res.json().catch(() => ({})); throw new Error(d.error || `Request failed (${res.status})`); }
-      setRequiredGame(game);
-      setSlugOptions(prev => prev.map(o => o.slug === slug ? { ...o, required_game: game || null } : o));
-      setFeedback({ type: 'success', msg: game ? `Game set to "${ALLOWED_GAMES.find(g => g.key === game)?.label ?? game}".` : 'Game requirement cleared.' });
     } catch (err) {
+      put(prev); bumpBonusCount(-delta);
       setFeedback({ type: 'error', msg: err.message });
-    } finally { setSavingGame(false); }
+    }
   };
 
   const removeMember = async (pokemon) => {
@@ -427,6 +471,7 @@ function ManageCollectionsTab() {
       });
       if (!res.ok) { const d = await res.json().catch(() => ({})); throw new Error(d.error || `Request failed (${res.status})`); }
       setMembers(m => m.filter(p => p.id !== pokemon.id));
+      if (hasBonus(pokemon)) bumpBonusCount(-1);
       setFeedback({ type: 'success', msg: `Removed ${pokemon.name}.` });
     } catch (err) {
       setFeedback({ type: 'error', msg: err.message });
@@ -440,12 +485,24 @@ function ManageCollectionsTab() {
         method: 'POST', headers: await getAuthHeaders(),
       });
       if (!res.ok) { const d = await res.json().catch(() => ({})); throw new Error(d.error || `Request failed (${res.status})`); }
-      setMembers(m => m ? [...m, pokemon] : [pokemon]);
+      const row = { ...pokemon, bonus_games: [] };
+      setMembers(m => m ? [...m, row] : [row]);
       setResults(r => r.filter(p => p.id !== pokemon.id));
+      loadMemberGames(pokemon.id);
       setFeedback({ type: 'success', msg: `Added ${pokemon.name}.` });
     } catch (err) {
       setFeedback({ type: 'error', msg: err.message });
     }
+  };
+
+  // A row added from search has no game_slugs yet; pull the collection again for them.
+  const loadMemberGames = async (id) => {
+    try {
+      const res  = await fetch(`/api/admin/collections/${encodeURIComponent(slug.trim())}`, { headers: await getAuthHeaders() });
+      const data = await res.json();
+      const row  = res.ok && data.members?.find(p => p.id === id);
+      if (row) setMembers(m => m.map(p => p.id === id ? { ...p, game_slugs: row.game_slugs } : p));
+    } catch { /* strip just stays empty */ }
   };
 
   const handleSearchChange = (e) => {
@@ -478,7 +535,7 @@ function ManageCollectionsTab() {
             <option value="">-- Select a collection --</option>
             {slugOptions.map(o => (
               <option key={o.slug} value={o.slug}>
-                {o.slug}{o.required_game ? ` [${o.required_game}]` : ''}
+                {o.slug}{o.bonus_count ? ` ★${o.bonus_count}` : ''}
               </option>
             ))}
             <option value="__new__">＋ New collection…</option>
@@ -499,39 +556,27 @@ function ManageCollectionsTab() {
         </div>
       </SectionBox>
 
-      {slugLoaded && (
-        <SectionBox title="Required game">
-          <div className="flex items-end gap-3">
-            <div className="flex-1">
-              <p className="text-[11px] text-gray-600 mb-2">Only entries from this game count toward completing this collection. Leave blank to accept any game.</p>
-              <select value={requiredGame} onChange={e => setRequiredGame(e.target.value)} disabled={savingGame} className={selectCls} style={selectStyle}>
-                <option value="">Any game</option>
-                {ALLOWED_GAMES.map(g => <option key={g.key} value={g.key}>{g.label}</option>)}
-              </select>
-            </div>
-            <button type="button" onClick={() => saveRequiredGame(requiredGame)} disabled={savingGame}
-              className="px-4 py-2 rounded-lg text-sm font-medium text-white bg-lagoon-600 hover:bg-lagoon-500 disabled:opacity-50 transition-colors shrink-0">
-              {savingGame ? 'Saving…' : 'Save'}
-            </button>
-          </div>
-        </SectionBox>
-      )}
-
       {feedback && <Alert type={feedback.type}>{feedback.msg}</Alert>}
 
       {slugLoaded && (
-        <SectionBox title={`Members of ${slug} (${members.length})`}>
+        <SectionBox title={`Members of ${slug} (${members.length})${bonusCount ? ` · ★ ${bonusCount} bonus` : ''}`}>
           {members.length === 0 ? (
             <p className="text-sm text-gray-600 italic text-center py-4">No Pokémon in this collection yet.</p>
           ) : (
             <div className="divide-y -mx-4 -mt-4" style={{ borderColor: C.border }}>
               {members.map(p => (
-                <div key={p.id} className="flex items-center gap-3 px-4 py-2.5">
-                  {p.national_dex_id && <img src={buildPokemonImageUrl(p)} alt={p.name} className="w-8 h-8 object-contain shrink-0" />}
-                  <span className="flex-1 text-sm text-white capitalize">{p.name}</span>
-                  <span className="text-xs text-gray-600">#{String(p.national_dex_id).padStart(4, '0')}</span>
-                  <button type="button" onClick={() => removeMember(p)}
-                    className="text-xs text-red-400 hover:text-red-300 transition-colors ml-2">Remove</button>
+                <div key={p.id} className="px-4 py-2.5 min-w-0">
+                  <div className="flex items-center gap-3 min-w-0">
+                    {p.national_dex_id && <img src={buildPokemonImageUrl(p)} alt={p.name} className="w-8 h-8 object-contain shrink-0" />}
+                    <span className="flex-1 min-w-0 truncate text-sm text-white capitalize">
+                      {p.name}
+                      {hasBonus(p) && <span className="ml-1.5 text-amber-400" title={`${p.bonus_games.length} bonus game${p.bonus_games.length > 1 ? 's' : ''}`}>★</span>}
+                    </span>
+                    <span className="text-xs text-gray-600">#{String(p.national_dex_id).padStart(4, '0')}</span>
+                    <button type="button" onClick={() => removeMember(p)}
+                      className="text-xs text-red-400 hover:text-red-300 transition-colors ml-2">Remove</button>
+                  </div>
+                  <BonusGameStrip pokemon={p} onPick={g => setBonus(p, g)} />
                 </div>
               ))}
             </div>

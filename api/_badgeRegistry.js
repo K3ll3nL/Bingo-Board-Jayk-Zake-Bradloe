@@ -28,15 +28,11 @@ const BASE_URL = 'https://pub-583ae6cd5f8b4b58b0ee7053ea1d4b0b.r2.dev/assets/bad
 // award path, the backfill and the Backlog simulator (all via
 // api/_lib/badgeEval.js), so a simulated count can never drift from what the
 // site actually awards. Never fork this.
-//   userEntries — [{ pokemon_id, restricted_submission, game, pokemon_master: { type1, type2, generation, collection_ids } }]
+//   userEntries — [{ pokemon_id, restricted_submission, game_key, pokemon_master: { type1, type2, generation, collection_ids } }]
+//                 game_key is the ALLOWED_GAMES key (the loader maps entries.game's label to it)
 //   allPokemon  — shiny_available pokemon_master rows (type1, type2, generation, collection_ids)
-//   gameFilters — collection_game_filter rows
-function computeApprovedContext(userEntries, allPokemon, gameFilters) {
-    // Build collection game-filter lookup: { slug -> required_game | null }
-    const collectionGameFilter = Object.fromEntries(
-      (gameFilters || []).map(g => [g.slug, g.required_game])
-    );
-
+//   bonusRows   — collection bonus rows ({ slug, pokemon_id, games }, _lib/collectionBonus.js)
+function computeApprovedContext(userEntries, allPokemon, bonusRows) {
     // Deduplicate entries — one record per distinct pokemon_id caught
     const seenIds    = new Set();
     const caughtMeta = []; // { ...pokemon_master, game } for each unique caught pokemon
@@ -46,7 +42,7 @@ function computeApprovedContext(userEntries, allPokemon, gameFilters) {
       if (entry.restricted_submission) restrictedApproved++;
       if (seenIds.has(entry.pokemon_id)) continue;
       seenIds.add(entry.pokemon_id);
-      if (entry.pokemon_master) caughtMeta.push({ ...entry.pokemon_master, game: entry.game });
+      if (entry.pokemon_master) caughtMeta.push(entry.pokemon_master);
     }
 
     // ── Type ──────────────────────────────────────────────────────────────────
@@ -72,28 +68,13 @@ function computeApprovedContext(userEntries, allPokemon, gameFilters) {
     }
 
     // ── Collections ───────────────────────────────────────────────────────────
-    // For collections with a required_game, only count entries from that game.
-    // We need all entries (not just deduplicated) for game-filtered collections,
-    // because the same pokemon in different games counts differently per-collection.
+    // Any game counts. The game-specific variant is the bonus tier below.
     const collectionCaught = {};
     const collectionTotal  = {};
-
-    // Build per-collection caught set: for game-filtered collections, track
-    // caught pokemon_ids only from the required game.
-    const collectionCaughtIds = {}; // { slug -> Set of pokemon_ids }
-
-    for (const entry of (userEntries || [])) {
-      const meta = entry.pokemon_master;
-      if (!meta) continue;
-      for (const col of (meta.collection_ids ?? [])) {
-        const requiredGame = collectionGameFilter[col]; // undefined = no filter
-        if (requiredGame && entry.game !== requiredGame) continue;
-        if (!collectionCaughtIds[col]) collectionCaughtIds[col] = new Set();
-        collectionCaughtIds[col].add(entry.pokemon_id);
+    for (const p of caughtMeta) {
+      for (const col of new Set(p.collection_ids ?? [])) {
+        collectionCaught[col] = (collectionCaught[col] ?? 0) + 1;
       }
-    }
-    for (const [col, ids] of Object.entries(collectionCaughtIds)) {
-      collectionCaught[col] = ids.size;
     }
 
     for (const p of (allPokemon || [])) {
@@ -114,7 +95,43 @@ function computeApprovedContext(userEntries, allPokemon, gameFilters) {
       genApproved,         // { 1: 45, 2: 12, ... }
       genTotal,            // { 1: 80, 2: 30, ... }
       collectionProgress,  // { weather_trio: { caught: 2, total: 3 }, ... }
+      collectionBonusProgress: computeBonusProgress(userEntries, bonusRows),
     };
+}
+
+// ── Collection bonus games (pure) ─────────────────────────────────────────────
+// A collection member may name bonus games (pokemon_master.collection_bonus).
+// The bonus tier of a collection badge ('<slug>:bonus') counts the members the
+// hunter caught in ANY of their bonus games; members with none are not in it.
+//   userEntries — [{ pokemon_id, game_key }]
+//   bonusRows   — [{ slug, pokemon_id, games: [game key, ...] }]
+// → { slug: { caught, total } } for every slug with at least one bonus member.
+// The progress ladder (_routes/badges.js) calls this too — never fork it.
+function computeBonusProgress(userEntries, bonusRows) {
+  const caughtIn = new Set();
+  for (const e of (userEntries || [])) if (e.game_key) caughtIn.add(`${e.pokemon_id}|${e.game_key}`);
+  const out = {};
+  for (const r of (bonusRows || [])) {
+    const prog = (out[r.slug] ||= { caught: 0, total: 0 });
+    prog.total++;
+    if (r.games.some(g => caughtIn.has(`${r.pokemon_id}|${g}`))) prog.caught++;
+  }
+  return out;
+}
+
+// collection_complete's qualifier: '<slug>' (any game) or '<slug>:bonus'.
+const BONUS_SUFFIX = ':bonus';
+function parseCollectionQualifier(q) {
+  const s = String(q ?? '');
+  return s.endsWith(BONUS_SUFFIX)
+    ? { slug: s.slice(0, -BONUS_SUFFIX.length), bonus: true }
+    : { slug: s, bonus: false };
+}
+
+// The { caught, total } a collection_complete badge reads, either mode.
+function collectionProgressFor(ctx, qualifier) {
+  const { slug, bonus } = parseCollectionQualifier(qualifier);
+  return (bonus ? ctx?.collectionBonusProgress : ctx?.collectionProgress)?.[slug] ?? null;
 }
 
 // ── First of species in a month (pure) ────────────────────────────────────────
@@ -610,11 +627,11 @@ function buildCheckFromDB({ check_type, check_value, check_qualifier }) {
       };
     }
     // check_value = % of the collection caught (null → 100, i.e. complete it).
+    // '<slug>:bonus' reads the bonus tier (computeBonusProgress) instead.
     case 'collection_complete': {
-      const col = String(check_qualifier);
       const pct = check_value ?? 100;
       return (ctx) => {
-        const prog = ctx.collectionProgress[col];
+        const prog = collectionProgressFor(ctx, check_qualifier);
         return prog != null && prog.total > 0 && (prog.caught / prog.total) * 100 >= pct;
       };
     }
@@ -645,4 +662,4 @@ function buildCheckFromDB({ check_type, check_value, check_qualifier }) {
   }
 }
 
-module.exports = { BADGE_REGISTRY, REGISTRY_BY_TRIGGER, computeApprovedContext, computeFirstOfSpecies, firstOfSpeciesMode, FIRST_OF_SPECIES_MODES, computeAccountAgeMonths, computeBingoContext, buildCheckFromDB };
+module.exports = { BADGE_REGISTRY, REGISTRY_BY_TRIGGER, computeApprovedContext, computeBonusProgress, parseCollectionQualifier, collectionProgressFor, computeFirstOfSpecies, firstOfSpeciesMode, FIRST_OF_SPECIES_MODES, computeAccountAgeMonths, computeBingoContext, buildCheckFromDB };
