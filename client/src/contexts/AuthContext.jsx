@@ -32,6 +32,7 @@ export const AuthProvider = ({ children }) => {
   const [leaderboardVersion, setLeaderboardVersion] = useState(0);
   const [isPro, setIsPro] = useState(false);
   const [isModerator, setIsModerator] = useState(null);
+  const [isOwner, setIsOwner] = useState(false);
   const [identities, setIdentities] = useState([]);
   const [tos, setTos] = useState(null); // { accepted, is_update, current_version } | null (unknown)
 
@@ -58,6 +59,7 @@ export const AuthProvider = ({ children }) => {
       setIdentities(d.identities ?? []);
       setIsPro(!!d.isPro);
       setIsModerator(!!d.isModerator);
+      setIsOwner(!!d.isOwner);
       setTos(d.tos ?? { accepted: true, is_update: false });
     } catch {
       setTos({ accepted: true, is_update: false });
@@ -72,7 +74,7 @@ export const AuthProvider = ({ children }) => {
   // and flip gated pages home (same reasoning the split pro/mod effects used).
   useEffect(() => {
     if (loading) return;
-    if (!user) { setIdentities([]); setIsPro(false); setIsModerator(false); setTos(null); return; }
+    if (!user) { setIdentities([]); setIsPro(false); setIsModerator(false); setIsOwner(false); setTos(null); return; }
     refreshUserContext();
   }, [user, loading]);
 
@@ -192,6 +194,7 @@ export const AuthProvider = ({ children }) => {
     leaderboardVersion,
     isPro,
     isModerator,
+    isOwner,
   };
 
   return (

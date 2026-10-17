@@ -69,6 +69,7 @@ require('./_routes/badges')(app);
 require('./_routes/feedback')(app);
 require('./_routes/banners')(app);
 require('./_routes/radar')(app);
+require('./_routes/badgeBacklog')(app);
 // Multer error handling middleware — must be after all routes
 app.use((err, req, res, next) => {
   if (err instanceof multer.MulterError) {

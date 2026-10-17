@@ -13,7 +13,10 @@ const cors = require('cors');
 
 const rateLimit = require('express-rate-limit');
 
-const { contextBuilders, buildCheckFromDB } = require('../_badgeRegistry');
+const { buildCheckFromDB } = require('../_badgeRegistry');
+
+const badgeEval = require('./badgeEval');
+const { contextBuilders } = badgeEval;
 
 const { createClient } = require('@supabase/supabase-js');
 
@@ -326,62 +329,33 @@ const broadcastNotificationToasts = async (userId) => {
 // How it works:
 //   1. Fetch ALL badges for this trigger from DB (registry-seeded + form-created).
 //   2. Filter out already-earned ones — buildCheckFromDB is never called for earned badges.
-//   3. Build context ONCE (1-2 DB queries regardless of badge count).
+//   3. Build the user's context with badgeEval's loader, scoped to this user —
+//      the same function the simulator and backfill run over everyone.
 //   4. Evaluate unearned badges via buildCheckFromDB(badge)(ctx).
 //   5. Insert + broadcast newly earned badges.
-const awardBadgesForTrigger = async (userId, trigger, { monthId } = {}) => {
+// first_approval_month is decided per month by settleFirstOfMonth, never here.
+const awardBadgesForTrigger = async (userId, trigger) => {
   try {
     const { data: triggerBadges } = await supabase
       .from('badges')
       .select('id, name, description, image_url, is_secret, check_type, check_value, check_qualifier')
-      .eq('trigger', trigger);
+      .eq('trigger', trigger)
+      .neq('check_type', 'first_approval_month');
 
-    if (!triggerBadges?.length) return;
+    if (!triggerBadges?.length || !contextBuilders[trigger]) return;
 
-    // Monthly badges (e.g. first_approval_month) can be earned once per month,
-    // so their "already earned" check is scoped to (user, badge, month) rather than (user, badge).
-    const monthlyBadgeIds = new Set(
-      triggerBadges.filter(b => b.check_type === 'first_approval_month').map(b => b.id)
-    );
-    const regularBadgeIds = triggerBadges.filter(b => !monthlyBadgeIds.has(b.id)).map(b => b.id);
-
-    const earnedIdSet = new Set();
-    const earnedChecks = [];
-
-    if (regularBadgeIds.length) {
-      earnedChecks.push(
-        supabase
-          .from('user_badges')
-          .select('badge_id')
-          .eq('user_id', userId)
-          .in('badge_id', regularBadgeIds)
-          .then(({ data }) => { for (const r of data || []) earnedIdSet.add(r.badge_id); })
-      );
-    }
-    if (monthlyBadgeIds.size) {
-      if (monthId) {
-        earnedChecks.push(
-          supabase
-            .from('user_badges')
-            .select('badge_id')
-            .eq('user_id', userId)
-            .in('badge_id', [...monthlyBadgeIds])
-            .eq('month_id', monthId)
-            .then(({ data }) => { for (const r of data || []) earnedIdSet.add(r.badge_id); })
-        );
-      } else {
-        // No monthId provided — skip monthly badges entirely this invocation
-        for (const id of monthlyBadgeIds) earnedIdSet.add(id);
-      }
-    }
-
-    await Promise.all(earnedChecks);
+    const { data: earned } = await supabase
+      .from('user_badges')
+      .select('badge_id')
+      .eq('user_id', userId)
+      .in('badge_id', triggerBadges.map(b => b.id));
+    const earnedIdSet = new Set((earned || []).map(r => r.badge_id));
 
     const unearned = triggerBadges.filter(b => !earnedIdSet.has(b.id));
     if (!unearned.length) return;
 
     // Build context once — shared across all check evaluations
-    const ctx = await contextBuilders[trigger](userId, supabase, { monthId });
+    const ctx = await contextBuilders[trigger](userId, supabase);
 
     // buildCheckFromDB is only called for unearned candidates
     const newlyEarned = unearned.filter(b => buildCheckFromDB(b)(ctx));
@@ -389,11 +363,7 @@ const awardBadgesForTrigger = async (userId, trigger, { monthId } = {}) => {
 
     const { data: inserted, error: insertError } = await supabase
       .from('user_badges')
-      .insert(newlyEarned.map(b => ({
-        user_id:  userId,
-        badge_id: b.id,
-        ...(monthlyBadgeIds.has(b.id) && monthId ? { month_id: monthId } : {}),
-      })))
+      .insert(newlyEarned.map(b => ({ user_id: userId, badge_id: b.id })))
       .select('badge_id');
 
     if (insertError) {
@@ -403,35 +373,99 @@ const awardBadgesForTrigger = async (userId, trigger, { monthId } = {}) => {
 
     if (inserted?.length) {
       const insertedIds = new Set(inserted.map(i => i.badge_id));
-      const awardedBadges = newlyEarned.filter(b => insertedIds.has(b.id));
-
-      // Insert a notification row for each earned badge (notified:true — toast fires via badge-awards channel)
-      if (awardedBadges.length) {
-        await supabase.from('notifications').insert(
-          awardedBadges.map(b => ({
-            user_id:  userId,
-            status:   'badge_earned',
-            message:  b.id,   // badge UUID stored in message for enrichment
-            notified: true,
-          }))
-        );
-      }
-
-      for (const badge of awardedBadges) {
-        await broadcastUpdate(`badge-awards-${userId}`, 'badge-earned', {
-          id:          badge.id,
-          name:        badge.name,
-          description: badge.description,
-          image_url:   badge.image_url,
-          is_secret:   badge.is_secret,
-        });
-      }
+      await announceBadges(userId, newlyEarned.filter(b => insertedIds.has(b.id)));
       console.log(`Awarded ${inserted.length} badge(s) to user ${userId} for trigger '${trigger}'`);
     }
   } catch (err) {
     console.error('awardBadgesForTrigger failed (non-fatal):', err.message);
   }
 };
+
+// Notification row (notified:true — the toast fires via the badge-awards
+// channel) + realtime broadcast for each badge a user just received.
+async function announceBadges(userId, badges) {
+  if (!badges.length) return;
+  await supabase.from('notifications').insert(
+    badges.map(b => ({
+      user_id:  userId,
+      status:   'badge_earned',
+      message:  b.id,   // badge UUID stored in message for enrichment
+      notified: true,
+    }))
+  );
+  for (const badge of badges) {
+    await broadcastUpdate(`badge-awards-${userId}`, 'badge-earned', {
+      id:          badge.id,
+      name:        badge.name,
+      description: badge.description,
+      image_url:   badge.image_url,
+      is_secret:   badge.is_secret,
+    });
+  }
+}
+
+// ── First catch of the month ──────────────────────────────────────────────────
+// Awards every first_approval_month badge for monthId once the month's winner
+// is SETTLED (badgeEval.firstOfMonthWinner): on the submission clock that is
+// the earliest-submitted approved catch, and only once no earlier submission is
+// still pending. Called after every non-historical approve and reject. A badge
+// that already has a holder for this month is never touched. Never throws.
+async function settleFirstOfMonth(monthId) {
+  try {
+    if (monthId == null) return null;
+    const { data: badges } = await supabase
+      .from('badges')
+      .select('id, name, description, image_url, is_secret')
+      .eq('check_type', 'first_approval_month');
+    if (!badges?.length) return null;
+
+    const data = await badgeEval.loadFirstOfMonthData(supabase, [monthId]);
+    const [result] = badgeEval.firstOfMonthResults(data);
+    if (result?.status !== 'settled') return result ?? null;
+
+    const { data: held } = await supabase
+      .from('user_badges').select('badge_id')
+      .eq('month_id', monthId).in('badge_id', badges.map(b => b.id));
+    const heldIds = new Set((held || []).map(r => r.badge_id));
+    const toAward = badges.filter(b => !heldIds.has(b.id));
+    if (!toAward.length) return result;
+
+    // (badge_id, month_id) is unique, so a concurrent settle loses cleanly.
+    const awarded = [];
+    for (const b of toAward) {
+      const { error } = await supabase.from('user_badges')
+        .insert({ user_id: result.user_id, badge_id: b.id, month_id: monthId });
+      if (!error) awarded.push(b);
+      else if (error.code !== '23505') console.error('settleFirstOfMonth insert failed:', error.message);
+    }
+    await announceBadges(result.user_id, awarded);
+    if (awarded.length) console.log(`First of month ${monthId}: ${awarded.length} badge(s) to ${result.user_id}`);
+    return result;
+  } catch (err) {
+    console.error('settleFirstOfMonth failed (non-fatal):', err.message);
+    return null;
+  }
+}
+
+// ── First of species in a month ───────────────────────────────────────────────
+// first_of_species_count badges are ordinary approved-trigger badges (the
+// approver is evaluated by awardBadgesForTrigger, whose context already counts
+// settled firsts site-wide). The one event that can hand someone ELSE a first is
+// a reject: removing an earlier pending upload settles a later approved catch of
+// that mon that month. So after a non-historical reject, re-evaluate whoever now
+// holds it. Never throws.
+async function settleFirstOfSpecies(monthId, pokemonId) {
+  try {
+    if (monthId == null || pokemonId == null) return;
+    const { count } = await supabase.from('badges')
+      .select('id', { count: 'exact', head: true }).eq('check_type', 'first_of_species_count');
+    if (!count) return;
+    const holders = await badgeEval.firstOfSpeciesHolders(supabase, monthId, pokemonId);
+    for (const uid of holders) await awardBadgesForTrigger(uid, 'approved');
+  } catch (err) {
+    console.error('settleFirstOfSpecies failed (non-fatal):', err.message);
+  }
+}
 
 // ── Bulk badge award helper ───────────────────────────────────────────────────
 // Awards a single badge to multiple users at once, skipping already-earned ones.
@@ -502,76 +536,28 @@ async function deleteR2Images(imageUrls) {
 }
 
 // ── Period-end processors ─────────────────────────────────────────────────────
-async function processMonthEnd(monthId) {
+// Qualifiers come from badgeEval.periodQualifiers — the same counts and ranks
+// the Backlog simulator and the backfill use (checked against the SQL RPCs by
+// api/scripts/verifyBadgeSim.js). A blank qualifier means "every period".
+async function processPeriodEnd(period, periodId) {
   const awarded = {};
   const { data: badges } = await supabase.from('badges').select('id, name, check_type, check_value, check_qualifier')
-    .eq('trigger', 'period_end').in('check_type', ['approved_count_in_month', 'top_placement_month']);
+    .eq('trigger', 'period_end').in('check_type', [`approved_count_in_${period}`, `top_placement_${period}`]);
   if (!badges?.length) return awarded;
 
+  const { period: periodData } = await badgeEval.loadData(supabase, 'period_end', { fresh: true });
   for (const { id, name, check_type, check_value, check_qualifier } of badges) {
-    // For top_placement types a blank qualifier means "any period" — skip period filter.
-    // For approved_count types the qualifier is always required.
-    const anyPeriod = !check_qualifier;
-    if (!anyPeriod && Number(check_qualifier) !== monthId) continue;
-    let userIds = [];
-    if (check_type === 'approved_count_in_month') {
-      const { data } = await supabase.rpc('users_with_min_entries_in_month', { p_month_id: monthId, p_min_count: check_value });
-      userIds = (data || []).map(r => r.user_id);
-    } else {
-      const { data } = await supabase.rpc('rank_users_by_month_points', { p_month_id: monthId, p_max_rank: check_value });
-      userIds = (data || []).map(r => r.user_id);
-    }
+    if (check_qualifier && Number(check_qualifier) !== periodId) continue;
+    const userIds = badgeEval.periodQualifiers(periodData, check_type, periodId, check_value);
     const count = await bulkAwardBadge(id, userIds);
     if (count > 0) awarded[name] = count;
   }
   return awarded;
 }
 
-async function processSeasonEnd(seasonId) {
-  const awarded = {};
-  const { data: badges } = await supabase.from('badges').select('id, name, check_type, check_value, check_qualifier')
-    .eq('trigger', 'period_end').in('check_type', ['approved_count_in_season', 'top_placement_season']);
-  if (!badges?.length) return awarded;
-
-  for (const { id, name, check_type, check_value, check_qualifier } of badges) {
-    const anyPeriod = !check_qualifier;
-    if (!anyPeriod && Number(check_qualifier) !== seasonId) continue;
-    let userIds = [];
-    if (check_type === 'approved_count_in_season') {
-      const { data } = await supabase.rpc('users_with_min_entries_in_season', { p_season_id: seasonId, p_min_count: check_value });
-      userIds = (data || []).map(r => r.user_id);
-    } else {
-      const { data } = await supabase.rpc('rank_users_by_season_points', { p_season_id: seasonId, p_max_rank: check_value });
-      userIds = (data || []).map(r => r.user_id);
-    }
-    const count = await bulkAwardBadge(id, userIds);
-    if (count > 0) awarded[name] = count;
-  }
-  return awarded;
-}
-
-async function processYearEnd(yearId) {
-  const awarded = {};
-  const { data: badges } = await supabase.from('badges').select('id, name, check_type, check_value, check_qualifier')
-    .eq('trigger', 'period_end').in('check_type', ['approved_count_in_year', 'top_placement_year']);
-  if (!badges?.length) return awarded;
-
-  for (const { id, name, check_type, check_value, check_qualifier } of badges) {
-    const anyPeriod = !check_qualifier;
-    if (!anyPeriod && Number(check_qualifier) !== yearId) continue;
-    let userIds = [];
-    if (check_type === 'approved_count_in_year') {
-      const { data } = await supabase.rpc('users_with_min_entries_in_year', { p_year_id: yearId, p_min_count: check_value });
-      userIds = (data || []).map(r => r.user_id);
-    } else {
-      const { data } = await supabase.rpc('rank_users_by_year_points', { p_year_id: yearId, p_max_rank: check_value });
-      userIds = (data || []).map(r => r.user_id);
-    }
-    const count = await bulkAwardBadge(id, userIds);
-    if (count > 0) awarded[name] = count;
-  }
-  return awarded;
-}
+const processMonthEnd  = (monthId)  => processPeriodEnd('month', monthId);
+const processSeasonEnd = (seasonId) => processPeriodEnd('season', seasonId);
+const processYearEnd   = (yearId)   => processPeriodEnd('year', yearId);
 
 // SSE connections manager
 const sseClients = new Map(); // userId -> Set of response objects
@@ -900,6 +886,19 @@ async function isModerator(userId) {
   return isMod;
 }
 
+// Whether a user is a site owner (site_owners table) — the one who wires Backlog
+// proposals to the API and publishes them. Cached like isModerator.
+const ownerCache = new Map(); // userId → { isOwner, expiresAt }
+async function isOwner(userId) {
+  if (!userId) return false;
+  const cached = ownerCache.get(userId);
+  if (cached && Date.now() < cached.expiresAt) return cached.isOwner;
+  const { data } = await supabase.from('site_owners').select('user_id').eq('user_id', userId).maybeSingle();
+  const owner = Boolean(data);
+  ownerCache.set(userId, { isOwner: owner, expiresAt: Date.now() + MODERATOR_CACHE_TTL });
+  return owner;
+}
+
 // Batch-fetches badge slots 1–3 for a list of users and attaches them as badge_slots[]
 async function enrichWithBadgeSlots(users) {
   const userIds = users.map(u => u.user_id).filter(Boolean);
@@ -1190,6 +1189,84 @@ async function uploadBufferToR2(file, key) {
     ContentType: file.mimetype,
   }));
   return `${process.env.R2_BUCKET_URL}/${key}`;
+}
+
+const VALID_BADGE_TRIGGERS = ['submission', 'approved', 'rejected', 'monthly_active', 'period_end', 'bingo_achievement', 'date_award', 'account_age'];
+
+// The one way a badges row is created: POST /api/badges and the Backlog's
+// publish both call this. Uploads the art to assets/badges/<key>.png (the path
+// the Replace tab overwrites), upserts a new family if asked, inserts the row.
+// Validation failures throw with .status = 400.
+async function createBadge({ key, name, description, hint, is_secret, family, family_order, family_new,
+  trigger, trigger_count, check_type, check_value, check_qualifier, imageBuffer }) {
+  const bad = (msg) => Object.assign(new Error(msg), { status: 400 });
+  if (!imageBuffer) throw bad('Image file is required');
+  if (!key)         throw bad('Image key is required');
+  if (!name)        throw bad('Name is required');
+  if (!description) throw bad('Description is required');
+  if (!trigger)     throw bad('Trigger is required');
+  if (!VALID_BADGE_TRIGGERS.includes(trigger)) throw bad(`Invalid trigger. Must be one of: ${VALID_BADGE_TRIGGERS.join(', ')}`);
+  if (!process.env.R2_ACCESS_KEY_ID || !process.env.R2_SECRET_ACCESS_KEY || !process.env.R2_ACCOUNT_ID || !process.env.R2_BUCKET_URL) {
+    throw new Error('R2 credentials not configured');
+  }
+
+  const { S3Client, PutObjectCommand } = require('@aws-sdk/client-s3');
+  const s3Client = new S3Client({
+    region: 'auto',
+    endpoint: `https://${process.env.R2_ACCOUNT_ID}.r2.cloudflarestorage.com`,
+    credentials: { accessKeyId: process.env.R2_ACCESS_KEY_ID, secretAccessKey: process.env.R2_SECRET_ACCESS_KEY },
+  });
+  const r2Key = `assets/badges/${key}.png`;
+  await s3Client.send(new PutObjectCommand({
+    Bucket: process.env.R2_BUCKET_NAME || 'shiny-sprites',
+    Key:    r2Key,
+    Body:   imageBuffer,
+    ContentType: 'image/png',
+    CacheControl: 'no-cache', // revalidate via ETag so replacements are picked up immediately
+  }));
+  const image_url = `${process.env.R2_BUCKET_URL}/${r2Key}`;
+
+  if (family && family_new) {
+    const { error: famErr } = await supabase
+      .from('badge_families')
+      .upsert({
+        id:            family,
+        display_name:  family_new.display_name || family,
+        display_order: parseInt(family_new.display_order, 10) || 0,
+        is_sequential: !!family_new.is_sequential,
+      }, { onConflict: 'id', ignoreDuplicates: true });
+    if (famErr) throw famErr;
+  }
+
+  let order = family_order !== '' && family_order != null ? parseInt(family_order, 10) : null;
+  if (order === 0 && family) {
+    const { data: last } = await supabase
+      .from('badges').select('family_order').eq('family', family)
+      .order('family_order', { ascending: false }).limit(1);
+    order = last?.[0]?.family_order != null ? last[0].family_order + 1 : 1;
+  }
+
+  const { data: badge, error } = await supabase
+    .from('badges')
+    .insert({
+      key,
+      name,
+      description,
+      hint:            hint || null,
+      image_url,
+      is_secret:       !!is_secret,
+      family:          family || null,
+      family_order:    order,
+      trigger,
+      trigger_count:   parseInt(trigger_count, 10) || 1,
+      check_type:      check_type || 'approved_count',
+      check_value:     check_value != null && check_value !== '' ? parseFloat(check_value) : 1,
+      check_qualifier: check_qualifier || null,
+    })
+    .select()
+    .single();
+  if (error) throw error;
+  return badge;
 }
 
 // Uploads the optional evolution + extra proof files shared by both submission
@@ -2016,6 +2093,8 @@ module.exports = {
   LEADERBOARD_CACHE_TTL,
   MODERATOR_CACHE_TTL,
   isModerator,
+  isOwner,
+  createBadge,
   moderatorCache,
   MONTH_ROLLOVER_OFFSET_MS,
   POKEMON_IMAGE_FIELDS,
@@ -2037,6 +2116,9 @@ module.exports = {
   apiKeyCache,
   approvalsInProgress,
   awardBadgesForTrigger,
+  announceBadges,
+  settleFirstOfMonth,
+  settleFirstOfSpecies,
   broadcastNotificationToasts,
   broadcastSSE,
   broadcastQueueChanged,

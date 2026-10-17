@@ -4,6 +4,7 @@
  */
 const {
   computeBadgeRarity,
+  createBadge,
   getActiveMonth,
   getAuthenticatedUserId,
   getDexTotals,
@@ -12,7 +13,7 @@ const {
   supabase,
   upload,
 } = require('../_lib/core');
-const { contextBuilders } = require('../_badgeRegistry');
+const { contextBuilders } = require('../_lib/badgeEval');
 
 // ── Badge progress ────────────────────────────────────────────────────────────
 // Every badge check in _badgeRegistry.js is a threshold comparison
@@ -64,7 +65,7 @@ const PROGRESS_SOURCES = {
   collection_complete: (ctx, b) => {
     const prog = ctx.collectionProgress?.[String(b.check_qualifier)];
     if (!prog || !prog.total) return null;
-    return { current: prog.caught, target: prog.total, unit: 'in the set' };
+    return { current: prog.caught, target: Math.ceil(((b.check_value ?? 100) / 100) * prog.total), unit: 'in the set' };
   },
 };
 
@@ -420,90 +421,22 @@ module.exports = function register(app) {
       if (!description) return res.status(400).json({ error: 'Description is required' });
       if (!trigger)     return res.status(400).json({ error: 'Trigger is required' });
 
-      const VALID_TRIGGERS = ['submission', 'approved', 'rejected', 'monthly_active', 'period_end', 'bingo_achievement', 'date_award', 'account_age'];
-      if (!VALID_TRIGGERS.includes(trigger)) {
-        return res.status(400).json({ error: `Invalid trigger. Must be one of: ${VALID_TRIGGERS.join(', ')}` });
-      }
-
-      // Upload to R2 under assets/badges/
-      const R2_ACCESS_KEY_ID     = process.env.R2_ACCESS_KEY_ID;
-      const R2_SECRET_ACCESS_KEY = process.env.R2_SECRET_ACCESS_KEY;
-      const R2_ACCOUNT_ID        = process.env.R2_ACCOUNT_ID;
-      const R2_BUCKET_NAME       = process.env.R2_BUCKET_NAME || 'shiny-sprites';
-      const R2_BUCKET_URL        = process.env.R2_BUCKET_URL;
-
-      if (!R2_ACCESS_KEY_ID || !R2_SECRET_ACCESS_KEY || !R2_ACCOUNT_ID || !R2_BUCKET_URL) {
-        return res.status(500).json({ error: 'R2 credentials not configured' });
-      }
-
-      const { S3Client, PutObjectCommand } = require('@aws-sdk/client-s3');
-      const s3Client = new S3Client({
-        region: 'auto',
-        endpoint: `https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com`,
-        credentials: { accessKeyId: R2_ACCESS_KEY_ID, secretAccessKey: R2_SECRET_ACCESS_KEY },
+      // Shared with the Backlog's publish (api/_routes/badgeBacklog.js) — one
+      // insert path, so a published proposal is indistinguishable from this.
+      const badge = await createBadge({
+        key, name, description, hint,
+        is_secret: is_secret === 'true' || is_secret === true,
+        family, family_order,
+        family_new: family && family_is_new === 'true'
+          ? { display_name: family_display_name, display_order: family_display_order, is_sequential: family_is_sequential === 'true' }
+          : null,
+        trigger, trigger_count, check_type, check_value, check_qualifier,
+        imageBuffer: file.buffer,
       });
-
-      const r2Key = `assets/badges/${key}.png`;
-      await s3Client.send(new PutObjectCommand({
-        Bucket: R2_BUCKET_NAME,
-        Key:    r2Key,
-        Body:   file.buffer,
-        ContentType: 'image/png',
-        CacheControl: 'no-cache', // revalidate via ETag so replacements are picked up immediately
-      }));
-
-      const image_url = `${R2_BUCKET_URL}/${r2Key}`;
-
-      // Upsert family record if this is a new family
-      if (family && family_is_new === 'true') {
-        const { error: famErr } = await supabase
-          .from('badge_families')
-          .upsert({
-            id:            family,
-            display_name:  family_display_name || family,
-            display_order: parseInt(family_display_order, 10) || 0,
-            is_sequential: family_is_sequential === 'true',
-          }, { onConflict: 'id', ignoreDuplicates: true });
-        if (famErr) throw famErr;
-      }
-
-      // Insert badge record
-      const { data: badge, error } = await supabase
-        .from('badges')
-        .insert({
-          key,
-          name,
-          description,
-          hint:          hint         || null,
-          image_url,
-          is_secret:     is_secret === 'true' || is_secret === true,
-          family:        family       || null,
-          family_order:  await (async () => {
-            const parsed = family_order !== '' && family_order != null ? parseInt(family_order, 10) : null;
-            if (parsed === 0 && family) {
-              const { data: last } = await supabase
-                .from('badges').select('family_order').eq('family', family)
-                .order('family_order', { ascending: false }).limit(1);
-              return last?.[0]?.family_order != null ? last[0].family_order + 1 : 1;
-            }
-            return parsed;
-          })(),
-          trigger,
-          trigger_count:   parseInt(trigger_count, 10) || 1,
-          check_type:      check_type      || 'approved_count',
-          check_value:     check_value != null ? parseFloat(check_value) : 1,
-          check_qualifier: check_qualifier || null,
-        })
-        .select()
-        .single();
-
-      if (error) {
-        console.error('Badge insert error:', error);
-        return res.status(500).json({ error: error.message });
-      }
 
       res.status(201).json(badge);
     } catch (error) {
+      if (error.status) return res.status(error.status).json({ error: error.message });
       console.error('Error creating badge:', error);
       res.status(500).json({ error: 'Failed to create badge', details: error.message });
     }
@@ -627,10 +560,10 @@ module.exports = function register(app) {
       }
 
       // DISTINCT (month_id, base_type). This must stay identical to
-      // contextBuilders.bingo_achievement in _badgeRegistry.js — if the ladder
+      // computeBingoContext in _badgeRegistry.js — if the ladder
       // and the award engine count differently, the bar either shows progress
       // toward a badge already granted or hides one about to be. See the long
-      // comment on that builder for why neither folding nor exact-type is right.
+      // comment on that function for why neither folding nor exact-type is right.
       const strictBingoCounts = { row: 0, column: 0, x: 0, blackout: 0 };
       const seenBingo = new Set();
       for (const a of (myBingos || [])) {

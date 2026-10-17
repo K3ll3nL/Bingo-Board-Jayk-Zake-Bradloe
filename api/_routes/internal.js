@@ -13,6 +13,7 @@ const {
   processYearEnd,
   supabase,
 } = require('../_lib/core');
+const { dateAwardUsers } = require('../_lib/badgeEval');
 
 // Number of days before a month's end_date at which the countdown banner appears.
 const COUNTDOWN_WINDOW_DAYS = 7;
@@ -137,8 +138,11 @@ module.exports = function register(app) {
         .eq('check_qualifier', yesterdayStr);
 
       if (dateAwardBadges?.length) {
-        const { data: allUsers } = await supabase.from('users').select('id');
-        const userIds = (allUsers || []).map(u => u.id);
+        // Every user that existed at the scheduled run (date + 1d, 04:00Z) —
+        // the same rule the backfill and the Backlog simulator use, so a late
+        // or repeated run never reaches users who signed up afterwards.
+        const { data: allUsers } = await supabase.from('users').select('id, created_at');
+        const userIds = dateAwardUsers(allUsers || [], yesterdayStr);
         for (const badge of dateAwardBadges) {
           const count = await bulkAwardBadge(badge.id, userIds);
           results.dateAwards.push({ id: badge.id, name: badge.name, awarded: count });

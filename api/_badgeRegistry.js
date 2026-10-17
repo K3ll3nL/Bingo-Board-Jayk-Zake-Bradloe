@@ -8,52 +8,30 @@
 // Fields:
 //   key          — stable unique slug; never change this after seeding
 //   check(ctx)   — called ONLY for badges the user hasn't earned yet;
-//                  receives pre-built context for the trigger (see contextBuilders)
+//                  receives pre-built context for the trigger (contextBuilders in api/_lib/badgeEval.js)
 //
-// Trigger types & what they count (via contextBuilders below):
+// Trigger types & what they count (contexts built in api/_lib/badgeEval.js):
 //   'submission' — ctx.totalSubmissions      (all-time pending notifications)
 //   'approved'   — ctx.totalApproved         (distinct caught Pokemon)
 //                  ctx.restrictedApproved    (entries where restricted_submission = true)
 //                  ctx.typeApproved/Total    ({ fire: N, ... } — distinct caught/available per type)
 //                  ctx.genApproved/Total     ({ 1: N, ...    } — distinct caught/available per gen)
 //                  ctx.collectionProgress    ({ weather_trio: { caught: 2, total: 3 }, ... })
-//                  ctx.firstApprovalOfMonth  (true if no other user has an entry for monthId yet)
 //   'monthly_active' — ctx.activeMonths       (distinct months with at least one approved entry)
 //   'rejected'       — ctx.totalRejected      (all-time rejected notifications)
 // ─────────────────────────────────────────────────────────────────────────────
 
 const BASE_URL = 'https://pub-583ae6cd5f8b4b58b0ee7053ea1d4b0b.r2.dev/assets/badges';
 
-// ── Context builders ──────────────────────────────────────────────────────────
-// Called ONCE per trigger invocation. The returned object is passed to every
-// check() for that trigger — so DB round-trips stay at 1-2 regardless of
-// how many badges exist for a given trigger.
-const contextBuilders = {
-  async submission(userId, supabase) {
-    const { count } = await supabase
-      .from('notifications')
-      .select('*', { count: 'exact', head: true })
-      .eq('user_id', userId)
-      .eq('status', 'pending');
-    return { totalSubmissions: count ?? 0 };
-  },
-
-  async approved(userId, supabase, { monthId } = {}) {
-    // Three queries, shared by every approved-trigger badge.
-    const [{ data: userEntries }, { data: allPokemon }, { data: gameFilters }] = await Promise.all([
-      supabase
-        .from('entries')
-        .select('pokemon_id, restricted_submission, game, pokemon_master!fk_entries_pokemon(type1, type2, generation, collection_ids)')
-        .eq('user_id', userId),
-      supabase
-        .from('pokemon_master')
-        .select('type1, type2, generation, collection_ids')
-        .eq('shiny_available', true),
-      supabase
-        .from('collection_game_filter')
-        .select('slug, required_game'),
-    ]);
-
+// ── Approved-trigger context maths (pure) ─────────────────────────────────────
+// The ONE implementation of what "approved" badges count. Used by the live
+// award path, the backfill and the Backlog simulator (all via
+// api/_lib/badgeEval.js), so a simulated count can never drift from what the
+// site actually awards. Never fork this.
+//   userEntries — [{ pokemon_id, restricted_submission, game, pokemon_master: { type1, type2, generation, collection_ids } }]
+//   allPokemon  — shiny_available pokemon_master rows (type1, type2, generation, collection_ids)
+//   gameFilters — collection_game_filter rows
+function computeApprovedContext(userEntries, allPokemon, gameFilters) {
     // Build collection game-filter lookup: { slug -> required_game | null }
     const collectionGameFilter = Object.fromEntries(
       (gameFilters || []).map(g => [g.slug, g.required_game])
@@ -128,18 +106,6 @@ const contextBuilders = {
       collectionProgress[col] = { total: collectionTotal[col], caught: collectionCaught[col] ?? 0 };
     }
 
-    // First approval of month: true if no other user has an approved entry this month yet.
-    // Relies on the entry already being committed by the time the context is built.
-    let firstApprovalOfMonth = false;
-    if (monthId) {
-      const { count: othersCount } = await supabase
-        .from('entries')
-        .select('*', { count: 'exact', head: true })
-        .eq('month_id', monthId)
-        .neq('user_id', userId);
-      firstApprovalOfMonth = othersCount === 0;
-    }
-
     return {
       totalApproved: seenIds.size,
       restrictedApproved,
@@ -148,85 +114,120 @@ const contextBuilders = {
       genApproved,         // { 1: 45, 2: 12, ... }
       genTotal,            // { 1: 80, 2: 30, ... }
       collectionProgress,  // { weather_trio: { caught: 2, total: 3 }, ... }
-      firstApprovalOfMonth,
     };
-  },
+}
 
-  async monthly_active(userId, supabase) {
-    const { count } = await supabase
-      .from('user_monthly_points')
-      .select('*', { count: 'exact', head: true })
-      .eq('user_id', userId);
-    return { activeMonths: count ?? 0 };
-  },
+// ── First of species in a month (pure) ────────────────────────────────────────
+// Who caught each Pokémon first in each month. The unit is (month, pokemon_id),
+// so regional forms are their own species, as on the board and Pokédex. Three
+// modes, one per badge qualifier:
+//   any        — the earliest entry of that mon that month
+//   standard   — the earliest NON-restricted entry
+//   restricted — the earliest restricted entry
+// Site-wide, so one user's count needs EVERY hunter's entries.
+//   entries — { id, user_id, month_id, pokemon_id, restricted_submission, historical, created_at, submitted_at }
+//   pending — approvals still queued: { user_id, month_id, pokemon_id, historical, created_at }
+//   months  — { id, start_date }
+//   clock   — award_clocks.first_of_species: 'submission' | 'approval'
+// Same rules as firstOfMonthWinner (badgeEval.js): the submission clock times a
+// catch by submitted_at (upload), falling back to created_at for entries
+// approved before upload times were recorded; uploads made before the month
+// began don't count; a result SETTLES only once no other hunter's earlier upload
+// of that mon that month is still pending. That holds in every mode, since a
+// mod can upgrade or downgrade a submission at approval. The holder's own
+// pending upload can't change who holds it. Approval clock: created_at,
+// settled immediately. Historical catches never count. Exact ties go to the
+// lower entry id.
+// → { holders: { any, standard, restricted }: Map<'month:pokemon', user_id>,
+//     counts:  { any, standard, restricted }: Map<user_id, number> }
+const FIRST_OF_SPECIES_MODES = ['any', 'standard', 'restricted'];
+const MONTH_START_MS = 4 * 60 * 60 * 1000; // rollover offset, as in core.js
+function computeFirstOfSpecies(entries, pending = [], months = [], clock = 'submission') {
+  const startOf = new Map(months.map(m => [m.id, Date.parse(`${m.start_date}T00:00:00Z`) + MONTH_START_MS]));
+  const timeOf = (e) => Date.parse(clock === 'approval' ? e.created_at : (e.submitted_at ?? e.created_at));
+  const early = (monthId, t) => clock === 'submission' && startOf.has(monthId) && t < startOf.get(monthId);
 
-  async rejected(userId, supabase) {
-    const { count } = await supabase
-      .from('notifications')
-      .select('*', { count: 'exact', head: true })
-      .eq('user_id', userId)
-      .eq('status', 'rejected');
-    return { totalRejected: count ?? 0 };
-  },
-
-  // Fired alongside monthly_active. Reads users.created_at and returns
-  // accountAgeMonths — full calendar months elapsed since account creation.
-  async account_age(userId, supabase) {
-    const { data } = await supabase
-      .from('users')
-      .select('created_at')
-      .eq('id', userId)
-      .single();
-    if (!data?.created_at) return { accountAgeMonths: 0 };
-    const created = new Date(data.created_at);
-    const now = new Date();
-    const months = (now.getFullYear() - created.getFullYear()) * 12 + (now.getMonth() - created.getMonth());
-    return { accountAgeMonths: Math.max(0, months) };
-  },
-
-  // Fired via Supabase webhook on INSERT into bingo_achievements.
-  // check_qualifier uses plain names: 'row', 'column', 'x', 'blackout'.
-  //
-  // COUNTED AS DISTINCT (month_id, base_type) — not a raw row count, and not a
-  // count of exact bingo_type. Both of the simpler rules are wrong, in opposite
-  // directions, and each is wrong for real users on production data:
-  //
-  //   • Folding `_restricted` into the base and counting ROWS double-counts.
-  //     approve_submission evaluates the standard board and the restricted board
-  //     separately, so ONE all-restricted line writes both `row` and
-  //     `row_restricted`. That is how a hunter with 4 lines was awarded line_5.
-  //
-  //   • Counting only the exact base type undercounts. The RPC awards the base
-  //     type community-first (`NOT 'row' = ANY(claimed_by_anyone)`), so a hunter
-  //     who completes a restricted line in a month where someone else already
-  //     claimed `row` receives ONLY `row_restricted`. Ignoring those loses lines
-  //     they genuinely completed.
-  //
-  // Distinct (month, base) is right for both: the guard makes each of `row` and
-  // `row_restricted` awardable at most once per month, so a same-month pair is
-  // one physical line, while a lone `row_restricted` still counts as one.
-  async bingo_achievement(userId, supabase) {
-    const { data } = await supabase
-      .from('bingo_achievements')
-      .select('month_id, bingo_type')
-      .eq('user_id', userId);
-
-    const typeCounts = { row: 0, column: 0, x: 0, blackout: 0 };
-    const seen = new Set();
-    for (const a of (data || [])) {
-      const base = a.bingo_type.replace('_restricted', '');
-      if (!(base in typeCounts)) continue;
-      const key = `${a.month_id}:${base}`;
-      if (seen.has(key)) continue;
-      seen.add(key);
-      typeCounts[base]++;
+  const best = { any: new Map(), standard: new Map(), restricted: new Map() };
+  for (const e of entries) {
+    if (e.historical) continue;
+    const t = timeOf(e);
+    if (early(e.month_id, t)) continue;
+    const key = `${e.month_id}:${e.pokemon_id}`;
+    for (const mode of ['any', e.restricted_submission ? 'restricted' : 'standard']) {
+      const cur = best[mode].get(key);
+      if (!cur || t < cur.t || (t === cur.t && String(e.id) < String(cur.e.id))) best[mode].set(key, { e, t });
     }
-    return {
-      bingoTypeCounts: typeCounts,
-      bingoTotalCount: seen.size,
-    };
-  },
-};
+  }
+
+  const pendingByKey = new Map();
+  if (clock === 'submission') {
+    for (const a of pending) {
+      if (a.historical) continue;
+      const t = Date.parse(a.created_at);
+      if (early(a.month_id, t)) continue;
+      const key = `${a.month_id}:${a.pokemon_id}`;
+      if (!pendingByKey.has(key)) pendingByKey.set(key, []);
+      pendingByKey.get(key).push({ user_id: a.user_id, t });
+    }
+  }
+
+  const holders = { any: new Map(), standard: new Map(), restricted: new Map() };
+  const counts = { any: new Map(), standard: new Map(), restricted: new Map() };
+  for (const mode of FIRST_OF_SPECIES_MODES) {
+    for (const [key, { e, t }] of best[mode]) {
+      if ((pendingByKey.get(key) || []).some(a => a.user_id !== e.user_id && a.t < t)) continue;
+      holders[mode].set(key, e.user_id);
+      counts[mode].set(e.user_id, (counts[mode].get(e.user_id) ?? 0) + 1);
+    }
+  }
+  return { holders, counts };
+}
+
+// check_qualifier → mode (blank / unknown = any).
+const firstOfSpeciesMode = (q) => (q === 'standard' || q === 'restricted' ? q : 'any');
+
+// Full calendar months since account creation (pure; shared with the simulator).
+function computeAccountAgeMonths(createdAt, now = new Date()) {
+  if (!createdAt) return 0;
+  const created = new Date(createdAt);
+  const months = (now.getFullYear() - created.getFullYear()) * 12 + (now.getMonth() - created.getMonth());
+  return Math.max(0, months);
+}
+
+// Bingo context from a user's bingo_achievements rows (pure; shared with the
+// simulator). Counted as DISTINCT (month_id, base_type) — not a raw row count,
+// and not a count of exact bingo_type. Both simpler rules are wrong, in opposite
+// directions, for real users on production data:
+//   • Folding `_restricted` into the base and counting ROWS double-counts: one
+//     all-restricted line writes both `row` and `row_restricted` (that is how a
+//     hunter with 4 lines was awarded line_5).
+//   • Counting only the exact base type undercounts: the base type is awarded
+//     community-first, so a hunter whose restricted line came after someone
+//     else claimed `row` holds ONLY `row_restricted`.
+// Each of `row` / `row_restricted` is awardable at most once per month, so a
+// same-month pair is one physical line and a lone `row_restricted` is one too.
+function computeBingoContext(rows) {
+  const typeCounts = { row: 0, column: 0, x: 0, blackout: 0 };
+  const seen = new Set();
+  for (const a of (rows || [])) {
+    const base = a.bingo_type.replace('_restricted', '');
+    if (!(base in typeCounts)) continue;
+    const key = `${a.month_id}:${base}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    typeCounts[base]++;
+  }
+  return {
+    bingoTypeCounts: typeCounts,
+    bingoTotalCount: seen.size,
+  };
+}
+
+// ── Context builders ──────────────────────────────────────────────────────────
+// Moved to api/_lib/badgeEval.js (contextBuilders), which builds every user's
+// context with the same loader the simulator and backfill use. This file keeps
+// the pure maths above and buildCheckFromDB below.
+
 
 // ── Badge definitions ─────────────────────────────────────────────────────────
 const BADGE_REGISTRY = [
@@ -608,17 +609,28 @@ function buildCheckFromDB({ check_type, check_value, check_qualifier }) {
         return total > 0 && ((ctx.genApproved[g] ?? 0) / total) * 100 >= check_value;
       };
     }
+    // check_value = % of the collection caught (null → 100, i.e. complete it).
     case 'collection_complete': {
       const col = String(check_qualifier);
+      const pct = check_value ?? 100;
       return (ctx) => {
         const prog = ctx.collectionProgress[col];
-        return prog != null && prog.total > 0 && prog.caught >= prog.total;
+        return prog != null && prog.total > 0 && (prog.caught / prog.total) * 100 >= pct;
       };
     }
     // ── Bingo achievement count ───────────────────────────────────────────────
     // check_qualifier: 'any' | comma-separated base types e.g. 'row,blackout'
     // Each base type includes its _restricted variant (folded in contextBuilder).
-    case 'first_approval_month': return (ctx) => ctx.firstApprovalOfMonth === true;
+    // Decided per MONTH by settleFirstOfMonth (core.js) via firstOfMonthWinner
+    // (badgeEval.js) — a per-user context can't know about earlier pending
+    // submissions — so the per-user evaluator never awards it.
+    case 'first_approval_month': return () => false;
+    // (month, pokemon) pairs where this hunter has the settled first catch, in
+    // the qualifier's mode: any | standard | restricted (computeFirstOfSpecies).
+    case 'first_of_species_count': {
+      const mode = firstOfSpeciesMode(check_qualifier);
+      return (ctx) => (ctx.firstOfSpecies?.[mode] ?? 0) >= check_value;
+    }
     case 'account_age_months':   return (ctx) => ctx.accountAgeMonths >= check_value;
     case 'bingo_achievement_count': {
       const types = (!check_qualifier || check_qualifier === 'any')
@@ -633,4 +645,4 @@ function buildCheckFromDB({ check_type, check_value, check_qualifier }) {
   }
 }
 
-module.exports = { BADGE_REGISTRY, REGISTRY_BY_TRIGGER, contextBuilders, buildCheckFromDB };
+module.exports = { BADGE_REGISTRY, REGISTRY_BY_TRIGGER, computeApprovedContext, computeFirstOfSpecies, firstOfSpeciesMode, FIRST_OF_SPECIES_MODES, computeAccountAgeMonths, computeBingoContext, buildCheckFromDB };

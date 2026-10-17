@@ -12,6 +12,8 @@ const {
   isModerator,
   leaderboardCache,
   pokeR2Url,
+  settleFirstOfMonth,
+  settleFirstOfSpecies,
   supabase,
 } = require('../_lib/core');
 
@@ -43,6 +45,18 @@ const broadcastLeaderboardIfQueueEmpty = async () => {
     await broadcastUpdate('leaderboard-updates', 'leaderboard-changed', {}).catch(() => {});
   }
 };
+
+// approve_submission / reject_submission settle community-first bingos with
+// resolve_bingo_firsts, which can award a hunter OTHER than the one being
+// approved (an earlier submitter whose catch was waiting on this decision).
+// Their notification row is already written; push the toast and board refresh.
+const announceResolvedBingos = (resolved, exceptUserId) =>
+  Promise.all([...new Set((resolved || []).map(r => r.user_id))]
+    .filter(uid => uid && uid !== exceptUserId)
+    .flatMap(uid => [
+      broadcastNotificationToasts(uid),
+      broadcastUpdate('board-updates', 'board-changed', { userId: uid }),
+    ]));
 
 module.exports = function register(app) {
 
@@ -113,6 +127,7 @@ module.exports = function register(app) {
           historical: true,
           restricted_submission: isUpgradedHistorical || (!isDowngradedHistorical && !!approval.restricted_submission),
           moderator_note: historicalNote,
+          submitted_at: approval.created_at,
         });
         if (entryError) throw entryError;
 
@@ -230,7 +245,9 @@ module.exports = function register(app) {
         broadcastLeaderboardIfQueueEmpty(),
         broadcastQueueChanged(),
         broadcastNotificationToasts(approval.user_id),
-        awardBadgesForTrigger(approval.user_id, 'approved', { monthId: approval.month_id }),
+        awardBadgesForTrigger(approval.user_id, 'approved'),
+        settleFirstOfMonth(approval.month_id),
+        announceResolvedBingos(data?.resolved, approval.user_id),
         supabase.from('approval_history').insert({
           user_id: approval.user_id,
           pokemon_id: approval.pokemon_id,
@@ -406,6 +423,11 @@ module.exports = function register(app) {
         broadcastLeaderboardIfQueueEmpty(),
         broadcastNotificationToasts(approval.user_id),
         awardBadgesForTrigger(approval.user_id, 'rejected'),
+        // A rejected earlier submission can unblock a later one's first-of-month win…
+        settleFirstOfMonth(approval.month_id),
+        // …and a later catch's first-of-species-this-month.
+        settleFirstOfSpecies(approval.month_id, approval.pokemon_id),
+        announceResolvedBingos(data?.resolved, approval.user_id),
         supabase.from('approval_history').insert({
           user_id: approval.user_id,
           pokemon_id: approval.pokemon_id,

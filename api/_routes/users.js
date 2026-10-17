@@ -7,6 +7,7 @@ const {
   getActiveMonthId,
   getAuthenticatedUserId,
   isModerator,
+  isOwner,
   refreshAvatarFromProvider,
   repairDiscordAvatarMemo,
   supabase,
@@ -183,11 +184,12 @@ module.exports = function register(app) {
       const userId = await getAuthenticatedUserId(req);
       if (!userId) return res.status(401).json({ error: 'Unauthorized' });
 
-      const [authUser, tosRow, moderator, proRow] = await Promise.all([
+      const [authUser, tosRow, moderator, proRow, owner] = await Promise.all([
         supabase.auth.admin.getUserById(userId),
         supabase.from('users').select('tos_version_accepted').eq('id', userId).maybeSingle(),
         isModerator(userId),
         supabase.from('site_pro').select('user_id').eq('user_id', userId).maybeSingle(),
+        isOwner(userId),
       ]);
 
       const identities = (authUser?.data?.user?.identities || []).map(i => ({
@@ -204,7 +206,7 @@ module.exports = function register(app) {
         current_version: TOS_VERSION,
       };
 
-      res.json({ identities, tos, isModerator: !!moderator, isPro: !!(proRow?.data) });
+      res.json({ identities, tos, isModerator: !!moderator, isPro: !!(proRow?.data), isOwner: !!owner });
     } catch (err) {
       console.error('user/context error:', err.message);
       res.status(500).json({ error: 'Failed to load user context' });

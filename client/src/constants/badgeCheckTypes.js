@@ -13,8 +13,9 @@ export const CHECK_TYPES_BY_TRIGGER = {
     { value: 'restricted_count',      label: 'Restricted approvals' },
     { value: 'type_percentage',       label: '% of a type caught' },
     { value: 'generation_percentage', label: '% of a generation caught' },
-    { value: 'collection_complete',   label: 'Complete a collection (100%)' },
+    { value: 'collection_complete',   label: '% of a collection caught' },
     { value: 'first_approval_month',  label: 'First approval of the month, with one winner per month' },
+    { value: 'first_of_species_count', label: 'First catch of a Pokémon in a month (count)' },
   ],
   rejected:          [{ value: 'rejected_count',          label: 'Total rejections' }],
   monthly_active:    [{ value: 'monthly_active_count',    label: 'Active months' }],
@@ -49,7 +50,7 @@ export function describeBadgeCheck(badge) {
     case 'monthly_active_count':       return `Active for ${v} month${v != 1 ? 's' : ''}`;
     case 'type_percentage':            return `Catch ${v}% of ${q} type`;
     case 'generation_percentage':      return `Catch ${v}% of Gen ${q}`;
-    case 'collection_complete':        return `Complete '${q}' collection`;
+    case 'collection_complete':        return v == null || Number(v) >= 100 ? `Complete '${q}' collection` : `Catch ${v}% of '${q}' collection`;
     case 'bingo_achievement_count':    return `Earn ${v} bingo achievement${v != 1 ? 's' : ''}${q && q !== 'any' ? ` (${q})` : ''}`;
     case 'approved_count_in_month':    return `Get ${v} approval${v != 1 ? 's' : ''} in ${q ? `month ${q}` : 'any month'}`;
     case 'approved_count_in_season':   return `Get ${v} approval${v != 1 ? 's' : ''} in ${q ? `season ${q}` : 'any season'}`;
@@ -60,6 +61,10 @@ export function describeBadgeCheck(badge) {
     case 'date_award':                 return `Awarded on ${q || 'a specific date'}`;
     case 'account_age_months':         return `Account at least ${v} month${v != 1 ? 's' : ''} old`;
     case 'first_approval_month':       return 'First player approved in a month';
+    case 'first_of_species_count': {
+      const kind = q === 'restricted' ? 'restricted ' : q === 'standard' ? 'normal ' : '';
+      return `First ${kind}catch of a Pokémon that month, ${v} time${v != 1 ? 's' : ''}`;
+    }
     default:                           return 'Unknown criteria';
   }
 }

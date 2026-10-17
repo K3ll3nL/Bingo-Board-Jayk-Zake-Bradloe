@@ -1,12 +1,14 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { getAuthHeaders } from '../services/api';
 import { ALLOWED_GAMES } from '../constants/games';
-import { CHECK_TYPES_BY_TRIGGER, describeBadgeCheck } from '../constants/badgeCheckTypes';
+import { describeBadgeCheck } from '../constants/badgeCheckTypes';
 import { buildPokemonImageUrl } from '../utils/pokemonImageUtils';
 import PageBackground from './PageBackground';
 import PageHeader from './PageHeader';
+import BacklogTab from './badgeBacklog/BacklogTab';
+import TimingTab from './badgeBacklog/TimingTab';
 
 // ── Theme ─────────────────────────────────────────────────────────────────────
 const C = {
@@ -15,72 +17,6 @@ const C = {
   border: 'rgba(255,255,255,0.07)',
   input:  '#0d0f14',
 };
-
-// ── Constants ─────────────────────────────────────────────────────────────────
-const BASE_BADGE_URL = 'https://pub-583ae6cd5f8b4b58b0ee7053ea1d4b0b.r2.dev/assets/badges';
-
-const TRIGGERS = [
-  { value: 'submission',        label: 'Submission: fires when a user submits' },
-  { value: 'approved',          label: 'Approved: fires when a submission is approved' },
-  { value: 'rejected',          label: 'Rejected: fires when a submission is rejected' },
-  { value: 'monthly_active',    label: 'Monthly Active: fires on new active month' },
-  { value: 'period_end',        label: 'Period End: fires when a month / season / year closes' },
-  { value: 'bingo_achievement', label: 'Bingo Achievement: fires when a bingo is recorded' },
-  { value: 'date_award',        label: 'Date Award: award all users on a specific date' },
-  { value: 'account_age',       label: 'Account Age: fires when a user gains a new active month' },
-];
-
-const POKEMON_TYPES = [
-  'normal','fire','water','electric','grass','ice',
-  'fighting','poison','ground','flying','psychic','bug',
-  'rock','ghost','dragon','dark','steel','fairy',
-];
-
-const GENERATIONS = [
-  { value: '1', label: 'Gen I: Kanto' },
-  { value: '2', label: 'Gen II: Johto' },
-  { value: '3', label: 'Gen III: Hoenn' },
-  { value: '4', label: 'Gen IV: Sinnoh' },
-  { value: '5', label: 'Gen V: Unova' },
-  { value: '6', label: 'Gen VI: Kalos' },
-  { value: '7', label: 'Gen VII: Alola' },
-  { value: '8', label: 'Gen VIII: Galar' },
-  { value: '8.5', label: 'Gen VIII.5: Hisui' },
-  { value: '9', label: 'Gen IX: Paldea' },
-];
-
-const INITIAL_FORM = {
-  key: '', name: '', description: '', hint: '',
-  is_secret: false,
-  family: '', family_order: '0',
-  family_display_name: '', family_display_order: '0', family_is_sequential: true,
-  trigger: 'approved', check_type: 'approved_count',
-  check_value: '1', check_qualifier: '',
-};
-
-// ── Shared primitives ─────────────────────────────────────────────────────────
-
-function Field({ label, note, name, value, onChange, placeholder, textarea, required, type = 'text', ...rest }) {
-  return (
-    <div>
-      <label className="block text-xs font-semibold text-gray-400 mb-1.5">
-        {label}
-        {required && <span className="text-red-400 ml-0.5">*</span>}
-        {note && <span className="text-gray-600 font-normal normal-case tracking-normal ml-1">— {note}</span>}
-      </label>
-      {textarea
-        ? <textarea name={name} value={value} onChange={onChange} placeholder={placeholder}
-            required={required} rows={2}
-            className="w-full rounded-lg px-3 py-2 text-sm text-white placeholder-gray-600 border focus:border-lagoon-500 focus:outline-none resize-none transition-colors"
-            style={{ background: C.input, borderColor: C.border }} />
-        : <input type={type} name={name} value={value} onChange={onChange} placeholder={placeholder}
-            required={required}
-            className="w-full rounded-lg px-3 py-2 text-sm text-white placeholder-gray-600 border focus:border-lagoon-500 focus:outline-none transition-colors"
-            style={{ background: C.input, borderColor: C.border }} {...rest} />
-      }
-    </div>
-  );
-}
 
 function SectionBox({ title, children }) {
   return (
@@ -112,10 +48,25 @@ function Alert({ type, children }) {
 
 // ── Main component ────────────────────────────────────────────────────────────
 
+const TABS = [
+  { id: 'backlog',     label: 'Backlog',        icon: '☰' },
+  { id: 'timing',      label: 'Timing',         icon: '◷' },
+  { id: 'grant',       label: 'Grant / Revoke', icon: '✚' },
+  { id: 'replace',     label: 'Replace Image',  icon: '⟳' },
+  { id: 'collections', label: 'Collections',    icon: '◈' },
+  { id: 'visualizer',  label: 'Visualize',      icon: '◉' },
+];
+
 export default function BadgeUpload() {
-  const { user, loading: authLoading, isModerator } = useAuth();
+  const { user, loading: authLoading, isModerator, isOwner } = useAuth();
   const navigate = useNavigate();
-  const [tab, setTab] = useState('create');
+  const [params, setParams] = useSearchParams();
+  const tab = TABS.some(t => t.id === params.get('tab')) ? params.get('tab') : 'backlog';
+  const setTab = (id) => setParams(p => {
+    const next = new URLSearchParams(p);
+    if (id === 'backlog') next.delete('tab'); else next.set('tab', id);
+    return next;
+  }, { replace: true });
   const [refreshKey, setRefreshKey] = useState(0);
 
   useEffect(() => {
@@ -130,14 +81,6 @@ export default function BadgeUpload() {
       </div>
     );
   }
-
-  const TABS = [
-    { id: 'create',      label: 'Create Badge',     icon: '✦' },
-    { id: 'grant',       label: 'Grant / Revoke',    icon: '✚' },
-    { id: 'replace',     label: 'Replace Image',     icon: '⟳' },
-    { id: 'collections', label: 'Collections',       icon: '◈' },
-    { id: 'visualizer',  label: 'Visualize',         icon: '◉' },
-  ];
 
   return (
     <div className="min-h-screen" style={{ isolation: 'isolate', position: 'relative' }}>
@@ -164,359 +107,12 @@ export default function BadgeUpload() {
           ))}
         </div>
 
-        {tab === 'create'      && <CreateBadgeTab onCreated={() => { setRefreshKey(k => k + 1); setTab('visualizer'); }} />}
+        {tab === 'backlog'     && <BacklogTab onPublished={() => { setRefreshKey(k => k + 1); setTab('visualizer'); }} />}
+        {tab === 'timing'      && <TimingTab isOwner={!!isOwner} />}
         {tab === 'grant'       && <GrantBadgeTab />}
         {tab === 'replace'     && <ReplaceImageTab />}
         {tab === 'collections' && <ManageCollectionsTab />}
         {tab === 'visualizer'  && <BadgeVisualizerTab refreshKey={refreshKey} />}
-      </div>
-    </div>
-  );
-}
-
-// ── Create Badge tab ──────────────────────────────────────────────────────────
-
-function CreateBadgeTab({ onCreated }) {
-  const fileInputRef = useRef(null);
-  const [preview,       setPreview]       = useState(null);
-  const [imageFile,     setImageFile]     = useState(null);
-  const [submitting,    setSubmitting]    = useState(false);
-  const [success,       setSuccess]       = useState(null);
-  const [error,         setError]         = useState(null);
-  const [form,          setForm]          = useState(INITIAL_FORM);
-  const [familyOptions, setFamilyOptions] = useState([]);
-  const [isNewFamily,   setIsNewFamily]   = useState(false);
-
-  useEffect(() => {
-    (async () => {
-      try {
-        const res  = await fetch('/api/admin/badge-families', { headers: await getAuthHeaders() });
-        const data = await res.json();
-        setFamilyOptions(data || []);
-      } catch { /* silent */ }
-    })();
-  }, []);
-
-  const checkTypes           = CHECK_TYPES_BY_TRIGGER[form.trigger] ?? [];
-  const isPercentage         = form.check_type === 'type_percentage' || form.check_type === 'generation_percentage';
-  const isCollection         = form.check_type === 'collection_complete';
-  const isPlacement          = ['top_placement_month', 'top_placement_season', 'top_placement_year'].includes(form.check_type);
-  const isPeriodId           = ['approved_count_in_month', 'approved_count_in_season', 'approved_count_in_year', 'top_placement_month', 'top_placement_season', 'top_placement_year'].includes(form.check_type);
-  const isBingo              = form.check_type === 'bingo_achievement_count';
-  const isDateAward          = form.check_type === 'date_award';
-  const isFirstApprovalMonth = form.check_type === 'first_approval_month';
-  const showQualifier        = isPercentage || isCollection || isPeriodId || isBingo || isDateAward;
-  const checkValueLabel      = isPlacement ? 'Top X (max rank)' : isPercentage ? 'Percentage (0–100)' : 'Threshold';
-  const checkValuePH         = isPlacement ? '3' : isPercentage ? '100' : '1';
-  const periodIdLabel        = ['approved_count_in_month', 'top_placement_month'].includes(form.check_type) ? 'Month ID'
-    : ['approved_count_in_season', 'top_placement_season'].includes(form.check_type) ? 'Season ID' : 'Year ID';
-
-  const defaultCheckValue = (type) => {
-    if (type === 'type_percentage' || type === 'generation_percentage') return '100';
-    if (['top_placement_month', 'top_placement_season', 'top_placement_year'].includes(type)) return '3';
-    return '1';
-  };
-
-  const handleField = (e) => {
-    const { name, value, type, checked } = e.target;
-    setForm(f => ({ ...f, [name]: type === 'checkbox' ? checked : value }));
-  };
-
-  const handleTriggerChange = (e) => {
-    const newTrigger = e.target.value;
-    const firstType  = CHECK_TYPES_BY_TRIGGER[newTrigger][0].value;
-    setForm(f => ({ ...f, trigger: newTrigger, check_type: firstType, check_qualifier: firstType === 'bingo_achievement_count' ? 'any' : '', check_value: defaultCheckValue(firstType) }));
-  };
-
-  const handleCheckTypeChange = (e) => {
-    const newType = e.target.value;
-    setForm(f => ({ ...f, check_type: newType, check_qualifier: newType === 'bingo_achievement_count' ? 'any' : '', check_value: defaultCheckValue(newType) }));
-  };
-
-  const getBingoTypes = (qualifier) =>
-    qualifier === 'any' ? ['row', 'column', 'x', 'blackout'] : (qualifier || '').split(',').filter(Boolean);
-
-  const handleBingoTypeToggle = (type, checked) => {
-    setForm(f => {
-      const current = getBingoTypes(f.check_qualifier);
-      const updated  = checked ? [...new Set([...current, type])] : current.filter(t => t !== type);
-      return { ...f, check_qualifier: updated.length === 4 ? 'any' : updated.join(',') };
-    });
-  };
-
-  const handleFamilySelect = (e) => {
-    const val = e.target.value;
-    if (val === '__new__') {
-      setIsNewFamily(true);
-      setForm(f => ({ ...f, family: '', family_display_name: '', family_display_order: '0', family_is_sequential: true }));
-    } else {
-      setIsNewFamily(false);
-      setForm(f => ({ ...f, family: val }));
-    }
-  };
-
-  const handleImage = (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    setImageFile(file);
-    setPreview(URL.createObjectURL(file));
-  };
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setError(null); setSuccess(null);
-    if (!imageFile) { setError('Please select a badge image.'); return; }
-    if (!form.key)  { setError('Image key is required.'); return; }
-    if (showQualifier && !form.check_qualifier && !isPeriodId) { setError('Please fill in the qualifier.'); return; }
-
-    setSubmitting(true);
-    try {
-      const headers = await getAuthHeaders();
-      delete headers['Content-Type'];
-      const body = new FormData();
-      body.append('image', imageFile);
-      body.append('family_is_new', isNewFamily ? 'true' : 'false');
-      Object.entries(form).forEach(([k, v]) => body.append(k, v));
-      const res  = await fetch('/api/badges', { method: 'POST', headers: { Authorization: headers.Authorization }, body });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Upload failed');
-      setForm(INITIAL_FORM);
-      setImageFile(null);
-      setPreview(null);
-      if (fileInputRef.current) fileInputRef.current.value = '';
-      onCreated?.();
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  const selectStyle = { background: C.input, borderColor: C.border };
-  const selectCls = 'w-full rounded-lg px-3 py-2 text-sm text-white border focus:border-lagoon-500 focus:outline-none transition-colors';
-
-  return (
-    <div className="grid grid-cols-1 lg:grid-cols-[1fr_280px] gap-4">
-
-      {/* Left — main form */}
-      <form onSubmit={handleSubmit} className="space-y-4">
-
-        <SectionBox title="Badge image">
-          <div className="flex items-center gap-4">
-            <div className="w-16 h-16 rounded-xl border flex items-center justify-center overflow-hidden shrink-0"
-              style={{ borderColor: C.border, background: C.input }}>
-              {preview
-                ? <img src={preview} alt="Preview" className="w-full h-full object-cover" />
-                : <span className="text-gray-700 text-xs text-center leading-tight px-1">PNG<br/>500×500</span>}
-            </div>
-            <div className="flex-1 min-w-0">
-              <label className="inline-flex items-center gap-2 cursor-pointer px-4 py-2 rounded-lg text-sm font-medium text-lagoon-300 border border-lagoon-500/40 hover:border-lagoon-400 hover:bg-lagoon-500/10 transition-all">
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                </svg>
-                Choose PNG
-                <input ref={fileInputRef} type="file" accept="image/png" className="hidden" onChange={handleImage} />
-              </label>
-              {imageFile && <p className="mt-1.5 text-xs text-gray-500 truncate">{imageFile.name}</p>}
-            </div>
-          </div>
-        </SectionBox>
-
-        <SectionBox title="Identity">
-          <div>
-            <label className="block text-xs font-semibold text-gray-400 mb-1.5">
-              Image key <span className="text-red-400">*</span>
-              <span className="text-gray-600 font-normal normal-case tracking-normal ml-1">- R2 filename, never change after seeding</span>
-            </label>
-            <input type="text" name="key" value={form.key} onChange={handleField} placeholder="e.g. sub_veteran_7"
-              required className={selectCls} style={selectStyle} />
-            {form.key && (
-              <p className="mt-1.5 text-[11px] text-gray-600 truncate">
-                {BASE_BADGE_URL}/<span className="text-lagoon-400">{form.key}</span>.png
-              </p>
-            )}
-          </div>
-          <Field label="Name" name="name" value={form.name} onChange={handleField} placeholder="e.g. Century Hunter" required />
-          <Field label="Description" name="description" value={form.description} onChange={handleField} placeholder="Shown on the badge card." textarea required />
-          <Field label="Hint" name="hint" value={form.hint} onChange={handleField} placeholder="How to earn this badge." note="shown when hint chain unlocked" textarea />
-          <label className="flex items-center gap-3 cursor-pointer select-none">
-            <input type="checkbox" id="is_secret" name="is_secret" checked={form.is_secret} onChange={handleField}
-              className="w-4 h-4 rounded accent-lagoon-500" />
-            <span className="text-sm text-gray-300">
-              Secret badge
-              <span className="text-gray-600 font-normal ml-1">- hides name, image, and hint until earned</span>
-            </span>
-          </label>
-        </SectionBox>
-
-        <SectionBox title="Family">
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-xs font-semibold text-gray-400 mb-1.5">Family</label>
-              <select value={isNewFamily ? '__new__' : (form.family || '')} onChange={handleFamilySelect} className={selectCls} style={selectStyle}>
-                <option value="">-- No family --</option>
-                {familyOptions.map(f => (
-                  <option key={f.id} value={f.id}>{f.display_name} ({f.id})</option>
-                ))}
-                <option value="__new__">＋ New family…</option>
-              </select>
-            </div>
-            <Field label="Family order" note="0 = next" name="family_order" value={form.family_order} onChange={handleField} type="number" min="0" placeholder="0" />
-          </div>
-
-          {isNewFamily && (
-            <div className="rounded-lg border p-3 space-y-3 mt-1" style={{ borderColor: 'rgba(3,134,145,0.3)', background: 'rgba(3,134,145,0.05)' }}>
-              <p className="text-[10px] font-bold text-lagoon-400">New family</p>
-              <div className="grid grid-cols-2 gap-3">
-                <Field label="Slug" name="family" value={form.family} onChange={handleField} placeholder="submission_veteran" required />
-                <Field label="Display name" name="family_display_name" value={form.family_display_name} onChange={handleField} placeholder="Submission Veteran" required />
-                <Field label="Display order" name="family_display_order" value={form.family_display_order} onChange={handleField} type="number" min="0" placeholder="0" />
-                <div className="flex flex-col justify-end">
-                  <label className="flex items-center gap-2 cursor-pointer">
-                    <input type="checkbox" name="family_is_sequential" checked={form.family_is_sequential} onChange={handleField} className="w-4 h-4 rounded accent-lagoon-500" />
-                    <span className="text-sm text-gray-300">Sequential hints</span>
-                  </label>
-                  <p className="text-[11px] text-gray-600 mt-1">
-                    {form.family_is_sequential ? 'Hint locked until previous earned' : 'All hints always visible'}
-                  </p>
-                </div>
-              </div>
-            </div>
-          )}
-        </SectionBox>
-
-        <SectionBox title="Earn condition">
-          <div>
-            <label className="block text-xs font-semibold text-gray-400 mb-1.5">Trigger <span className="text-red-400">*</span></label>
-            <select name="trigger" value={form.trigger} onChange={handleTriggerChange} required className={selectCls} style={selectStyle}>
-              {TRIGGERS.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
-            </select>
-          </div>
-
-          <div>
-            <label className="block text-xs font-semibold text-gray-400 mb-1.5">Check type <span className="text-red-400">*</span></label>
-            <select value={form.check_type} onChange={handleCheckTypeChange} required className={selectCls} style={selectStyle}>
-              {checkTypes.map(ct => <option key={ct.value} value={ct.value}>{ct.label}</option>)}
-            </select>
-          </div>
-
-          {form.check_type === 'type_percentage' && (
-            <div>
-              <label className="block text-xs font-semibold text-gray-400 mb-1.5">Pokémon type <span className="text-red-400">*</span></label>
-              <select name="check_qualifier" value={form.check_qualifier} onChange={handleField} required className={`${selectCls} capitalize`} style={selectStyle}>
-                <option value="">-- Pick a type --</option>
-                {POKEMON_TYPES.map(t => <option key={t} value={t} className="capitalize">{t.charAt(0).toUpperCase() + t.slice(1)}</option>)}
-              </select>
-            </div>
-          )}
-
-          {form.check_type === 'generation_percentage' && (
-            <div>
-              <label className="block text-xs font-semibold text-gray-400 mb-1.5">Generation <span className="text-red-400">*</span></label>
-              <select name="check_qualifier" value={form.check_qualifier} onChange={handleField} required className={selectCls} style={selectStyle}>
-                <option value="">-- Pick a generation --</option>
-                {GENERATIONS.map(g => <option key={g.value} value={g.value}>{g.label}</option>)}
-              </select>
-            </div>
-          )}
-
-          {isCollection && (
-            <Field label="Collection slug" name="check_qualifier" value={form.check_qualifier} onChange={handleField}
-              note='must match slug in Collections tab' placeholder="weather_trio" required />
-          )}
-
-          {form.check_type === 'date_award' && (
-            <div>
-              <label className="block text-xs font-semibold text-gray-400 mb-1.5">Award date <span className="text-red-400">*</span></label>
-              <input type="date" name="check_qualifier" value={form.check_qualifier} onChange={handleField} required
-                className={selectCls} style={{ ...selectStyle, colorScheme: 'dark' }} />
-              <p className="mt-1.5 text-[11px] text-gray-600">Every registered user receives this badge. Cron runs at midnight UTC; anyone who joins on this date is still included.</p>
-            </div>
-          )}
-
-          {isPeriodId && (
-            <Field label={periodIdLabel} name="check_qualifier" value={form.check_qualifier} onChange={handleField}
-              type="number" placeholder="blank = any period"
-              note={`Leave blank for any ${periodIdLabel.replace(' ID', '').toLowerCase()}, or enter a specific ID.`} />
-          )}
-
-          {isBingo && (
-            <div>
-              <label className="block text-xs font-semibold text-gray-400 mb-2">
-                Count these bingo types <span className="text-gray-600 font-normal normal-case tracking-normal ml-1">- each includes its restricted variant</span>
-              </label>
-              <div className="grid grid-cols-2 gap-1">
-                {['row', 'column', 'x', 'blackout'].map(type => (
-                  <label key={type} className="flex items-center gap-2 cursor-pointer py-1">
-                    <input type="checkbox" className="accent-lagoon-500"
-                      checked={getBingoTypes(form.check_qualifier).includes(type)}
-                      onChange={e => handleBingoTypeToggle(type, e.target.checked)} />
-                    <span className="text-sm text-gray-300 capitalize">{type}</span>
-                    <span className="text-xs text-gray-600">+ {type}_restricted</span>
-                  </label>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {isFirstApprovalMonth && (
-            <p className="text-xs text-gray-500">Awarded once per month to the first player whose catch is approved. No threshold required.</p>
-          )}
-
-          {!isCollection && !isDateAward && !isFirstApprovalMonth && (
-            <div>
-              <label className="block text-xs font-semibold text-gray-400 mb-1.5">
-                {checkValueLabel} <span className="text-red-400">*</span>
-              </label>
-              <input type="number" name="check_value" value={form.check_value} onChange={handleField}
-                min={1} max={isPercentage ? 100 : undefined} placeholder={checkValuePH} required
-                className={selectCls} style={selectStyle} />
-              {isPercentage && <p className="mt-1.5 text-[11px] text-gray-600">Enter 50 for 50%, 100 for 100%.</p>}
-              {isPlacement  && <p className="mt-1.5 text-[11px] text-gray-600">e.g. 3 = top 3 finishers earn this badge. Ties broken by who scored first.</p>}
-              {isPeriodId   && <p className="mt-1.5 text-[11px] text-gray-600">Minimum approvals in the period.</p>}
-            </div>
-          )}
-
-          {isCollection && <p className="text-[11px] text-gray-600">Earned when the user has caught every Pokémon in the collection.</p>}
-        </SectionBox>
-
-        {error   && <Alert type="error">{error}</Alert>}
-        {success && <Alert type="success">{success}</Alert>}
-
-        <button type="submit" disabled={submitting}
-          className="w-full py-3 rounded-xl text-sm font-semibold text-white bg-lagoon-600 hover:bg-lagoon-500 disabled:opacity-40 disabled:cursor-not-allowed transition-all">
-          {submitting ? 'Creating badge…' : 'Create Badge'}
-        </button>
-      </form>
-
-      {/* Right — live preview */}
-      <div className="lg:sticky lg:top-4 self-start space-y-4">
-        <SectionBox title="Live preview">
-          {form.name || preview ? (
-            <div className="flex flex-col items-center gap-3">
-              <BadgeCard
-                badge={{
-                  id: 'preview', name: form.name || 'Badge Name',
-                  description: form.description || 'Description goes here.',
-                  hint: form.hint, image_url: preview,
-                  is_secret: form.is_secret, check_type: form.check_type,
-                  check_value: form.check_value, check_qualifier: form.check_qualifier,
-                  family_order: Number(form.family_order) || 0,
-                }}
-                silhouette={false} publicView={false} isSequential={false} large
-              />
-              {form.name && <p className="text-sm font-semibold text-white text-center">{form.name}</p>}
-              {form.description && <p className="text-xs text-gray-400 text-center leading-snug">{form.description}</p>}
-            </div>
-          ) : (
-            <div className="flex flex-col items-center justify-center py-8 gap-2">
-              <div className="w-16 h-16 rounded-xl border-2 border-dashed border-gray-700 flex items-center justify-center">
-                <span className="text-gray-700 text-2xl">◈</span>
-              </div>
-              <p className="text-xs text-gray-600">Fill in a name or upload an image</p>
-            </div>
-          )}
-        </SectionBox>
       </div>
     </div>
   );
