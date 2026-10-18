@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { CHECK_TYPES_BY_TRIGGER } from '../../constants/badgeCheckTypes';
+import { GAMES_BY_MANAGER_ORDER } from '../../constants/games';
 import { C, api, Icon, Alert, inputCls, inputStyle } from './ui';
 import { countAt, histogram, TIMING_LABEL, CODE_STATUS, TIER_COLORS, FIXED_CHECKS, PERCENT_CHECKS } from './sim';
 
@@ -28,6 +29,14 @@ const FIRST_MODES = [
   { value: 'standard',   label: 'Normal',     icon: 'check',  color: '#12bfce' },
   { value: 'restricted', label: 'Restricted', icon: 'shield', color: '#e2553f' },
 ];
+// approved_count: "<mode>[:<game key>,...]" — which catches count, and in which games
+// (several = distinct species caught in any of them). games_count uses the modes alone.
+const APPROVED_MODES = [
+  { value: 'any',        label: 'All',        icon: 'layers', color: '#a78bfa' },
+  { value: 'standard',   label: 'Standard',   icon: 'check',  color: '#12bfce' },
+  { value: 'restricted', label: 'Restricted', icon: 'shield', color: '#e2553f' },
+];
+const allowsRestricted = (g) => (g.restricted_checklist?.length ?? 0) > 0;
 const PERIOD_CHECKS = {
   approved_count_in_month: 'month', top_placement_month: 'month',
   approved_count_in_season: 'season', top_placement_season: 'season',
@@ -108,6 +117,67 @@ function Qualifier({ p, save, collections }) {
           {FIRST_MODES.map(m => (
             <Tile key={m.value} active={mode === m.value} icon={m.icon} color={m.color}
               onClick={() => save({ check_qualifier: m.value })}>{m.label}</Tile>
+          ))}
+        </div>
+      );
+    }
+    case 'approved_count': {
+      const [m, list] = q.split(':');
+      const mode = m === 'standard' || m === 'restricted' ? m : 'any';
+      const picked = new Set((list || '').split(',').filter(Boolean));
+      const game = picked.size > 0;
+      const games = GAMES_BY_MANAGER_ORDER.filter(x => mode !== 'restricted' || allowsRestricted(x));
+      const set = (nm, keys) => {
+        // Games that take no Restricted catches drop out when Restricted is picked.
+        // Stored in Game Manager order so the same set always saves the same string.
+        const kept = GAMES_BY_MANAGER_ORDER
+          .filter(x => keys.has(x.key) && (nm !== 'restricted' || allowsRestricted(x))).map(x => x.key);
+        const next = kept.length ? `${nm}:${kept.join(',')}` : nm === 'any' ? null : nm;
+        if (next !== (p.check_qualifier || null)) save({ check_qualifier: next });
+      };
+      const toggle = (key) => { const n = new Set(picked); n.has(key) ? n.delete(key) : n.add(key); set(mode, n); };
+      const color = APPROVED_MODES.find(x => x.value === mode).color;
+      return (
+        <div className="space-y-2 min-w-0">
+          <div className="flex flex-wrap gap-1.5">
+            {APPROVED_MODES.map(x => (
+              <Tile key={x.value} active={mode === x.value} icon={x.icon} color={x.color} onClick={() => set(x.value, picked)}>{x.label}</Tile>
+            ))}
+          </div>
+          <div className="flex flex-wrap gap-1.5">
+            <button type="button" onClick={() => set(mode, new Set())} aria-pressed={!game}
+              className={`h-10 px-3 rounded-lg border text-xs font-semibold flex items-center gap-1.5 transition-colors ${game ? 'border-white/10 text-gray-500 hover:text-white' : 'text-white'}`}
+              style={!game ? { borderColor: color, background: `${color}1f` } : undefined}>
+              <Icon name="grid" size={14} style={!game ? { color } : undefined} />Any game
+            </button>
+            {games.map(x => {
+              const on = picked.has(x.key);
+              return (
+                <button key={x.key} type="button" title={x.label.replace(/^Pokémon /, '')} aria-label={x.label} aria-pressed={on}
+                  onClick={() => toggle(x.key)}
+                  className="h-10 w-14 rounded-lg border flex items-center justify-center transition-all"
+                  style={{
+                    borderColor: on ? color : 'rgba(255,255,255,0.08)',
+                    background: on ? `${color}1f` : 'rgba(255,255,255,0.02)',
+                    opacity: game && !on ? 0.6 : 1, filter: game && !on ? 'grayscale(1)' : 'none',
+                  }}>
+                  {x.img_urls?.[0]
+                    ? <img src={x.img_urls[0]} alt="" className="object-contain" style={{ maxHeight: 24, maxWidth: 44 }} />
+                    : <span className="text-[9px] text-gray-400 leading-none">{x.key}</span>}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      );
+    }
+    case 'games_count': {
+      const mode = q === 'standard' || q === 'restricted' ? q : 'any';
+      return (
+        <div className="flex flex-wrap gap-1.5">
+          {APPROVED_MODES.map(x => (
+            <Tile key={x.value} active={mode === x.value} icon={x.icon} color={x.color}
+              onClick={() => save({ check_qualifier: x.value === 'any' ? null : x.value })}>{x.label}</Tile>
           ))}
         </div>
       );

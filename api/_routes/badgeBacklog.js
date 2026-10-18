@@ -3,9 +3,9 @@
  * Registered from api/index.js — see api/API_INDEX.md for the full route map.
  *
  * Mods pitch badge families (proposals), rank them by dragging, write tier copy,
- * upload tier art, discuss in a comment thread, and vote on tier-count /
- * threshold changes. The site owner (site_owners) wires each proposal to a
- * check_type, watching the simulator's real earn counts, and publishes it.
+ * upload tier art and discuss in a comment thread. The site owner
+ * (site_owners) sets tier count and thresholds, wires each proposal to a
+ * check_type watching the simulator's real earn counts, and publishes it.
  *
  *   Consensus order   api/_lib/backlogOrder.js
  *   Earn counts       api/_lib/badgeEval.js simulate() — the same evaluator as
@@ -13,9 +13,8 @@
  *   Publish           createBadge() (same insert as POST /api/badges), then
  *                     awardPlan() rows for everyone who already qualifies
  *
- * Once a proposal exists its tier count and thresholds change ONLY through a
- * vote: a change passes when approvals > half of all moderators and fails when
- * rejections >= half. The opener's own yes is cast when the change is opened.
+ * A published tier (badge_id set) is a live badge: its threshold never changes
+ * and it can't be removed here — see CLAUDE.md "Editing live badge criteria".
  */
 const crypto = require('crypto');
 const {
@@ -34,6 +33,7 @@ const {
   TRIGGER_BY_CHECK_TYPE, CLOCK_RULES, simulate, awardPlan, forgetData,
 } = require('../_lib/badgeEval');
 const { loadBonusRows } = require('../_lib/collectionBonus');
+const { GAME_LABELS } = require('../_lib/games');
 
 const MAX_TIERS = 10;
 const CODE_STATUSES = ['unreviewed', 'ready', 'needs_code', 'needs_tracking'];
@@ -106,60 +106,20 @@ const parseThreshold = (v) => {
   return n;
 };
 
-// ── Change votes ──────────────────────────────────────────────────────────────
-// Decides an open change from the votes of CURRENT moderators. The status flip
-// is a conditional update (WHERE status = 'open'), so two simultaneous deciding
-// votes apply the change once.
-async function resolveChange(changeId) {
-  const [{ data: change, error }, mods, { data: votes, error: vErr }] = await Promise.all([
-    supabase.from('badge_proposal_changes').select('*').eq('id', changeId).maybeSingle(),
-    loadMods(),
-    supabase.from('badge_proposal_change_votes').select('mod_id, approve').eq('change_id', changeId),
-  ]);
-  if (error) throw error;
-  if (vErr) throw vErr;
-  if (!change || change.status !== 'open') return change;
+const LIVE_TIER = 'This tier is a live badge. The Backlog never changes live criteria — see CLAUDE.md "Editing live badge criteria"';
 
-  const modIds = new Set(mods.map(m => m.id));
-  const counted = (votes || []).filter(v => modIds.has(v.mod_id));
-  const yes = counted.filter(v => v.approve).length;
-  const no = counted.length - yes;
-  const half = mods.length / 2;
-  const outcome = yes > half ? 'passed' : no >= half ? 'failed' : null;
-  if (!outcome) return change;
-
-  const { data: flipped, error: fErr } = await supabase
-    .from('badge_proposal_changes')
-    .update({ status: outcome, resolved_at: new Date().toISOString() })
-    .eq('id', changeId).eq('status', 'open')
-    .select().maybeSingle();
-  if (fErr) throw fErr;
-  if (!flipped) return change;          // someone else resolved it first
-  if (outcome === 'passed') await applyChange(flipped);
-  return flipped;
-}
-
-async function applyChange(change) {
-  const p = change.payload || {};
-  if (change.kind === 'threshold') {
-    const { data: rows, error } = await supabase.from('badge_proposal_tiers')
-      .update({ threshold: p.to }).eq('id', p.tier_id).eq('proposal_id', change.proposal_id)
-      .is('badge_id', null).select('id');
-    if (error) throw error;
-    if (!rows?.length) throw fail(409, 'This tier is a live badge. The Backlog never changes live criteria — see CLAUDE.md "Editing live badge criteria"');
-    return;
-  }
-  // tier_count
-  const tiers = await loadTiers(change.proposal_id);
-  if (p.to > tiers.length) {
+// Adds empty tiers at the end, or drops the last ones (never a published tier).
+async function setTierCount(proposalId, to) {
+  const tiers = await loadTiers(proposalId);
+  if (to > tiers.length) {
     const rows = [];
-    for (let o = tiers.length + 1; o <= p.to; o++) rows.push({ proposal_id: change.proposal_id, tier_order: o, name: '' });
+    for (let o = tiers.length + 1; o <= to; o++) rows.push({ proposal_id: proposalId, tier_order: o, name: '' });
     const { error } = await supabase.from('badge_proposal_tiers').insert(rows);
     if (error) throw error;
-  } else if (p.to < tiers.length) {
-    const drop = tiers.filter(t => t.tier_order > p.to);
+  } else if (to < tiers.length) {
+    const drop = tiers.filter(t => t.tier_order > to);
     if (drop.some(t => t.badge_id)) throw fail(409, 'Cannot remove a published tier');
-    const { error } = await supabase.from('badge_proposal_tiers').delete().in('id', drop.map(t => t.id));
+    const { error } = await supabase.from('badge_proposal_tiers').delete().in('id', drop.map(t => t.id)).is('badge_id', null);
     if (error) throw error;
     const art = drop.map(t => t.image_url).filter(u => u && u.includes(BACKLOG_ART_PREFIX));
     if (art.length) deleteR2Images(art).catch(() => {});
@@ -193,24 +153,14 @@ module.exports = function register(app) {
       ]);
       if (pErr) throw pErr;
       const ids = (proposals || []).map(p => p.id);
-      const since = new Date(Date.now() - 14 * 864e5).toISOString();
 
-      const [tiersR, rankR, changesR, commentsR, familiesR] = await Promise.all([
+      const [tiersR, rankR, commentsR, familiesR] = await Promise.all([
         ids.length ? supabase.from('badge_proposal_tiers').select('*').in('proposal_id', ids).order('tier_order') : { data: [] },
         supabase.from('badge_proposal_rankings').select('mod_id, proposal_id, position').order('position'),
-        ids.length ? supabase.from('badge_proposal_changes').select('*').in('proposal_id', ids)
-          .or(`status.eq.open,resolved_at.gte.${since}`).order('created_at') : { data: [] },
         ids.length ? supabase.from('badge_proposal_comments').select('proposal_id').in('proposal_id', ids) : { data: [] },
         supabase.from('badge_families').select('id, display_name, display_order').order('display_order'),
       ]);
-      for (const r of [tiersR, rankR, changesR, commentsR, familiesR]) if (r.error) throw r.error;
-
-      const changeIds = (changesR.data || []).map(c => c.id);
-      const { data: votes, error: vErr } = changeIds.length
-        ? await supabase.from('badge_proposal_change_votes').select('change_id, mod_id, approve').in('change_id', changeIds)
-        : { data: [] };
-      if (vErr) throw vErr;
-
+      for (const r of [tiersR, rankR, commentsR, familiesR]) if (r.error) throw r.error;
 
       const open = (proposals || []).filter(p => p.status === 'open');
       const modIds = new Set(mods.map(m => m.id));
@@ -238,22 +188,16 @@ module.exports = function register(app) {
 
       const commentCount = {};
       for (const c of commentsR.data || []) commentCount[c.proposal_id] = (commentCount[c.proposal_id] || 0) + 1;
-      const votesBy = {};
-      for (const v of votes || []) (votesBy[v.change_id] ||= []).push({ mod_id: v.mod_id, approve: v.approve });
-      const famName = new Map((familiesR.data || []).map(f => [f.id, f.display_name]));
 
       const orderById = new Map(consensus.order.map(r => [r.id, r]));
       const out = (proposals || []).map(p => ({
         ...p,
-        existing_family_name: p.existing_family ? famName.get(p.existing_family) || p.existing_family : null,
         tiers: (tiersR.data || []).filter(t => t.proposal_id === p.id),
         consensus: orderById.get(p.id) ? {
           rank: orderById.get(p.id).rank, score: orderById.get(p.id).score, placed_by: orderById.get(p.id).placedBy,
         } : null,
         sim: sims[p.id] ?? null,
         bonus_sim: bonusSims[p.id] ?? null,
-        changes: (changesR.data || []).filter(c => c.proposal_id === p.id)
-          .map(c => ({ ...c, votes: votesBy[c.id] || [] })),
         comment_count: commentCount[p.id] || 0,
       }));
 
@@ -274,10 +218,8 @@ module.exports = function register(app) {
   app.post('/api/admin/backlog', async (req, res) => {
     try {
       const userId = await requireMod(req);
-      const { name, theme_notes, existing_family, tiers } = req.body || {};
-      // Proposals only ever become NEW families. Adding badges to a live family
-      // is not a Backlog operation (owner decision 2026-10-13).
-      if (existing_family) throw fail(400, 'The Backlog only proposes new families — it cannot add badges to a live family');
+      // Proposals only ever become NEW families (owner decision 2026-10-13).
+      const { name, theme_notes, tiers } = req.body || {};
       const clean = String(name || '').trim();
       if (!clean || clean.length > 80) throw fail(400, 'Name is required (80 characters max)');
       if (!Array.isArray(tiers) || tiers.length < 1 || tiers.length > MAX_TIERS) {
@@ -329,42 +271,6 @@ module.exports = function register(app) {
     } catch (err) { send(res, err); }
   });
 
-  // ── Vote on a change ────────────────────────────────────────────────────────
-  app.post('/api/admin/backlog/changes/:cid/vote', async (req, res) => {
-    try {
-      const userId = await requireMod(req);
-      if (typeof req.body?.approve !== 'boolean') throw fail(400, 'approve must be true or false');
-      const { data: change, error } = await supabase.from('badge_proposal_changes')
-        .select('id, status').eq('id', req.params.cid).maybeSingle();
-      if (error) throw error;
-      if (!change) throw fail(404, 'Change not found');
-      if (change.status !== 'open') throw fail(409, `This vote already ${change.status}`);
-      const { error: vErr } = await supabase.from('badge_proposal_change_votes')
-        .upsert({ change_id: change.id, mod_id: userId, approve: req.body.approve, created_at: new Date().toISOString() },
-          { onConflict: 'change_id,mod_id' });
-      if (vErr) throw vErr;
-      const resolved = await resolveChange(change.id);
-      res.json({ status: resolved?.status ?? 'open' });
-    } catch (err) { send(res, err); }
-  });
-
-  // Withdraw a change: its opener or the owner. Recorded as failed.
-  app.delete('/api/admin/backlog/changes/:cid', async (req, res) => {
-    try {
-      const userId = await requireMod(req);
-      const { data: change, error } = await supabase.from('badge_proposal_changes')
-        .select('id, status, opened_by').eq('id', req.params.cid).maybeSingle();
-      if (error) throw error;
-      if (!change) throw fail(404, 'Change not found');
-      if (change.opened_by !== userId && !(await isOwner(userId))) throw fail(403, 'Only whoever opened it can withdraw it');
-      const { error: uErr } = await supabase.from('badge_proposal_changes')
-        .update({ status: 'failed', resolved_at: new Date().toISOString() })
-        .eq('id', change.id).eq('status', 'open');
-      if (uErr) throw uErr;
-      res.json({ ok: true });
-    } catch (err) { send(res, err); }
-  });
-
   app.delete('/api/admin/backlog/comments/:cid', async (req, res) => {
     try {
       const userId = await requireMod(req);
@@ -404,15 +310,12 @@ module.exports = function register(app) {
       if (error) throw error;
       if (patch.status === 'archived') {
         await supabase.from('badge_proposal_rankings').delete().eq('proposal_id', p.id);
-        await supabase.from('badge_proposal_changes')
-          .update({ status: 'failed', resolved_at: new Date().toISOString() })
-          .eq('proposal_id', p.id).eq('status', 'open');
       }
       res.json({ ok: true });
     } catch (err) { send(res, err); }
   });
 
-  // Owner: delete an unpublished proposal outright (tiers, votes, comments cascade).
+  // Owner: delete an unpublished proposal outright (tiers, rankings, comments cascade).
   app.delete('/api/admin/backlog/:id', async (req, res) => {
     try {
       await requireOwner(req);
@@ -427,22 +330,31 @@ module.exports = function register(app) {
     } catch (err) { send(res, err); }
   });
 
-  // Tier copy: name, description, hint. Thresholds are vote-only.
+  // Tier copy: name, description, hint (any mod). Threshold: owner only, and
+  // never on a published tier.
   app.patch('/api/admin/backlog/:id/tiers/:tid', async (req, res) => {
     try {
-      await requireMod(req);
+      const userId = await requireMod(req);
       const p = await loadProposal(req.params.id);
       requireOpen(p);
       const patch = {};
       for (const [k, max] of [['name', 80], ['description', 300], ['hint', 300]]) {
         if (req.body?.[k] !== undefined) patch[k] = String(req.body[k]).slice(0, max);
       }
-      if (req.body?.threshold !== undefined) throw fail(400, 'Thresholds change by vote — open a change instead');
+      if (req.body?.threshold !== undefined) {
+        if (!(await isOwner(userId))) throw fail(403, 'Only the owner sets thresholds');
+        patch.threshold = parseThreshold(req.body.threshold);
+      }
       if (!Object.keys(patch).length) throw fail(400, 'Nothing to change');
-      const { data, error } = await supabase.from('badge_proposal_tiers')
-        .update(patch).eq('id', req.params.tid).eq('proposal_id', p.id).select().maybeSingle();
+      let q = supabase.from('badge_proposal_tiers').update(patch).eq('id', req.params.tid).eq('proposal_id', p.id);
+      if ('threshold' in patch) q = q.is('badge_id', null);
+      const { data, error } = await q.select().maybeSingle();
       if (error) throw error;
-      if (!data) throw fail(404, 'Tier not found');
+      if (!data) {
+        const { data: t } = await supabase.from('badge_proposal_tiers')
+          .select('badge_id').eq('id', req.params.tid).eq('proposal_id', p.id).maybeSingle();
+        throw t?.badge_id ? fail(409, LIVE_TIER) : fail(404, 'Tier not found');
+      }
       res.json(data);
     } catch (err) { send(res, err); }
   });
@@ -472,48 +384,16 @@ module.exports = function register(app) {
     } catch (err) { send(res, err); }
   });
 
-  // ── Open a change (tier count or one tier's threshold) ──────────────────────
-  app.post('/api/admin/backlog/:id/changes', async (req, res) => {
+  // ── Tier count (owner) ──────────────────────────────────────────────────────
+  app.put('/api/admin/backlog/:id/tier-count', async (req, res) => {
     try {
-      const userId = await requireMod(req);
+      await requireOwner(req);
       const p = await loadProposal(req.params.id);
       requireOpen(p);
-      const tiers = await loadTiers(p.id);
-      const { kind } = req.body || {};
-      let payload;
-      if (kind === 'tier_count') {
-        const to = Number(req.body.to);
-        if (!Number.isInteger(to) || to < 1 || to > MAX_TIERS) throw fail(400, `Tier count must be 1–${MAX_TIERS}`);
-        if (to === tiers.length) throw fail(400, 'That is already the tier count');
-        if (to < tiers.length && tiers.some(t => t.tier_order > to && t.badge_id)) throw fail(409, 'Cannot remove a published tier');
-        payload = { from: tiers.length, to };
-      } else if (kind === 'threshold') {
-        const tier = tiers.find(t => t.id === req.body.tier_id);
-        if (!tier) throw fail(404, 'Tier not found');
-        if (tier.badge_id) throw fail(409, 'This tier is a live badge. The Backlog never changes live criteria — see CLAUDE.md "Editing live badge criteria"');
-        const to = parseThreshold(req.body.to);
-        if (to == null) throw fail(400, 'A new threshold is required');
-        if (Number(tier.threshold) === to && tier.threshold != null) throw fail(400, 'That is already the threshold');
-        payload = { tier_id: tier.id, tier_order: tier.tier_order, from: tier.threshold == null ? null : Number(tier.threshold), to };
-      } else {
-        throw fail(400, 'kind must be tier_count or threshold');
-      }
-
-      // One open change per target, so a passing vote never applies a stale "from".
-      const { data: openChanges, error: oErr } = await supabase.from('badge_proposal_changes')
-        .select('id, kind, payload').eq('proposal_id', p.id).eq('status', 'open');
-      if (oErr) throw oErr;
-      const clash = (openChanges || []).find(c => c.kind === kind && (kind === 'tier_count' || c.payload?.tier_id === payload.tier_id));
-      if (clash) throw Object.assign(fail(409, 'There is already an open vote on that'), { extra: { change_id: clash.id } });
-
-      const { data: change, error } = await supabase.from('badge_proposal_changes')
-        .insert({ proposal_id: p.id, kind, payload, opened_by: userId }).select().single();
-      if (error) throw error;
-      const { error: vErr } = await supabase.from('badge_proposal_change_votes')
-        .insert({ change_id: change.id, mod_id: userId, approve: true });
-      if (vErr) throw vErr;
-      const resolved = await resolveChange(change.id);
-      res.status(201).json({ id: change.id, status: resolved?.status ?? 'open' });
+      const to = Number(req.body?.to);
+      if (!Number.isInteger(to) || to < 1 || to > MAX_TIERS) throw fail(400, `Tier count must be 1–${MAX_TIERS}`);
+      await setTierCount(p.id, to);
+      res.json({ tiers: await loadTiers(p.id) });
     } catch (err) { send(res, err); }
   });
 
@@ -571,6 +451,20 @@ module.exports = function register(app) {
       if (b.check_qualifier !== undefined && patch.check_type !== null) {
         const q = b.check_qualifier == null ? '' : String(b.check_qualifier).trim();
         if (q.endsWith(':bonus')) throw fail(400, 'Bonus is set per tier, not in the qualifier');
+        const ct = patch.check_type !== undefined ? patch.check_type : p.check_type;
+        // approved_count: "<any|standard|restricted>[:<game key>,<game key>,...]"
+        if (ct === 'approved_count' && q) {
+          const [mode, list, extra] = q.split(':');
+          const games = list === undefined ? [] : list.split(',');
+          if (!['any', 'standard', 'restricted'].includes(mode) || extra !== undefined
+              || (list !== undefined && (!games.length || games.some(g => !GAME_LABELS[g]) || new Set(games).size !== games.length))) {
+            throw fail(400, 'Approvals filter must be any|standard|restricted, optionally :<game key>,<game key>,...');
+          }
+        }
+        // games_count: mode only
+        if (ct === 'games_count' && q && !['any', 'standard', 'restricted'].includes(q)) {
+          throw fail(400, 'Games filter must be any|standard|restricted');
+        }
         patch.check_qualifier = q || null;
       }
       if (b.code_status !== undefined) {
@@ -627,7 +521,6 @@ module.exports = function register(app) {
       requireOpen(p);
       const tiers = await loadTiers(p.id);
       const problems = [];
-      if (p.existing_family) problems.push('Extends a live family — the Backlog only publishes new families');
       if (!p.check_type) problems.push('Not wired to a check yet');
       if (p.code_status !== 'ready') problems.push('Code status is not Ready');
       const fixed = FIXED_CHECKS.has(p.check_type);
@@ -644,9 +537,6 @@ module.exports = function register(app) {
         const count = (await loadBonusRows(supabase, { slug: p.check_qualifier })).length;
         if (!count) problems.push(`'${p.check_qualifier}' has no bonus games set — add them in the Collections tab`);
       }
-      const { data: openVotes } = await supabase.from('badge_proposal_changes')
-        .select('id').eq('proposal_id', p.id).eq('status', 'open');
-      if (openVotes?.length) problems.push(`${openVotes.length} open vote(s) still pending`);
 
       const plans = [];
       for (const t of tiers) {

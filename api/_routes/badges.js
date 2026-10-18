@@ -15,7 +15,7 @@ const {
   upload,
 } = require('../_lib/core');
 const { contextBuilders } = require('../_lib/badgeEval');
-const { collectionProgressFor, computeBonusProgress, parseCollectionQualifier } = require('../_badgeRegistry');
+const { collectionProgressFor, computeBonusProgress, parseCollectionQualifier, computeApprovedContext, approvedCountFor, parseApprovedQualifier, gamesCountFor } = require('../_badgeRegistry');
 const { loadBonusRows } = require('../_lib/collectionBonus');
 
 // ── Badge progress ────────────────────────────────────────────────────────────
@@ -28,10 +28,14 @@ const { loadBonusRows } = require('../_lib/collectionBonus');
 // is dropped from the ladder rather than rendered at 0%.
 const PROGRESS_SOURCES = {
   submission_count:     (ctx, b) => ({ current: ctx.totalSubmissions ?? 0,   target: b.check_value, unit: 'submissions' }),
-  approved_count:       (ctx, b) => ({ current: ctx.totalApproved ?? 0,      target: b.check_value, unit: 'catches' }),
+  approved_count:       (ctx, b) => ({ current: approvedCountFor(ctx, b.check_qualifier), target: b.check_value,
+                                     unit: { any: 'catches', standard: 'standard catches', restricted: 'restricted catches' }[parseApprovedQualifier(b.check_qualifier).mode] }),
+  games_count:          (ctx, b) => ({ current: gamesCountFor(ctx, b.check_qualifier), target: b.check_value, unit: 'games' }),
   rejected_count:       (ctx, b) => ({ current: ctx.totalRejected ?? 0,      target: b.check_value, unit: 'rejections' }),
   restricted_count:     (ctx, b) => ({ current: ctx.restrictedApproved ?? 0, target: b.check_value, unit: 'restricted catches' }),
   monthly_active_count: (ctx, b) => ({ current: ctx.activeMonths ?? 0,       target: b.check_value, unit: 'months' }),
+  // Longest run, not the current one — a badge you once qualified for is already awarded.
+  month_streak:         (ctx, b) => ({ current: ctx.monthStreak ?? 0,        target: b.check_value, unit: 'months in a row' }),
   account_age_months:   (ctx, b) => ({ current: ctx.accountAgeMonths ?? 0,   target: b.check_value, unit: 'months' }),
   bingo_achievement_count: (ctx, b) => {
     const types = (!b.check_qualifier || b.check_qualifier === 'any')
@@ -77,12 +81,14 @@ const PROGRESS_SOURCES = {
 const BUILDER_FOR_CHECK = {
   submission_count: 'submission',
   approved_count: 'approved',
+  games_count: 'approved',
   restricted_count: 'approved',
   type_percentage: 'approved',
   generation_percentage: 'approved',
   collection_complete: 'approved',
   rejected_count: 'rejected',
   monthly_active_count: 'monthly_active',
+  month_streak: 'monthly_active',
   account_age_months: 'account_age',
   bingo_achievement_count: 'bingo_achievement',
 };
@@ -466,7 +472,7 @@ module.exports = function register(app) {
         monthRow
           ? supabase.from('monthly_pokemon_pool').select('pokemon_id').eq('month_id', monthRow.id)
           : Promise.resolve({ data: [] }),
-        supabase.from('entries').select('pokemon_id, game').eq('user_id', userId),
+        supabase.from('entries').select('pokemon_id, game, restricted_submission').eq('user_id', userId),
         supabase.from('bingo_achievements').select('month_id, bingo_type').eq('user_id', userId),
       ]);
 
@@ -488,7 +494,7 @@ module.exports = function register(app) {
       // when some badge is a bonus tier.
       const isBonus = (b) => b.check_type === 'collection_complete' && parseCollectionQualifier(b.check_qualifier).bonus;
       const bonusRows = (badges || []).some(isBonus) ? await loadBonusRows(supabase) : [];
-      const entriesWithKey = (myEntries || []).map(e => ({ pokemon_id: e.pokemon_id, game_key: resolveGame(e.game).key }));
+      const entriesWithKey = (myEntries || []).map(e => ({ pokemon_id: e.pokemon_id, restricted_submission: e.restricted_submission, game_key: resolveGame(e.game).key }));
       const bonusCaught = new Set(entriesWithKey.filter(e => e.game_key).map(e => `${e.pokemon_id}|${e.game_key}`));
       const poolIdSet = new Set(poolIds);
       const liveBonus = new Map();
@@ -578,9 +584,18 @@ module.exports = function register(app) {
 
       // Same maths the evaluator uses for '<slug>:bonus' (computeBonusProgress).
       ctx.collectionBonusProgress = computeBonusProgress(entriesWithKey, bonusRows);
+      // approved_count's mode/game filters and games_count — not in user_stats, so from the same maths.
+      const approvedCtx = computeApprovedContext(entriesWithKey, [], []);
+      ctx.approvedBy = approvedCtx.approvedBy;
+      ctx.approvedGames = approvedCtx.approvedGames;
 
       if (candidates.some(b => b.check_type === 'account_age_months')) {
         Object.assign(ctx, await contextBuilders.account_age(userId, supabase).catch(() => ({})));
+      }
+      // month_streak needs the month calendar, which user_stats doesn't hold.
+      if (stats && candidates.some(b => b.check_type === 'month_streak')) {
+        const m = await contextBuilders.monthly_active(userId, supabase).catch(() => ({}));
+        ctx.monthStreak = m.monthStreak ?? 0;
       }
 
       // DISTINCT (month_id, base_type). This must stay identical to

@@ -3,14 +3,20 @@
 //   • the DB CHECK constraint on badges.check_type (public.badges_check_type_check)
 //   • the case switch in api/badgeRegistry.js buildCheckFromDB (server-side eval)
 //
+import { ALLOWED_GAMES } from './games';
+
 // When adding a new check_type, update ALL THREE plus this file. See CLAUDE.md
 // "Adding a new check_type — required checklist".
 
 export const CHECK_TYPES_BY_TRIGGER = {
   submission:     [{ value: 'submission_count',      label: 'Total submissions' }],
   approved: [
-    { value: 'approved_count',        label: 'Total unique Pokémon approved' },
-    { value: 'restricted_count',      label: 'Restricted approvals' },
+    // approved_count's qualifier filters by mode and games: "<any|standard|restricted>[:<game key>,...]"
+    // (several games = distinct species caught in any of them).
+    // restricted_count is retired from the picker (it's approved_count 'restricted') but live
+    // badges still use it, so the server and describeBadgeCheck keep it.
+    { value: 'approved_count',        label: 'Approvals' },
+    { value: 'games_count',           label: 'Different games caught in' },
     { value: 'type_percentage',       label: '% of a type caught' },
     { value: 'generation_percentage', label: '% of a generation caught' },
     { value: 'collection_complete',   label: '% of a collection caught' },
@@ -18,7 +24,10 @@ export const CHECK_TYPES_BY_TRIGGER = {
     { value: 'first_of_species_count', label: 'First catch of a Pokémon in a month (count)' },
   ],
   rejected:          [{ value: 'rejected_count',          label: 'Total rejections' }],
-  monthly_active:    [{ value: 'monthly_active_count',    label: 'Active months' }],
+  monthly_active: [
+    { value: 'monthly_active_count', label: 'Active months' },
+    { value: 'month_streak',         label: 'Active months in a row' },
+  ],
   period_end: [
     { value: 'approved_count_in_month',  label: 'Approved in a month (any or specific)' },
     { value: 'approved_count_in_season', label: 'Approved in a season (any or specific)' },
@@ -44,7 +53,19 @@ export function describeBadgeCheck(badge) {
   const q = badge.check_qualifier;
   switch (badge.check_type) {
     case 'submission_count':           return `Submit ${v} time${v != 1 ? 's' : ''}`;
-    case 'approved_count':             return `Get ${v} approval${v != 1 ? 's' : ''}`;
+    case 'approved_count': {
+      const [mode, list] = String(q || '').split(':');
+      const kind = mode === 'restricted' ? 'restricted ' : mode === 'standard' ? 'standard ' : '';
+      const games = (list || '').split(',').filter(Boolean)
+        .map(key => (ALLOWED_GAMES.find(g => g.key === key)?.label || key).replace(/^Pokémon /, ''));
+      const where = games.length > 3 ? ` across ${games.length} games` : games.length ? ` in ${games.join(' / ')}` : '';
+      return `Get ${v} ${kind}approval${v != 1 ? 's' : ''}${where}`;
+    }
+    case 'games_count': {
+      const kind = q === 'restricted' ? 'Restricted ' : q === 'standard' ? 'Standard ' : '';
+      return `${kind ? `${kind}c` : 'C'}atch shinies in ${v} different game${v != 1 ? 's' : ''}`;
+    }
+    case 'month_streak':               return `Active ${v} month${v != 1 ? 's' : ''} in a row`;
     case 'rejected_count':             return `Get ${v} rejection${v != 1 ? 's' : ''}`;
     case 'restricted_count':           return `Get ${v} restricted approval${v != 1 ? 's' : ''}`;
     case 'monthly_active_count':       return `Active for ${v} month${v != 1 ? 's' : ''}`;

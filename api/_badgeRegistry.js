@@ -18,6 +18,7 @@
 //                  ctx.genApproved/Total     ({ 1: N, ...    } — distinct caught/available per gen)
 //                  ctx.collectionProgress    ({ weather_trio: { caught: 2, total: 3 }, ... })
 //   'monthly_active' — ctx.activeMonths       (distinct months with at least one approved entry)
+//                      ctx.monthStreak        (longest run of consecutive active months)
 //   'rejected'       — ctx.totalRejected      (all-time rejected notifications)
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -37,9 +38,19 @@ function computeApprovedContext(userEntries, allPokemon, bonusRows) {
     const seenIds    = new Set();
     const caughtMeta = []; // { ...pokemon_master, game } for each unique caught pokemon
     let restrictedApproved = 0;
+    // approved_count / games_count filters, mode = any | standard | restricted:
+    //   modeSets[mode]        — distinct pokemon_id
+    //   gameSets[mode][game]  — distinct pokemon_id per game_key (no game → not here)
+    const modeSets = { any: new Set(), standard: new Set(), restricted: new Set() };
+    const gameSets = { any: {}, standard: {}, restricted: {} };
 
     for (const entry of (userEntries || [])) {
       if (entry.restricted_submission) restrictedApproved++;
+      const mode = entry.restricted_submission ? 'restricted' : 'standard';
+      for (const m of ['any', mode]) {
+        modeSets[m].add(entry.pokemon_id);
+        if (entry.game_key) (gameSets[m][entry.game_key] ??= new Set()).add(entry.pokemon_id);
+      }
       if (seenIds.has(entry.pokemon_id)) continue;
       seenIds.add(entry.pokemon_id);
       if (entry.pokemon_master) caughtMeta.push(entry.pokemon_master);
@@ -90,6 +101,10 @@ function computeApprovedContext(userEntries, allPokemon, bonusRows) {
     return {
       totalApproved: seenIds.size,
       restrictedApproved,
+      approvedBy: { any: modeSets.any.size, standard: modeSets.standard.size, restricted: modeSets.restricted.size },
+      // { any: { sword_shield: [ids], ... }, standard: {...}, restricted: {...} }
+      approvedGames: Object.fromEntries(Object.entries(gameSets).map(([m, g]) =>
+        [m, Object.fromEntries(Object.entries(g).map(([k, set]) => [k, [...set]]))])),
       typeApproved,        // { fire: 3, water: 2, ... }
       typeTotal,           // { fire: 6, water: 4, ... }
       genApproved,         // { 1: 45, 2: 12, ... }
@@ -204,6 +219,20 @@ function computeFirstOfSpecies(entries, pending = [], months = [], clock = 'subm
 const firstOfSpeciesMode = (q) => (q === 'standard' || q === 'restricted' ? q : 'any');
 
 // Full calendar months since account creation (pure; shared with the simulator).
+// month_streak: the longest run of consecutive months a user was active in.
+//   activeMonthIds — month ids the user has a user_monthly_points row for
+//   orderedMonthIds — every bingo_months id, oldest first (start_date)
+// A month with no row breaks the run; a month id not in the calendar is ignored.
+function computeMonthStreak(activeMonthIds, orderedMonthIds) {
+  const active = new Set(activeMonthIds || []);
+  let best = 0, run = 0;
+  for (const id of (orderedMonthIds || [])) {
+    run = active.has(id) ? run + 1 : 0;
+    if (run > best) best = run;
+  }
+  return best;
+}
+
 function computeAccountAgeMonths(createdAt, now = new Date()) {
   if (!createdAt) return 0;
   const created = new Date(createdAt);
@@ -601,6 +630,30 @@ const REGISTRY_BY_TRIGGER = BADGE_REGISTRY.reduce((acc, badge) => {
   return acc;
 }, {});
 
+// approved_count's qualifier: "<mode>[:<game_key>,...]", mode = any | standard | restricted.
+// null / '' / 'any' is every distinct species approved (the original check).
+// "<mode>[:<game key>,<game key>,...]" — several games count distinct species
+// caught in ANY of them (a mon caught in two of them counts once).
+function parseApprovedQualifier(q) {
+  const [m, list] = String(q || '').split(':');
+  const mode = m === 'standard' || m === 'restricted' ? m : 'any';
+  const games = [...new Set((list || '').split(',').map(g => g.trim()).filter(Boolean))];
+  return { mode, games };
+}
+function approvedCountFor(ctx, qualifier) {
+  const { mode, games } = parseApprovedQualifier(qualifier);
+  if (!games.length) return mode === 'any' ? (ctx.totalApproved ?? 0) : (ctx.approvedBy?.[mode] ?? 0);
+  const byGame = ctx.approvedGames?.[mode] || {};
+  if (games.length === 1) return byGame[games[0]]?.length ?? 0;
+  const ids = new Set();
+  for (const g of games) for (const id of (byGame[g] || [])) ids.add(id);
+  return ids.size;
+}
+// games_count: distinct games with at least one approved entry in that mode.
+function gamesCountFor(ctx, qualifier) {
+  return Object.keys(ctx.approvedGames?.[parseApprovedQualifier(qualifier).mode] || {}).length;
+}
+
 // ── DB-driven check evaluator ─────────────────────────────────────────────────
 // Used by awardBadgesForTrigger to evaluate badges created via the admin form
 // (which have no hardcoded check() function — only check_type/value/qualifier).
@@ -608,7 +661,9 @@ const REGISTRY_BY_TRIGGER = BADGE_REGISTRY.reduce((acc, badge) => {
 function buildCheckFromDB({ check_type, check_value, check_qualifier }) {
   switch (check_type) {
     case 'submission_count':     return (ctx) => ctx.totalSubmissions    >= check_value;
-    case 'approved_count':       return (ctx) => ctx.totalApproved       >= check_value;
+    case 'approved_count':       return (ctx) => approvedCountFor(ctx, check_qualifier) >= check_value;
+    case 'games_count':          return (ctx) => gamesCountFor(ctx, check_qualifier) >= check_value;
+    case 'month_streak':         return (ctx) => (ctx.monthStreak ?? 0) >= check_value;
     case 'rejected_count':       return (ctx) => ctx.totalRejected       >= check_value;
     case 'restricted_count':     return (ctx) => ctx.restrictedApproved  >= check_value;
     case 'monthly_active_count': return (ctx) => ctx.activeMonths        >= check_value;
@@ -662,4 +717,4 @@ function buildCheckFromDB({ check_type, check_value, check_qualifier }) {
   }
 }
 
-module.exports = { BADGE_REGISTRY, REGISTRY_BY_TRIGGER, computeApprovedContext, computeBonusProgress, parseCollectionQualifier, collectionProgressFor, computeFirstOfSpecies, firstOfSpeciesMode, FIRST_OF_SPECIES_MODES, computeAccountAgeMonths, computeBingoContext, buildCheckFromDB };
+module.exports = { BADGE_REGISTRY, REGISTRY_BY_TRIGGER, computeApprovedContext, computeBonusProgress, parseCollectionQualifier, collectionProgressFor, computeFirstOfSpecies, firstOfSpeciesMode, FIRST_OF_SPECIES_MODES, computeAccountAgeMonths, computeBingoContext, buildCheckFromDB, parseApprovedQualifier, approvedCountFor, gamesCountFor, computeMonthStreak };

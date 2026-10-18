@@ -33,6 +33,9 @@ const {
   firstOfSpeciesMode,
   computeAccountAgeMonths,
   computeBingoContext,
+  approvedCountFor,
+  gamesCountFor,
+  computeMonthStreak,
 } = require('../_badgeRegistry');
 const { resolveGame } = require('./games');
 const { bonusRowsFrom } = require('./collectionBonus');
@@ -45,6 +48,7 @@ const MONTH_START_OFFSET_MS = 4 * 60 * 60 * 1000;
 const TRIGGER_BY_CHECK_TYPE = {
   submission_count: 'submission',
   approved_count: 'approved',
+  games_count: 'approved',
   restricted_count: 'approved',
   type_percentage: 'approved',
   generation_percentage: 'approved',
@@ -53,6 +57,7 @@ const TRIGGER_BY_CHECK_TYPE = {
   first_of_species_count: 'approved',
   rejected_count: 'rejected',
   monthly_active_count: 'monthly_active',
+  month_streak: 'monthly_active',
   approved_count_in_month: 'period_end',
   approved_count_in_season: 'period_end',
   approved_count_in_year: 'period_end',
@@ -208,10 +213,16 @@ const LOADERS = {
   },
 
   async monthly_active(supabase, users, scope) {
-    const rows = await selectAll(() => scope.q(supabase.from('user_monthly_points').select('id, user_id')).order('id'));
+    const [rows, months] = await Promise.all([
+      selectAll(() => scope.q(supabase.from('user_monthly_points').select('id, user_id, month_id')).order('id')),
+      selectAll(() => supabase.from('bingo_months').select('id, start_date').order('start_date').order('id')),
+    ]);
+    const order = months.map(m => m.id);
     const ctx = new Map();
-    for (const [uid, list] of groupBy(rows, 'user_id')) ctx.set(uid, { activeMonths: list.length });
-    return { ctx, fallback: { activeMonths: 0 } };
+    for (const [uid, list] of groupBy(rows, 'user_id')) {
+      ctx.set(uid, { activeMonths: list.length, monthStreak: computeMonthStreak(list.map(r => r.month_id), order) });
+    }
+    return { ctx, fallback: { activeMonths: 0, monthStreak: 0 } };
   },
 
   async account_age(supabase, users) {
@@ -439,10 +450,12 @@ function periodMetric(data, check_type, qualifier) {
 function metricFor(check_type, qualifier) {
   switch (check_type) {
     case 'submission_count':     return { direction: 'gte', read: c => c.totalSubmissions };
-    case 'approved_count':       return { direction: 'gte', read: c => c.totalApproved };
+    case 'approved_count':       return { direction: 'gte', read: c => approvedCountFor(c, qualifier) };
     case 'restricted_count':     return { direction: 'gte', read: c => c.restrictedApproved };
     case 'rejected_count':       return { direction: 'gte', read: c => c.totalRejected };
+    case 'games_count':          return { direction: 'gte', read: c => gamesCountFor(c, qualifier) };
     case 'monthly_active_count': return { direction: 'gte', read: c => c.activeMonths };
+    case 'month_streak':         return { direction: 'gte', read: c => c.monthStreak };
     case 'account_age_months':   return { direction: 'gte', read: c => c.accountAgeMonths };
     case 'type_percentage': {
       const t = String(qualifier ?? '').toLowerCase();

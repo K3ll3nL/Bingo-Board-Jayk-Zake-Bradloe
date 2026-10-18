@@ -49,9 +49,9 @@ export function TierTile({ p, tier, color, selected, onClick, size = 64 }) {
   );
 }
 
-// ── Tier editor (copy + art: any mod; threshold: by vote) ─────────────────────
+// ── Tier editor (copy + art: any mod; threshold: owner) ───────────────────────
 
-function TierEditor({ p, tier, color, onChanged, onOpenChange, openVote }) {
+function TierEditor({ p, tier, color, isOwner, onChanged }) {
   const [form, setForm] = useState({ name: tier.name || '', description: tier.description || '', hint: tier.hint || '' });
   const [threshold, setThreshold] = useState(tier.threshold ?? '');
   const [busy, setBusy] = useState(false);
@@ -83,9 +83,17 @@ function TierEditor({ p, tier, color, onChanged, onOpenChange, openVote }) {
     finally { setBusy(false); if (fileRef.current) fileRef.current.value = ''; }
   };
 
+  const saveThreshold = async () => {
+    setBusy(true); setErr(null);
+    try { await api(`/api/admin/backlog/${p.id}/tiers/${tier.id}`, { method: 'PATCH', body: { threshold: Number(threshold) } }); onChanged(); }
+    catch (e) { setErr(e.message); }
+    finally { setBusy(false); }
+  };
+
   const from = countAt(p.sim, tier.threshold);
   const to = countAt(p.sim, threshold);
   const changed = threshold !== '' && Number(threshold) !== Number(tier.threshold ?? NaN);
+  const canSetThreshold = editable && isOwner;
 
   return (
     <div className="rounded-xl border p-3 mt-2 min-w-0" style={{ borderColor: `${color}55`, background: C.inner }}>
@@ -126,113 +134,28 @@ function TierEditor({ p, tier, color, onChanged, onOpenChange, openVote }) {
           {!fixed && (
             <div className="flex flex-wrap items-center gap-2">
               <span className="text-[11px] font-semibold text-gray-400">Threshold</span>
-              <input type="number" min="0" className={`${inputCls} !w-24 tabular-nums`} style={inputStyle} disabled={!editable || !!openVote}
-                value={threshold} onChange={e => setThreshold(e.target.value)} />
+              <input type="number" min="0" className={`${inputCls} !w-24 tabular-nums`} style={inputStyle} disabled={!canSetThreshold || busy}
+                value={threshold} onChange={e => setThreshold(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter' && changed) saveThreshold(); }} />
               {p.sim?.evaluable && (
                 <span className="flex items-center gap-1 text-xs tabular-nums text-gray-400">
                   <Icon name="user" size={12} />{from ?? '?'}
                   {changed && <><Icon name="arrow" size={12} className="text-gray-600" /><span className="text-white font-semibold">{to ?? '?'}</span></>}
                 </span>
               )}
-              {openVote
-                ? <span className="text-xs text-amber-300">Vote open</span>
-                : changed && editable && (
-                  <button onClick={() => onOpenChange({ kind: 'threshold', tier_id: tier.id, to: Number(threshold) })}
-                    className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-amber-500/15 text-amber-300 border border-amber-500/30 hover:bg-amber-500/25">
-                    Put to vote
-                  </button>
-                )}
+              {changed && canSetThreshold && (
+                <span className="flex items-center gap-1">
+                  <button onClick={saveThreshold} disabled={busy}
+                    className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-lagoon-600 hover:bg-lagoon-500 text-white disabled:opacity-50">Save</button>
+                  <button onClick={() => setThreshold(tier.threshold ?? '')} disabled={busy}
+                    className="px-2 py-1.5 rounded-lg text-xs text-gray-400 hover:text-white">Cancel</button>
+                </span>
+              )}
             </div>
           )}
           {err && <Alert onClose={() => setErr(null)}>{err}</Alert>}
         </div>
       </div>
-    </div>
-  );
-}
-
-// ── Change card (right edge) ──────────────────────────────────────────────────
-
-function ChangeCard({ p, change, mods, viewer, onChanged }) {
-  const [busy, setBusy] = useState(false);
-  const [err, setErr] = useState(null);
-  const modIds = new Set(mods.map(m => m.id));
-  const votes = new Map(change.votes.filter(v => modIds.has(v.mod_id)).map(v => [v.mod_id, v.approve]));
-  const yes = [...votes.values()].filter(Boolean).length;
-  const no = votes.size - yes;
-  const need = Math.floor(mods.length / 2) + 1 - yes;
-  const mine = votes.get(viewer.id);
-  const open = change.status === 'open';
-  const pl = change.payload || {};
-  const tier = change.kind === 'threshold' ? p.tiers.find(t => t.id === pl.tier_id) : null;
-  const color = TIER_COLORS[((tier?.tier_order ?? pl.tier_order ?? 1) - 1) % TIER_COLORS.length];
-
-  const act = async (fn) => {
-    setBusy(true); setErr(null);
-    try { await fn(); onChanged(); } catch (e) { setErr(e.message); } finally { setBusy(false); }
-  };
-
-  return (
-    <div className={`rounded-xl border p-2.5 min-w-0 ${open ? '' : 'opacity-60'}`}
-      style={{ borderColor: open ? 'rgba(245,185,66,0.35)' : C.border, background: open ? 'rgba(245,185,66,0.05)' : C.inner }}>
-      <div className="flex flex-wrap items-center gap-x-2 gap-y-1 min-w-0">
-        {change.kind === 'tier_count' ? (
-          <span className="flex items-center gap-1 text-sm font-semibold text-white tabular-nums min-w-0">
-            <Icon name="layers" size={14} className="text-amber-300" />
-            <TierDots n={pl.from} /> <Icon name="arrow" size={12} className="text-gray-500" /> <TierDots n={pl.to} />
-          </span>
-        ) : (
-          <span className="flex items-center gap-1.5 text-sm font-semibold text-white tabular-nums min-w-0">
-            <span className="w-3 h-3 rounded shrink-0" style={{ background: color }} />
-            <span className="truncate text-gray-300 font-normal">{tier?.name || `Tier ${pl.tier_order}`}</span>
-            <span className="shrink-0">{thresholdLabel(p, pl.from)}</span>
-            <Icon name="arrow" size={12} className="text-gray-500" />
-            <span className="shrink-0">{thresholdLabel(p, pl.to)}</span>
-          </span>
-        )}
-        {!open && (
-          <span className={`ml-auto shrink-0 text-[10px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded border ${change.status === 'passed' ? 'text-green-300 border-green-500/40' : 'text-red-300 border-red-500/40'}`}>
-            {change.status}
-          </span>
-        )}
-      </div>
-
-      {change.kind === 'threshold' && p.sim?.evaluable && (
-        <div className="flex items-center gap-1 mt-1 text-[11px] text-gray-400 tabular-nums">
-          <Icon name="user" size={11} />{countAt(p.sim, pl.from) ?? '?'}
-          <Icon name="arrow" size={10} className="text-gray-600" />
-          <span className="text-white font-semibold">{countAt(p.sim, pl.to) ?? '?'}</span>
-        </div>
-      )}
-
-      <div className="flex items-center gap-1 mt-2 flex-wrap">
-        {mods.map(m => {
-          const v = votes.get(m.id);
-          return <Avatar key={m.id} user={m} size={18} ring={v === true ? C.yes : v === false ? C.no : undefined}
-            title={`${m.name}: ${v === true ? 'yes' : v === false ? 'no' : 'not voted'}`}
-            style={{ opacity: v == null ? 0.3 : 1 }} />;
-        })}
-      </div>
-
-      {open && (
-        <div className="flex items-center gap-1.5 mt-2">
-          <span className="text-[11px] text-gray-500 tabular-nums mr-auto">{need > 0 ? `${need} more yes` : ''}</span>
-          <button disabled={busy} onClick={() => act(() => api(`/api/admin/backlog/changes/${change.id}/vote`, { method: 'POST', body: { approve: true } }))}
-            className={`w-8 h-7 rounded-lg flex items-center justify-center border transition-colors ${mine === true ? 'bg-green-500/25 border-green-400 text-green-200' : 'border-white/10 text-gray-400 hover:text-green-300 hover:border-green-500/40'}`}
-            aria-label="Vote yes" title="Yes"><Icon name="check" size={14} strokeWidth={3} /></button>
-          <button disabled={busy} onClick={() => act(() => api(`/api/admin/backlog/changes/${change.id}/vote`, { method: 'POST', body: { approve: false } }))}
-            className={`w-8 h-7 rounded-lg flex items-center justify-center border transition-colors ${mine === false ? 'bg-red-500/25 border-red-400 text-red-200' : 'border-white/10 text-gray-400 hover:text-red-300 hover:border-red-500/40'}`}
-            aria-label="Vote no" title="No"><Icon name="x" size={14} strokeWidth={3} /></button>
-          {(change.opened_by === viewer.id || viewer.is_owner) && (
-            <button disabled={busy} onClick={() => act(() => api(`/api/admin/backlog/changes/${change.id}`, { method: 'DELETE' }))}
-              className="w-7 h-7 rounded-lg flex items-center justify-center text-gray-600 hover:text-gray-300" title="Withdraw" aria-label="Withdraw">
-              <Icon name="trash" size={13} />
-            </button>
-          )}
-        </div>
-      )}
-      {open && no > 0 && <div className="sr-only">{no} no</div>}
-      {err && <div className="mt-2"><Alert onClose={() => setErr(null)}>{err}</Alert></div>}
     </div>
   );
 }
@@ -246,13 +169,20 @@ function TierDots({ n }) {
   );
 }
 
-// ── Tier count stepper (opens a vote) ─────────────────────────────────────────
+// ── Tier count stepper (owner) ────────────────────────────────────────────────
 
-function TierCountControl({ p, openVote, onOpenChange }) {
+function TierCountControl({ p, onSetCount }) {
   const [to, setTo] = useState(null);
   const n = p.tiers.length;
+  // Published tiers can't be dropped, so the stepper stops at the last one.
+  const floor = Math.max(1, ...p.tiers.filter(t => t.badge_id).map(t => t.tier_order));
   if (p.status !== 'open') return null;
-  if (openVote) return null;
+  const dropped = to == null ? [] : p.tiers.filter(t => t.tier_order > to);
+  const apply = async () => {
+    if (dropped.some(t => t.image_url || t.name || t.description || t.hint)
+      && !window.confirm(`Remove ${dropped.length} badge${dropped.length > 1 ? 's' : ''} and their art and text?`)) return;
+    if (await onSetCount(to)) setTo(null);
+  };
   if (to == null) {
     return (
       <button type="button" onClick={() => setTo(n)} title="Change how many badges"
@@ -262,17 +192,17 @@ function TierCountControl({ p, openVote, onOpenChange }) {
     );
   }
   return (
-    <div className="shrink-0 self-start mt-1 rounded-xl border p-2 flex flex-col items-center gap-1.5" style={{ borderColor: 'rgba(245,185,66,0.35)', background: 'rgba(245,185,66,0.05)' }}>
+    <div className="shrink-0 self-start mt-1 rounded-xl border p-2 flex flex-col items-center gap-1.5" style={{ borderColor: C.border, background: C.inner }}>
       <div className="flex items-center gap-1">
-        <button onClick={() => setTo(t => Math.max(1, t - 1))} className="w-7 h-7 rounded-lg border border-white/10 text-gray-300 flex items-center justify-center" aria-label="Fewer"><Icon name="minus" size={14} /></button>
+        <button disabled={to <= floor} onClick={() => setTo(t => Math.max(floor, t - 1))} className="w-7 h-7 rounded-lg border border-white/10 text-gray-300 flex items-center justify-center disabled:opacity-30" aria-label="Fewer"><Icon name="minus" size={14} /></button>
         <span className="w-8 text-center text-lg font-bold text-white tabular-nums">{to}</span>
-        <button onClick={() => setTo(t => Math.min(10, t + 1))} className="w-7 h-7 rounded-lg border border-white/10 text-gray-300 flex items-center justify-center" aria-label="More"><Icon name="plus" size={14} /></button>
+        <button disabled={to >= 10} onClick={() => setTo(t => Math.min(10, t + 1))} className="w-7 h-7 rounded-lg border border-white/10 text-gray-300 flex items-center justify-center disabled:opacity-30" aria-label="More"><Icon name="plus" size={14} /></button>
       </div>
       <TierDots n={to} />
       <div className="flex gap-1">
         <button onClick={() => setTo(null)} className="px-2 py-1 rounded-md text-[11px] text-gray-400 hover:text-white">Cancel</button>
-        <button disabled={to === n} onClick={async () => { await onOpenChange({ kind: 'tier_count', to }); setTo(null); }}
-          className="px-2 py-1 rounded-md text-[11px] font-semibold bg-amber-500/15 text-amber-300 border border-amber-500/30 disabled:opacity-40">Put to vote</button>
+        <button disabled={to === n} onClick={apply}
+          className="px-2.5 py-1 rounded-md text-[11px] font-semibold bg-lagoon-600 hover:bg-lagoon-500 text-white disabled:opacity-30">Save</button>
       </div>
     </div>
   );
@@ -339,22 +269,24 @@ export default function FamilyRow({ p, mods, viewer, rank, onChanged, onPublishe
   useEffect(() => setCommentCount(p.comment_count), [p.comment_count]);
 
   const status = CODE_STATUS[p.code_status] || CODE_STATUS.unreviewed;
-  const openChanges = p.changes.filter(c => c.status === 'open');
-  const shownChanges = [...openChanges, ...p.changes.filter(c => c.status !== 'open').reverse()].slice(0, 3);
   const selTier = p.tiers.find(t => t.id === selected);
   const placedBy = (p.consensus?.placed_by || []).map(id => mods.find(m => m.id === id)).filter(Boolean);
 
-  const openChange = async (body) => {
+  const setTierCount = async (to) => {
     setErr(null);
-    try { await api(`/api/admin/backlog/${p.id}/changes`, { method: 'POST', body }); onChanged(); }
-    catch (e) { setErr(e.message); }
+    try {
+      await api(`/api/admin/backlog/${p.id}/tier-count`, { method: 'PUT', body: { to } });
+      if (selTier && selTier.tier_order > to) setSelected(null);
+      onChanged();
+      return true;
+    } catch (e) { setErr(e.message); return false; }
   };
 
   const toggle = (k) => setPanel(v => (v === k ? null : k));
 
   return (
     <div className="rounded-2xl border min-w-0 overflow-hidden" style={{ background: C.card, borderColor: C.border }}>
-      <div className="grid grid-cols-1 md:grid-cols-[64px_minmax(0,1fr)_220px] gap-3 p-3 sm:p-4 min-w-0">
+      <div className="grid grid-cols-1 md:grid-cols-[64px_minmax(0,1fr)] gap-3 p-3 sm:p-4 min-w-0">
 
         {/* Rank + consensus */}
         <div className="flex md:flex-col items-center md:items-start gap-2 md:gap-1.5 min-w-0">
@@ -385,13 +317,12 @@ export default function FamilyRow({ p, mods, viewer, rank, onChanged, onPublishe
               <TierTile key={t.id} p={p} tier={t} color={TIER_COLORS[(t.tier_order - 1) % TIER_COLORS.length]}
                 selected={selected === t.id} onClick={() => setSelected(s => (s === t.id ? null : t.id))} />
             ))}
-            <TierCountControl p={p} openVote={openChanges.find(c => c.kind === 'tier_count')} onOpenChange={openChange} />
+            {viewer.is_owner && <TierCountControl p={p} onSetCount={setTierCount} />}
           </div>
 
           {selTier && (
             <TierEditor key={selTier.id} p={p} tier={selTier} color={TIER_COLORS[(selTier.tier_order - 1) % TIER_COLORS.length]}
-              onChanged={onChanged} onOpenChange={openChange}
-              openVote={openChanges.find(c => c.kind === 'threshold' && c.payload?.tier_id === selTier.id)} />
+              isOwner={viewer.is_owner} onChanged={onChanged} />
           )}
 
           {/* Actions */}
@@ -414,11 +345,6 @@ export default function FamilyRow({ p, mods, viewer, rank, onChanged, onPublishe
             )}
           </div>
           {err && <div className="mt-2"><Alert onClose={() => setErr(null)}>{err}</Alert></div>}
-        </div>
-
-        {/* Votes */}
-        <div className="space-y-2 min-w-0">
-          {shownChanges.map(c => <ChangeCard key={c.id} p={p} change={c} mods={mods} viewer={viewer} onChanged={onChanged} />)}
         </div>
       </div>
 
@@ -450,7 +376,7 @@ function EditPanel({ p, viewer, onChanged, onClose }) {
             className="px-3 py-1.5 rounded-lg text-xs text-gray-400 border border-white/10 hover:text-white">Archive</button>
         )}
         {viewer.is_owner && (
-          <button onClick={() => window.confirm(`Delete "${p.name}" and its art, votes and comments?`) && run(() => api(`/api/admin/backlog/${p.id}`, { method: 'DELETE' }))}
+          <button onClick={() => window.confirm(`Delete "${p.name}" and its art and comments?`) && run(() => api(`/api/admin/backlog/${p.id}`, { method: 'DELETE' }))}
             className="px-3 py-1.5 rounded-lg text-xs text-red-300 border border-red-500/30 hover:bg-red-500/10">Delete</button>
         )}
       </div>
