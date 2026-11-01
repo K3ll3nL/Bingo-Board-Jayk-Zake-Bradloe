@@ -6,6 +6,7 @@ const {
   GAME_LABELS,
   broadcastUpdate,
   bustShinyPokemon,
+  loadBoardTags,
   getAuthenticatedUserId,
   isModerator,
   supabase,
@@ -594,6 +595,67 @@ module.exports = function register(app) {
     }
   });
 
+  // ── Board tags (the one list of board-balancing tags) ────────────────────
+  // GET /api/admin/board-tags — every tag with how many mons carry it
+  app.get('/api/admin/board-tags', async (req, res) => {
+    try {
+      const userId = await getAuthenticatedUserId(req);
+      if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+      if (!(await isModerator(userId))) return res.status(403).json({ error: 'Moderators only' });
+
+      const [tags, { data: rows, error }] = await Promise.all([
+        loadBoardTags(),
+        supabase.from('pokemon_master').select('board_tags').not('board_tags', 'eq', '{}'),
+      ]);
+      if (error) throw error;
+      const count = {};
+      for (const r of rows || []) for (const t of r.board_tags || []) count[t] = (count[t] || 0) + 1;
+      res.json(tags.map(t => ({ ...t, count: count[t.slug] || 0 })));
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // POST /api/admin/board-tags { label } — add a tag (slug derived from label)
+  app.post('/api/admin/board-tags', async (req, res) => {
+    try {
+      const userId = await getAuthenticatedUserId(req);
+      if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+      if (!(await isModerator(userId))) return res.status(403).json({ error: 'Moderators only' });
+
+      const label = String(req.body?.label || '').trim().slice(0, 40);
+      const slug = label.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 40);
+      if (!slug) return res.status(400).json({ error: 'Tag needs a name' });
+
+      const tags = await loadBoardTags();
+      if (tags.some(t => t.slug === slug)) return res.status(409).json({ error: `'${label}' already exists` });
+      const display_order = tags.reduce((m, t) => Math.max(m, t.display_order), 0) + 1;
+      const { data, error } = await supabase.from('board_tags')
+        .insert({ slug, label, display_order }).select('slug, label, display_order').single();
+      if (error) throw error;
+      bustShinyPokemon();
+      res.json({ ...data, count: 0 });
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // DELETE /api/admin/board-tags/:slug — remove a tag from the list and from every mon
+  app.delete('/api/admin/board-tags/:slug', async (req, res) => {
+    try {
+      const userId = await getAuthenticatedUserId(req);
+      if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+      if (!(await isModerator(userId))) return res.status(403).json({ error: 'Moderators only' });
+
+      const { data: removedFrom, error } = await supabase.rpc('delete_board_tag', { p_slug: req.params.slug });
+      if (error) throw error;
+      bustShinyPokemon();
+      res.json({ success: true, removed_from: removedFrom });
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
   app.get('/api/admin/pokemon-game-slugs', async (req, res) => {
     try {
       const userId = await getAuthenticatedUserId(req);
@@ -604,7 +666,7 @@ module.exports = function register(app) {
 
       const { data, error } = await supabase
         .from('pokemon_master')
-        .select('id, national_dex_id, name, game_slugs, restricted_game_slugs, shiny_available, forms_count, form_id, custom_gender_code, genderless, has_gender_difference, has_major_gender_difference, legendary, baby, ultra_beast, paradox, starter, fossil, regional_alt, pseudo_legendary, pla, family_id, evolves_from_id, rule_exemptions')
+        .select('id, national_dex_id, name, game_slugs, restricted_game_slugs, shiny_available, forms_count, form_id, custom_gender_code, genderless, has_gender_difference, has_major_gender_difference, board_tags, family_id, evolves_from_id, rule_exemptions')
         .order('national_dex_id', { ascending: true })
         .order('form_id', { ascending: true });
 
@@ -619,7 +681,7 @@ module.exports = function register(app) {
   app.patch('/api/admin/pokemon/:id/game-slugs', async (req, res) => {
     try {
       const { id } = req.params;
-      const { game_slugs, restricted_game_slugs, shiny_available, forms_count, legendary, baby, ultra_beast, paradox, starter, fossil, regional_alt, pseudo_legendary, pla, family_id, evolves_from_id, rule_exemptions, editor_id } = req.body;
+      const { game_slugs, restricted_game_slugs, shiny_available, forms_count, board_tags, family_id, evolves_from_id, rule_exemptions, editor_id } = req.body;
 
       const userId = await getAuthenticatedUserId(req);
       if (!userId) return res.status(401).json({ error: 'Authentication required' });
@@ -632,15 +694,12 @@ module.exports = function register(app) {
       if (Array.isArray(restricted_game_slugs)) updates.restricted_game_slugs = restricted_game_slugs;
       if (typeof shiny_available === 'boolean') updates.shiny_available = shiny_available;
       if (Number.isInteger(forms_count) && forms_count >= 1) updates.forms_count = forms_count;
-      if (typeof legendary === 'boolean') updates.legendary = legendary;
-      if (typeof baby === 'boolean') updates.baby = baby;
-      if (typeof ultra_beast === 'boolean') updates.ultra_beast = ultra_beast;
-      if (typeof paradox === 'boolean') updates.paradox = paradox;
-      if (typeof starter === 'boolean') updates.starter = starter;
-      if (typeof fossil === 'boolean') updates.fossil = fossil;
-      if (typeof regional_alt === 'boolean') updates.regional_alt = regional_alt;
-      if (typeof pseudo_legendary === 'boolean') updates.pseudo_legendary = pseudo_legendary;
-      if (typeof pla === 'boolean') updates.pla = pla;
+      if (Array.isArray(board_tags)) {
+        const known = new Set((await loadBoardTags()).map(t => t.slug));
+        const bad = board_tags.find(t => typeof t !== 'string' || !known.has(t));
+        if (bad !== undefined) return res.status(400).json({ error: `Unknown board tag '${bad}'` });
+        updates.board_tags = [...new Set(board_tags)];
+      }
       // Properties panel: family, evolution parent row (NULL = first stage) and
       // Restricted rule exceptions. All feed Hunt Prep / board builder through
       // the roster memo, busted below.

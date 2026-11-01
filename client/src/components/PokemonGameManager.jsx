@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo, createContext, useContext } from 'react';
 import { createPortal } from 'react-dom';
 import { supabase } from '../services/supabaseClient';
 import { ALLOWED_GAMES, GAMES_BY_MANAGER_ORDER } from '../constants/games';
@@ -252,18 +252,11 @@ const SlugDropdown = ({ pokemonId, field, value, onChange, matchValue, reversed 
   );
 };
 
-// ── Categories (edited in the Properties card) ────────────────────────────────
-const CATEGORIES = [
-  { key: 'legendary',       label: 'Legendary' },
-  { key: 'baby',            label: 'Baby' },
-  { key: 'ultra_beast',     label: 'Ultra Beast' },
-  { key: 'paradox',         label: 'Paradox' },
-  { key: 'starter',         label: 'Starter' },
-  { key: 'fossil',          label: 'Fossil' },
-  { key: 'regional_alt',    label: 'Regional Variant' },
-  { key: 'pseudo_legendary',label: 'Pseudo-Legendary' },
-  { key: 'pla',             label: 'PLA' },
-];
+// ── Board tags (edited in the Properties card) ────────────────────────────────
+// The list comes from GET /api/admin/board-tags (table `board_tags`), the one
+// source the board generator balances on. A context, so the memoised rows
+// re-render when a tag is added or removed.
+const BoardTagsContext = createContext({ tags: [], addTag: async () => false, removeTag: async () => {} });
 
 // ── Properties ─────────────────────────────────────────────────────────────────
 // Per-mon data that Hunt Prep and the board builder read from pokemon_master:
@@ -324,7 +317,16 @@ const PropertiesCell = ({ p, data, rosterById, childrenOf, familyOf, onForms, on
   const { btnRef, panelRef, open, style, toggle } = usePortalDropdown();
   const parent = data.evolves_from_id != null ? rosterById.get(data.evolves_from_id) : null;
   const exemptions = data.rule_exemptions ?? [];
-  const catCount = CATEGORIES.filter(c => data[c.key]).length;
+  const { tags: boardTags, addTag, removeTag } = useContext(BoardTagsContext);
+  const myTags = data.board_tags ?? [];
+  const catCount = myTags.length;
+  const [editTags, setEditTags] = useState(false);
+  const [newTag, setNewTag] = useState('');
+  const submitTag = async () => {
+    const label = newTag.trim();
+    if (!label) return;
+    if (await addTag(label)) setNewTag('');
+  };
   const forms = data.forms_count ?? 1;
 
   // Everything below is only needed while the card is open.
@@ -390,18 +392,42 @@ const PropertiesCell = ({ p, data, rosterById, childrenOf, familyOf, onForms, on
 
       {/* Categories */}
       <div className="px-4 py-3 border-b" style={{ borderColor: C.border }}>
-        <SectionHead color={MINT} label="Categories" />
+        <SectionHead color={MINT} label="Board tags" right={
+          <button type="button" onClick={() => setEditTags(v => !v)}
+            className={`h-6 px-2 rounded-md text-[11px] font-medium transition-colors ${editTags ? 'text-white bg-white/10' : 'text-gray-500 hover:text-gray-300'}`}>
+            {editTags ? 'Done' : 'Edit'}
+          </button>
+        } />
         <div className="flex flex-wrap gap-1.5">
-          {CATEGORIES.map(cat => {
-            const on = !!data[cat.key];
+          {boardTags.map(tag => {
+            const on = myTags.includes(tag.slug);
+            if (editTags) return (
+              <span key={tag.slug} className="h-7 pl-2.5 pr-1 rounded-full border text-xs font-medium flex items-center gap-1 text-gray-300"
+                style={{ borderColor: C.border }}>
+                {tag.label}
+                <span className="text-[10px] text-gray-500 tabular-nums">{tag.count}</span>
+                <button type="button" title={`Delete ${tag.label}`}
+                  onClick={() => window.confirm(`Delete "${tag.label}"? It comes off all ${tag.count} Pokémon.`) && removeTag(tag.slug)}
+                  className="w-5 h-5 rounded-full text-gray-500 hover:text-white hover:bg-red-500/60 transition-colors leading-none">×</button>
+              </span>
+            );
             return (
-              <button type="button" key={cat.key} onClick={() => onCategory(p.id, cat.key, !on)}
+              <button type="button" key={tag.slug} onClick={() => onCategory(p.id, on ? myTags.filter(t => t !== tag.slug) : [...myTags, tag.slug])}
                 className={`h-7 px-2.5 rounded-full border text-xs font-medium transition-colors ${on ? 'text-emerald-200' : 'text-gray-500 hover:text-gray-300 hover:bg-white/[0.04]'}`}
                 style={{ borderColor: on ? 'rgba(52,211,153,0.55)' : C.border, background: on ? 'rgba(52,211,153,0.15)' : 'transparent' }}>
-                {cat.label}
+                {tag.label}
               </button>
             );
           })}
+          {editTags && (
+            <form onSubmit={e => { e.preventDefault(); submitTag(); }} className="flex items-center h-7 rounded-full border border-dashed overflow-hidden"
+              style={{ borderColor: 'rgba(52,211,153,0.45)' }}>
+              <input value={newTag} onChange={e => setNewTag(e.target.value)} placeholder="New tag" maxLength={40} autoFocus
+                className="w-24 h-full bg-transparent pl-2.5 text-xs text-white placeholder-gray-600 focus:outline-none" />
+              <button type="submit" disabled={!newTag.trim()}
+                className="w-7 h-full text-emerald-300 hover:bg-emerald-500/20 disabled:opacity-30 transition-colors">+</button>
+            </form>
+          )}
         </div>
       </div>
 
@@ -530,7 +556,7 @@ const PropertiesCell = ({ p, data, rosterById, childrenOf, familyOf, onForms, on
             </span>
           )}
           {catCount > 0 && (
-            <span title={CATEGORIES.filter(c => data[c.key]).map(c => c.label).join(', ')}
+            <span title={myTags.join(', ')}
               className="text-[11px] font-bold px-1.5 py-0.5 rounded-full" style={{ background: 'rgba(52,211,153,0.15)', color: MINT }}>
               {catCount}
             </span>
@@ -735,15 +761,7 @@ const PokemonGameManager = () => {
             restricted_game_slugs: p.restricted_game_slugs ?? [],
             shiny_available:      p.shiny_available ?? false,
             forms_count:          p.forms_count ?? 1,
-            legendary:            p.legendary ?? false,
-            baby:                 p.baby ?? false,
-            ultra_beast:          p.ultra_beast ?? false,
-            paradox:              p.paradox ?? false,
-            starter:              p.starter ?? false,
-            fossil:               p.fossil ?? false,
-            regional_alt:         p.regional_alt ?? false,
-            pseudo_legendary:     p.pseudo_legendary ?? false,
-            pla:                  p.pla ?? false,
+            board_tags:           p.board_tags ?? [],
             family_id:            p.family_id ?? null,
             evolves_from_id:      p.evolves_from_id ?? null,
             rule_exemptions:      p.rule_exemptions ?? [],
@@ -808,11 +826,52 @@ const PokemonGameManager = () => {
     }
   };
 
-  const handleCategoryToggle = (pokemonId, category, value) => {
-    const oldValue = localData[pokemonId]?.[category] ?? false;
-    setLocalData(prev => ({ ...prev, [pokemonId]: { ...prev[pokemonId], [category]: value } }));
-    selected.has(pokemonId) ? applyToSelected(pokemonId, category, value, oldValue) : scheduleSave(pokemonId);
+  const handleCategoryToggle = (pokemonId, newValue) => {
+    const oldValue = localData[pokemonId]?.board_tags ?? [];
+    setLocalData(prev => ({ ...prev, [pokemonId]: { ...prev[pokemonId], board_tags: newValue } }));
+    selected.has(pokemonId) ? applyToSelected(pokemonId, 'board_tags', newValue, oldValue) : scheduleSave(pokemonId);
   };
+
+  // ── Board tag list (add / remove) ──────────────────────────────────────────
+  const [boardTags, setBoardTags] = useState([]);
+  useEffect(() => {
+    (async () => {
+      const res = await fetch('/api/admin/board-tags', { headers: { Authorization: await getAuthHeader() } });
+      if (res.ok) setBoardTags(await res.json());
+    })();
+  }, []);
+  // Counts follow edits locally, so the Edit view's numbers stay live.
+  const tagCounts = useMemo(() => {
+    const c = {};
+    for (const d of Object.values(localData)) for (const t of d.board_tags ?? []) c[t] = (c[t] || 0) + 1;
+    return c;
+  }, [localData]);
+  const addTag = useCallback(async (label) => {
+    const res = await fetch('/api/admin/board-tags', {
+      method: 'POST',
+      headers: { Authorization: await getAuthHeader(), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ label }),
+    });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) { window.alert(body.error || 'Could not add tag'); return false; }
+    setBoardTags(prev => [...prev, body]);
+    return true;
+  }, []);
+  const removeTag = useCallback(async (slug) => {
+    const res = await fetch(`/api/admin/board-tags/${encodeURIComponent(slug)}`, {
+      method: 'DELETE', headers: { Authorization: await getAuthHeader() },
+    });
+    if (!res.ok) { window.alert('Could not delete tag'); return; }
+    setBoardTags(prev => prev.filter(t => t.slug !== slug));
+    setLocalData(prev => {
+      const next = {};
+      for (const [id, d] of Object.entries(prev)) next[id] = d.board_tags?.includes(slug) ? { ...d, board_tags: d.board_tags.filter(t => t !== slug) } : d;
+      return next;
+    });
+  }, []);
+  const tagsCtx = useMemo(() => ({
+    tags: boardTags.map(t => ({ ...t, count: tagCounts[t.slug] || 0 })), addTag, removeTag,
+  }), [boardTags, tagCounts, addTag, removeTag]);
 
   // Scalar roster field: bulk-applies when the row is selected.
   const setRosterField = (pokemonId, field, value) => {
@@ -920,6 +979,7 @@ const PokemonGameManager = () => {
 
   // ── Render ─────────────────────────────────────────────────────────────────
   return (
+    <BoardTagsContext.Provider value={tagsCtx}>
     <div className="h-screen flex flex-col overflow-hidden" style={{ isolation: 'isolate', position: 'relative' }}>
       <PageBackground />
       <PageHeader title="Pokémon Game Manager" badge="mod" />
@@ -1040,8 +1100,7 @@ const PokemonGameManager = () => {
             ) : filtered.map((p, i) => {
               const data = localData[p.id] ?? {
                 game_slugs: [], restricted_game_slugs: [], shiny_available: false, forms_count: 1,
-                legendary: false, baby: false, ultra_beast: false, paradox: false,
-                starter: false, fossil: false, regional_alt: false, pseudo_legendary: false, pla: false,
+                board_tags: [],
                 family_id: null, evolves_from_id: null, rule_exemptions: [],
               };
               return (
@@ -1072,6 +1131,7 @@ const PokemonGameManager = () => {
         </div>
       </div>
     </div>
+    </BoardTagsContext.Provider>
   );
 };
 

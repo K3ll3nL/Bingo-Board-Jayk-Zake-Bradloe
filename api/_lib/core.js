@@ -1019,8 +1019,7 @@ const SHINY_POKEMON_COLUMNS = [
   'genderless', 'custom_gender_code', 'has_gender_difference',
   'has_major_gender_difference', 'form_id', 'forms_count',
   'game_slugs', 'restricted_game_slugs',
-  'legendary', 'baby', 'ultra_beast', 'paradox', 'starter', 'fossil',
-  'regional_alt', 'pseudo_legendary', 'pla',
+  'board_tags',
   'evolves_from_id', 'rule_exemptions',
 ].join(', ');
 
@@ -1060,6 +1059,23 @@ async function getShinyPokemon() {
 // Called by the Game Manager's PATCH handler after a successful write.
 function bustShinyPokemon() {
   shinyPokemonCache = null;
+  categoryThresholdsCache = null;
+}
+
+// ── Board tags ──────────────────────────────────────────────────────────────
+// The ONE list of board-balancing tags (legendary, starter, pla, ...): rows in
+// `board_tags`, membership in `pokemon_master.board_tags` (migration
+// 20261101120000_board_tags.sql). Never hardcode a tag list -- read it here.
+// Collections (collection_ids) are a separate, badge-only system.
+const hasTag = (p, slug) => Array.isArray(p?.board_tags) && p.board_tags.includes(slug);
+
+async function loadBoardTags() {
+  const { data, error } = await supabase
+    .from('board_tags')
+    .select('slug, label, display_order')
+    .order('display_order').order('slug');
+  if (error) throw error;
+  return data || [];
 }
 
 // Count rows whose `column` (game_slugs or restricted_game_slugs) contains
@@ -1304,7 +1320,7 @@ async function pickRandomPokemonForPosition(monthId, position) {
   // All eligible pokemon (including family_id and category flags for exclusion logic)
   const { data: allPokemon } = await supabase
     .from('pokemon_master')
-    .select('id, name, national_dex_id, family_id, legendary, baby, ultra_beast, paradox, starter, fossil, regional_alt, pseudo_legendary, pla, display_name, form_id, forms_count, custom_gender_code, genderless, has_gender_difference, has_major_gender_difference')
+    .select('id, name, national_dex_id, family_id, board_tags, display_name, form_id, forms_count, custom_gender_code, genderless, has_gender_difference, has_major_gender_difference')
     .eq('shiny_available', true);
 
   const pkFamilyMap = Object.fromEntries((allPokemon || []).map(p => [p.id, p.family_id]));
@@ -1351,7 +1367,7 @@ async function pickRandomPokemonForPosition(monthId, position) {
   (history || []).forEach(r => { usageCount[r.pokemon_id] = (usageCount[r.pokemon_id] || 0) + 1; });
 
   // Calculate current board category distribution
-  const categories = ['legendary', 'baby', 'ultra_beast', 'paradox', 'starter', 'fossil', 'regional_alt', 'pseudo_legendary', 'pla'];
+  const { thresholds, tags: categories } = await calculateCategoryThresholds();
   const boardCategoryCounts = {};
   categories.forEach(cat => { boardCategoryCounts[cat] = 0; });
 
@@ -1360,13 +1376,11 @@ async function pickRandomPokemonForPosition(monthId, position) {
       const p = allPokemon.find(pk => pk.id === r.pokemon_id);
       if (p) {
         categories.forEach(cat => {
-          if (p[cat] === true) boardCategoryCounts[cat]++;
+          if (hasTag(p, cat)) boardCategoryCounts[cat]++;
         });
       }
     }
   });
-
-  const { thresholds } = await calculateCategoryThresholds();
 
   // Exclude: already on board, family on current board, family on last month's board
   const isEligibleFamily = p =>
@@ -1375,13 +1389,13 @@ async function pickRandomPokemonForPosition(monthId, position) {
   const isWithinCategoryBounds = p => {
     // Check upper bounds (ceiling)
     for (const cat of categories) {
-      if (p[cat] === true && boardCategoryCounts[cat] >= thresholds[cat].ceiling) {
+      if (hasTag(p, cat) && boardCategoryCounts[cat] >= thresholds[cat].ceiling) {
         return false;
       }
     }
     // Check lower bounds (floor) - only 1 slot being replaced, so just check we're not below floor
     for (const cat of categories) {
-      if (p[cat] !== true) {
+      if (!hasTag(p, cat)) {
         const currentCount = boardCategoryCounts[cat];
         if (currentCount < thresholds[cat].floor) {
           // Can't afford to not pick from this category
@@ -1431,7 +1445,7 @@ async function calculateCategoryThresholds() {
 
   const { data: allPokemon } = await supabase
     .from('pokemon_master')
-    .select('id, legendary, baby, ultra_beast, paradox, starter, fossil, regional_alt, pseudo_legendary, pla')
+    .select('id, board_tags')
     .eq('shiny_available', true);
 
   if (!allPokemon || allPokemon.length === 0) {
@@ -1441,14 +1455,19 @@ async function calculateCategoryThresholds() {
   const totalPokemon = allPokemon.length;
   const boardCapacity = Math.floor(totalPokemon / 24);
 
-  const categories = ['legendary', 'baby', 'ultra_beast', 'paradox', 'starter', 'fossil', 'regional_alt', 'pseudo_legendary', 'pla'];
+  // The tag list is read here so thresholds and the list callers iterate
+  // always come from the same snapshot.
+  const tagRows = await loadBoardTags();
+  const categories = tagRows.map(t => t.slug);
+  const labels = Object.fromEntries(tagRows.map(t => [t.slug, t.label]));
   const thresholds = {};
 
   categories.forEach(cat => {
-    const count = allPokemon.filter(p => p[cat] === true).length;
+    const count = allPokemon.filter(p => hasTag(p, cat)).length;
     const avg = count / boardCapacity;
     const cleanAvg = Math.round(avg * 100) / 100; // Round to 2 decimals, remove trailing zeros
     thresholds[cat] = {
+      label: labels[cat],
       count,
       avg: cleanAvg,
       floor: Math.floor(avg),
@@ -1456,7 +1475,7 @@ async function calculateCategoryThresholds() {
     };
   });
 
-  categoryThresholdsCache = { thresholds, boardCapacity, totalPokemon };
+  categoryThresholdsCache = { thresholds, tags: categories, boardCapacity, totalPokemon };
   return categoryThresholdsCache;
 }
 
@@ -1473,7 +1492,7 @@ async function generateNewPoolForMonth(monthId, lockedPokemonIds = [], countToGe
   // Pull every shiny-available pokemon with category flags
   const { data: allPokemon } = await supabase
     .from('pokemon_master')
-    .select('id, name, national_dex_id, display_name, family_id, genderless, custom_gender_code, has_gender_difference, has_major_gender_difference, form_id, forms_count, legendary, baby, ultra_beast, paradox, starter, fossil, regional_alt, pseudo_legendary, pla')
+    .select('id, name, national_dex_id, display_name, family_id, genderless, custom_gender_code, has_gender_difference, has_major_gender_difference, form_id, forms_count, board_tags')
     .eq('shiny_available', true);
 
   if (!allPokemon || allPokemon.length === 0) throw new Error('No pokemon available');
@@ -1516,14 +1535,13 @@ async function generateNewPoolForMonth(monthId, lockedPokemonIds = [], countToGe
     }
   }
 
-  const categories = ['legendary', 'baby', 'ultra_beast', 'paradox', 'starter', 'fossil', 'regional_alt', 'pseudo_legendary', 'pla'];
-  const { thresholds } = await calculateCategoryThresholds();
+  const { thresholds, tags: categories } = await calculateCategoryThresholds();
 
   // Pre-build maps for O(1) lookups
   const familyMap = Object.fromEntries(allPokemon.map(p => [p.id, p.family_id]));
   const categoryMaps = {};
   categories.forEach(cat => {
-    categoryMaps[cat] = new Set(allPokemon.filter(p => p[cat] === true).map(p => p.id));
+    categoryMaps[cat] = new Set(allPokemon.filter(p => hasTag(p, cat)).map(p => p.id));
   });
 
   // Track category counts - use provided pre-applied counts OR count from locked Pokemon
@@ -1542,7 +1560,7 @@ async function generateNewPoolForMonth(monthId, lockedPokemonIds = [], countToGe
 
     lockedPokemonData.forEach(p => {
       categories.forEach(cat => {
-        if (p[cat] === true) {
+        if (hasTag(p, cat)) {
           selectedCounts[cat]++;
         }
       });
@@ -1682,6 +1700,7 @@ async function generateNewPoolForMonth(monthId, lockedPokemonIds = [], countToGe
     const boardCount = selectedCounts[cat];
     const avg = thresholds[cat].avg;
     categoryStats[cat] = {
+      label: thresholds[cat].label,
       boardCount,
       avg,
       floor: thresholds[cat].floor,
@@ -2102,7 +2121,8 @@ module.exports = {
   buildCheckFromDB,
   bulkAwardBadge,
   calculateCategoryThresholds,
-  categoryThresholdsCache,
+  hasTag,
+  loadBoardTags,
   computeBadgeRarity,
   contextBuilders,
   cors,

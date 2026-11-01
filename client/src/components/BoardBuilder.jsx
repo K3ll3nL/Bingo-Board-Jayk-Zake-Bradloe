@@ -793,7 +793,7 @@ export default function BoardBuilder() {
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 text-sm">
               {Object.entries(categoryStats).map(([category, stats]) => (
                 <div key={category} className="flex justify-between items-center">
-                  <span className="text-gray-300 capitalize">{category}</span>
+                  <span className="text-gray-300">{stats.label ?? category}</span>
                   <span className="text-lagoon-300 font-semibold">{stats.avg}</span>
                 </div>
               ))}

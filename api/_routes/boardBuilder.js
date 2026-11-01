@@ -5,6 +5,7 @@
 const {
   broadcastUpdate,
   calculateCategoryThresholds,
+  hasTag,
   countShinyByGameSlug,
   generateNewPoolForMonth,
   getAuthenticatedUserId,
@@ -302,11 +303,10 @@ module.exports = function register(app) {
       }
 
       // Calculate category stats: actual board distribution + expected distribution
-      const { thresholds } = await calculateCategoryThresholds();
+      const { thresholds, tags: categories } = await calculateCategoryThresholds();
 
       // Count categories on current board
       const boardCategoryCounts = {};
-      const categories = ['legendary', 'baby', 'ultra_beast', 'paradox', 'starter', 'fossil', 'regional_alt', 'pseudo_legendary', 'pla'];
       categories.forEach(cat => { boardCategoryCounts[cat] = 0; });
 
       // Fetch pokemon data for all pokemon on the board to count categories
@@ -316,14 +316,14 @@ module.exports = function register(app) {
       if (boardPokemonIds.length > 0) {
         const { data: boardPokemon } = await supabase
           .from('pokemon_master')
-          .select('id, game_slugs, restricted_game_slugs, legendary, baby, ultra_beast, paradox, starter, fossil, regional_alt, pseudo_legendary, pla')
+          .select('id, game_slugs, restricted_game_slugs, board_tags')
           .in('id', boardPokemonIds);
 
         (boardPokemon || []).forEach(p => {
           gameSlugsMap[p.id] = p.game_slugs || [];
           restrictedSlugsMap[p.id] = p.restricted_game_slugs || [];
           categories.forEach(cat => {
-            if (p[cat] === true) boardCategoryCounts[cat]++;
+            if (hasTag(p, cat)) boardCategoryCounts[cat]++;
           });
         });
       }
@@ -372,6 +372,7 @@ module.exports = function register(app) {
       categories.forEach(cat => {
         categoryStats[cat] = {
           boardCount: boardCategoryCounts[cat],
+          label: thresholds[cat].label,
           avg: thresholds[cat].avg,
           floor: thresholds[cat].floor,
           ceiling: thresholds[cat].ceiling,
@@ -548,7 +549,7 @@ module.exports = function register(app) {
       // Pre-calculate category counts for locked Pokemon to pass to generation
       const allPokemonForLocked = await getShinyPokemon();
 
-      const categories = ['legendary', 'baby', 'ultra_beast', 'paradox', 'starter', 'fossil', 'regional_alt', 'pseudo_legendary', 'pla'];
+      const { tags: categories } = await calculateCategoryThresholds();
       const lockedCategoryCounts = {};
       categories.forEach(cat => { lockedCategoryCounts[cat] = 0; });
 
@@ -556,7 +557,7 @@ module.exports = function register(app) {
       const lockedPokemonData = (allPokemonForLocked || []).filter(p => lockedPokemonSet.has(p.id));
       lockedPokemonData.forEach(p => {
         categories.forEach(cat => {
-          if (p[cat] === true) {
+          if (hasTag(p, cat)) {
             lockedCategoryCounts[cat]++;
           }
         });
