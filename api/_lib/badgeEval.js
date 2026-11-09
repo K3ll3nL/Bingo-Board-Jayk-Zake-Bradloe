@@ -31,6 +31,7 @@ const {
   collectionProgressFor,
   computeFirstOfSpecies,
   firstOfSpeciesMode,
+  computeMinHoursLeft,
   computeAccountAgeMonths,
   computeBingoContext,
   approvedCountFor,
@@ -55,6 +56,7 @@ const TRIGGER_BY_CHECK_TYPE = {
   collection_complete: 'approved',
   first_approval_month: 'approved',
   first_of_species_count: 'approved',
+  hours_left_in_month: 'approved',
   rejected_count: 'rejected',
   monthly_active_count: 'monthly_active',
   month_streak: 'monthly_active',
@@ -240,12 +242,14 @@ const LOADERS = {
   },
 
   async approved(supabase, users, scope) {
-    const [entries, master] = await Promise.all([
+    const [entries, master, monthsRes] = await Promise.all([
       selectAll(() => scope.q(supabase.from('entries')
-        .select('id, user_id, pokemon_id, restricted_submission, game')).order('id')),
+        .select('id, user_id, month_id, pokemon_id, restricted_submission, historical, game, submitted_at')).order('id')),
       selectAll(() => supabase.from('pokemon_master')
         .select('id, type1, type2, generation, collection_ids, collection_bonus, shiny_available').order('id')),
+      supabase.from('bingo_months').select('id, start_date'),
     ]);
+    if (monthsRes.error) throw monthsRes.error;
     const bonusRows = bonusRowsFrom(master);
 
     // Entries reference every pokemon_master row; totals use shiny_available only.
@@ -262,7 +266,7 @@ const LOADERS = {
         game_key: resolveGame(e.game).key,   // entries.game is the label
         pokemon_master: meta.get(e.pokemon_id) ?? null,
       }));
-      ctx.set(uid, computeApprovedContext(userEntries, allPokemon, bonusRows));
+      ctx.set(uid, { ...computeApprovedContext(userEntries, allPokemon, bonusRows), minHoursLeft: computeMinHoursLeft(list, monthsRes.data || []) });
     }
     const out = { ctx, fallback: { ...computeApprovedContext([], allPokemon, bonusRows), firstOfSpecies: { any: 0, standard: 0, restricted: 0 } } };
 
@@ -487,6 +491,10 @@ function metricFor(check_type, qualifier) {
     case 'first_of_species_count': {
       const mode = firstOfSpeciesMode(qualifier);
       return { direction: 'gte', read: c => c.firstOfSpecies?.[mode] ?? 0 };
+    }
+    case 'hours_left_in_month': {
+      const mode = firstOfSpeciesMode(qualifier);
+      return { direction: 'lte', read: c => c.minHoursLeft?.[mode] ?? null };
     }
     default: return null;
   }

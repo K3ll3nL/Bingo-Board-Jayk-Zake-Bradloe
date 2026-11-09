@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { CHECK_TYPES_BY_TRIGGER } from '../../constants/badgeCheckTypes';
 import { GAMES_BY_MANAGER_ORDER } from '../../constants/games';
 import { C, api, Icon, Alert, inputCls, inputStyle } from './ui';
-import { countAt, histogram, TIMING_LABEL, CODE_STATUS, TIER_COLORS, FIXED_CHECKS, PERCENT_CHECKS } from './sim';
+import { countAt, histogram, TIMING_LABEL, CODE_STATUS, TIER_COLORS, FIXED_CHECKS, PERCENT_CHECKS, HOUR_CHECKS } from './sim';
 
 const TRIGGERS = [
   { value: 'approved',          label: 'Approved',     icon: 'check' },
@@ -171,7 +171,8 @@ function Qualifier({ p, save, collections }) {
         </div>
       );
     }
-    case 'games_count': {
+    case 'games_count':
+    case 'hours_left_in_month': {
       const mode = q === 'standard' || q === 'restricted' ? q : 'any';
       return (
         <div className="flex flex-wrap gap-1.5">
@@ -262,7 +263,7 @@ function Histogram({ p, collections, save }) {
   const bonusCount = collections?.find(c => c.slug === p.check_qualifier)?.bonus_count ?? 0;
   const upTo = Math.max(percent ? 100 : 0, ...tiers.map(t => Number(t.threshold) || 0));
   const { bars, min, max, width } = histogram(sim, 40, sim.direction === 'lte' ? 0 : upTo);
-  const fmt = (v) => `${Math.round(v * 10) / 10}${percent ? '%' : ''}`;
+  const fmt = (v) => `${Math.round(v * 10) / 10}${percent ? '%' : HOUR_CHECKS.has(p.check_type) ? 'h' : ''}`;
   const peak = Math.max(1, ...bars.map(b => b.count));
   const pct = (v) => (max === min ? 0 : ((v - min) / (max - min + width)) * 100);
 

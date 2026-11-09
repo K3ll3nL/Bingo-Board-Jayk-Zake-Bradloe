@@ -51,5 +51,8 @@ export const TIER_COLORS = ['#12bfce', '#f5b942', '#a78bfa', '#4ade80', '#f472b6
 // Checks whose threshold is a percentage (0–100).
 export const PERCENT_CHECKS = new Set(['type_percentage', 'generation_percentage', 'collection_complete']);
 
+// Checks whose threshold is hours (a low number is harder, but it isn't a rank).
+export const HOUR_CHECKS = new Set(['hours_left_in_month']);
+
 // Checks whose threshold does nothing (one fixed rule).
 export const FIXED_CHECKS = new Set(['date_award', 'first_approval_month']);

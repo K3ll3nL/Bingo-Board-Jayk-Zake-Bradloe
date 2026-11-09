@@ -465,10 +465,10 @@
 | `_SW` | `api/_lib/core.js:1848` | ── Core mechanics (mirrors sandwichSearch.worker.js) ────────────────────── |
 | `announceBadges` | `api/_lib/core.js:361` | Notification row (notified:true — the toast fires via the badge-awards channel) + realtime broadcast for each badge a user just received. |
 | `announceResolvedBingos` | `api/_routes/approvals.js:53` | approve_submission / reject_submission settle community-first bingos with resolve_bingo_firsts, which can award a hunter OTHER than the one being approved (an e |
-| `approvedCountFor` | `api/_badgeRegistry.js:643` |  |
+| `approvedCountFor` | `api/_badgeRegistry.js:671` |  |
 | `assertRealImages` | `api/_lib/core.js:89` | Throws a 400-shaped error if any supplied file is not genuinely an image. Call at the top of an upload handler, before anything is written to R2. |
 | `awardBadgesForTrigger` | `api/_lib/core.js:312` | Award any badges the user is newly eligible for given a trigger event. Fire-and-forget safe — never throws to the caller.  How it works:   1. Fetch ALL badges f |
-| `awardPlan` | `api/_lib/badgeEval.js:569` | awardPlan(badgeRow, supabase) → { timing, rows: [{ user_id, month_id? }] } Every user_badges row this badge should have RIGHT NOW, from fresh data: event trigge |
+| `awardPlan` | `api/_lib/badgeEval.js:577` | awardPlan(badgeRow, supabase) → { timing, rows: [{ user_id, month_id? }] } Every user_badges row this badge should have RIGHT NOW, from fresh data: event trigge |
 | `bestWeekByUser` | `api/_routes/stats.js:141` |  |
 | `bonusRowsFrom` | `api/_lib/collectionBonus.js:12` | Collection bonus games: pokemon_master.collection_bonus, a map of collection slug -> [game keys], e.g. { legendary_birds: ['firered_leafgreen'] }. Shared by the |
 | `bonusSimFor` | `api/_routes/badgeBacklog.js:136` | Earn counts for a proposal's bonus tiers (null when it has none). |
@@ -477,7 +477,7 @@
 | `broadcastQueueChanged` | `api/_lib/core.js:234` | The approvals queue changed (submission in, approval/rejection out). - 'mod-approvals' is PRIVATE: only moderators can join it (RLS policy on   realtime.message |
 | `broadcastSSE` | `api/_lib/core.js:558` |  |
 | `broadcastUpdate` | `api/_lib/core.js:225` |  |
-| `buildCheckFromDB` | `api/_badgeRegistry.js:661` | ── DB-driven check evaluator ───────────────────────────────────────────────── Used by awardBadgesForTrigger to evaluate badges created via the admin form (whic |
+| `buildCheckFromDB` | `api/_badgeRegistry.js:689` | ── DB-driven check evaluator ───────────────────────────────────────────────── Used by awardBadgesForTrigger to evaluate badges created via the admin form (whic |
 | `buildConsensus` | `api/_routes/tierList.js:75` | Per-mon plurality across every submission in one mode. Deliberately unchanged from the pre-mode behaviour (all rows, complete or not, first-wins on ties) — unif |
 | `buildMostDisputed` | `api/_routes/stats.js:167` | Most Disputed: the pool mon with the lowest modal-tier percentage. Only complete tier lists count toward modalByMon, so every mon there has the same total_votes |
 | `buildTierUpsets` | `api/_routes/stats.js:82` |  |
@@ -491,20 +491,21 @@
 | `canEditBoard` | `api/_routes/jeopardy.js:47` | Tile edits (reroll/swap/lock/shuffle) are scoped to the lobby, not global moderator status — a moderator who never joined this lobby can't edit it. The host alw |
 | `claimKey` | `api/_routes/stats.js:23` | ── "Watch out!" shapes ────────────────────────────────────────────────────── Board positions are 1..25 with a free space at 13 (24 pool mons + centre) — mirror |
 | `collectionProgressFor` | `api/_badgeRegistry.js:147` | The { caught, total } a collection_complete badge reads, either mode. |
-| `computeAccountAgeMonths` | `api/_badgeRegistry.js:236` |  |
+| `computeAccountAgeMonths` | `api/_badgeRegistry.js:264` |  |
 | `computeApprovedContext` | `api/_badgeRegistry.js:36` | ── Approved-trigger context maths (pure) ───────────────────────────────────── The ONE implementation of what "approved" badges count. Used by the live award pa |
 | `computeBadgeRarity` | `api/_lib/core.js:1980` | Compute what percent of users have earned each badge. Returns { percentByBadge: { [badge_id]: number\|null }, totalUsers }. percent is rounded (0 decimals >= 1% |
-| `computeBingoContext` | `api/_badgeRegistry.js:255` | Bingo context from a user's bingo_achievements rows (pure; shared with the simulator). Counted as DISTINCT (month_id, base_type) — not a raw row count, and not  |
+| `computeBingoContext` | `api/_badgeRegistry.js:283` | Bingo context from a user's bingo_achievements rows (pure; shared with the simulator). Counted as DISTINCT (month_id, base_type) — not a raw row count, and not  |
 | `computeBonusProgress` | `api/_badgeRegistry.js:125` | ── Collection bonus games (pure) ───────────────────────────────────────────── A collection member may name bonus games (pokemon_master.collection_bonus). The b |
 | `computeFirstOfSpecies` | `api/_badgeRegistry.js:177` |  |
-| `computeMonthStreak` | `api/_badgeRegistry.js:226` | Full calendar months since account creation (pure; shared with the simulator). month_streak: the longest run of consecutive months a user was active in.   activ |
+| `computeMinHoursLeft` | `api/_badgeRegistry.js:232` | hours_left_in_month: the fewest hours left on the month's clock when one of the hunter's APPROVED catches was uploaded, per mode. The award still fires on appro |
+| `computeMonthStreak` | `api/_badgeRegistry.js:254` | Full calendar months since account creation (pure; shared with the simulator). month_streak: the longest run of consecutive months a user was active in.   activ |
 | `computeWinner` | `api/_routes/jeopardy.js:63` |  |
 | `consensusOrder` | `api/_lib/backlogOrder.js:16` | Backlog consensus order — weighted by how much of the list each mod ranked. N   = open proposals k_m = how many of them mod m has placed      weight w_m = k_m / |
-| `countAt` | `api/_lib/badgeEval.js:547` | Count of hunters a simulation awards at a threshold. The client has a copy (client/src/components/badgeBacklog/sim.js) — keep the two identical. |
+| `countAt` | `api/_lib/badgeEval.js:555` | Count of hunters a simulation awards at a threshold. The client has a copy (client/src/components/badgeBacklog/sim.js) — keep the two identical. |
 | `countShinyByGameSlug` | `api/_lib/core.js:1084` | Count rows whose `column` (game_slugs or restricted_game_slugs) contains `slug`. Replaces a per-game `count: 'exact', head: true` query -- there are 22 slugs an |
 | `createBadge` | `api/_lib/core.js:1191` | The one way a badges row is created: POST /api/badges and the Backlog's publish both call this. Uploads the art to assets/badges/<key>.png (the path the Replace |
-| `dateAwardRunsAt` | `api/_lib/badgeEval.js:188` | ── Date award ───────────────────────────────────────────────────────────────── The cron awards date D at 04:00Z on D+1 to every user that exists then. |
-| `dateAwardUsers` | `api/_lib/badgeEval.js:191` |  |
+| `dateAwardRunsAt` | `api/_lib/badgeEval.js:190` | ── Date award ───────────────────────────────────────────────────────────────── The cron awards date D at 04:00Z on D+1 to every user that exists then. |
+| `dateAwardUsers` | `api/_lib/badgeEval.js:193` |  |
 | `deleteR2Images` | `api/_lib/core.js:483` | ── R2 image deletion helper (fire-and-forget safe) ────────────────────────── Deletes one or more R2-hosted proof images. Never throws to the caller. |
 | `depersonalize` | `api/_routes/stats.js:238` | Strip the per-viewer tier_list fields so a payload is safe to SHARE. Both caches below need this: leaking one viewer's viewer_submitted/viewer_ranked to everyon |
 | `describeClaim` | `api/_routes/jeopardy.js:115` | Current state of one square, enriched for the client — the payload a 409 sends back so the loser's tile can show who actually holds it. |
@@ -519,13 +520,13 @@
 | `fetchTwitchLiveMap` | `api/_routes/leaderboard.js:22` | Query Twitch Helix for who is currently live among `usernames` (lowercased twitch logins). Returns { login: true } for live streamers. Never throws — a Twitch o |
 | `fetchTwitchPfp` | `api/_lib/core.js:659` |  |
 | `finalizeLobby` | `api/_routes/jeopardy.js:81` | Shared teardown for "a lobby is done" — used by manual end/discard, timer expiry, and stale-lobby cleanup. Only writes a jeopardy_history row when the game actu |
-| `firstOfMonthResults` | `api/_lib/badgeEval.js:151` |  |
-| `firstOfMonthWinner` | `api/_lib/badgeEval.js:115` | ── First catch of the month ────────────────────────────────────────────────── Who won month M's first catch, and is it settled? Submission clock: a catch's tim |
-| `firstOfSpeciesHolders` | `api/_lib/badgeEval.js:180` | Users holding the settled first catch of (month, pokemon) in any mode. |
+| `firstOfMonthResults` | `api/_lib/badgeEval.js:153` |  |
+| `firstOfMonthWinner` | `api/_lib/badgeEval.js:117` | ── First catch of the month ────────────────────────────────────────────────── Who won month M's first catch, and is it settled? Submission clock: a catch's tim |
+| `firstOfSpeciesHolders` | `api/_lib/badgeEval.js:182` | Users holding the settled first catch of (month, pokemon) in any mode. |
 | `firstOfSpeciesMode` | `api/_badgeRegistry.js:219` | check_qualifier → mode (blank / unknown = any). |
 | `flattenTierBuckets` | `api/_lib/core.js:1113` | `tiers` is stored as buckets — { tier_code: [pokemon_id, ...] } — so within-tier order survives (arrays preserve position; a { id: tier } map can't, since JS/JS |
-| `forgetData` | `api/_lib/badgeEval.js:595` | Drop the bulk memo — after a publish or a clock change, the next read is fresh. |
-| `gamesCountFor` | `api/_badgeRegistry.js:653` | games_count: distinct games with at least one approved entry in that mode. |
+| `forgetData` | `api/_lib/badgeEval.js:603` | Drop the bulk memo — after a publish or a clock change, the next read is fresh. |
+| `gamesCountFor` | `api/_badgeRegistry.js:681` | games_count: distinct games with at least one approved entry in that mode. |
 | `generateBoardCode` | `api/_routes/jeopardy.js:26` |  |
 | `generateJeopardyPool` | `api/_lib/core.js:1746` |  |
 | `generateNewPoolForMonth` | `api/_lib/core.js:1483` | Helper: Generate a completely new pool for a month (deletes old, generates new) |
@@ -537,7 +538,7 @@
 | `getTierListSchema` | `api/_lib/core.js:1092` |  |
 | `getTwitchToken` | `api/_lib/core.js:814` | Fetch (or return cached) Twitch client-credentials access token. The token is valid ~60 days; we cache it until 1 hour before expiry. |
 | `getUserStats` | `api/_lib/core.js:939` | ── tier_list_submissions access ───────────────────────────────────────────── `mode` is added by migration 20260802180000, which the deployer applies by hand, s |
-| `groupBy` | `api/_lib/badgeEval.js:83` |  |
+| `groupBy` | `api/_lib/badgeEval.js:85` |  |
 | `hasTag` | `api/_lib/core.js:1070` | ── Board tags ────────────────────────────────────────────────────────────── The ONE list of board-balancing tags (legendary, starter, pla, ...): rows in `board |
 | `hydrateJeopardyClaims` | `api/_lib/core.js:1817` |  |
 | `hydrateJeopardyTiles` | `api/_lib/core.js:1778` |  |
@@ -549,25 +550,25 @@
 | `isTierListLocked` | `api/_routes/tierList.js:100` |  |
 | `loadBoardTags` | `api/_lib/core.js:1072` |  |
 | `loadBonusRows` | `api/_lib/collectionBonus.js:25` |  |
-| `loadClocks` | `api/_lib/badgeEval.js:95` |  |
-| `loadData` | `api/_lib/badgeEval.js:374` | loadData(supabase, trigger, { userIds?, fresh? }) userIds → scoped to those users, never memoised (award paths). fresh   → bypass the bulk memo (publish / backf |
-| `loadFirstOfMonthData` | `api/_lib/badgeEval.js:135` | Loads what firstOfMonthWinner needs for the given months (all when omitted). |
-| `loadFirstOfSpecies` | `api/_lib/badgeEval.js:163` | ── First of species in a month ──────────────────────────────────────────────── Always site-wide: whether a hunter holds a mon's first catch depends on everyone |
+| `loadClocks` | `api/_lib/badgeEval.js:97` |  |
+| `loadData` | `api/_lib/badgeEval.js:378` | loadData(supabase, trigger, { userIds?, fresh? }) userIds → scoped to those users, never memoised (award paths). fresh   → bypass the bulk memo (publish / backf |
+| `loadFirstOfMonthData` | `api/_lib/badgeEval.js:137` | Loads what firstOfMonthWinner needs for the given months (all when omitted). |
+| `loadFirstOfSpecies` | `api/_lib/badgeEval.js:165` | ── First of species in a month ──────────────────────────────────────────────── Always site-wide: whether a hunter holds a mon's first catch depends on everyone |
 | `loadMods` | `api/_routes/badgeBacklog.js:66` |  |
 | `loadPool` | `api/_routes/tierList.js:37` | Pool ids for a month, plus the display records the client needs for PokemonImage. POKEMON_IMAGE_FIELDS is mandatory here — without the gender/form columns gende |
 | `loadProposal` | `api/_routes/badgeBacklog.js:82` |  |
 | `loadTiers` | `api/_routes/badgeBacklog.js:89` |  |
 | `mainProofShots` | `api/_routes/upload.js:26` | Pairs the main proof shots (slots file/file2/file3) with the labels the upload form showed for each slot, then drops empty slots from both together so the array |
-| `metricFor` | `api/_lib/badgeEval.js:450` | ── Metric per check_type (simulator distribution) ────────────────────────────── direction: 'gte' — earned when metric >= threshold            'lte' — earned wh |
+| `metricFor` | `api/_lib/badgeEval.js:454` | ── Metric per check_type (simulator distribution) ────────────────────────────── direction: 'gte' — earned when metric >= threshold            'lte' — earned wh |
 | `modalTierByMon` | `api/_routes/stats.js:64` |  |
 | `nowForMonth` | `api/_lib/core.js:168` |  |
-| `parseApprovedQualifier` | `api/_badgeRegistry.js:637` | approved_count's qualifier: "<mode>[:<game_key>,...]", mode = any \| standard \| restricted. null / '' / 'any' is every distinct species approved (the original  |
+| `parseApprovedQualifier` | `api/_badgeRegistry.js:665` | approved_count's qualifier: "<mode>[:<game_key>,...]", mode = any \| standard \| restricted. null / '' / 'any' is every distinct species approved (the original  |
 | `parseCollectionQualifier` | `api/_badgeRegistry.js:139` |  |
 | `parseMode` | `api/_routes/tierList.js:29` |  |
 | `parseThreshold` | `api/_routes/badgeBacklog.js:102` |  |
-| `periodMetric` | `api/_lib/badgeEval.js:425` |  |
-| `periodOf` | `api/_lib/badgeEval.js:407` |  |
-| `periodQualifiers` | `api/_lib/badgeEval.js:414` | Users who qualify for a period_end badge in ONE period at a threshold. |
+| `periodMetric` | `api/_lib/badgeEval.js:429` |  |
+| `periodOf` | `api/_lib/badgeEval.js:411` |  |
+| `periodQualifiers` | `api/_lib/badgeEval.js:418` | Users who qualify for a period_end badge in ONE period at a threshold. |
 | `pickRandomPokemonForPosition` | `api/_lib/core.js:1311` | Helper: Pick a random eligible pokemon for a given position during reroll |
 | `pokeR2Url` | `api/_lib/core.js:127` |  |
 | `postBroadcast` | `api/_lib/core.js:208` | Supabase Realtime Broadcast helper — fire-and-forget, no WebSocket needed |
@@ -592,7 +593,7 @@
 | `resolveStatsMonth` | `api/_lib/core.js:903` | Resolve the month for these features: an explicit ?month_id, or the active month. |
 | `rowValue` | `api/_routes/jeopardy.js:59` | Mirrors client claimPoints()/rowValue() (JeopardyRoom.jsx) so the history row's winner/points agree with what players saw on the standings panel. |
 | `safeContentType` | `api/_lib/core.js:60` | Content-Type to store, derived from our allowlist rather than trusted from the client. Falls back to a type browsers will never execute. |
-| `selectAll` | `api/_lib/badgeEval.js:73` |  |
+| `selectAll` | `api/_lib/badgeEval.js:75` |  |
 | `selectAllRows` | `api/_routes/stats.js:29` |  |
 | `send` | `api/_routes/badgeBacklog.js:60` |  |
 | `sendSSEToUser` | `api/_lib/core.js:544` |  |
@@ -600,7 +601,7 @@
 | `settleFirstOfMonth` | `api/_lib/core.js:388` | ── First catch of the month ────────────────────────────────────────────────── Awards every first_approval_month badge for monthId once the month's winner is SE |
 | `settleFirstOfSpecies` | `api/_lib/core.js:432` | ── First of species in a month ─────────────────────────────────────────────── first_of_species_count badges are ordinary approved-trigger badges (the approver  |
 | `shuffleArray` | `api/_lib/core.js:1301` |  |
-| `simulate` | `api/_lib/badgeEval.js:500` | simulate({ check_type, check_qualifier }, supabase) → { evaluable: false, reason } \| { evaluable: true, trigger, direction, fixed_at?, total_users, values: num |
+| `simulate` | `api/_lib/badgeEval.js:508` | simulate({ check_type, check_qualifier }, supabase) → { evaluable: false, reason } \| { evaluable: true, trigger, direction, fixed_at?, total_users, values: num |
 | `slugify` | `api/_routes/badgeBacklog.js:99` |  |
 | `tierListLocksAt` | `api/_routes/tierList.js:94` |  |
 | `tierQualifier` | `api/_routes/badgeBacklog.js:131` | A tier flagged `bonus` (collection_complete only) publishes as '<slug>:bonus': % of the collection's bonus members caught in their bonus game. |

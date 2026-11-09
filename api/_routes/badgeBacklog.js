@@ -461,9 +461,9 @@ module.exports = function register(app) {
             throw fail(400, 'Approvals filter must be any|standard|restricted, optionally :<game key>,<game key>,...');
           }
         }
-        // games_count: mode only
-        if (ct === 'games_count' && q && !['any', 'standard', 'restricted'].includes(q)) {
-          throw fail(400, 'Games filter must be any|standard|restricted');
+        // games_count, hours_left_in_month: mode only
+        if ((ct === 'games_count' || ct === 'hours_left_in_month') && q && !['any', 'standard', 'restricted'].includes(q)) {
+          throw fail(400, 'Filter must be any|standard|restricted');
         }
         patch.check_qualifier = q || null;
       }

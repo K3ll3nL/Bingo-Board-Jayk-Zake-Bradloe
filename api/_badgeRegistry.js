@@ -218,6 +218,34 @@ function computeFirstOfSpecies(entries, pending = [], months = [], clock = 'subm
 // check_qualifier → mode (blank / unknown = any).
 const firstOfSpeciesMode = (q) => (q === 'standard' || q === 'restricted' ? q : 'any');
 
+// hours_left_in_month: the fewest hours left on the month's clock when one of the
+// hunter's APPROVED catches was uploaded, per mode. The award still fires on
+// approval and only reads entries, so a rejected upload can never earn it; the
+// upload time is just what gets measured, so a slow approval can't cost it either.
+// A month closes when the next one starts: the 1st at 04:00 UTC (start_date + 1
+// month + rollover), which is also when uploads switch over. end_date isn't used
+// because older rows follow different conventions.
+// Skipped: historical catches, and old rows with no recorded upload time
+// (created_at would measure the approval, which is the wrong clock here).
+//   entries — { month_id, restricted_submission, historical, submitted_at }
+// → { any, standard, restricted }: hours (fractional), null when nothing qualifies
+function computeMinHoursLeft(entries, months = []) {
+  const closesAt = new Map(months.map(m => {
+    const [y, mo] = String(m.start_date).split('-').map(Number);
+    return [m.id, Date.UTC(y, mo, 1) + MONTH_START_MS]; // mo is 1-based, so this is next month
+  }));
+  const best = { any: null, standard: null, restricted: null };
+  for (const e of entries) {
+    if (e.historical || !e.submitted_at || !closesAt.has(e.month_id)) continue;
+    const left = (closesAt.get(e.month_id) - Date.parse(e.submitted_at)) / 3600000;
+    if (!(left >= 0)) continue;
+    for (const m of ['any', e.restricted_submission ? 'restricted' : 'standard']) {
+      if (best[m] == null || left < best[m]) best[m] = left;
+    }
+  }
+  return best;
+}
+
 // Full calendar months since account creation (pure; shared with the simulator).
 // month_streak: the longest run of consecutive months a user was active in.
 //   activeMonthIds — month ids the user has a user_monthly_points row for
@@ -703,6 +731,14 @@ function buildCheckFromDB({ check_type, check_value, check_qualifier }) {
       const mode = firstOfSpeciesMode(check_qualifier);
       return (ctx) => (ctx.firstOfSpecies?.[mode] ?? 0) >= check_value;
     }
+    // check_value = hours left at upload or fewer; qualifier = mode (computeMinHoursLeft).
+    case 'hours_left_in_month': {
+      const mode = firstOfSpeciesMode(check_qualifier);
+      return (ctx) => {
+        const left = ctx.minHoursLeft?.[mode];
+        return left != null && left <= check_value;
+      };
+    }
     case 'account_age_months':   return (ctx) => ctx.accountAgeMonths >= check_value;
     case 'bingo_achievement_count': {
       const types = (!check_qualifier || check_qualifier === 'any')
@@ -717,4 +753,4 @@ function buildCheckFromDB({ check_type, check_value, check_qualifier }) {
   }
 }
 
-module.exports = { BADGE_REGISTRY, REGISTRY_BY_TRIGGER, computeApprovedContext, computeBonusProgress, parseCollectionQualifier, collectionProgressFor, computeFirstOfSpecies, firstOfSpeciesMode, FIRST_OF_SPECIES_MODES, computeAccountAgeMonths, computeBingoContext, buildCheckFromDB, parseApprovedQualifier, approvedCountFor, gamesCountFor, computeMonthStreak };
+module.exports = { BADGE_REGISTRY, REGISTRY_BY_TRIGGER, computeApprovedContext, computeBonusProgress, parseCollectionQualifier, collectionProgressFor, computeFirstOfSpecies, firstOfSpeciesMode, FIRST_OF_SPECIES_MODES, computeMinHoursLeft, computeAccountAgeMonths, computeBingoContext, buildCheckFromDB, parseApprovedQualifier, approvedCountFor, gamesCountFor, computeMonthStreak };

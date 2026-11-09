@@ -22,6 +22,7 @@ export const CHECK_TYPES_BY_TRIGGER = {
     { value: 'collection_complete',   label: '% of a collection caught' },
     { value: 'first_approval_month',  label: 'First approval of the month, with one winner per month' },
     { value: 'first_of_species_count', label: 'First catch of a Pokémon in a month (count)' },
+    { value: 'hours_left_in_month',   label: 'Uploaded with hours left in the month' },
   ],
   rejected:          [{ value: 'rejected_count',          label: 'Total rejections' }],
   monthly_active: [
@@ -91,6 +92,10 @@ export function describeBadgeCheck(badge) {
     case 'first_of_species_count': {
       const kind = q === 'restricted' ? 'restricted ' : q === 'standard' ? 'normal ' : '';
       return `First ${kind}catch of a Pokémon that month, ${v} time${v != 1 ? 's' : ''}`;
+    }
+    case 'hours_left_in_month': {
+      const kind = q === 'restricted' ? 'restricted ' : q === 'standard' ? 'standard ' : '';
+      return `Upload an approved ${kind}catch with ${v} hour${v != 1 ? 's' : ''} or less left in the month`;
     }
     default:                           return 'Unknown criteria';
   }

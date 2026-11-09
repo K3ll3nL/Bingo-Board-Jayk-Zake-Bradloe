@@ -1,12 +1,13 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { C, api, Avatar, Icon, Alert, inputCls, inputStyle, timeAgo } from './ui';
-import { countAt, CODE_STATUS, TIER_COLORS, FIXED_CHECKS, PERCENT_CHECKS } from './sim';
+import { countAt, CODE_STATUS, TIER_COLORS, FIXED_CHECKS, PERCENT_CHECKS, HOUR_CHECKS } from './sim';
 import WiringPanel from './WiringPanel';
 
 export function thresholdLabel(p, value) {
   if (FIXED_CHECKS.has(p.check_type)) return null;
   if (value == null || value === '') return '—';
   const v = Number(value);
+  if (HOUR_CHECKS.has(p.check_type)) return `≤ ${v}h`;
   if (p.sim?.direction === 'lte') return `top ${v}`;
   return `≥ ${v}${PERCENT_CHECKS.has(p.check_type) ? '%' : ''}`;
 }
