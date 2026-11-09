@@ -1,7 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { C, api, Avatar, Icon, Alert, inputCls, inputStyle, timeAgo } from './ui';
 import { countAt, CODE_STATUS, TIER_COLORS, FIXED_CHECKS, PERCENT_CHECKS, HOUR_CHECKS } from './sim';
-import WiringPanel from './WiringPanel';
+import EarnerHover from './EarnerHover';
+import { OwnerChips, Histogram, Publish, RuleLine, StatusPill, useWiring, tierSim, effectiveMode, BONUS_COLOR, SECRET_COLOR, MODE_CHECKS } from './WiringPanel';
 
 export function thresholdLabel(p, value) {
   if (FIXED_CHECKS.has(p.check_type)) return null;
@@ -14,9 +15,11 @@ export function thresholdLabel(p, value) {
 
 // ── Tier tile ─────────────────────────────────────────────────────────────────
 
-export function TierTile({ p, tier, color, selected, onClick, size = 64 }) {
-  const count = countAt(p.sim, tier.threshold);
-  const total = p.sim?.total_users || 0;
+export function TierTile({ p, tier, color, selected, onClick, hunters, size = 64 }) {
+  const sim = tierSim(p, tier);
+  const count = countAt(sim, tier.threshold);
+  const total = sim?.total_users || 0;
+  const mode = MODE_CHECKS.has(p.check_type) ? effectiveMode(p, tier) : null;
   const label = thresholdLabel(p, tier.threshold);
   return (
     <button type="button" onClick={onClick} disabled={!onClick}
@@ -31,6 +34,8 @@ export function TierTile({ p, tier, color, selected, onClick, size = 64 }) {
         {tier.image_url
           ? <img src={tier.image_url} alt={tier.name} className="w-full h-full object-contain" />
           : <span className="font-black" style={{ color: `${color}aa`, fontSize: size * 0.42 }}>?</span>}
+        {tier.bonus && <span className="absolute top-0.5 left-0.5 rounded-full p-0.5 text-black" style={{ background: BONUS_COLOR }} title="Bonus tier"><Icon name="star" size={9} /></span>}
+        {tier.is_secret && <span className="absolute top-0.5 right-0.5 rounded-full p-0.5 text-black" style={{ background: SECRET_COLOR }} title="Secret"><Icon name="eyeOff" size={9} /></span>}
         {tier.badge_id && (
           <span className="absolute bottom-0.5 right-0.5 rounded-full bg-green-500 text-black p-0.5"><Icon name="check" size={9} strokeWidth={4} /></span>
         )}
@@ -38,11 +43,11 @@ export function TierTile({ p, tier, color, selected, onClick, size = 64 }) {
       <span className={`text-[11px] leading-tight w-full truncate text-center ${tier.name ? 'text-gray-300' : 'text-gray-600 italic'}`}>
         {tier.name || `Tier ${tier.tier_order}`}
       </span>
-      {label && <span className="text-[11px] font-semibold tabular-nums" style={{ color }}>{label}</span>}
-          <span className="flex items-center gap-1 text-[11px] tabular-nums" title={count == null ? 'Not wired yet' : `${count} of ${total} hunters`}>
+      {label && <span className="text-[11px] font-semibold tabular-nums" style={{ color }}>{label}{mode && mode !== 'any' ? <span className="ml-1 text-[9px] uppercase" style={{ color: mode === 'standard' ? '#12bfce' : '#e2553f' }}>{mode === 'standard' ? 'Std' : 'Rst'}</span> : null}</span>}
+          <EarnerHover sim={sim} threshold={tier.threshold} hunters={hunters}><span className="flex items-center gap-1 text-[11px] tabular-nums" title={count == null ? 'Not wired yet' : `${count} of ${total} hunters`}>
             <Icon name="user" size={11} className="text-gray-500" />
             <span className={count == null ? 'text-gray-600' : 'text-white font-semibold'}>{count ?? '?'}</span>
-          </span>
+          </span></EarnerHover>
           <span className="block h-1 rounded-full bg-white/[0.06] overflow-hidden" style={{ width: size }}>
             <span className="block h-full rounded-full" style={{ width: count != null && total ? `${Math.max(count ? 4 : 0, (count / total) * 100)}%` : 0, background: color }} />
           </span>
@@ -52,7 +57,7 @@ export function TierTile({ p, tier, color, selected, onClick, size = 64 }) {
 
 // ── Tier editor (copy + art: any mod; threshold: owner) ───────────────────────
 
-function TierEditor({ p, tier, color, isOwner, onChanged }) {
+function TierEditor({ p, tier, color, isOwner, onPatch, hunters }) {
   const [form, setForm] = useState({ name: tier.name || '', description: tier.description || '', hint: tier.hint || '' });
   const [threshold, setThreshold] = useState(tier.threshold ?? '');
   const [busy, setBusy] = useState(false);
@@ -68,8 +73,11 @@ function TierEditor({ p, tier, color, isOwner, onChanged }) {
 
   const saveField = async (k) => {
     if ((tier[k] || '') === form[k]) return;
-    try { await api(`/api/admin/backlog/${p.id}/tiers/${tier.id}`, { method: 'PATCH', body: { [k]: form[k] } }); onChanged(); }
-    catch (e) { setErr(e.message); }
+    const old = tier[k];
+    const set = (v) => onPatch(q => ({ ...q, tiers: q.tiers.map(x => (x.id === tier.id ? { ...x, [k]: v } : x)) }));
+    set(form[k]);
+    try { await api(`/api/admin/backlog/${p.id}/tiers/${tier.id}`, { method: 'PATCH', body: { [k]: form[k] } }); }
+    catch (e) { set(old); setErr(e.message); }
   };
 
   const uploadArt = async (file) => {
@@ -78,21 +86,24 @@ function TierEditor({ p, tier, color, isOwner, onChanged }) {
     try {
       const body = new FormData();
       body.append('image', file);
-      await api(`/api/admin/backlog/${p.id}/tiers/${tier.id}/art`, { method: 'PUT', body });
-      onChanged();
+      const r = await api(`/api/admin/backlog/${p.id}/tiers/${tier.id}/art`, { method: 'PUT', body });
+      onPatch(q => ({ ...q, tiers: q.tiers.map(x => (x.id === tier.id ? { ...x, image_url: r?.image_url || x.image_url } : x)) }));
     } catch (e) { setErr(e.message); }
     finally { setBusy(false); if (fileRef.current) fileRef.current.value = ''; }
   };
 
   const saveThreshold = async () => {
     setBusy(true); setErr(null);
-    try { await api(`/api/admin/backlog/${p.id}/tiers/${tier.id}`, { method: 'PATCH', body: { threshold: Number(threshold) } }); onChanged(); }
+    try {
+      await api(`/api/admin/backlog/${p.id}/tiers/${tier.id}`, { method: 'PATCH', body: { threshold: Number(threshold) } });
+      onPatch(q => ({ ...q, tiers: q.tiers.map(x => (x.id === tier.id ? { ...x, threshold: Number(threshold) } : x)) }));
+    }
     catch (e) { setErr(e.message); }
     finally { setBusy(false); }
   };
 
-  const from = countAt(p.sim, tier.threshold);
-  const to = countAt(p.sim, threshold);
+  const from = countAt(tierSim(p, tier), tier.threshold);
+  const to = countAt(tierSim(p, tier), threshold);
   const changed = threshold !== '' && Number(threshold) !== Number(tier.threshold ?? NaN);
   const canSetThreshold = editable && isOwner;
 
@@ -140,7 +151,7 @@ function TierEditor({ p, tier, color, isOwner, onChanged }) {
                 onKeyDown={e => { if (e.key === 'Enter' && changed) saveThreshold(); }} />
               {p.sim?.evaluable && (
                 <span className="flex items-center gap-1 text-xs tabular-nums text-gray-400">
-                  <Icon name="user" size={12} />{from ?? '?'}
+                  <Icon name="user" size={12} /><EarnerHover sim={tierSim(p, tier)} threshold={tier.threshold} hunters={hunters}><span>{from ?? '?'}</span></EarnerHover>
                   {changed && <><Icon name="arrow" size={12} className="text-gray-600" /><span className="text-white font-semibold">{to ?? '?'}</span></>}
                 </span>
               )}
@@ -211,7 +222,7 @@ function TierCountControl({ p, onSetCount }) {
 
 // ── Comments ──────────────────────────────────────────────────────────────────
 
-function Comments({ p, viewer, onCount }) {
+function Comments({ p, viewer, mods, onCount }) {
   const [list, setList] = useState(null);
   const [body, setBody] = useState('');
   const [err, setErr] = useState(null);
@@ -225,8 +236,17 @@ function Comments({ p, viewer, onCount }) {
     e.preventDefault();
     const text = body.trim();
     if (!text) return;
-    try { await api(`/api/admin/backlog/${p.id}/comments`, { method: 'POST', body: { body: text } }); setBody(''); load(); }
-    catch (e2) { setErr(e2.message); }
+    const me = mods?.find(m => m.id === viewer.id);
+    const tmp = { id: `tmp-${Date.now()}`, user_id: viewer.id, body: text, created_at: new Date().toISOString(), name: me?.name || 'You', avatar_url: me?.avatar_url || null };
+    setList(l => { const n = [...(l || []), tmp]; onCount?.(n.length); return n; });
+    setBody('');
+    try {
+      const row = await api(`/api/admin/backlog/${p.id}/comments`, { method: 'POST', body: { body: text } });
+      setList(l => l.map(c => (c.id === tmp.id ? { ...c, id: row.id } : c)));
+    } catch (e2) {
+      setList(l => { const n = l.filter(c => c.id !== tmp.id); onCount?.(n.length); return n; });
+      setBody(text); setErr(e2.message);
+    }
   };
 
   return (
@@ -240,7 +260,7 @@ function Comments({ p, viewer, onCount }) {
               <span className="text-xs font-semibold text-gray-200 truncate">{c.name}</span>
               <span className="text-[10px] text-gray-600">{timeAgo(c.created_at)}</span>
               {(c.user_id === viewer.id || viewer.is_owner) && (
-                <button onClick={async () => { try { await api(`/api/admin/backlog/comments/${c.id}`, { method: 'DELETE' }); load(); } catch (e) { setErr(e.message); } }}
+                <button onClick={async () => { const keep = list; setList(l => { const n = l.filter(x => x.id !== c.id); onCount?.(n.length); return n; }); try { await api(`/api/admin/backlog/comments/${c.id}`, { method: 'DELETE' }); } catch (e) { setList(keep); onCount?.(keep.length); setErr(e.message); } }}
                   className="ml-auto text-gray-700 hover:text-gray-300 opacity-0 group-hover:opacity-100 focus:opacity-100" aria-label="Delete comment"><Icon name="trash" size={12} /></button>
               )}
             </div>
@@ -262,14 +282,14 @@ function Comments({ p, viewer, onCount }) {
 
 // ── Row ───────────────────────────────────────────────────────────────────────
 
-export default function FamilyRow({ p, mods, viewer, rank, onChanged, onPublished }) {
+export default function FamilyRow({ p, mods, hunters, viewer, rank, onChanged, onPatch, onPublished }) {
   const [selected, setSelected] = useState(null);
-  const [panel, setPanel] = useState(null);     // 'comments' | 'wiring' | 'edit'
+  const [panel, setPanel] = useState(null);     // 'comments' | 'edit'
+  const wiring = useWiring(p, onChanged, viewer.is_owner && p.status === 'open', onPatch);
   const [commentCount, setCommentCount] = useState(p.comment_count);
   const [err, setErr] = useState(null);
   useEffect(() => setCommentCount(p.comment_count), [p.comment_count]);
 
-  const status = CODE_STATUS[p.code_status] || CODE_STATUS.unreviewed;
   const selTier = p.tiers.find(t => t.id === selected);
   const placedBy = (p.consensus?.placed_by || []).map(id => mods.find(m => m.id === id)).filter(Boolean);
 
@@ -303,27 +323,31 @@ export default function FamilyRow({ p, mods, viewer, rank, onChanged, onPublishe
         {/* Family */}
         <div className="min-w-0">
           <div className="flex items-center gap-2 flex-wrap min-w-0">
-            <span className="flex items-center gap-1.5 text-[11px] font-semibold px-2 py-0.5 rounded-full border shrink-0"
-              style={{ color: status.color, borderColor: `${status.color}55`, background: `${status.color}14` }}
-              title="Code status (owner sets it)">
-              <span className="w-2 h-2 rounded-full" style={{ background: status.color }} />{status.label}
-            </span>
+            <StatusPill p={p} isOwner={viewer.is_owner} save={wiring.save} />
             <h3 className="text-base font-bold text-white truncate min-w-0">{p.name}</h3>
           </div>
           {p.theme_notes && <p className="text-xs text-gray-500 mt-1 line-clamp-2">{p.theme_notes}</p>}
 
+          <RuleLine p={p} isOwner={viewer.is_owner && p.status === 'open'} wiring={wiring} />
+
           {/* Tier strip */}
           <div className="flex flex-wrap items-start gap-1 mt-2 pb-1 min-w-0">
             {p.tiers.map(t => (
-              <TierTile key={t.id} p={p} tier={t} color={TIER_COLORS[(t.tier_order - 1) % TIER_COLORS.length]}
-                selected={selected === t.id} onClick={() => setSelected(s => (s === t.id ? null : t.id))} />
+              <div key={t.id} className="flex flex-col items-center">
+                <TierTile p={p} hunters={hunters} tier={t} color={TIER_COLORS[(t.tier_order - 1) % TIER_COLORS.length]}
+                  selected={selected === t.id} onClick={() => setSelected(s => (s === t.id ? null : t.id))} />
+                {viewer.is_owner && p.status === 'open' && !t.badge_id && <OwnerChips p={p} t={t} collections={wiring.collections} save={wiring.save} />}
+              </div>
             ))}
             {viewer.is_owner && <TierCountControl p={p} onSetCount={setTierCount} />}
           </div>
 
+          {p.check_type && <div className="mt-2"><Histogram p={p} /></div>}
+          {wiring.err && <div className="mt-2"><Alert onClose={() => wiring.setErr(null)}>{wiring.err}</Alert></div>}
+
           {selTier && (
             <TierEditor key={selTier.id} p={p} tier={selTier} color={TIER_COLORS[(selTier.tier_order - 1) % TIER_COLORS.length]}
-              isOwner={viewer.is_owner} onChanged={onChanged} />
+              isOwner={viewer.is_owner} onPatch={onPatch} hunters={hunters} />
           )}
 
           {/* Actions */}
@@ -332,12 +356,6 @@ export default function FamilyRow({ p, mods, viewer, rank, onChanged, onPublishe
               className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs border transition-colors ${panel === 'comments' ? 'border-lagoon-500/40 text-lagoon-300 bg-lagoon-500/10' : 'border-white/10 text-gray-400 hover:text-white'}`}>
               <Icon name="chat" size={13} /><span className="tabular-nums">{commentCount}</span>
             </button>
-            {viewer.is_owner && p.status === 'open' && (
-              <button onClick={() => toggle('wiring')}
-                className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs border transition-colors ${panel === 'wiring' ? 'border-lagoon-500/40 text-lagoon-300 bg-lagoon-500/10' : 'border-white/10 text-gray-400 hover:text-white'}`}>
-                <Icon name="wrench" size={13} />Wire
-              </button>
-            )}
             {p.status === 'open' && (
               <button onClick={() => toggle('edit')}
                 className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs border transition-colors ${panel === 'edit' ? 'border-lagoon-500/40 text-lagoon-300 bg-lagoon-500/10' : 'border-white/10 text-gray-400 hover:text-white'}`}>
@@ -346,12 +364,12 @@ export default function FamilyRow({ p, mods, viewer, rank, onChanged, onPublishe
             )}
           </div>
           {err && <div className="mt-2"><Alert onClose={() => setErr(null)}>{err}</Alert></div>}
+          {viewer.is_owner && p.status === 'open' && p.code_status === 'ready' && <div className="mt-3"><Publish p={p} onPublished={onPublished} /></div>}
         </div>
       </div>
 
-      {panel === 'comments' && <Comments p={p} viewer={viewer} onCount={setCommentCount} />}
+      {panel === 'comments' && <Comments p={p} viewer={viewer} mods={mods} onCount={setCommentCount} />}
       {panel === 'edit' && <EditPanel p={p} viewer={viewer} onChanged={onChanged} onClose={() => setPanel(null)} />}
-      {panel === 'wiring' && viewer.is_owner && <WiringPanel p={p} onChanged={onChanged} onPublished={onPublished} />}
     </div>
   );
 }

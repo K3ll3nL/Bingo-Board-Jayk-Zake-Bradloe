@@ -56,3 +56,18 @@ export const HOUR_CHECKS = new Set(['hours_left_in_month']);
 
 // Checks whose threshold does nothing (one fixed rule).
 export const FIXED_CHECKS = new Set(['date_award', 'first_approval_month']);
+
+// Who a simulation awards at a threshold (ids), index-aligned with sim.values. null = can't tell.
+export function earnersAt(sim, threshold) {
+  if (!sim?.evaluable || !sim.user_ids) return null;
+  const n = sim.values.length;
+  const ids = [];
+  for (let i = 0; i < n; i++) {
+    const v = sim.values[i];
+    const ok = sim.direction === 'fixed' ? v >= sim.fixed_at
+      : threshold == null || threshold === '' || !Number.isFinite(Number(threshold)) ? false
+      : sim.direction === 'lte' ? v <= Number(threshold) : v >= Number(threshold);
+    if (ok) ids.push(sim.user_ids[i]);
+  }
+  return ids;
+}

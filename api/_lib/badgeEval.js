@@ -517,7 +517,7 @@ async function simulate({ check_type, check_qualifier }, supabase, opts = {}) {
     const past = runsAt <= Date.now();
     const who = new Set(dateAwardUsers(data.users, check_qualifier));
     return { evaluable: true, trigger, direction: 'fixed', fixed_at: 1, total_users,
-      values: data.users.map(u => (!past || who.has(u.id) ? 1 : 0)),
+      values: data.users.map(u => (!past || who.has(u.id) ? 1 : 0)), user_ids: data.users.map(u => u.id),
       note: past ? 'users_on_date' : 'every_current_user',
       timing: past ? 'now' : 'on_date' };
   }
@@ -528,8 +528,9 @@ async function simulate({ check_type, check_qualifier }, supabase, opts = {}) {
     // The cron only ever awards the period that just closed, so a blank
     // qualifier ("every period") or an unfinished period awards nobody on
     // publish. Only a named, already-closed period is awarded at publish time.
+    const pmSorted = [...pm.values.entries()].sort((a, b) => a[1] - b[1]);
     return { evaluable: true, trigger, direction: pm.direction, total_users,
-      values: [...pm.values.values()].sort((a, b) => a - b),
+      values: pmSorted.map(e => e[1]), user_ids: pmSorted.map(e => e[0]),
       note: pm.scope === 'closed' ? `best_of_${pm.periods}_closed_periods` : pm.scope,
       timing: pm.scope === 'one' ? 'now' : 'period_end' };
   }
@@ -540,14 +541,15 @@ async function simulate({ check_type, check_qualifier }, supabase, opts = {}) {
       && metric.read(data.fallback) == null) {
     return { evaluable: false, reason: 'unknown_qualifier' };
   }
-  const values = [];
+  const pairs = [];
   for (const u of data.users) {
     const v = metric.read(data.ctx.get(u.id) ?? data.fallback);
-    if (v != null) values.push(v);
+    if (v != null) pairs.push([v, u.id]);
   }
-  values.sort((a, b) => a - b);
+  pairs.sort((a, b) => a[0] - b[0]);
+  const values = pairs.map(x => x[0]);
   return { evaluable: true, trigger, direction: metric.direction,
-    ...(metric.fixedAt != null ? { fixed_at: metric.fixedAt } : {}), total_users, values, timing: 'now' };
+    ...(metric.fixedAt != null ? { fixed_at: metric.fixedAt } : {}), total_users, values, user_ids: pairs.map(x => x[1]), timing: 'now' };
 }
 
 // Count of hunters a simulation awards at a threshold. The client has a copy

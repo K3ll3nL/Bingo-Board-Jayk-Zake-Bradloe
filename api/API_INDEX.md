@@ -11,26 +11,26 @@
 
 | Method | Path | Auth | Location | Notes |
 |---|---|---|---|---|
-| GET | `/api/admin/award-clocks` | public | `api/_routes/badgeBacklog.js:632` | ── Award clocks (the Timing tab) ─────────────────────────────────────────── |
-| PUT | `/api/admin/award-clocks/:rule` | public | `api/_routes/badgeBacklog.js:650` |  |
+| GET | `/api/admin/award-clocks` | public | `api/_routes/badgeBacklog.js:686` | ── Award clocks (the Timing tab) ─────────────────────────────────────────── |
+| PUT | `/api/admin/award-clocks/:rule` | public | `api/_routes/badgeBacklog.js:704` |  |
 
 ## /admin/backlog
 
 | Method | Path | Auth | Location | Notes |
 |---|---|---|---|---|
-| GET | `/api/admin/backlog` | public | `api/_routes/badgeBacklog.js:146` | ── Board: everything the Backlog tab renders, in one payload ─────────────── |
-| POST | `/api/admin/backlog` | public | `api/_routes/badgeBacklog.js:218` | ── Propose a family ──────────────────────────────────────────────────────── |
-| PATCH | `/api/admin/backlog/:id` | public | `api/_routes/badgeBacklog.js:289` | ── Edit copy (any mod) / archive (owner or proposer) ─────────────────────── |
-| DELETE | `/api/admin/backlog/:id` | public | `api/_routes/badgeBacklog.js:319` | Owner: delete an unpublished proposal outright (tiers, rankings, comments cascade). |
-| GET | `/api/admin/backlog/:id/comments` | public | `api/_routes/badgeBacklog.js:401` | ── Comments ──────────────────────────────────────────────────────────────── |
-| POST | `/api/admin/backlog/:id/comments` | public | `api/_routes/badgeBacklog.js:416` |  |
-| POST | `/api/admin/backlog/:id/publish` | public | `api/_routes/badgeBacklog.js:516` | ── Owner: publish ────────────────────────────────────────────────────────── ?dryRun=1 returns what would be awarded per tier (fresh data) and writes nothing. |
-| PUT | `/api/admin/backlog/:id/tier-count` | public | `api/_routes/badgeBacklog.js:388` | ── Tier count (owner) ────────────────────────────────────────────────────── |
-| PATCH | `/api/admin/backlog/:id/tiers/:tid` | public | `api/_routes/badgeBacklog.js:335` | Tier copy: name, description, hint (any mod). Threshold: owner only, and never on a published tier. |
-| PUT | `/api/admin/backlog/:id/tiers/:tid/art` | public | `api/_routes/badgeBacklog.js:363` | Tier art (any mod). PNG only — publish copies it to assets/badges/<key>.png. |
-| PATCH | `/api/admin/backlog/:id/wiring` | public | `api/_routes/badgeBacklog.js:430` | ── Owner: wiring ─────────────────────────────────────────────────────────── |
-| DELETE | `/api/admin/backlog/comments/:cid` | public | `api/_routes/badgeBacklog.js:274` |  |
-| PUT | `/api/admin/backlog/ranking` | public | `api/_routes/badgeBacklog.js:251` | ── My ranking: the viewer's full ordering of what they've placed ─────────── Registered before /:id routes (different methods today, but keep it so). |
+| GET | `/api/admin/backlog` | public | `api/_routes/badgeBacklog.js:183` | ── Board: everything the Backlog tab renders, in one payload ─────────────── |
+| POST | `/api/admin/backlog` | public | `api/_routes/badgeBacklog.js:263` | ── Propose a family ──────────────────────────────────────────────────────── |
+| PATCH | `/api/admin/backlog/:id` | public | `api/_routes/badgeBacklog.js:334` | ── Edit copy (any mod) / archive (owner or proposer) ─────────────────────── |
+| DELETE | `/api/admin/backlog/:id` | public | `api/_routes/badgeBacklog.js:364` | Owner: delete an unpublished proposal outright (tiers, rankings, comments cascade). |
+| GET | `/api/admin/backlog/:id/comments` | public | `api/_routes/badgeBacklog.js:446` | ── Comments ──────────────────────────────────────────────────────────────── |
+| POST | `/api/admin/backlog/:id/comments` | public | `api/_routes/badgeBacklog.js:461` |  |
+| POST | `/api/admin/backlog/:id/publish` | public | `api/_routes/badgeBacklog.js:570` | ── Owner: publish ────────────────────────────────────────────────────────── ?dryRun=1 returns what would be awarded per tier (fresh data) and writes nothing. |
+| PUT | `/api/admin/backlog/:id/tier-count` | public | `api/_routes/badgeBacklog.js:433` | ── Tier count (owner) ────────────────────────────────────────────────────── |
+| PATCH | `/api/admin/backlog/:id/tiers/:tid` | public | `api/_routes/badgeBacklog.js:380` | Tier copy: name, description, hint (any mod). Threshold: owner only, and never on a published tier. |
+| PUT | `/api/admin/backlog/:id/tiers/:tid/art` | public | `api/_routes/badgeBacklog.js:408` | Tier art (any mod). PNG only — publish copies it to assets/badges/<key>.png. |
+| PATCH | `/api/admin/backlog/:id/wiring` | public | `api/_routes/badgeBacklog.js:475` | ── Owner: wiring ─────────────────────────────────────────────────────────── |
+| DELETE | `/api/admin/backlog/comments/:cid` | public | `api/_routes/badgeBacklog.js:319` |  |
+| PUT | `/api/admin/backlog/ranking` | public | `api/_routes/badgeBacklog.js:296` | ── My ranking: the viewer's full ordering of what they've placed ─────────── Registered before /:id routes (different methods today, but keep it so). |
 
 ## /admin/badge-families
 
@@ -44,7 +44,7 @@
 
 | Method | Path | Auth | Location | Notes |
 |---|---|---|---|---|
-| POST | `/api/admin/badge-sim` | public | `api/_routes/badgeBacklog.js:622` | ── Simulator: the distribution of a check's metric over every hunter ─────── |
+| POST | `/api/admin/badge-sim` | public | `api/_routes/badgeBacklog.js:676` | ── Simulator: the distribution of a check's metric over every hunter ─────── |
 
 ## /admin/badges
 
@@ -468,10 +468,10 @@
 | `approvedCountFor` | `api/_badgeRegistry.js:671` |  |
 | `assertRealImages` | `api/_lib/core.js:89` | Throws a 400-shaped error if any supplied file is not genuinely an image. Call at the top of an upload handler, before anything is written to R2. |
 | `awardBadgesForTrigger` | `api/_lib/core.js:312` | Award any badges the user is newly eligible for given a trigger event. Fire-and-forget safe — never throws to the caller.  How it works:   1. Fetch ALL badges f |
-| `awardPlan` | `api/_lib/badgeEval.js:577` | awardPlan(badgeRow, supabase) → { timing, rows: [{ user_id, month_id? }] } Every user_badges row this badge should have RIGHT NOW, from fresh data: event trigge |
+| `awardPlan` | `api/_lib/badgeEval.js:579` | awardPlan(badgeRow, supabase) → { timing, rows: [{ user_id, month_id? }] } Every user_badges row this badge should have RIGHT NOW, from fresh data: event trigge |
 | `bestWeekByUser` | `api/_routes/stats.js:141` |  |
 | `bonusRowsFrom` | `api/_lib/collectionBonus.js:12` | Collection bonus games: pokemon_master.collection_bonus, a map of collection slug -> [game keys], e.g. { legendary_birds: ['firered_leafgreen'] }. Shared by the |
-| `bonusSimFor` | `api/_routes/badgeBacklog.js:136` | Earn counts for a proposal's bonus tiers (null when it has none). |
+| `bonusSimFor` | `api/_routes/badgeBacklog.js:173` | Earn counts for a proposal's bonus tiers (null when it has none). |
 | `broadcastLeaderboardIfQueueEmpty` | `api/_routes/approvals.js:32` | Coalesce leaderboard refreshes across a batch of approvals. A mod clearing a queue of 10 used to fire 10 `leaderboard-changed` broadcasts → 10 client refetch wa |
 | `broadcastNotificationToasts` | `api/_lib/core.js:241` | Fetch, enrich, and broadcast fresh unnotified notifications to a user's toast feed. Also fires to 'award-announcements' if any notification is an award (for oth |
 | `broadcastQueueChanged` | `api/_lib/core.js:234` | The approvals queue changed (submission in, approval/rejection out). - 'mod-approvals' is PRIVATE: only moderators can join it (RLS policy on   realtime.message |
@@ -501,7 +501,7 @@
 | `computeMonthStreak` | `api/_badgeRegistry.js:254` | Full calendar months since account creation (pure; shared with the simulator). month_streak: the longest run of consecutive months a user was active in.   activ |
 | `computeWinner` | `api/_routes/jeopardy.js:63` |  |
 | `consensusOrder` | `api/_lib/backlogOrder.js:16` | Backlog consensus order — weighted by how much of the list each mod ranked. N   = open proposals k_m = how many of them mod m has placed      weight w_m = k_m / |
-| `countAt` | `api/_lib/badgeEval.js:555` | Count of hunters a simulation awards at a threshold. The client has a copy (client/src/components/badgeBacklog/sim.js) — keep the two identical. |
+| `countAt` | `api/_lib/badgeEval.js:557` | Count of hunters a simulation awards at a threshold. The client has a copy (client/src/components/badgeBacklog/sim.js) — keep the two identical. |
 | `countShinyByGameSlug` | `api/_lib/core.js:1084` | Count rows whose `column` (game_slugs or restricted_game_slugs) contains `slug`. Replaces a per-game `count: 'exact', head: true` query -- there are 22 slugs an |
 | `createBadge` | `api/_lib/core.js:1191` | The one way a badges row is created: POST /api/badges and the Backlog's publish both call this. Uploads the art to assets/badges/<key>.png (the path the Replace |
 | `dateAwardRunsAt` | `api/_lib/badgeEval.js:190` | ── Date award ───────────────────────────────────────────────────────────────── The cron awards date D at 04:00Z on D+1 to every user that exists then. |
@@ -525,7 +525,7 @@
 | `firstOfSpeciesHolders` | `api/_lib/badgeEval.js:182` | Users holding the settled first catch of (month, pokemon) in any mode. |
 | `firstOfSpeciesMode` | `api/_badgeRegistry.js:219` | check_qualifier → mode (blank / unknown = any). |
 | `flattenTierBuckets` | `api/_lib/core.js:1113` | `tiers` is stored as buckets — { tier_code: [pokemon_id, ...] } — so within-tier order survives (arrays preserve position; a { id: tier } map can't, since JS/JS |
-| `forgetData` | `api/_lib/badgeEval.js:603` | Drop the bulk memo — after a publish or a clock change, the next read is fresh. |
+| `forgetData` | `api/_lib/badgeEval.js:605` | Drop the bulk memo — after a publish or a clock change, the next read is fresh. |
 | `gamesCountFor` | `api/_badgeRegistry.js:681` | games_count: distinct games with at least one approved entry in that mode. |
 | `generateBoardCode` | `api/_routes/jeopardy.js:26` |  |
 | `generateJeopardyPool` | `api/_lib/core.js:1746` |  |
@@ -561,6 +561,8 @@
 | `mainProofShots` | `api/_routes/upload.js:26` | Pairs the main proof shots (slots file/file2/file3) with the labels the upload form showed for each slot, then drops empty slots from both together so the array |
 | `metricFor` | `api/_lib/badgeEval.js:454` | ── Metric per check_type (simulator distribution) ────────────────────────────── direction: 'gte' — earned when metric >= threshold            'lte' — earned wh |
 | `modalTierByMon` | `api/_routes/stats.js:64` |  |
+| `modeQualifier` | `api/_routes/badgeBacklog.js:152` |  |
+| `modeSimsFor` | `api/_routes/badgeBacklog.js:160` | Earn counts for each distinct tier mode that differs from the proposal's own. |
 | `nowForMonth` | `api/_lib/core.js:168` |  |
 | `parseApprovedQualifier` | `api/_badgeRegistry.js:665` | approved_count's qualifier: "<mode>[:<game_key>,...]", mode = any \| standard \| restricted. null / '' / 'any' is every distinct species approved (the original  |
 | `parseCollectionQualifier` | `api/_badgeRegistry.js:139` |  |
@@ -602,6 +604,7 @@
 | `settleFirstOfSpecies` | `api/_lib/core.js:432` | ── First of species in a month ─────────────────────────────────────────────── first_of_species_count badges are ordinary approved-trigger badges (the approver  |
 | `shuffleArray` | `api/_lib/core.js:1301` |  |
 | `simulate` | `api/_lib/badgeEval.js:508` | simulate({ check_type, check_qualifier }, supabase) → { evaluable: false, reason } \| { evaluable: true, trigger, direction, fixed_at?, total_users, values: num |
+| `simulateCached` | `api/_routes/badgeBacklog.js:140` |  |
 | `slugify` | `api/_routes/badgeBacklog.js:99` |  |
 | `tierListLocksAt` | `api/_routes/tierList.js:94` |  |
 | `tierQualifier` | `api/_routes/badgeBacklog.js:131` | A tier flagged `bonus` (collection_complete only) publishes as '<slug>:bonus': % of the collection's bonus members caught in their bonus game. |

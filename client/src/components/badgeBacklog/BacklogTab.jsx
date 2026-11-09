@@ -264,6 +264,8 @@ export default function BacklogTab({ onPublished }) {
     catch (e) { setErr(e.message); }
   }, []);
   useEffect(() => { load(); }, [load]);
+  // Local edits land instantly; the server stays the source of truth on the next load.
+  const patchProposal = useCallback((id, fn) => setData(d => d && ({ ...d, proposals: d.proposals.map(x => (x.id === id ? fn(x) : x)) })), []);
 
   if (err && !data) return <Alert onClose={load}>{err}</Alert>;
   if (!data) {
@@ -302,8 +304,8 @@ export default function BacklogTab({ onPublished }) {
 
       {view === 'consensus'
         ? open.map(p => (
-          <FamilyRow key={p.id} p={p} mods={data.mods} viewer={data.viewer} rank={p.consensus?.rank}
-            onChanged={load} onPublished={(r) => { load(); onPublished?.(r); }} />
+          <FamilyRow key={p.id} p={p} mods={data.mods} hunters={data.hunters} viewer={data.viewer} rank={p.consensus?.rank}
+            onPatch={(fn) => patchProposal(p.id, fn)} onChanged={load} onPublished={(r) => { load(); onPublished?.(r); }} />
         ))
         : open.length > 0 && <MyOrder data={data} onSaved={load} />}
 

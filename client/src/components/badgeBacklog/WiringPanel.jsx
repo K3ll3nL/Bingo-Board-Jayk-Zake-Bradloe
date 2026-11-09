@@ -1,8 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { CHECK_TYPES_BY_TRIGGER } from '../../constants/badgeCheckTypes';
+import { CHECK_TYPES_BY_TRIGGER, describeBadgeCheck } from '../../constants/badgeCheckTypes';
 import { GAMES_BY_MANAGER_ORDER } from '../../constants/games';
 import { C, api, Icon, Alert, inputCls, inputStyle } from './ui';
-import { countAt, histogram, TIMING_LABEL, CODE_STATUS, TIER_COLORS, FIXED_CHECKS, PERCENT_CHECKS, HOUR_CHECKS } from './sim';
+import { histogram, TIMING_LABEL, CODE_STATUS, TIER_COLORS, PERCENT_CHECKS, HOUR_CHECKS } from './sim';
 
 const TRIGGERS = [
   { value: 'approved',          label: 'Approved',     icon: 'check' },
@@ -232,10 +232,23 @@ function BingoGlyph({ type, on }) {
   );
 }
 
-// ── Histogram with tier markers ───────────────────────────────────────────────
+// ── Per-badge owner chips ─────────────────────────────────────────────────────
 
-// A tier's own toggles, on its count chip: Bonus (collection checks — counts the
-// collection's bonus catches instead) and Secret (publishes as a hidden badge).
+export const BONUS_COLOR = '#fbbf24';
+export const SECRET_COLOR = '#a78bfa';
+export const MODE_CHECKS = new Set(['approved_count', 'games_count', 'hours_left_in_month']);
+const modeOf = (q) => { const m = String(q || '').split(':')[0]; return m === 'standard' || m === 'restricted' ? m : 'any'; };
+const MODE_SHORT = { any: 'All', standard: 'Std', restricted: 'Rst' };
+const MODE_COLOR = { any: '#a78bfa', standard: '#12bfce', restricted: '#e2553f' };
+export const effectiveMode = (p, t) => t.mode || modeOf(p.check_qualifier);
+
+// The simulation that applies to one badge: its bonus, its own mode, or the family's.
+export function tierSim(p, t) {
+  if (p.check_type === 'collection_complete' && t.bonus && p.bonus_sim) return p.bonus_sim;
+  if (t.mode && p.mode_sims?.[t.mode]) return p.mode_sims[t.mode];
+  return p.sim;
+}
+
 function TierFlag({ on, icon, color, title, onClick, disabled }) {
   return (
     <button type="button" onClick={onClick} disabled={disabled} title={title} aria-pressed={on}
@@ -246,81 +259,73 @@ function TierFlag({ on, icon, color, title, onClick, disabled }) {
   );
 }
 
-const BONUS_COLOR = '#fbbf24';
-const SECRET_COLOR = '#a78bfa';
+// Sits under a badge tile: Standard/Restricted/All (cycles), Bonus, Secret.
+export function OwnerChips({ p, t, collections, save }) {
+  const modeCheck = MODE_CHECKS.has(p.check_type);
+  const isCollection = p.check_type === 'collection_complete' && !!p.check_qualifier;
+  const bonusCount = collections?.find(c => c.slug === p.check_qualifier)?.bonus_count ?? 0;
+  const mode = effectiveMode(p, t);
+  const next = { any: 'standard', standard: 'restricted', restricted: 'any' }[mode];
+  const tp = (patch) => (q) => ({ ...q, tiers: q.tiers.map(x => (x.id === t.id ? { ...x, ...patch } : x)) });
+  return (
+    <div className="flex items-center justify-center gap-1 mt-1">
+      {modeCheck && (
+        <button type="button" onClick={() => save({ tier_mode: { [t.id]: next } }, tp({ mode: next }))}
+          title={`Counts ${mode === 'any' ? 'all' : mode} catches (tap for ${next === 'any' ? 'all' : next})`}
+          className="h-6 px-1.5 rounded-md border text-[10px] font-bold uppercase tracking-wide"
+          style={{ borderColor: `${MODE_COLOR[mode]}88`, background: `${MODE_COLOR[mode]}1f`, color: MODE_COLOR[mode] }}>
+          {MODE_SHORT[mode]}
+        </button>
+      )}
+      {isCollection && (
+        <TierFlag on={!!t.bonus} icon="star" color={BONUS_COLOR} disabled={!t.bonus && bonusCount === 0}
+          title={t.bonus ? 'Bonus tier (tap to undo)' : bonusCount ? `Make this the bonus tier (${bonusCount} bonus games)` : 'No bonus games on this collection yet'}
+          onClick={() => save({ tier_bonus: { [t.id]: !t.bonus } }, tp({ bonus: !t.bonus }))} />
+      )}
+      <TierFlag on={!!t.is_secret} icon={t.is_secret ? 'eyeOff' : 'eye'} color={SECRET_COLOR}
+        title={t.is_secret ? 'Secret: hidden until earned (tap to undo)' : 'Make this a secret badge'}
+        onClick={() => save({ tier_secret: { [t.id]: !t.is_secret } }, tp({ is_secret: !t.is_secret }))} />
+    </div>
+  );
+}
 
-function Histogram({ p, collections, save }) {
+// ── Distribution strip with tier markers ──────────────────────────────────────
+
+export function Histogram({ p }) {
   const sim = p.sim;
   if (!sim) return null;
   if (!sim.evaluable) {
     return <Alert type="info">Can't simulate this check yet{sim.reason ? `: ${sim.reason.replace(/_/g, ' ')}` : ''}.</Alert>;
   }
-  const fixed = sim.direction === 'fixed';
-  const total = sim.total_users || 0;
+  if (sim.direction === 'fixed') return null;
   const percent = PERCENT_CHECKS.has(p.check_type);
   const tiers = p.tiers.filter(t => !t.badge_id);
-  const isCollection = p.check_type === 'collection_complete' && !!p.check_qualifier;
-  const bonusCount = collections?.find(c => c.slug === p.check_qualifier)?.bonus_count ?? 0;
   const upTo = Math.max(percent ? 100 : 0, ...tiers.map(t => Number(t.threshold) || 0));
   const { bars, min, max, width } = histogram(sim, 40, sim.direction === 'lte' ? 0 : upTo);
+  if (!bars.length) return null;
   const fmt = (v) => `${Math.round(v * 10) / 10}${percent ? '%' : HOUR_CHECKS.has(p.check_type) ? 'h' : ''}`;
   const peak = Math.max(1, ...bars.map(b => b.count));
   const pct = (v) => (max === min ? 0 : ((v - min) / (max - min + width)) * 100);
-
   return (
-    <div className="space-y-3 min-w-0">
-      {!fixed && bars.length > 0 && (
-        <div className="relative pt-5 min-w-0">
-          <div className="flex items-end gap-px h-24">
-            {bars.map((b, i) => (
-              <div key={i} className="flex-1 min-w-0 rounded-t-sm bg-white/15" title={`${b.from === b.to ? fmt(b.from) : `${fmt(b.from)}–${fmt(b.to)}`}: ${b.count}`}
-                style={{ height: `${Math.max(b.count ? 4 : 0, (b.count / peak) * 100)}%` }} />
-            ))}
-          </div>
-          {tiers.map(t => !t.bonus && t.threshold != null && Number(t.threshold) >= min && Number(t.threshold) <= max + width && (
-            <div key={t.id} className="absolute top-0 bottom-0 pointer-events-none" style={{ left: `${pct(Number(t.threshold))}%` }}>
-              <div className="absolute top-0 -translate-x-1/2 text-[10px] font-bold tabular-nums px-1 rounded" style={{ background: TIER_COLORS[(t.tier_order - 1) % TIER_COLORS.length], color: '#111' }}>
-                {fmt(Number(t.threshold))}
-              </div>
-              <div className="absolute top-4 bottom-0 w-0.5" style={{ background: TIER_COLORS[(t.tier_order - 1) % TIER_COLORS.length] }} />
-            </div>
-          ))}
-          <div className="flex justify-between text-[10px] text-gray-600 tabular-nums mt-1"><span>{fmt(min)}</span><span>{fmt(max)}</span></div>
-        </div>
-      )}
-
-      <div className="flex flex-wrap gap-2">
-        {tiers.map(t => {
-          const color = TIER_COLORS[(t.tier_order - 1) % TIER_COLORS.length];
-          const bonus = isCollection && t.bonus;
-          const n = countAt(bonus ? p.bonus_sim : sim, t.threshold);
-          return (
-            <div key={t.id} className="flex items-center gap-2 rounded-lg pl-2.5 pr-1.5 py-1.5 border min-w-0"
-              style={{ borderColor: bonus ? `${BONUS_COLOR}88` : `${color}44`, background: bonus ? `${BONUS_COLOR}0d` : undefined }}>
-              <span className="w-2.5 h-2.5 rounded-sm shrink-0" style={{ background: color }} />
-              <span className="text-xs text-gray-300 truncate max-w-[8rem]">{t.name || `Tier ${t.tier_order}`}</span>
-              <Icon name="user" size={12} className="text-gray-500" />
-              <span className="text-sm font-bold text-white tabular-nums">{n ?? '?'}</span>
-              <span className="text-[11px] text-gray-600 tabular-nums">/ {total}</span>
-              <span className="flex items-center gap-1 ml-1">
-                {isCollection && (
-                  <TierFlag on={bonus} icon="star" color={BONUS_COLOR}
-                    disabled={!bonus && bonusCount === 0}
-                    title={bonus ? 'Bonus tier: counts catches in each member\'s bonus game (tap to undo)'
-                      : bonusCount ? `Make this the bonus tier (${bonusCount} bonus games)` : 'No bonus games on this collection yet (Collections tab)'}
-                    onClick={() => save({ tier_bonus: { [t.id]: !bonus } })} />
-                )}
-                <TierFlag on={!!t.is_secret} icon={t.is_secret ? 'eyeOff' : 'eye'} color={SECRET_COLOR}
-                  title={t.is_secret ? 'Secret: hidden until earned (tap to undo)' : 'Make this a secret badge'}
-                  onClick={() => save({ tier_secret: { [t.id]: !t.is_secret } })} />
-              </span>
-            </div>
-          );
-        })}
+    <div className="relative pt-5 min-w-0">
+      <div className="flex items-end gap-px h-12">
+        {bars.map((b, i) => (
+          <div key={i} className="flex-1 min-w-0 rounded-t-sm bg-white/15" title={`${b.from === b.to ? fmt(b.from) : `${fmt(b.from)}–${fmt(b.to)}`}: ${b.count}`}
+            style={{ height: `${Math.max(b.count ? 4 : 0, (b.count / peak) * 100)}%` }} />
+        ))}
       </div>
-      <div className="flex items-center gap-1.5 text-xs text-gray-400">
-        <Icon name="clock" size={13} />{TIMING_LABEL[sim.timing] || sim.timing}
-        {sim.note && <span className="text-gray-600">· {sim.note}</span>}
+      {tiers.map(t => !t.bonus && t.threshold != null && Number(t.threshold) >= min && Number(t.threshold) <= max + width && (
+        <div key={t.id} className="absolute top-0 bottom-0 pointer-events-none" style={{ left: `${pct(Number(t.threshold))}%` }}>
+          <div className="absolute top-0 -translate-x-1/2 text-[10px] font-bold tabular-nums px-1 rounded" style={{ background: TIER_COLORS[(t.tier_order - 1) % TIER_COLORS.length], color: '#111' }}>
+            {fmt(Number(t.threshold))}
+          </div>
+          <div className="absolute top-4 bottom-0 w-0.5" style={{ background: TIER_COLORS[(t.tier_order - 1) % TIER_COLORS.length] }} />
+        </div>
+      ))}
+      <div className="flex justify-between text-[10px] text-gray-600 tabular-nums mt-1">
+        <span>{fmt(min)}</span>
+        <span className="flex items-center gap-1"><Icon name="clock" size={11} />{TIMING_LABEL[sim.timing] || sim.timing}</span>
+        <span>{fmt(max)}</span>
       </div>
     </div>
   );
@@ -384,72 +389,101 @@ function Publish({ p, onPublished }) {
   );
 }
 
-// ── Panel ─────────────────────────────────────────────────────────────────────
 
-export default function WiringPanel({ p, onChanged, onPublished }) {
-  const [trigger, setTrigger] = useState(p.trigger || TRIGGER_OF[p.check_type] || null);
+// ── Wiring state shared by the rule line and the badge chips ──────────────────
+
+export function useWiring(p, onChanged, enabled, onPatch) {
   const [err, setErr] = useState(null);
   const [saving, setSaving] = useState(false);
   const [collections, setCollections] = useState(null);
-  useEffect(() => { if (p.trigger) setTrigger(p.trigger); }, [p.trigger]);
   useEffect(() => {
-    if (p.check_type !== 'collection_complete' || collections) return;
+    if (!enabled || p.check_type !== 'collection_complete' || collections) return;
     api('/api/admin/collections')
       .then(d => setCollections((d || []).map(x => (typeof x === 'string' ? { slug: x, bonus_count: 0 } : x))))
       .catch(() => setCollections([]));
-  }, [p.check_type, collections]);
-
-  const save = async (body) => {
-    setSaving(true); setErr(null);
-    try { await api(`/api/admin/backlog/${p.id}/wiring`, { method: 'PATCH', body }); await onChanged(); }
-    catch (e) { setErr(e.message); } finally { setSaving(false); }
+  }, [enabled, p.check_type, collections]);
+  // optimistic: a local patch applied before the request, so the chip moves at once.
+  // The server's numbers (sims) are pulled in the background afterwards.
+  const save = async (body, optimistic) => {
+    setErr(null);
+    if (optimistic && onPatch) onPatch(optimistic); else setSaving(true);
+    try {
+      await api(`/api/admin/backlog/${p.id}/wiring`, { method: 'PATCH', body });
+      if (optimistic && onPatch) onChanged(); else await onChanged();
+    } catch (e) { setErr(e.message); await onChanged(); } finally { setSaving(false); }
   };
+  return { save, saving, err, setErr, collections };
+}
 
-  const pickCheck = (ct) => save({ check_type: ct, check_qualifier: ct === 'bingo_achievement_count' ? 'any' : null });
+// ── The rule, as one sentence ─────────────────────────────────────────────────
+// Mods read it. The owner taps it to change the check and its filter in a popover
+// that sits over the card, so nothing underneath moves.
+
+export function RuleLine({ p, isOwner, wiring }) {
+  const { save, saving, collections } = wiring;
+  const [open, setOpen] = useState(false);
+  const [trigger, setTrigger] = useState(p.trigger || TRIGGER_OF[p.check_type] || null);
+  const box = useRef(null);
+  useEffect(() => { if (p.trigger) setTrigger(p.trigger); }, [p.trigger]);
+  useEffect(() => {
+    if (!open) return undefined;
+    const away = (e) => { if (box.current && !box.current.contains(e.target)) setOpen(false); };
+    document.addEventListener('mousedown', away);
+    return () => document.removeEventListener('mousedown', away);
+  }, [open]);
+
+  const sentence = p.check_type
+    ? describeBadgeCheck({ check_type: p.check_type, check_value: 'N', check_qualifier: p.check_qualifier })
+    : 'Not wired to a check yet';
   const checks = trigger ? CHECK_TYPES_BY_TRIGGER[trigger] || [] : [];
+  const pickCheck = (ct) => save({ check_type: ct, check_qualifier: ct === 'bingo_achievement_count' ? 'any' : null });
+
+  if (!isOwner) {
+    return p.check_type ? <p className="text-xs text-gray-400 mt-1.5 flex items-center gap-1.5"><Icon name="target" size={12} />{sentence}</p> : null;
+  }
 
   return (
-    <div className="border-t px-3 sm:px-4 py-4 space-y-5 min-w-0" style={{ borderColor: C.border, background: C.inner }}>
-      <Section n={1} title="Fires on">
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
-          {TRIGGERS.map(t => (
-            <Tile key={t.value} icon={t.icon} active={trigger === t.value}
-              onClick={() => { setTrigger(t.value); const list = CHECK_TYPES_BY_TRIGGER[t.value]; if (list.length === 1) pickCheck(list[0].value); }}>
-              {t.label}
-            </Tile>
-          ))}
-        </div>
-      </Section>
-
-      {trigger && checks.length > 1 && (
-        <Section n={2} title="Counts">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
-            {checks.map(c => <Tile key={c.value} icon="target" active={p.check_type === c.value} onClick={() => pickCheck(c.value)}>{c.label}</Tile>)}
+    <div className="relative mt-1.5" ref={box}>
+      <button type="button" onClick={() => setOpen(v => !v)} aria-expanded={open}
+        className={`flex items-center gap-1.5 max-w-full text-left text-xs px-2.5 py-1 rounded-lg border transition-colors ${open ? 'border-lagoon-500/50 text-white bg-lagoon-500/10' : p.check_type ? 'border-white/10 text-gray-300 hover:border-white/25' : 'border-dashed border-amber-400/50 text-amber-300'}`}>
+        <Icon name="wrench" size={12} className="shrink-0" /><span className="truncate">{sentence}</span>
+        <Icon name="edit" size={11} className="shrink-0 text-gray-500" />
+      </button>
+      {open && (
+        <div className={`absolute left-0 top-full mt-1 z-30 w-[min(34rem,calc(100vw-2rem))] max-h-[70vh] overflow-y-auto rounded-xl border p-3 space-y-4 shadow-2xl ${saving ? 'opacity-70' : ''}`}
+          style={{ background: C.card, borderColor: C.border }}>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
+            {TRIGGERS.map(t => (
+              <Tile key={t.value} icon={t.icon} active={trigger === t.value}
+                onClick={() => { setTrigger(t.value); const list = CHECK_TYPES_BY_TRIGGER[t.value]; if (list.length === 1) pickCheck(list[0].value); }}>
+                {t.label}
+              </Tile>
+            ))}
           </div>
-        </Section>
-      )}
-
-      {p.check_type && TRIGGER_OF[p.check_type] === trigger && (
-        <>
-          <Qualifier p={p} save={save} collections={collections} />
-          <Section n={checks.length > 1 ? 3 : 2} title={FIXED_CHECKS.has(p.check_type) ? 'Who earns it' : 'Who earns each tier'}>
-            <div className={saving ? 'opacity-50 transition-opacity' : 'transition-opacity'}><Histogram p={p} collections={collections} save={save} /></div>
-          </Section>
-        </>
-      )}
-
-      <Section n="✓" title="Code">
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
-          {Object.entries(CODE_STATUS).map(([k, s]) => (
-            <Tile key={k} active={p.code_status === k} color={s.color} onClick={() => save({ code_status: k })}>
-              <span className="flex items-center gap-2"><span className="w-2.5 h-2.5 rounded-full" style={{ background: s.color }} />{s.label}</span>
-            </Tile>
-          ))}
+          {trigger && checks.length > 1 && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+              {checks.map(c => <Tile key={c.value} icon="target" active={p.check_type === c.value} onClick={() => pickCheck(c.value)}>{c.label}</Tile>)}
+            </div>
+          )}
+          {p.check_type && TRIGGER_OF[p.check_type] === trigger && <Qualifier p={p} save={save} collections={collections} />}
         </div>
-      </Section>
-
-      {err && <Alert onClose={() => setErr(null)}>{err}</Alert>}
-      <Publish p={p} onPublished={onPublished} />
+      )}
     </div>
   );
 }
+
+// ── Code status: a dot the owner can cycle ────────────────────────────────────
+
+export function StatusPill({ p, isOwner, save }) {
+  const status = CODE_STATUS[p.code_status] || CODE_STATUS.unreviewed;
+  const keys = Object.keys(CODE_STATUS);
+  const next = keys[(keys.indexOf(p.code_status) + 1) % keys.length] || keys[0];
+  const body = <><span className="w-2 h-2 rounded-full" style={{ background: status.color }} />{status.label}</>;
+  const cls = 'flex items-center gap-1.5 text-[11px] font-semibold px-2 py-0.5 rounded-full border shrink-0';
+  const style = { color: status.color, borderColor: `${status.color}55`, background: `${status.color}14` };
+  return isOwner && p.status === 'open'
+    ? <button type="button" onClick={() => save({ code_status: next }, (q) => ({ ...q, code_status: next }))} className={cls} style={style} title="Code status (tap to change)">{body}</button>
+    : <span className={cls} style={style} title="Code status (owner sets it)">{body}</span>;
+}
+
+export { Publish };

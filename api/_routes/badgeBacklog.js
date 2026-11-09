@@ -129,14 +129,51 @@ async function setTierCount(proposalId, to) {
 // A tier flagged `bonus` (collection_complete only) publishes as '<slug>:bonus':
 // % of the collection's bonus members caught in their bonus game.
 function tierQualifier(p, t) {
-  return t.bonus && p.check_qualifier ? `${p.check_qualifier}:bonus` : p.check_qualifier;
+  if (t.bonus && p.check_qualifier) return `${p.check_qualifier}:bonus`;
+  return modeQualifier(p, t.mode);
+}
+
+// The list route re-simulated every proposal on every load (~1s). Backlog counts are estimates,
+// so a minute-old simulation is fine; publish and the dry run use awardPlan (always fresh).
+const SIM_TTL_MS = 60 * 1000;
+const simMemo = new Map();
+async function simulateCached(args, db) {
+  const key = JSON.stringify(args);
+  const hit = simMemo.get(key);
+  if (hit && Date.now() - hit.at < SIM_TTL_MS) return hit.sim;
+  const sim = await simulate(args, db);
+  if (sim?.evaluable) simMemo.set(key, { at: Date.now(), sim });
+  return sim;
+}
+
+// Mode-based checks (Standard / Restricted / All) can differ per badge. A tier's own
+// mode overrides the proposal's; approved_count keeps its game filter.
+const MODE_CHECKS = new Set(['approved_count', 'games_count', 'hours_left_in_month']);
+function modeQualifier(p, mode) {
+  if (!mode || !MODE_CHECKS.has(p.check_type)) return p.check_qualifier;
+  const games = p.check_type === 'approved_count' ? String(p.check_qualifier || '').split(':')[1] : null;
+  if (games) return `${mode}:${games}`;
+  return mode === 'any' ? null : mode;
+}
+
+// Earn counts for each distinct tier mode that differs from the proposal's own.
+async function modeSimsFor(p, tiers) {
+  if (!MODE_CHECKS.has(p.check_type)) return null;
+  const own = String(p.check_qualifier || 'any').split(':')[0];
+  const out = {};
+  for (const mode of new Set(tiers.filter(t => t.mode && !t.badge_id).map(t => t.mode))) {
+    if (mode === own) continue;
+    try { out[mode] = await simulateCached({ check_type: p.check_type, check_qualifier: modeQualifier(p, mode) }, supabase); }
+    catch (e) { out[mode] = { evaluable: false, reason: 'error', message: e.message }; }
+  }
+  return Object.keys(out).length ? out : null;
 }
 
 // Earn counts for a proposal's bonus tiers (null when it has none).
 async function bonusSimFor(p, tiers) {
   if (p.check_type !== 'collection_complete' || !p.check_qualifier) return null;
   if (!tiers.some(t => t.bonus && !t.badge_id)) return null;
-  try { return await simulate({ check_type: p.check_type, check_qualifier: `${p.check_qualifier}:bonus` }, supabase); }
+  try { return await simulateCached({ check_type: p.check_type, check_qualifier: `${p.check_qualifier}:bonus` }, supabase); }
   catch (e) { return { evaluable: false, reason: 'error', message: e.message }; }
 }
 
@@ -152,6 +189,8 @@ module.exports = function register(app) {
         isOwner(viewerId),
       ]);
       if (pErr) throw pErr;
+      const { data: hunterRows } = await supabase.from('users').select('id, display_name, username, avatar_url');
+      const hunters = (hunterRows || []).map(u => ({ id: u.id, name: u.display_name || u.username || 'Hunter', avatar_url: u.avatar_url }));
       const ids = (proposals || []).map(p => p.id);
 
       const [tiersR, rankR, commentsR, familiesR] = await Promise.all([
@@ -178,8 +217,12 @@ module.exports = function register(app) {
       // Earn counts for every wired proposal (bulk data is memoised per trigger).
       const sims = {};
       await Promise.all(open.filter(p => p.check_type).map(async (p) => {
-        try { sims[p.id] = await simulate({ check_type: p.check_type, check_qualifier: p.check_qualifier }, supabase); }
+        try { sims[p.id] = await simulateCached({ check_type: p.check_type, check_qualifier: p.check_qualifier }, supabase); }
         catch (e) { sims[p.id] = { evaluable: false, reason: 'error', message: e.message }; }
+      }));
+      const modeSims = {};
+      await Promise.all(open.map(async (p) => {
+        modeSims[p.id] = await modeSimsFor(p, (tiersR.data || []).filter(t => t.proposal_id === p.id));
       }));
       const bonusSims = {};
       await Promise.all(open.map(async (p) => {
@@ -198,12 +241,14 @@ module.exports = function register(app) {
         } : null,
         sim: sims[p.id] ?? null,
         bonus_sim: bonusSims[p.id] ?? null,
+        mode_sims: modeSims[p.id] ?? null,
         comment_count: commentCount[p.id] || 0,
       }));
 
       res.json({
         proposals: out,
         mods: mods.map(m => ({ ...m, ...weights[m.id] })),
+        hunters,
         viewer: {
           id: viewerId,
           is_owner: owner,
@@ -474,12 +519,15 @@ module.exports = function register(app) {
       // Per-tier flags: { [tierId]: boolean }. Bonus only makes sense on a collection.
       const tierPatches = new Map();
       const tierIds = new Set(tiers.map(t => t.id));
-      for (const [field, key] of [['bonus', 'tier_bonus'], ['is_secret', 'tier_secret']]) {
+      for (const [field, key] of [['bonus', 'tier_bonus'], ['is_secret', 'tier_secret'], ['mode', 'tier_mode']]) {
         if (b[key] == null) continue;
         if (typeof b[key] !== 'object') throw fail(400, `${key} must be an object`);
         for (const [tid, v] of Object.entries(b[key])) {
           if (!tierIds.has(tid)) throw fail(404, 'Tier not found');
-          tierPatches.set(tid, { ...tierPatches.get(tid), [field]: !!v });
+          if (field === 'mode') {
+            if (v !== null && !['any', 'standard', 'restricted'].includes(v)) throw fail(400, 'Mode must be any|standard|restricted');
+            tierPatches.set(tid, { ...tierPatches.get(tid), mode: v });
+          } else tierPatches.set(tid, { ...tierPatches.get(tid), [field]: !!v });
         }
       }
       const nextType = patch.check_type !== undefined ? patch.check_type : p.check_type;
@@ -490,6 +538,12 @@ module.exports = function register(app) {
       // A new check or collection makes old bonus picks meaningless — clear them.
       if (nextType !== p.check_type || nextQual !== p.check_qualifier) {
         for (const t of tiers) if (t.bonus) tierPatches.set(t.id, { ...tierPatches.get(t.id), bonus: false });
+      }
+      if (!MODE_CHECKS.has(nextType)) {
+        for (const t of tiers) if (t.mode) tierPatches.set(t.id, { ...tierPatches.get(t.id), mode: null });
+      }
+      if ([...tierPatches.values()].some(t => t.mode) && !MODE_CHECKS.has(nextType)) {
+        throw fail(400, 'Only Approvals, Games and Hours-left checks have a per-badge mode');
       }
       if (!Object.keys(patch).length && !tierPatches.size) throw fail(400, 'Nothing to change');
 
@@ -505,9 +559,9 @@ module.exports = function register(app) {
       }
       const nextTiers = tierPatches.size ? await loadTiers(p.id) : tiers;
       const sim = data.check_type
-        ? await simulate({ check_type: data.check_type, check_qualifier: data.check_qualifier }, supabase)
+        ? await simulateCached({ check_type: data.check_type, check_qualifier: data.check_qualifier }, supabase)
         : null;
-      res.json({ ...data, tiers: nextTiers, sim, bonus_sim: await bonusSimFor(data, nextTiers) });
+      res.json({ ...data, tiers: nextTiers, sim, bonus_sim: await bonusSimFor(data, nextTiers), mode_sims: await modeSimsFor(data, nextTiers) });
     } catch (err) { send(res, err); }
   });
 
